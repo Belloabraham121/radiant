@@ -196,6 +196,20 @@
   animation: hero-bob 6s ease-in-out infinite;
 }
 
+@keyframes hero-wiggle {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+.hero-wiggle {
+  animation: hero-wiggle 2.6s ease-in-out infinite;
+}
+
 @keyframes hero-scroll-hint {
   0%,
   100% {
@@ -240,6 +254,7 @@
   .hero-spin-slow,
   .hero-bob,
   .hero-scroll-hint,
+  .hero-wiggle,
   .hero-blink span {
     animation: none;
   }

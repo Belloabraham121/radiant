@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -44,20 +45,20 @@ export function FooterSection() {
           time.
         </p>
         <div className="mt-10 flex justify-center">
-          <a
-            href="#"
+          <Link
+            href="/auth"
             className="group flex items-center gap-2 rounded-full bg-[var(--hero-amber)] px-9 py-4 text-base font-bold text-[var(--hero-ink)] shadow-[5px_5px_0_var(--hero-coral)] transition-transform hover:-translate-y-1"
           >
             Try Radiant
             <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
-          </a>
+          </Link>
         </div>
       </div>
 
       <div className="mx-auto mt-20 flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-3 border-t border-[var(--hero-bg)]/15 pt-8 text-sm font-semibold text-[var(--hero-bg)]/50">
-        <a href="#" className="transition-colors hover:text-[var(--hero-amber)]">
+        <Link href="/explorer" className="transition-colors hover:text-[var(--hero-amber)]">
           Explorer
-        </a>
+        </Link>
         <a href="#" className="transition-colors hover:text-[var(--hero-amber)]">
           Docs
         </a>

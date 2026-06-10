@@ -1,0 +1,96 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { FolderKanban, MessageSquare, Plus, Settings, Sparkles } from "lucide-react";
+import { CHATS, USER } from "@/lib/app-data";
+
+const NAV = [
+  { href: "/app", label: "Chats", Icon: MessageSquare },
+  { href: "/app/projects", label: "Projects", Icon: FolderKanban },
+  { href: "/app/settings", label: "Settings", Icon: Settings },
+];
+
+export function Sidebar() {
+  const pathname = usePathname();
+
+  return (
+    <aside className="hidden w-80 shrink-0 flex-col border-l-2 border-[var(--hero-ink)] bg-white md:flex">
+      <div className="flex items-center justify-between border-b-2 border-[var(--hero-ink)] px-5 py-4">
+        <Link href="/" className="flex items-center gap-2 font-heading text-xl font-extrabold">
+          <Sparkles className="size-5 text-[var(--hero-amber)]" strokeWidth={2.5} />
+          Radiant
+        </Link>
+        <Link
+          href="/app"
+          className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-1.5 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
+        >
+          <Plus className="size-3.5" strokeWidth={3} />
+          New chat
+        </Link>
+      </div>
+
+      <nav className="flex gap-1.5 border-b-2 border-[var(--hero-ink)] px-4 py-3">
+        {NAV.map(({ href, label, Icon }) => {
+          const active =
+            href === "/app" ? pathname === "/app" : pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border-2 px-2 py-2 text-xs font-bold transition-all ${
+                active
+                  ? "border-[var(--hero-ink)] bg-[var(--hero-ink)] text-[var(--hero-bg)]"
+                  : "border-transparent hover:border-[var(--hero-ink)]"
+              }`}
+            >
+              <Icon className="size-3.5" strokeWidth={2.5} />
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--hero-ink)]/35">
+          Your chats
+        </p>
+        <div className="flex flex-col gap-2">
+          {CHATS.map((chat, i) => (
+            <Link
+              key={chat.id}
+              href="/app"
+              className={`group rounded-2xl border-2 px-4 py-3 transition-all ${
+                i === 0
+                  ? "border-[var(--hero-ink)] bg-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-ink)]"
+                  : "border-transparent hover:border-[var(--hero-ink)] hover:bg-[var(--hero-bg)]"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold">{chat.title}</span>
+                <span className="text-[11px] font-bold text-[var(--hero-ink)]/35">
+                  {chat.time}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-xs font-medium text-[var(--hero-ink)]/50">
+                {chat.preview}
+              </p>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 border-t-2 border-[var(--hero-ink)] px-5 py-4">
+        <span className="flex size-10 items-center justify-center rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)] font-heading text-base font-extrabold text-white">
+          {USER.name[0]}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold">{USER.name}</p>
+          <p className="truncate font-mono text-[11px] font-semibold text-[var(--hero-ink)]/45">
+            {USER.wallet}
+          </p>
+        </div>
+      </div>
+    </aside>
+  );
+}

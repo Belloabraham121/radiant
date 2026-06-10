@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -52,19 +53,19 @@ export function Hero() {
           Radiant
         </a>
         <nav className="hidden items-center gap-8 text-sm font-semibold md:flex">
-          <a href="#" className="transition-colors hover:text-[var(--hero-blue)]">
+          <Link href="/explorer" className="transition-colors hover:text-[var(--hero-blue)]">
             Explorer
-          </a>
+          </Link>
           <a href="#" className="transition-colors hover:text-[var(--hero-blue)]">
             Docs
           </a>
         </nav>
-        <a
-          href="#"
+        <Link
+          href="/auth"
           className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-5 py-2.5 text-sm font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-amber)] transition-transform hover:-translate-y-0.5"
         >
           Try Radiant
-        </a>
+        </Link>
       </header>
 
       {/* title zone */}
@@ -100,19 +101,19 @@ export function Hero() {
         </p>
 
         <div data-hero-fade className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
-          <a
-            href="#"
+          <Link
+            href="/auth"
             className="group flex items-center gap-2 rounded-full bg-[var(--hero-ink)] px-8 py-4 text-base font-bold text-[var(--hero-bg)] shadow-[5px_5px_0_var(--hero-coral)] transition-transform hover:-translate-y-1"
           >
             Try Radiant
             <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
-          </a>
-          <a
-            href="#"
+          </Link>
+          <Link
+            href="/explorer"
             className="rounded-full border-2 border-[var(--hero-ink)] bg-white px-8 py-4 text-base font-bold shadow-[5px_5px_0_var(--hero-blue)] transition-transform hover:-translate-y-1"
           >
             Browse Explorer
-          </a>
+          </Link>
         </div>
 
         {/* command marquee */}
