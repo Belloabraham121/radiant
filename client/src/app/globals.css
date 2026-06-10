@@ -9,7 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-bricolage);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -126,5 +126,121 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ── Radiant hero ───────────────────────────────────────────── */
+
+:root {
+  --hero-bg: #faf6ec;
+  --hero-ink: #1b1610;
+  --hero-coral: #ff5d46;
+  --hero-blue: #3865ff;
+  --hero-mint: #00c478;
+  --hero-amber: #ffb01f;
+  --hero-violet: #8e5bff;
+}
+
+.hero-selection ::selection {
+  background: var(--hero-amber);
+  color: var(--hero-ink);
+}
+
+@keyframes hero-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.hero-marquee {
+  animation: hero-marquee 28s linear infinite;
+}
+
+.hero-marquee-slow {
+  animation: hero-marquee 44s linear infinite;
+}
+
+.hero-marquee-reverse {
+  animation: hero-marquee 44s linear infinite reverse;
+}
+
+.text-outline-cream {
+  -webkit-text-stroke: 2px rgba(250, 246, 236, 0.4);
+  color: transparent;
+}
+
+@keyframes hero-spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hero-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--bob-tilt, 0deg));
+  }
+  50% {
+    transform: translateY(-14px) rotate(var(--bob-tilt, 0deg));
+  }
+}
+
+.hero-spin-slow {
+  animation: hero-spin-slow 24s linear infinite;
+}
+
+.hero-bob {
+  animation: hero-bob 6s ease-in-out infinite;
+}
+
+@keyframes hero-scroll-hint {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+.hero-scroll-hint {
+  animation: hero-scroll-hint 1.6s ease-in-out infinite;
+}
+
+@keyframes hero-blink {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+.hero-blink span {
+  animation: hero-blink 1.2s ease-in-out infinite;
+}
+
+.hero-blink span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.hero-blink span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-marquee,
+  .hero-marquee-slow,
+  .hero-marquee-reverse,
+  .hero-spin-slow,
+  .hero-bob,
+  .hero-scroll-hint,
+  .hero-blink span {
+    animation: none;
   }
 }
