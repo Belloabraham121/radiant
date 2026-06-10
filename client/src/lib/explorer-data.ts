@@ -29,10 +29,19 @@ export type Agent = {
 };
 
 export type AgentTx = {
+  /** Truncated for list views. */
   hash: string;
+  fullHash: string;
   action: string;
+  /** Truncated for list views. */
   from: string;
+  fullFrom: string;
+  /** Truncated for list views. */
+  to: string;
+  fullTo: string;
   amountSui: number;
+  gasSui: number;
+  block: number;
   minutesAgo: number;
   status: "success" | "pending";
 };
@@ -331,27 +340,36 @@ const ACTIONS: Record<AgentCategory, string[]> = {
 
 const HEX = "0123456789abcdef";
 
+function hexAddr(rand: () => number): string {
+  return (
+    "0x" + Array.from({ length: 64 }, () => HEX[Math.floor(rand() * 16)]).join("")
+  );
+}
+
+function truncAddr(full: string): string {
+  return `${full.slice(0, 6)}…${full.slice(-4)}`;
+}
+
 export function makeTxs(agent: Agent, count = 8): AgentTx[] {
   const rand = mulberry32(hashSeed(agent.id + ":txs"));
   const actions = ACTIONS[agent.category];
   let minutes = 0;
   return Array.from({ length: count }, (_, i) => {
     minutes += 1 + Math.floor(rand() * 42);
-    const hash =
-      "0x" +
-      Array.from({ length: 8 }, () => HEX[Math.floor(rand() * 16)]).join("") +
-      "…" +
-      Array.from({ length: 4 }, () => HEX[Math.floor(rand() * 16)]).join("");
-    const from =
-      "0x" +
-      Array.from({ length: 4 }, () => HEX[Math.floor(rand() * 16)]).join("") +
-      "…" +
-      Array.from({ length: 4 }, () => HEX[Math.floor(rand() * 16)]).join("");
+    const fullHash = hexAddr(rand);
+    const fullFrom = hexAddr(rand);
+    const fullTo = hexAddr(rand);
     return {
-      hash,
+      hash: truncAddr(fullHash),
+      fullHash,
       action: actions[Math.floor(rand() * actions.length)],
-      from,
+      from: truncAddr(fullFrom),
+      fullFrom,
+      to: truncAddr(fullTo),
+      fullTo,
       amountSui: Math.round((5 + rand() * 480) * 10) / 10,
+      gasSui: Math.round((0.001 + rand() * 0.012) * 10000) / 10000,
+      block: 18_420_000 + Math.floor(rand() * 48_000) - minutes * 12,
       minutesAgo: minutes,
       status: i === 0 && rand() > 0.5 ? "pending" : "success",
     };
