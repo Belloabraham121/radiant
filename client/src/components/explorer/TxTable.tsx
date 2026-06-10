@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
-import { ArrowUpRight, Copy, ExternalLink } from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,10 @@ import {
 import { fmtAgo, type AgentTx } from "@/lib/explorer-data";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
+
+/** One grid template for header + every row — keeps columns vertically aligned. */
+const TX_GRID =
+  "grid grid-cols-[6.75rem_8.5rem_6.5rem_5.25rem_4.5rem_3.5rem] items-center gap-x-3 sm:grid-cols-[minmax(6.75rem,1.1fr)_minmax(8.5rem,1.3fr)_minmax(6.5rem,1fr)_minmax(5.25rem,0.8fr)_minmax(4.5rem,0.75fr)_minmax(3.5rem,0.6fr)]";
 
 function fmtTimestamp(minutesAgo: number): string {
   const d = new Date(Date.now() - minutesAgo * 60_000);
@@ -29,7 +33,7 @@ function fmtTimestamp(minutesAgo: number): string {
 function StatusBadge({ status }: { status: AgentTx["status"] }) {
   return (
     <span
-      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+      className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
         status === "success"
           ? "bg-[var(--hero-mint)]/15 text-[var(--hero-mint)]"
           : "bg-[var(--hero-amber)]/20 text-[#b97700]"
@@ -171,53 +175,27 @@ function TxRow({
       type="button"
       data-tx-row
       onClick={() => onSelect(tx)}
-      className="w-full px-4 py-4 text-left transition-colors hover:bg-[var(--hero-bg)] sm:px-6 sm:py-3.5"
+      className={`${TX_GRID} w-full min-w-[640px] border-b border-[var(--hero-ink)]/10 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-[var(--hero-bg)] sm:px-6`}
     >
-      {/* mobile layout */}
-      <div className="flex flex-col gap-2 sm:hidden">
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className="min-w-0 truncate font-mono text-xs font-semibold underline decoration-dotted underline-offset-2"
-            style={{ color: accent }}
-          >
-            {tx.hash}
-          </span>
-          <div className="flex shrink-0 items-center gap-2">
-            <StatusBadge status={tx.status} />
-            <span className="text-[11px] font-semibold text-[var(--hero-ink)]/40">
-              {fmtAgo(tx.minutesAgo)}
-            </span>
-          </div>
-        </div>
-        <p className="text-sm font-bold">{tx.action}</p>
-        <div className="flex items-center justify-between gap-2 text-xs font-semibold text-[var(--hero-ink)]/50">
-          <span className="truncate font-mono">{tx.from}</span>
-          <span className="shrink-0 font-bold text-[var(--hero-ink)]">
-            {tx.amountSui.toLocaleString("en-US")} SUI
-          </span>
-        </div>
-        <span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: accent }}>
-          View details
-          <ArrowUpRight className="size-3.5" strokeWidth={2.5} />
-        </span>
-      </div>
-
-      {/* desktop layout */}
-      <div className="hidden sm:grid sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_auto] sm:items-center sm:gap-3 sm:text-sm">
-        <span
-          className="truncate font-mono text-xs font-semibold underline decoration-dotted underline-offset-2"
-          style={{ color: accent }}
-        >
-          {tx.hash}
-        </span>
-        <span className="truncate font-bold">{tx.action}</span>
-        <span className="truncate font-mono text-xs text-[var(--hero-ink)]/45">{tx.from}</span>
-        <span className="font-bold">{tx.amountSui.toLocaleString("en-US")} SUI</span>
+      <span
+        className="truncate text-center font-mono text-xs font-semibold underline decoration-dotted underline-offset-2"
+        style={{ color: accent }}
+      >
+        {tx.hash}
+      </span>
+      <span className="truncate text-center text-sm font-bold">{tx.action}</span>
+      <span className="truncate text-center font-mono text-xs text-[var(--hero-ink)]/45">
+        {tx.from}
+      </span>
+      <span className="truncate text-center text-sm font-bold tabular-nums">
+        {tx.amountSui.toLocaleString("en-US")} SUI
+      </span>
+      <span className="flex justify-center">
         <StatusBadge status={tx.status} />
-        <span className="text-xs font-semibold text-[var(--hero-ink)]/40">
-          {fmtAgo(tx.minutesAgo)}
-        </span>
-      </div>
+      </span>
+      <span className="truncate text-center text-xs font-semibold tabular-nums text-[var(--hero-ink)]/40">
+        {fmtAgo(tx.minutesAgo)}
+      </span>
     </button>
   );
 }
@@ -266,20 +244,23 @@ export function TxTable({ txs, accent }: { txs: AgentTx[]; accent: string }) {
           </span>
         </div>
 
-        {/* desktop column headers */}
-        <div className="hidden border-b border-[var(--hero-ink)]/10 px-6 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/35 sm:grid sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_auto] sm:gap-3">
-          <span>Hash</span>
-          <span>Action</span>
-          <span>From</span>
-          <span>Amount</span>
-          <span>Status</span>
-          <span>Time</span>
-        </div>
+        <div className="overflow-x-auto">
+          <div className="mx-auto min-w-[640px] max-w-full">
+            <div
+              className={`${TX_GRID} border-b border-[var(--hero-ink)]/10 px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/35 sm:px-6`}
+            >
+              <span className="text-center">Hash</span>
+              <span className="text-center">Action</span>
+              <span className="text-center">From</span>
+              <span className="text-center">Amount</span>
+              <span className="text-center">Status</span>
+              <span className="text-center">Time</span>
+            </div>
 
-        <div className="divide-y divide-[var(--hero-ink)]/10">
-          {txs.map((tx) => (
-            <TxRow key={tx.fullHash} tx={tx} accent={accent} onSelect={openTx} />
-          ))}
+            {txs.map((tx) => (
+              <TxRow key={tx.fullHash} tx={tx} accent={accent} onSelect={openTx} />
+            ))}
+          </div>
         </div>
       </div>
 
