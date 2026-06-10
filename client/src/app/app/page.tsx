@@ -122,19 +122,14 @@ export default function ChatPage() {
 
   return (
     <div ref={ref} className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-3 border-b-2 border-[var(--hero-ink)] bg-white px-6 py-4">
+      <header className={`${CHAT_COL} flex items-center justify-between gap-3 px-6 py-4`}>
         <div className="flex min-w-0 items-center gap-3">
           <SidebarToggle />
-          <div className="min-w-0">
-            <h1 className="font-heading text-lg font-extrabold tracking-tight">
-              Japan trip savings
-            </h1>
-            <p className="text-xs font-bold text-[var(--hero-ink)]/40">
-              your agent remembers everything here
-            </p>
-          </div>
+          <h1 className="font-heading text-lg font-extrabold tracking-tight">
+            Japan trip savings
+          </h1>
         </div>
-        <span className="flex items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold text-[var(--hero-mint)]">
+        <span className="flex shrink-0 items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold text-[var(--hero-mint)]">
           <span className="size-2 rounded-full bg-current" />
           agent online
         </span>
