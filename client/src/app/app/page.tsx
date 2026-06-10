@@ -155,8 +155,8 @@ export default function ChatPage() {
         <div ref={endRef} />
       </div>
 
-      <form onSubmit={send} className="border-t-2 border-[var(--hero-ink)] bg-white px-6 py-4">
-        <div className="flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]">
+      <form onSubmit={send} className="px-6 py-4">
+        <div className="mx-auto flex w-full max-w-[53.76rem] items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
