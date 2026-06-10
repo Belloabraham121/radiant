@@ -10,6 +10,8 @@ import { CANNED_REPLIES, MESSAGES, type Message } from "@/lib/app-data";
 
 gsap.registerPlugin(useGSAP);
 
+const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
+
 function Bubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   return (
@@ -138,25 +140,27 @@ export default function ChatPage() {
         </span>
       </header>
 
-      <div className="flex-1 space-y-6 overflow-y-auto px-6 py-8 md:px-10">
-        {messages.map((m) => (
-          <Bubble key={m.id} message={m} />
-        ))}
+      <div className="flex-1 overflow-y-auto px-6 py-8">
+        <div className={`${CHAT_COL} space-y-6`}>
+          {messages.map((m) => (
+            <Bubble key={m.id} message={m} />
+          ))}
 
-        {typing && (
-          <div className="flex justify-start">
-            <div className="hero-blink flex items-center gap-1.5 rounded-3xl rounded-bl-md border-2 border-[var(--hero-ink)] bg-white px-5 py-4 shadow-[4px_4px_0_var(--hero-ink)]">
-              <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
-              <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
-              <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
+          {typing && (
+            <div className="flex justify-start">
+              <div className="hero-blink flex items-center gap-1.5 rounded-3xl rounded-bl-md border-2 border-[var(--hero-ink)] bg-white px-5 py-4 shadow-[4px_4px_0_var(--hero-ink)]">
+                <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
+                <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
+                <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
+              </div>
             </div>
-          </div>
-        )}
-        <div ref={endRef} />
+          )}
+          <div ref={endRef} />
+        </div>
       </div>
 
       <form onSubmit={send} className="px-6 py-4">
-        <div className="mx-auto flex w-full max-w-[53.76rem] items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]">
+        <div className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}>
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -172,7 +176,7 @@ export default function ChatPage() {
             <ArrowUp className="size-5" strokeWidth={2.5} />
           </button>
         </div>
-        <p className="mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35">
+        <p className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}>
           Radiant signs transactions with your wallet. Big moves always ask first.
         </p>
       </form>
