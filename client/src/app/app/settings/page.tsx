@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Copy, Eye, EyeOff, Fingerprint, KeyRound, ShieldCheck } from "lucide-react";
+import { SidebarToggle } from "@/components/app/Sidebar";
 import { CREDENTIALS, USER } from "@/lib/app-data";
 
 gsap.registerPlugin(useGSAP);
@@ -152,13 +153,16 @@ export default function SettingsPage() {
 
   return (
     <div ref={ref} className="mx-auto w-full max-w-3xl px-6 py-10 md:px-10">
-      <div data-settings-block>
-        <h1 className="font-heading text-3xl font-extrabold tracking-tight md:text-4xl">
-          Settings
-        </h1>
-        <p className="mt-2 text-sm font-medium text-[var(--hero-ink)]/55">
-          Your account, your agent&apos;s vault, and how much rope you give it.
-        </p>
+      <div data-settings-block className="flex items-start gap-3">
+        <SidebarToggle />
+        <div>
+          <h1 className="font-heading text-3xl font-extrabold tracking-tight md:text-4xl">
+            Settings
+          </h1>
+          <p className="mt-2 text-sm font-medium text-[var(--hero-ink)]/55">
+            Your account, your agent&apos;s vault, and how much rope you give it.
+          </p>
+        </div>
       </div>
 
       {/* profile */}

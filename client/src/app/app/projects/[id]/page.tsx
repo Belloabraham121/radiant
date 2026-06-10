@@ -6,6 +6,7 @@ import { use, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ArrowLeft, ArrowUpRight, Bot, Globe, PartyPopper, Rocket } from "lucide-react";
+import { SidebarToggle } from "@/components/app/Sidebar";
 import { getProject } from "@/lib/app-data";
 import { AGENTS, fmt, getAgent, makeSeries, makeTxs } from "@/lib/explorer-data";
 import { CountUp } from "@/components/explorer/CountUp";
@@ -48,13 +49,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   return (
     <div ref={ref} className="mx-auto w-full max-w-4xl px-6 py-10 md:px-10">
-      <Link
-        href="/app/projects"
-        className="mb-6 flex w-fit items-center gap-1.5 text-sm font-bold text-[var(--hero-ink)]/50 transition-colors hover:text-[var(--hero-ink)]"
-      >
-        <ArrowLeft className="size-4" strokeWidth={2.5} />
-        All projects
-      </Link>
+      <div className="mb-6 flex items-center gap-3">
+        <SidebarToggle />
+        <Link
+          href="/app/projects"
+          className="flex w-fit items-center gap-1.5 text-sm font-bold text-[var(--hero-ink)]/50 transition-colors hover:text-[var(--hero-ink)]"
+        >
+          <ArrowLeft className="size-4" strokeWidth={2.5} />
+          All projects
+        </Link>
+      </div>
 
       {/* header */}
       <div

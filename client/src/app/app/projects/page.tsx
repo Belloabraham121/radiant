@@ -5,6 +5,7 @@ import { useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ArrowUpRight, Globe, Hammer, Rocket } from "lucide-react";
+import { SidebarToggle } from "@/components/app/Sidebar";
 import { PROJECTS } from "@/lib/app-data";
 import { getAgent, fmt } from "@/lib/explorer-data";
 
@@ -30,13 +31,18 @@ export default function ProjectsPage() {
 
   return (
     <div ref={ref} className="mx-auto w-full max-w-4xl px-6 py-10 md:px-10">
-      <h1 className="font-heading text-3xl font-extrabold tracking-tight md:text-4xl">
-        Your projects
-      </h1>
-      <p className="mt-2 max-w-xl text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
-        Everything your agent has built for you. It keeps all of these in its memory — new chats
-        can reference, reuse, and extend any of them.
-      </p>
+      <div className="mb-6 flex items-start gap-3">
+        <SidebarToggle />
+        <div>
+          <h1 className="font-heading text-3xl font-extrabold tracking-tight md:text-4xl">
+            Your projects
+          </h1>
+          <p className="mt-2 max-w-xl text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
+            Everything your agent has built for you. It keeps all of these in its memory — new
+            chats can reference, reuse, and extend any of them.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         {PROJECTS.map((project) => {
