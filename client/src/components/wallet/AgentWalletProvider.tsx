@@ -14,27 +14,49 @@ import { usePrivy, useSigners } from "@privy-io/react-auth";
 import { useCreateWallet as useCreateExtendedChainWallet } from "@privy-io/react-auth/extended-chains";
 import { useCreateWallet as useCreateSolanaWallet } from "@privy-io/react-auth/solana";
 import { fetchAuthMe } from "@/lib/auth-api";
+import { loadAgentChainBalance } from "@/lib/agent-wallet-balances";
 import {
   getDefaultAgentChainId,
   getEnabledAgentChainIds,
   type AgentChainId,
 } from "@/lib/agent-chains";
+import { getChainMeta } from "@/lib/chain-meta";
 import {
   ensureAgentChainWallet,
   type ChainWalletCreators,
 } from "@/lib/ensure-agent-chain-wallet";
-import { fetchWalletBalances } from "@/lib/wallet-api";
+import type { AuthMeAgentWallet } from "@/lib/auth-api";
 
 export type AgentWalletStatus = "idle" | "loading" | "ready" | "error";
 
+export type ChainWalletState = {
+  chainId: AgentChainId;
+  label: string;
+  nativeSymbol: string;
+  address: string | null;
+  balanceDisplay: number | null;
+  funded: boolean;
+  signerAdded: boolean;
+};
+
 export type AgentWalletContextValue = {
   status: AgentWalletStatus;
+  defaultChainId: AgentChainId;
+  enabledChains: AgentChainId[];
+  wallets: ChainWalletState[];
+  /** Default-chain wallet (sidebar / primary UI). */
+  primaryWallet: ChainWalletState | null;
+  /** @deprecated Prefer `primaryWallet` or `wallets`. */
   suiAddress: string | null;
+  /** @deprecated Prefer `primaryWallet.balanceDisplay`. */
   balanceSui: number | null;
+  /** @deprecated Prefer `primaryWallet.funded`. */
   funded: boolean;
+  /** @deprecated Prefer per-chain `signerAdded`. */
   signerAdded: boolean;
   error: string | null;
   refresh: () => void;
+  getWallet: (chainId: AgentChainId) => ChainWalletState | undefined;
 };
 
 const AgentWalletContext = createContext<AgentWalletContextValue | null>(null);
@@ -42,6 +64,35 @@ const AgentWalletContext = createContext<AgentWalletContextValue | null>(null);
 function onboardingErrorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return "Could not set up your agent wallet. Please try again.";
+}
+
+function emptyChainWallet(chainId: AgentChainId): ChainWalletState {
+  const meta = getChainMeta(chainId);
+  return {
+    chainId,
+    label: meta.label,
+    nativeSymbol: meta.nativeSymbol,
+    address: null,
+    balanceDisplay: null,
+    funded: false,
+    signerAdded: false,
+  };
+}
+
+function fromRegistered(
+  chainId: AgentChainId,
+  registered: AuthMeAgentWallet,
+): ChainWalletState {
+  const meta = getChainMeta(chainId);
+  return {
+    chainId,
+    label: meta.label,
+    nativeSymbol: meta.nativeSymbol,
+    address: registered.address,
+    balanceDisplay: null,
+    funded: registered.funded,
+    signerAdded: registered.signer_added,
+  };
 }
 
 export function AgentWalletProvider({ children }: { children: React.ReactNode }) {
@@ -52,10 +103,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
   const { addSigners } = useSigners();
 
   const [status, setStatus] = useState<AgentWalletStatus>("idle");
-  const [suiAddress, setSuiAddress] = useState<string | null>(null);
-  const [balanceSui, setBalanceSui] = useState<number | null>(null);
-  const [funded, setFunded] = useState(false);
-  const [signerAdded, setSignerAdded] = useState(false);
+  const [wallets, setWallets] = useState<ChainWalletState[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const runIdRef = useRef(0);
@@ -63,10 +111,10 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
   const onboardedUserIdRef = useRef<string | null>(null);
   const userRef = useRef(user);
   const statusRef = useRef(status);
-  const suiAddressRef = useRef(suiAddress);
+  const walletsRef = useRef(wallets);
   userRef.current = user;
   statusRef.current = status;
-  suiAddressRef.current = suiAddress;
+  walletsRef.current = wallets;
 
   const userId = user?.id ?? null;
   const enabledChains = useMemo(() => getEnabledAgentChainIds(), []);
@@ -81,34 +129,33 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
     [createEthereumWallet, createExtendedChainWallet, createSolanaWallet],
   );
 
-  const loadBalances = useCallback(
-    async (address: string, chainId: AgentChainId = defaultChainId) => {
-      if (chainId !== "sui") {
-        return;
-      }
-
-      const balances = await fetchWalletBalances(chainId);
-      if (balances.sui_address !== address) {
-        setSuiAddress(balances.sui_address);
-      }
-      setBalanceSui(balances.balance_sui);
-      setFunded(balances.funded);
-    },
-    [defaultChainId],
-  );
+  const refreshBalances = useCallback(async (chainStates: ChainWalletState[]) => {
+    const updated = await Promise.all(
+      chainStates.map(async (wallet) => {
+        if (!wallet.address) return wallet;
+        try {
+          const balance = await loadAgentChainBalance(wallet.chainId);
+          return {
+            ...wallet,
+            balanceDisplay: balance.balanceDisplay,
+            nativeSymbol: balance.nativeSymbol,
+            funded: balance.funded,
+          };
+        } catch {
+          return wallet;
+        }
+      }),
+    );
+    setWallets(updated);
+    return updated;
+  }, []);
 
   const ensureAgentWallet = useCallback(async () => {
     const currentUser = userRef.current;
     if (!authenticated || !currentUser) return;
 
     const me = await fetchAuthMe();
-    let primarySui:
-      | {
-          address: string;
-          signer_added: boolean;
-          funded: boolean;
-        }
-      | null = null;
+    const provisioned: ChainWalletState[] = [];
 
     for (const chainId of enabledChains) {
       const registered = await ensureAgentChainWallet({
@@ -118,28 +165,16 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
         creators: walletCreators,
         addSigners,
       });
-
-      if (chainId === "sui") {
-        primarySui = {
-          address: registered.address,
-          signer_added: registered.signer_added,
-          funded: registered.funded,
-        };
-      }
+      provisioned.push(fromRegistered(chainId, registered));
     }
 
-    if (primarySui) {
-      setSuiAddress(primarySui.address);
-      setSignerAdded(primarySui.signer_added);
-      setFunded(primarySui.funded);
-      await loadBalances(primarySui.address, "sui");
-      return;
+    if (provisioned.length === 0) {
+      throw new Error("No agent wallets were provisioned.");
     }
 
-    if (defaultChainId === "sui") {
-      throw new Error("Sui agent wallet was not provisioned.");
-    }
-  }, [addSigners, authenticated, defaultChainId, enabledChains, loadBalances, walletCreators]);
+    setWallets(provisioned);
+    await refreshBalances(provisioned);
+  }, [addSigners, authenticated, enabledChains, refreshBalances, walletCreators]);
 
   const runOnboarding = useCallback(
     async (trigger: "auto" | "manual" = "auto") => {
@@ -161,12 +196,8 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       if (trigger === "manual") setError(null);
 
       try {
-        if (
-          trigger === "manual" &&
-          statusRef.current === "ready" &&
-          suiAddressRef.current
-        ) {
-          await loadBalances(suiAddressRef.current, "sui");
+        if (trigger === "manual" && statusRef.current === "ready" && walletsRef.current.length > 0) {
+          await refreshBalances(walletsRef.current);
           if (runId !== runIdRef.current) return;
           setError(null);
           setStatus("ready");
@@ -186,7 +217,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
         inFlightRef.current = false;
       }
     },
-    [authenticated, ensureAgentWallet, loadBalances, ready],
+    [authenticated, ensureAgentWallet, ready, refreshBalances],
   );
 
   const runOnboardingRef = useRef(runOnboarding);
@@ -202,10 +233,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
     if (!authenticated || !userId) {
       onboardedUserIdRef.current = null;
       setStatus("idle");
-      setSuiAddress(null);
-      setBalanceSui(null);
-      setFunded(false);
-      setSignerAdded(false);
+      setWallets([]);
       setError(null);
       return;
     }
@@ -217,17 +245,40 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
     void runOnboardingRef.current("auto");
   }, [authenticated, ready, userId]);
 
+  const primaryWallet = useMemo(
+    () => wallets.find((w) => w.chainId === defaultChainId) ?? wallets[0] ?? null,
+    [defaultChainId, wallets],
+  );
+
+  const suiWallet = useMemo(
+    () => wallets.find((w) => w.chainId === "sui") ?? null,
+    [wallets],
+  );
+
+  const getWallet = useCallback(
+    (chainId: AgentChainId) => wallets.find((w) => w.chainId === chainId),
+    [wallets],
+  );
+
   const value = useMemo<AgentWalletContextValue>(
     () => ({
       status,
-      suiAddress,
-      balanceSui,
-      funded,
-      signerAdded,
+      defaultChainId,
+      enabledChains,
+      wallets:
+        wallets.length > 0
+          ? wallets
+          : enabledChains.map((chainId) => emptyChainWallet(chainId)),
+      primaryWallet,
+      suiAddress: suiWallet?.address ?? null,
+      balanceSui: suiWallet?.balanceDisplay ?? null,
+      funded: primaryWallet?.funded ?? false,
+      signerAdded: primaryWallet?.signerAdded ?? false,
       error,
       refresh,
+      getWallet,
     }),
-    [balanceSui, error, funded, refresh, signerAdded, status, suiAddress],
+    [defaultChainId, enabledChains, error, getWallet, primaryWallet, refresh, status, suiWallet, wallets],
   );
 
   return (
