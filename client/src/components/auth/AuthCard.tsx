@@ -13,7 +13,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
-import { AuthApiError, fetchAuthMe } from "@/lib/auth-api";
+import { fetchAuthMe } from "@/lib/auth-api";
+import {
+  accountMergeErrorMessage,
+  isAccountMergeOrTransferError,
+} from "@/lib/auth-errors";
 import { formatPrivyOAuthError, isPrivyOAuthReturn } from "@/lib/privy-oauth";
 
 gsap.registerPlugin(useGSAP);
@@ -49,19 +53,6 @@ function GoogleIcon() {
   );
 }
 
-function authErrorMessage(err: unknown): string {
-  if (err instanceof AuthApiError) {
-    if (err.code === "ACCOUNT_MERGE_REQUIRED") {
-      return "This email is linked to another account. Complete login method transfer in Privy, then try again.";
-    }
-    return err.message;
-  }
-  if (err instanceof Error) {
-    return err.message;
-  }
-  return "Something went wrong. Please try again.";
-}
-
 type EmailStep = "idle" | "code_sent";
 
 export function AuthCard() {
@@ -73,6 +64,7 @@ export function AuthCard() {
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [emailStep, setEmailStep] = useState<EmailStep>("idle");
+  const [mergeRequired, setMergeRequired] = useState(false);
   const [oauthReturn, setOauthReturn] = useState(false);
   const [oauthProvider, setOauthProvider] = useState<"google" | "github" | null>(null);
   const oauthProviderRef = useRef<"google" | "github" | null>(null);
@@ -85,11 +77,14 @@ export function AuthCard() {
     }
     setSyncing(true);
     setError(null);
+    setMergeRequired(false);
     try {
       await fetchAuthMe();
       router.push("/app");
     } catch (err) {
-      setError(authErrorMessage(err));
+      const merge = isAccountMergeOrTransferError(err);
+      setMergeRequired(merge);
+      setError(accountMergeErrorMessage(err));
     } finally {
       setSyncing(false);
     }
@@ -103,9 +98,9 @@ export function AuthCard() {
       },
       onError: (privyError) => {
         const provider = oauthProviderRef.current ?? "google";
-        setError(
-          formatPrivyOAuthError(new Error(String(privyError)), provider),
-        );
+        const message = formatPrivyOAuthError(new Error(String(privyError)), provider);
+        setMergeRequired(isAccountMergeOrTransferError(privyError));
+        setError(message);
       },
     }),
     [completeLogin],
@@ -171,6 +166,7 @@ export function AuthCard() {
     }
 
     setError(null);
+    setMergeRequired(false);
     resetEmailFlow();
     handledAuthRef.current = false;
     setOauthProvider(provider);
@@ -187,7 +183,9 @@ export function AuthCard() {
     if (oauthState.status !== "error" || !oauthProvider) {
       return;
     }
-    setError(formatPrivyOAuthError(oauthState.error, oauthProvider));
+    const message = formatPrivyOAuthError(oauthState.error, oauthProvider);
+    setMergeRequired(isAccountMergeOrTransferError(oauthState.error));
+    setError(message);
   }, [oauthState, oauthProvider]);
 
   const handleSendCode = async (e: React.FormEvent) => {
@@ -197,7 +195,8 @@ export function AuthCard() {
       await sendCode({ email: email.trim() });
       setEmailStep("code_sent");
     } catch (err) {
-      setError(authErrorMessage(err));
+      setMergeRequired(isAccountMergeOrTransferError(err));
+      setError(accountMergeErrorMessage(err));
     }
   };
 
@@ -207,7 +206,8 @@ export function AuthCard() {
     try {
       await loginWithCode({ code: otpCode.trim() });
     } catch (err) {
-      setError(authErrorMessage(err));
+      setMergeRequired(isAccountMergeOrTransferError(err));
+      setError(accountMergeErrorMessage(err));
     }
   };
 
@@ -296,12 +296,20 @@ export function AuthCard() {
         ) : null}
 
         {error ? (
-          <p
+          <div
             role="alert"
             className="mb-4 rounded-2xl border-2 border-[var(--hero-coral)] bg-[var(--hero-coral)]/10 px-4 py-3 text-sm font-semibold text-[var(--hero-ink)]"
           >
-            {error}
-          </p>
+            <p>{error}</p>
+            {mergeRequired ? (
+              <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/70">
+                Tip: sign in with the login method you used first, open Settings → Connected
+                accounts, and link the other provider. Enable{" "}
+                <strong>Login method transfer</strong> in your Privy Dashboard if you have not
+                already.
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         {authLoading ? (

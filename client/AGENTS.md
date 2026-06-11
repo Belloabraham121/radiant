@@ -180,6 +180,7 @@ Before adding `useEffect` + async:
 - Enabled families: `NEXT_PUBLIC_ENABLED_AGENT_CHAINS` (default `sui`). Mirror backend `ENABLED_CHAINS`.
 - Default UI chain: `NEXT_PUBLIC_DEFAULT_AGENT_CHAIN`. Balances/deposits for EVM use `NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID`.
 - Personal-wallet deposits (`lib/personal-wallet.ts`): Sui → dapp-kit · EVM → injected EIP-1193 · Solana → `window.solana` + `@solana/web3.js`.
+- Shared identity: `ConnectedAccountsSection` uses `useLinkAccount`; login merge errors via `lib/auth-errors.ts` (`ACCOUNT_MERGE_REQUIRED`, `account_transfer_required`).
 - Personal wallet: never used for agent automation; only user-initiated deposits in `AgentWalletSection`.
 
 ---

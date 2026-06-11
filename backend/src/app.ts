@@ -10,6 +10,7 @@ import { authRegisterWalletRouter } from "./api/routes/v1/auth/register-wallet.j
 import { walletBalancesRouter } from "./api/routes/v1/wallets/balances.js";
 import { walletSignAndSendRouter } from "./api/routes/v1/wallets/sign-and-send.js";
 import { healthRouter } from "./api/routes/health.js";
+import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
 import { createCorsOptions } from "./config/cors.js";
 
 /** Express app without DB connect or workers (for tests and main entry). */
@@ -17,6 +18,11 @@ export function createApp() {
   const app = express();
 
   app.use(cors(createCorsOptions()));
+  app.use(
+    "/api/v1/webhooks/privy",
+    express.raw({ type: "application/json" }),
+    privyWebhookRouter,
+  );
   app.use(express.json());
   app.use(cookieParser());
   app.use(correlationIdMiddleware);

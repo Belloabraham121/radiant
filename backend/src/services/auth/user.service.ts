@@ -9,6 +9,7 @@ import {
   createUser,
   findUserByEmail,
   findUserByPrivyId,
+  mergeOrphanUserIntoSurvivor,
   updateUserEmail,
   type UserWithWallets,
 } from "./user.repository.js";
@@ -83,6 +84,42 @@ function toAuthMeAgentWallet(
     signer_added: wallet.signer_added,
     ...(chainType === "sui" ? { sui_address: wallet.address } : {}),
   };
+}
+
+/** Refresh normalized email after Privy linked/unlinked/updated account webhooks. */
+export async function syncUserEmailFromPrivyUser(privyUser: User): Promise<void> {
+  const existing = await findUserByPrivyId(privyUser.id);
+  if (!existing) {
+    return;
+  }
+
+  const email = extractEmailFromPrivyUser(privyUser);
+  if (!email) {
+    return;
+  }
+
+  const normalized = normalizeEmail(email);
+  const emailOwner = await findUserByEmail(normalized);
+  if (emailOwner && emailOwner.privy_user_id !== privyUser.id) {
+    return;
+  }
+
+  if (existing.email !== normalized) {
+    await updateUserEmail(privyUser.id, normalized);
+  }
+}
+
+/** After Privy login-method transfer: keep survivor wallets, delete orphan user row. */
+export async function handleTransferredAccount(input: {
+  fromPrivyUserId: string;
+  survivorPrivyUser: User;
+}): Promise<void> {
+  const survivorEmail = extractEmailFromPrivyUser(input.survivorPrivyUser);
+  await mergeOrphanUserIntoSurvivor(
+    input.fromPrivyUserId,
+    input.survivorPrivyUser.id,
+    survivorEmail,
+  );
 }
 
 export function toAuthMeData(

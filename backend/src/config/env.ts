@@ -34,6 +34,7 @@ const privyEnvSchema = z.object({
   PRIVY_APP_SECRET: z.string().min(1),
   DATABASE_URL: z.string().min(1),
   CORS_ORIGIN: z.string().min(1),
+  PRIVY_WEBHOOK_SIGNING_SECRET: z.string().min(1).optional(),
 });
 
 export type PrivyEnv = z.infer<typeof privyEnvSchema>;
@@ -48,6 +49,7 @@ export function getPrivyEnv(): PrivyEnv {
       PRIVY_APP_SECRET: process.env.PRIVY_APP_SECRET,
       DATABASE_URL: process.env.DATABASE_URL,
       CORS_ORIGIN: process.env.CORS_ORIGIN,
+      PRIVY_WEBHOOK_SIGNING_SECRET: process.env.PRIVY_WEBHOOK_SIGNING_SECRET,
     });
   }
   return cachedPrivyEnv;

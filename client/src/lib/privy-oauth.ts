@@ -42,6 +42,13 @@ export function formatPrivyOAuthError(err: unknown, provider: "google" | "github
     return "OAuth is blocked in embedded browsers. Open this page in Chrome, Safari, or Firefox.";
   }
 
+  if (
+    raw.includes("account_transfer_required") ||
+    raw.includes("linked_to_another_user")
+  ) {
+    return "This email belongs to another account. Sign in with your original method first, then link this one under Settings → Connected accounts. If Privy prompts you, complete account transfer to merge profiles.";
+  }
+
   if (err instanceof Error && err.message) {
     return err.message;
   }

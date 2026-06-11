@@ -4,8 +4,10 @@ import { useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Copy, Eye, EyeOff, Fingerprint, KeyRound } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { AgentWalletSection } from "@/components/app/AgentWalletSection";
+import { ConnectedAccountsSection } from "@/components/app/ConnectedAccountsSection";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { CREDENTIALS, USER } from "@/lib/app-data";
 
@@ -138,6 +140,12 @@ function CredentialCard({ credential }: { credential: (typeof CREDENTIALS)[numbe
 
 export default function SettingsPage() {
   const ref = useRef<HTMLDivElement>(null);
+  const { user } = usePrivy();
+  const displayName =
+    user?.email?.address ?? user?.google?.email ?? user?.github?.username ?? USER.name;
+  const displayEmail =
+    user?.email?.address ?? user?.google?.email ?? user?.github?.email ?? USER.email;
+  const displayInitial = displayName.charAt(0).toUpperCase();
 
   useGSAP(
     () => {
@@ -174,17 +182,19 @@ export default function SettingsPage() {
         </h2>
         <div className="flex items-center gap-4 rounded-3xl border-2 border-[var(--hero-ink)] bg-white p-6 shadow-[5px_5px_0_var(--hero-ink)]">
           <span className="flex size-14 items-center justify-center rounded-2xl border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)] font-heading text-2xl font-extrabold text-white">
-            {USER.name[0]}
+            {displayInitial}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-heading text-xl font-extrabold tracking-tight">{USER.name}</p>
-            <p className="text-sm font-medium text-[var(--hero-ink)]/55">{USER.email}</p>
+            <p className="font-heading text-xl font-extrabold tracking-tight">{displayName}</p>
+            <p className="text-sm font-medium text-[var(--hero-ink)]/55">{displayEmail}</p>
           </div>
         </div>
         <div className="mt-4">
           <LogoutButton variant="full" />
         </div>
       </section>
+
+      <ConnectedAccountsSection />
 
       <AgentWalletSection />
 

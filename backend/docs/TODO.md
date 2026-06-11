@@ -337,13 +337,13 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `/auth/me` upsert: email `@unique`, normalize before write | [Backend] |
-| [ ] | Return `409 ACCOUNT_MERGE_REQUIRED` on email conflict across DIDs | [Backend] |
-| [ ] | Client: handle `linked_to_another_user` — show merge prompt | [Client] |
-| [ ] | Settings: **Connected accounts** with `useLinkAccount` (Google, GitHub, email) | [Client] |
-| [ ] | Webhook route `POST /api/v1/webhooks/privy` — verify signature | [Backend] |
-| [ ] | Handle `user.transferred_account` — delete orphan `User`, keep wallet on survivor | [Backend] |
-| [ ] | Handle `user.linked_account` — refresh linked methods on `User` | [Backend] |
+| [x] | `/auth/me` upsert: email `@unique`, normalize before write | [Backend] |
+| [x] | Return `409 ACCOUNT_MERGE_REQUIRED` on email conflict across DIDs | [Backend] |
+| [x] | Client: handle `account_transfer_required` / merge — show merge prompt | [Client] |
+| [x] | Settings: **Connected accounts** with `useLinkAccount` (Google, GitHub, email) | [Client] |
+| [x] | Webhook route `POST /api/v1/webhooks/privy` — verify Svix signature | [Backend] |
+| [x] | Handle `user.transferred_account` — delete orphan `User`, keep wallet on survivor | [Backend] |
+| [x] | Handle `user.linked_account` — refresh email from Privy user | [Backend] |
 
 **Exit criteria:** Same email via two providers → one `User` row · one `AgentWallet` after merge.
 

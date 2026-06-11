@@ -5,10 +5,11 @@ let client: PrivyClient | undefined;
 
 export function getPrivyClient(): PrivyClient {
   if (!client) {
-    const { PRIVY_APP_ID, PRIVY_APP_SECRET } = getPrivyEnv();
+    const { PRIVY_APP_ID, PRIVY_APP_SECRET, PRIVY_WEBHOOK_SIGNING_SECRET } = getPrivyEnv();
     client = new PrivyClient({
       appId: PRIVY_APP_ID,
       appSecret: PRIVY_APP_SECRET,
+      webhookSigningSecret: PRIVY_WEBHOOK_SIGNING_SECRET,
     });
   }
   return client;
