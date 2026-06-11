@@ -27,10 +27,10 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Create **development** Privy app | [Dashboard] |
-| [ ] | Enable login methods: **Google**, **GitHub**, **Email (OTP)** — no password | [Dashboard] |
-| [ ] | Enable **Login method transfer** (same-email merges) | [Dashboard] |
-| [ ] | Enable **Return user data in identity token** | [Dashboard] |
+| [x] | Create **development** Privy app | [Dashboard] |
+| [x] | Enable login methods: **Google**, **GitHub**, **Email (OTP)** — no password | [Dashboard] |
+| [x] | Enable **Login method transfer** (same-email merges) | [Dashboard] |
+| [x] | Enable **Return user data in identity token** | [Dashboard] |
 | [x] | Copy `PRIVY_APP_ID` + `PRIVY_APP_SECRET` → `backend/.env` | [Dashboard] |
 | [x] | Copy `NEXT_PUBLIC_PRIVY_APP_ID` → `client/.env.local` | [Dashboard] |
 
@@ -103,34 +103,34 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `PrivyProvider` in `client/src/app/layout.tsx` or dedicated provider | [Client] |
-| [ ] | Configure login methods: Google, GitHub, email only | [Client] |
-| [ ] | Dev: localStorage cookies OK for localhost (Privy dev app) | [Client] |
+| [x] | `PrivyProvider` in `client/src/app/layout.tsx` or dedicated provider | [Client] |
+| [x] | Configure login methods: Google, GitHub, email only | [Client] |
+| [x] | Dev: localStorage cookies OK for localhost (Privy dev app) | [Client] |
 
 ### 2.2 AuthCard — OAuth
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Wire **Google** → `useLoginWithOAuth` → `initOAuth({ provider: 'google' })` | [Client] |
-| [ ] | Wire **GitHub** → `initOAuth({ provider: 'github' })` | [Client] |
-| [ ] | Remove mock `router.push('/app')` — call Privy then redirect on success | [Client] |
-| [ ] | `onComplete` callback: call `GET /api/v1/auth/me` (credentials: include) | [Client] |
+| [x] | Wire **Google** → `useLoginWithOAuth` → `initOAuth({ provider: 'google' })` | [Client] |
+| [x] | Wire **GitHub** → `initOAuth({ provider: 'github' })` | [Client] |
+| [x] | Remove mock `router.push('/app')` — call Privy then redirect on success | [Client] |
+| [x] | `onComplete` callback: call `GET /api/v1/auth/me` (credentials: include) | [Client] |
 
 ### 2.3 AuthCard — Email OTP (two-step)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Step 1: email input → `sendCode({ email })` | [Client] |
-| [ ] | Step 2: OTP input → `loginWithCode({ email, code })` | [Client] |
-| [ ] | UI states: idle → code sent → verifying → error | [Client] |
-| [ ] | Same `onComplete` → `/auth/me` as OAuth | [Client] |
+| [x] | Step 1: email input → `sendCode({ email })` | [Client] |
+| [x] | Step 2: OTP input → `loginWithCode({ email, code })` | [Client] |
+| [x] | UI states: idle → code sent → verifying → error | [Client] |
+| [x] | Same `onComplete` → `/auth/me` as OAuth | [Client] |
 
 ### 2.4 API client
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `client/src/lib/api.ts` — `fetch` wrapper with `credentials: 'include'` | [Client] |
-| [ ] | Point at `NEXT_PUBLIC_API_URL` | [Client] |
+| [x] | `client/src/lib/api.ts` — `fetch` wrapper with `credentials: 'include'` | [Client] |
+| [x] | Point at `NEXT_PUBLIC_API_URL` | [Client] |
 
 **Exit criteria:** Real Google/GitHub/email login sets Privy session · `/auth/me` returns user from backend.
 
@@ -144,11 +144,11 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Generate P-256 authorization keypair | [Dashboard] |
-| [ ] | Register public key → key quorum (threshold 1) | [Dashboard] |
+| [x] | Generate P-256 authorization keypair | [Dashboard] |
+| [x] | Register public key → key quorum (threshold 1) | [Dashboard] |
 | [ ] | Optional: create Sui policy (transfer limits, allowlisted commands) | [Dashboard] |
-| [ ] | `PRIVY_AUTHORIZATION_PRIVATE_KEY` → `backend/.env` | [Dashboard] |
-| [ ] | `PRIVY_SIGNER_QUORUM_ID` → backend + `NEXT_PUBLIC_*` client | [Dashboard] |
+| [x] | `PRIVY_AUTHORIZATION_PRIVATE_KEY` → `backend/.env` | [Dashboard] |
+| [x] | `PRIVY_SIGNER_QUORUM_ID` → backend + `NEXT_PUBLIC_*` client | [Dashboard] |
 
 ### 3.2 Database
 

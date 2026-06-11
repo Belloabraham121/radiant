@@ -12,6 +12,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:deploy": "prisma migrate deploy && prisma generate",
     "db:check": "tsx scripts/check-db-schema.ts",
+    "setup:privy-signer": "tsx scripts/setup-privy-signer.ts",
     "test": "tsx --test tests/integration/**/*.test.ts tests/unit/**/*.test.ts",
     "test:integration": "tsx --test tests/integration/**/*.test.ts"
   },
