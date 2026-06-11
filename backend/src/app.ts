@@ -8,6 +8,7 @@ import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
 import { authMeRouter } from "./api/routes/v1/auth/me.js";
 import { authRegisterWalletRouter } from "./api/routes/v1/auth/register-wallet.js";
 import { walletBalancesRouter } from "./api/routes/v1/wallets/balances.js";
+import { walletSignAndSendRouter } from "./api/routes/v1/wallets/sign-and-send.js";
 import { healthRouter } from "./api/routes/health.js";
 import { createCorsOptions } from "./config/cors.js";
 
@@ -25,6 +26,7 @@ export function createApp() {
   app.use(authRegisterWalletRouter);
   app.use(authLogoutRouter);
   app.use(walletBalancesRouter);
+  app.use(walletSignAndSendRouter);
   app.use(errorHandlerMiddleware);
 
   return app;

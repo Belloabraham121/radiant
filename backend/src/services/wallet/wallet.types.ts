@@ -19,3 +19,25 @@ export type WalletBalanceData = {
   coin_type: string;
   funded: boolean;
 };
+
+export const signAndSendBodySchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("transfer_sui"),
+    recipient: suiAddressSchema,
+    amount_mist: z
+      .string()
+      .regex(/^[1-9]\d*$/, "amount_mist must be a positive integer string"),
+  }),
+  z.object({
+    action: z.literal("execute_bytes"),
+    transaction_bytes: z.string().min(1, "transaction_bytes is required"),
+  }),
+]);
+
+export type SignAndSendBody = z.infer<typeof signAndSendBodySchema>;
+
+export type SignAndSendResult = {
+  digest: string;
+  sui_address: string;
+  effects_status: "success" | "failure" | "unknown";
+};

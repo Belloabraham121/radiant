@@ -202,9 +202,10 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `src/services/wallet/sui-signing.service.ts` — Privy `rawSign` / Sui bytes | [Backend] |
-| [ ] | `src/services/wallet/sui-transaction.service.ts` — broadcast via `@mysten/sui` | [Backend] |
-| [ ] | `src/services/chains/adapters/sui.ts` — `getBalance`, `executeTransaction` (extract from `balance.service.ts`) | [Backend] |
+| [x] | `src/services/wallet/sui-signing.service.ts` — Privy `rawSign` / Sui bytes | [Backend] |
+| [x] | `src/services/wallet/sui-transaction.service.ts` — broadcast via `@mysten/sui` | [Backend] |
+| [x] | `src/services/chains/adapters/sui.ts` — `getBalance`, `executeTransaction` (extract from `balance.service.ts`) | [Backend] |
+| [x] | `POST /api/v1/wallets/sign-and-send` — `transfer_sui` or pre-built `transaction_bytes` | [Backend] |
 | [x] | `npm install @mysten/sui` | [Backend] |
 
 ### 3.6 Tests
