@@ -11,8 +11,9 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react";
+import { formatAddress } from "@mysten/sui/utils";
 import { CHATS, USER } from "@/lib/app-data";
-import { getAgentWalletShort } from "@/lib/sui-config";
+import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
 import { useSidebar } from "./SidebarContext";
 
 const NAV = [
@@ -24,6 +25,13 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const { open, setOpen } = useSidebar();
+  const { suiAddress, status } = useAgentWallet();
+  const walletLabel =
+    suiAddress != null
+      ? formatAddress(suiAddress)
+      : status === "loading"
+        ? "Setting up wallet…"
+        : "No wallet";
 
   if (!open) return null;
 
@@ -119,7 +127,7 @@ export function Sidebar() {
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">{USER.name}</p>
             <p className="truncate font-mono text-[11px] font-semibold text-[var(--hero-ink)]/45">
-              {getAgentWalletShort()}
+              {walletLabel}
             </p>
           </div>
         </div>

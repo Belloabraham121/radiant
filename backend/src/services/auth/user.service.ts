@@ -78,6 +78,7 @@ export function toAuthMeData(
       ? {
           sui_address: user.agent_wallet.sui_address,
           funded,
+          signer_added: user.agent_wallet.signer_added,
         }
       : null,
   };

@@ -3,6 +3,7 @@ import { apiFetch, ApiError } from "./api";
 export type AuthMeAgentWallet = {
   sui_address: string;
   funded: boolean;
+  signer_added: boolean;
 };
 
 export type AuthMeData = {

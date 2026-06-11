@@ -1,8 +1,26 @@
 # Radiant — Implementation TODO
 
-Trackable checklist for Privy auth + agent wallet. Full context: [privy-implementation-plan.md](./privy-implementation-plan.md).
+Trackable checklist for Privy auth + multi-chain agent wallets. Full context: [privy-implementation-plan.md](./privy-implementation-plan.md).
 
 **Legend:** `[Dashboard]` Privy Dashboard · `[Backend]` `backend/` · `[Client]` `client/` · `[Both]`
+
+### Architecture: Sui-first, multi-chain ready
+
+Radiant is **Sui-first** for MVP, but the backend should support **EVM, Solana, and future chains** via a shared **ChainAdapter** layer — not Sui-only routes and SDK calls everywhere.
+
+| Wallet type | Who controls it | Where it lives | Purpose |
+| ----------- | --------------- | -------------- | ------- |
+| **Privy embedded agent wallet** | User + server signer (Privy) | Privy + Postgres `AgentWallet` | Agent signs txs on the user's behalf |
+| **Personal wallet** (Brave, MetaMask, `@mysten/dapp-kit`) | User only | Client | Optional **deposits** into the agent wallet — backend does not custody or sign |
+
+**Adding a new chain** should mean: new `adapters/<chain>.ts` + config row + Privy `chain_type` — **not** new HTTP routes or agent-tool shapes.
+
+```
+HTTP / agent tools (chain-agnostic)
+    → services/wallet/ (who owns the wallet — Privy user)
+    → services/chains/registry.ts → ChainAdapter
+    → infrastructure/ (Sui gRPC, viem, Solana RPC, …)
+```
 
 ---
 
@@ -136,9 +154,10 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 
 ---
 
-## Phase 3 — Tool 2: Agent wallet (Backend + Client)
+## Phase 3 — Tool 2: Agent wallet — **Sui MVP** (Backend + Client)
 
-> Depends on Phase 1 + Phase 2 (user can authenticate).
+> Depends on Phase 1 + Phase 2 (user can authenticate).  
+> **Note:** Current schema and routes use `sui_address` (Sui-only). Phase **7** generalizes this for all chains.
 
 ### 3.1 Privy Dashboard (signers)
 
@@ -169,23 +188,24 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 | [x] | `src/services/wallet/balance.service.ts` — Sui RPC balance | [Backend] |
 | [x] | `src/api/routes/v1/wallets/balances.ts` — `GET /api/v1/wallets/balances` | [Backend] |
 
-### 3.4 Client wallet onboarding
+### 3.4 Client wallet onboarding (Sui)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | After first login (`isNewUser`): `useCreateWallet({ chainType: 'sui' })` | [Client] |
-| [ ] | `POST /auth/register-wallet` with `{ privy_wallet_id, sui_address }` | [Client] |
-| [ ] | `useSigners` → `addSigners` with quorum ID (+ policy if set) | [Client] |
-| [ ] | Update `AgentWalletSection` in settings to show real address/balance | [Client] |
+| [x] | After first login (`isNewUser`): `useCreateWallet({ chainType: 'sui' })` | [Client] |
+| [x] | `POST /auth/register-wallet` with `{ privy_wallet_id, sui_address }` (generic body in Phase 7) | [Client] |
+| [x] | `useSigners` → `addSigners` with quorum ID (+ policy if set) | [Client] |
+| [x] | `AgentWalletSection`: real Privy agent address + balance from `/wallets/balances` | [Client] |
+| [x] | Keep `@mysten/dapp-kit` for **personal** wallet deposits only (Brave / browser wallets) | [Client] |
 
-### 3.5 Signing (agent can transact)
+### 3.5 Signing — Sui MVP (agent can transact)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
 | [ ] | `src/services/wallet/sui-signing.service.ts` — Privy `rawSign` / Sui bytes | [Backend] |
 | [ ] | `src/services/wallet/sui-transaction.service.ts` — broadcast via `@mysten/sui` | [Backend] |
-| [ ] | `src/services/chains/adapters/sui.ts` — `getBalance`, `executeTransaction` | [Backend] |
-| [ ] | `npm install @mysten/sui` | [Backend] |
+| [ ] | `src/services/chains/adapters/sui.ts` — `getBalance`, `executeTransaction` (extract from `balance.service.ts`) | [Backend] |
+| [x] | `npm install @mysten/sui` | [Backend] |
 
 ### 3.6 Tests
 
@@ -194,7 +214,95 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 | [ ] | `tests/unit/agent-wallet.service.test.ts` | [Backend] |
 | [ ] | `tests/integration/register-wallet.test.ts` | [Backend] |
 
-**Exit criteria:** New user gets Sui wallet · signer added · `/wallets/balances` returns SUI balance.
+**Exit criteria (Sui MVP):** New user gets Sui agent wallet · signer added · `/wallets/balances` returns SUI balance.
+
+---
+
+## Phase 7 — Chain abstraction layer (multi-chain foundation)
+
+> Do **before or alongside Phase 3.5** so signing and balances are not locked to Sui-only code paths.  
+> Depends on Phase 3.3 (wallet services exist).
+
+### 7.1 Core interfaces
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | `src/services/chains/types.ts` — `ChainId`, `ChainAdapter`, `BalanceResult`, `TxResult` | [Backend] |
+| [ ] | `src/services/chains/registry.ts` — `getAdapter(chainId)`, `listEnabledChains()` | [Backend] |
+| [ ] | `src/config/chains.ts` — enabled chains, RPC URLs, native symbols, policy IDs per chain | [Backend] |
+| [ ] | Agent tool contract: `execute_transaction({ chain_id, action, params })` — no chain SDK in routes | [Backend] |
+
+### 7.2 Refactor Sui into adapter
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | Move `balance.service.ts` + `infrastructure/sui/client.ts` logic → `adapters/sui.ts` | [Backend] |
+| [ ] | `wallet/balance.service.ts` becomes thin facade → `registry.getAdapter(chainId).getBalance()` | [Backend] |
+| [ ] | `GET /wallets/balances?chain=sui` (default chain from env) | [Backend] |
+
+### 7.3 Multi-chain schema
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | Migrate `AgentWallet`: `sui_address` → `chain_type` + `address` | [Backend] |
+| [ ] | `@@unique([user_id, chain_type])` — one agent wallet per chain per user | [Backend] |
+| [ ] | `POST /register-wallet` body: `{ chain_type, privy_wallet_id, address, signer_added? }` | [Backend] |
+| [ ] | `GET /auth/me` — `agent_wallets[]` or primary chain + optional list | [Backend] |
+| [ ] | Backfill existing Sui rows (`chain_type: 'sui'`) | [Backend] |
+
+### 7.4 Tests
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | `tests/unit/chains/registry.test.ts` — unknown `chain_id` → error | [Backend] |
+| [ ] | `tests/unit/chains/sui.adapter.test.ts` — balance normalization | [Backend] |
+
+**Exit criteria:** New chain = new adapter file + config only · routes and agent tools unchanged · Sui still works via registry.
+
+---
+
+## Phase 8 — Additional chains (EVM, Solana, …)
+
+> Depends on Phase 7. Add chains incrementally; align with **Brave Wallet** / browser wallet families users already use for deposits.
+
+### 8.1 Privy Dashboard (per chain family)
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | Enable **Ethereum** embedded wallets in Privy (EVM family) | [Dashboard] |
+| [ ] | Enable **Solana** embedded wallets in Privy | [Dashboard] |
+| [ ] | Optional: per-chain **policies** (`PRIVY_EVM_POLICY_ID`, `PRIVY_SOLANA_POLICY_ID`) | [Dashboard] |
+
+### 8.2 EVM adapter
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | `npm install viem` | [Backend] |
+| [ ] | `src/infrastructure/evm/client.ts` — viem `PublicClient` per chain ID | [Backend] |
+| [ ] | `src/services/chains/adapters/evm.ts` — `getBalance`, `executeTransaction` | [Backend] |
+| [ ] | `src/services/wallet/evm-signing.service.ts` — Privy sign + viem broadcast | [Backend] |
+| [ ] | Config: `EVM_CHAIN_IDS`, RPC URLs (mainnet, Base, Polygon, …) | [Backend] |
+| [ ] | Client: `createWallet({ chainType: 'ethereum' })` + `register-wallet` for EVM | [Client] |
+
+### 8.3 Solana adapter
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | `npm install @solana/web3.js` (or Privy-recommended Solana SDK) | [Backend] |
+| [ ] | `src/infrastructure/solana/client.ts` | [Backend] |
+| [ ] | `src/services/chains/adapters/solana.ts` | [Backend] |
+| [ ] | `src/services/wallet/solana-signing.service.ts` | [Backend] |
+| [ ] | Client: `createWallet({ chainType: 'solana' })` + `register-wallet` | [Client] |
+
+### 8.4 Client multi-chain UX
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | `NEXT_PUBLIC_DEFAULT_AGENT_CHAIN` (e.g. `sui`) | [Client] |
+| [ ] | Settings: show agent wallets per enabled chain | [Client] |
+| [ ] | Deposits: map Brave / browser wallet chain → correct dapp-kit or wagmi connector | [Client] |
+
+**Exit criteria:** At least two chain families (e.g. Sui + EVM) work end-to-end · adding chain #3 is adapter + config only.
 
 ---
 
@@ -218,11 +326,12 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 
 ## Phase 5 — Agent integration
 
-> Depends on Phase 3 signing. Chat/deploy come later.
+> Depends on Phase 3 signing (or Phase 7 registry if multi-chain first). Chat/deploy come later.
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `execute_transaction` tool — no `wallet` in input; resolve from session | [Backend] |
+| [ ] | `execute_transaction` tool — `{ chain_id, action, params }`; resolve wallet from session + registry | [Backend] |
+| [ ] | `query_chain` tool — read-only via `ChainAdapter` (balance, object, pool, …) | [Backend] |
 | [ ] | User approval modal for txs above threshold | [Client] |
 | [ ] | Remove `wallet` / `wallet_address` from `api-ref.md` request examples | [Backend] |
 | [ ] | `POST /api/v1/chat` — Claude + tools (stub OK first) | [Backend] |
@@ -267,13 +376,18 @@ Phase 0 (infra + dashboard)
     ├── Phase 1 (backend auth) ──────┐
     └── Phase 2 (client login) ────────┤
                                        ▼
-                              Phase 3 (agent wallet)
+                         Phase 3 (agent wallet — Sui MVP)
                                        │
-                    ┌──────────────────┼──────────────────┐
-                    ▼                  ▼                  ▼
-              Phase 4            Phase 5            Phase 6
-           (shared identity)   (agent tools)    (production)
+                         ┌─────────────┴─────────────┐
+                         ▼                           ▼
+                   Phase 7                    Phase 4 / 5 / 6
+            (chain abstraction)            (identity / agent / prod)
+                         │
+                         ▼
+                   Phase 8 (EVM, Solana, …)
 ```
+
+**Recommended order:** Phase 3.3–3.4 (Sui vertical slice) → **Phase 7** (registry + schema) → Phase 3.5 signing via adapter → Phase 8 per chain.
 
 ---
 
@@ -284,8 +398,10 @@ Phase 0 (infra + dashboard)
 | Login UI | — | ✅ | — |
 | Session cookie verify | ✅ | — | — |
 | User row in Postgres | ✅ | — | — |
-| Sui wallet create | — | ✅ | — |
-| Session signer | — | ✅ `addSigners` | ✅ auth key |
-| Sign transactions | ✅ | — | ✅ policies |
+| Agent wallet create (Privy) | — | ✅ per `chain_type` | ✅ enable chain |
+| Personal wallet deposit (Brave, etc.) | — | ✅ dapp-kit / wagmi | — |
+| Session signer | — | ✅ `addSigners` | ✅ auth key + policies |
+| Sign transactions | ✅ via `ChainAdapter` | — | ✅ per-chain policies |
+| Chain reads / balances | ✅ `chains/registry` | — | — |
 | Email unique constraint | ✅ | — | — |
 | Login method transfer | — | ✅ UX | ✅ enable |

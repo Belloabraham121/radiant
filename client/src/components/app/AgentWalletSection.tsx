@@ -28,10 +28,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
 import { dAppKit } from "@/lib/dapp-kit";
 import {
-  getAgentWalletAddress,
-  getAgentWalletShort,
   mistToSui,
   NETWORK_LABELS,
   type SuiNetwork,
@@ -60,56 +59,6 @@ function explorerTxUrl(network: string, digest: string): string {
         ? "https://suiscan.xyz/devnet/tx"
         : "https://suiscan.xyz/testnet/tx";
   return `${base}/${digest}`;
-}
-
-function AgentBalance({
-  address,
-  network,
-  refreshToken,
-}: {
-  address: string;
-  network: SuiNetwork;
-  refreshToken: number;
-}) {
-  const [balance, setBalance] = useState<number | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const client = dAppKit.getClient(network);
-        const { balance: coinBalance } = await client.getBalance({ owner: address });
-        if (!cancelled) setBalance(mistToSui(coinBalance.balance));
-      } catch {
-        if (!cancelled) setBalance(null);
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [address, network, refreshToken]);
-
-  if (!loaded) {
-    return (
-      <span className="inline-flex items-center gap-2 text-2xl text-[var(--hero-ink)]/40">
-        <Loader2 className="size-6 animate-spin" />
-        Loading…
-      </span>
-    );
-  }
-
-  if (balance === null) {
-    return <span className="text-xl text-[var(--hero-ink)]/45">— SUI</span>;
-  }
-
-  return (
-    <>
-      {balance.toFixed(4)} <span className="text-xl text-[var(--hero-ink)]/45">SUI</span>
-    </>
-  );
 }
 
 function ConnectedBalance({
@@ -147,6 +96,14 @@ function ConnectedBalance({
 }
 
 export function AgentWalletSection() {
+  const {
+    status: walletStatus,
+    suiAddress,
+    balanceSui,
+    error: walletError,
+    refresh: refreshAgentWallet,
+  } = useAgentWallet();
+
   const dAppKitInstance = useDAppKit();
   const wallets = useWallets();
   const connection = useWalletConnection();
@@ -154,8 +111,8 @@ export function AgentWalletSection() {
   const wallet = useCurrentWallet();
   const network = useCurrentNetwork() as SuiNetwork;
 
-  const agentAddress = getAgentWalletAddress();
-  const agentShort = getAgentWalletShort();
+  const agentAddress = suiAddress ?? "";
+  const agentShort = agentAddress ? formatAddress(agentAddress) : "—";
 
   const [copied, setCopied] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
@@ -169,6 +126,7 @@ export function AgentWalletSection() {
   const [balanceRefresh, setBalanceRefresh] = useState(0);
 
   const copyAddress = async () => {
+    if (!agentAddress) return;
     try {
       await navigator.clipboard.writeText(agentAddress);
       setCopied(true);
@@ -220,6 +178,8 @@ export function AgentWalletSection() {
       const mist = parseAmountMist(amount);
       if (!mist) throw new Error("Enter a valid amount.");
 
+      if (!agentAddress) throw new Error("Agent wallet is not ready yet.");
+
       const tx = new Transaction();
       tx.transferObjects([coinWithBalance({ balance: mist })], agentAddress);
 
@@ -243,6 +203,7 @@ export function AgentWalletSection() {
       setTxDigest(digest);
       setDepositStep("done");
       setBalanceRefresh((n) => n + 1);
+      refreshAgentWallet();
     } catch (err) {
       setTxError(err instanceof Error ? err.message : "Transaction failed.");
     } finally {
@@ -252,6 +213,7 @@ export function AgentWalletSection() {
 
   const walletName = wallet?.name ?? "wallet";
   const networkLabel = NETWORK_LABELS[network] ?? network;
+  const walletLoading = walletStatus === "loading" || walletStatus === "idle";
 
   return (
     <>
@@ -272,6 +234,19 @@ export function AgentWalletSection() {
           deposit from a wallet you already use.
         </p>
 
+        {walletError ? (
+          <div className="mb-5 rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
+            <p className="text-sm font-semibold text-[var(--hero-coral)]">{walletError}</p>
+            <button
+              type="button"
+              onClick={refreshAgentWallet}
+              className="mt-2 text-sm font-bold text-[var(--hero-blue)] hover:underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : null}
+
         <div className="rounded-3xl border-2 border-[var(--hero-ink)] bg-white p-6 shadow-[5px_5px_0_var(--hero-ink)]">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -279,17 +254,26 @@ export function AgentWalletSection() {
                 Balance
               </p>
               <p className="mt-1 font-heading text-4xl font-extrabold tracking-tight">
-                <AgentBalance
-                  address={agentAddress}
-                  network={network}
-                  refreshToken={balanceRefresh}
-                />
+                {walletLoading ? (
+                  <span className="inline-flex items-center gap-2 text-2xl text-[var(--hero-ink)]/40">
+                    <Loader2 className="size-6 animate-spin" />
+                    Setting up…
+                  </span>
+                ) : balanceSui === null ? (
+                  <span className="text-xl text-[var(--hero-ink)]/45">— SUI</span>
+                ) : (
+                  <>
+                    {balanceSui.toFixed(4)}{" "}
+                    <span className="text-xl text-[var(--hero-ink)]/45">SUI</span>
+                  </>
+                )}
               </p>
             </div>
             <button
               type="button"
               onClick={openDeposit}
-              className="group flex shrink-0 items-center justify-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-5 py-3 text-sm font-bold text-[var(--hero-bg)] shadow-[4px_4px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5"
+              disabled={!agentAddress || walletLoading}
+              className="group flex shrink-0 items-center justify-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-5 py-3 text-sm font-bold text-[var(--hero-bg)] shadow-[4px_4px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
             >
               <WalletMinimal className="size-4" strokeWidth={2.5} />
               Deposit from my wallet
@@ -325,7 +309,7 @@ export function AgentWalletSection() {
               </button>
             </div>
             <p className="mt-2 break-all font-mono text-sm font-semibold leading-relaxed">
-              {agentAddress}
+              {walletLoading ? "Provisioning your agent wallet…" : agentAddress || "—"}
             </p>
           </div>
 

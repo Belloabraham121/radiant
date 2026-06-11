@@ -10,6 +10,7 @@ export type LinkedAccountLabel = "google" | "github" | "email";
 export type AuthMeAgentWallet = {
   sui_address: string;
   funded: boolean;
+  signer_added: boolean;
 };
 
 export type AuthMeData = {
