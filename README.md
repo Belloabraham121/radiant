@@ -213,6 +213,8 @@ The UI prototype lives in `client/` today. Backend (`backend/`), shared packages
 
 **Backend agent skill:** [`backend/.agents/skills/radiant-backend/SKILL.md`](backend/.agents/skills/radiant-backend/SKILL.md) — layered architecture, strict TypeScript (no `any`), Prisma `migrate dev`/`deploy` workflow, and folder placement rules agents must follow.
 
+**Privy backend plan:** [`backend/docs/privy-implementation-plan.md`](backend/docs/privy-implementation-plan.md) — cookie auth (Google/GitHub/email) + embedded Sui agent wallets with session signers for agent-triggered transactions.
+
 ```
 Radiant/
 ├── client/                                   # Next.js frontend (current)

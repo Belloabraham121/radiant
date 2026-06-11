@@ -10,9 +10,11 @@ description: >-
 
 # Radiant Backend
 
-Read [backend/README.md](../../../README.md) and [api-ref.md](../../../api-ref.md) first.
+Read [backend/README.md](../../../README.md), [api-ref.md](../../../api-ref.md), and [privy-implementation-plan.md](../../../docs/privy-implementation-plan.md) first.
 
 Layer placement details: [layers.md](layers.md).
+
+**Privy (mandatory):** HttpOnly cookie sessions (`privy-token`) — not custom JWT. Embedded **Sui** agent wallets via Privy; server signs with **session signers** (authorization key). Never server-derived wallets. **Shared state:** one `privy_user_id` → one `User` → one agent wallet (GitHub, Google, email OTP with same email). **`email` is `@unique`** (normalize before write). Email auth is OTP two-step (`sendCode` / `loginWithCode`). See implementation plan for Tool 1 (auth) and Tool 2 (agent wallet).
 
 ---
 
