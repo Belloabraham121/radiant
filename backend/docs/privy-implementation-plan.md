@@ -278,9 +278,21 @@ Migration: `npx prisma migrate dev --name add_user_and_agent_wallet`.
 
 3. Store **authorization private key** in `PRIVY_AUTHORIZATION_PRIVATE_KEY` (server env only).
 
-### Wallet creation (Sui embedded)
+### Wallet creation (multi-chain embedded)
 
-Radiant uses **whitelabel login** (`useLoginWithOAuth`, `useLoginWithEmail`) — automatic `createOnLogin` does **not** run for custom flows. Create the Sui wallet **explicitly** after first login.
+Radiant uses **whitelabel login** (`useLoginWithOAuth`, `useLoginWithEmail`) — automatic `createOnLogin` does **not** run for custom flows. Create agent wallets **explicitly** after first login for each enabled chain family (`NEXT_PUBLIC_ENABLED_AGENT_CHAINS`).
+
+| Chain family | Privy hook | `chain_type` in Postgres |
+| ------------ | ---------- | ------------------------ |
+| Sui | `@privy-io/react-auth/extended-chains` → `createWallet({ chainType: 'sui' })` | `sui` |
+| EVM (all L2s) | `@privy-io/react-auth` → `createWallet()` | `ethereum` |
+| Solana | `@privy-io/react-auth/solana` → `createWallet()` | `solana` |
+
+**EVM:** One embedded Ethereum wallet ⇒ **one `0x` address** on mainnet, Base, Polygon, etc. Register a single `AgentWallet` row with `chain_type: "ethereum"`. Phase 8.2 adds per-network RPC via `EVM_CHAIN_IDS`, not extra Privy wallets.
+
+**Privy Dashboard (Phase 8.1):** Enable embedded **Ethereum** and **Solana** under Wallets → Embedded. Optional policies: `PRIVY_EVM_POLICY_ID`, `PRIVY_SOLANA_POLICY_ID` (and client `NEXT_PUBLIC_*` mirrors).
+
+### Wallet creation (Sui embedded)
 
 **Frontend (coordinate, not backend code):**
 
@@ -375,6 +387,10 @@ CORS_ORIGIN=http://localhost:3000
 PRIVY_AUTHORIZATION_PRIVATE_KEY=   # PEM — app signer key (never commit)
 PRIVY_SIGNER_QUORUM_ID=            # Key quorum ID from Dashboard
 PRIVY_SUI_POLICY_ID=               # Optional Sui policy
+PRIVY_EVM_POLICY_ID=               # Optional EVM policy (all EVM chains share one agent address)
+PRIVY_SOLANA_POLICY_ID=            # Optional Solana policy
+ENABLED_CHAINS=sui                 # Comma-separated: sui,ethereum,solana
+DEFAULT_AGENT_CHAIN=sui
 SUI_RPC_URL=https://fullnode.mainnet.sui.io
 ```
 
@@ -384,6 +400,10 @@ Frontend (for signer registration only):
 NEXT_PUBLIC_PRIVY_APP_ID=
 NEXT_PUBLIC_PRIVY_SIGNER_QUORUM_ID=
 NEXT_PUBLIC_PRIVY_SUI_POLICY_ID=
+NEXT_PUBLIC_PRIVY_EVM_POLICY_ID=
+NEXT_PUBLIC_PRIVY_SOLANA_POLICY_ID=
+NEXT_PUBLIC_ENABLED_AGENT_CHAINS=sui
+NEXT_PUBLIC_DEFAULT_AGENT_CHAIN=sui
 ```
 
 ### Tests

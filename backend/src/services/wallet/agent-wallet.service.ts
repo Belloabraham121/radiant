@@ -38,8 +38,18 @@ export async function isWalletFunded(
   address: string,
   chainId: ChainId = getDefaultAgentChainId(),
 ): Promise<boolean> {
-  const result = await getBalanceForAddress(chainId, address);
-  return result.funded;
+  try {
+    const result = await getBalanceForAddress(chainId, address);
+    return result.funded;
+  } catch (err) {
+    if (
+      err instanceof AppError &&
+      (err.code === "CHAIN_ADAPTER_MISSING" || err.code === "CHAIN_NOT_ENABLED")
+    ) {
+      return false;
+    }
+    throw err;
+  }
 }
 
 export async function getWalletBalancesForPrivyUser(

@@ -5,6 +5,15 @@ export const suiAddressSchema = z
   .string()
   .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid Sui address");
 
+export const evmAddressSchema = z
+  .string()
+  .regex(/^0x[a-fA-F0-9]{40}$/, "Invalid EVM address");
+
+/** Base58 Solana pubkey — permissive length for embedded wallet addresses. */
+export const solanaAddressSchema = z
+  .string()
+  .regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, "Invalid Solana address");
+
 const registerWalletBodyBaseSchema = z.object({
   chain_type: chainIdSchema.default("sui"),
   privy_wallet_id: z.string().min(1),
@@ -28,6 +37,20 @@ export const registerWalletBodySchema = registerWalletBodyBaseSchema.superRefine
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Invalid Sui address",
+        path: ["address"],
+      });
+    }
+    if (body.chain_type === "ethereum" && !evmAddressSchema.safeParse(address).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid EVM address",
+        path: ["address"],
+      });
+    }
+    if (body.chain_type === "solana" && !solanaAddressSchema.safeParse(address).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid Solana address",
         path: ["address"],
       });
     }

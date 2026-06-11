@@ -173,10 +173,11 @@ Before adding `useEffect` + async:
 
 | Wallet | Owner | Client module |
 |--------|-------|----------------|
-| **Agent** (embedded Sui) | Privy + Radiant backend | `AgentWalletProvider`, `wallet-api.ts` |
+| **Agent** (embedded Sui / EVM / Solana) | Privy + Radiant backend | `AgentWalletProvider`, `wallet-api.ts` |
 | **Personal** (Brave, etc.) | User’s browser extension | `AppWalletProvider`, dapp-kit — deposits only |
 
-- Agent wallet creation/signers: `AgentWalletProvider.ensureAgentWallet` — don’t duplicate in random components.
+- Agent wallet creation/signers: `AgentWalletProvider` → `ensure-agent-chain-wallet.ts` — one wallet per **chain family** (`sui`, `ethereum`, `solana`). **EVM:** one `0x` address for all EVM chains; do not create per-L2 rows.
+- Enabled families: `NEXT_PUBLIC_ENABLED_AGENT_CHAINS` (default `sui`). Mirror backend `ENABLED_CHAINS`.
 - Personal wallet: never used for agent automation; only user-initiated deposits in `AgentWalletSection`.
 
 ---
@@ -191,6 +192,10 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_PRIVY_SIGNER_QUORUM_ID=
 NEXT_PUBLIC_PRIVY_SUI_POLICY_ID=
+NEXT_PUBLIC_PRIVY_EVM_POLICY_ID=
+NEXT_PUBLIC_PRIVY_SOLANA_POLICY_ID=
+NEXT_PUBLIC_ENABLED_AGENT_CHAINS=sui
+NEXT_PUBLIC_DEFAULT_AGENT_CHAIN=sui
 ```
 
 OAuth callback setup is documented in `.env.example` (Privy + Google + GitHub redirect URIs).

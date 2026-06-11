@@ -281,11 +281,16 @@ HTTP / agent tools (chain-agnostic)
 
 ### 8.1 Privy Dashboard (per chain family)
 
+> **EVM note:** One Privy `ethereum` embedded wallet = **one `0x` address on all EVM chains** (mainnet, Base, Polygon, …). Register **once** (`chain_type: "ethereum"`). Per-network RPC/`chainId` is Phase 8.2 (`EVM_CHAIN_IDS`) — **not** extra Privy wallets or extra `AgentWallet` rows per L2.
+
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Enable **Ethereum** embedded wallets in Privy (EVM family) | [Dashboard] |
-| [ ] | Enable **Solana** embedded wallets in Privy | [Dashboard] |
-| [ ] | Optional: per-chain **policies** (`PRIVY_EVM_POLICY_ID`, `PRIVY_SOLANA_POLICY_ID`) | [Dashboard] |
+| [ ] | Enable **Ethereum** embedded wallets in Privy (EVM family) — Dashboard → Wallets → Embedded → Ethereum | [Dashboard] |
+| [ ] | Enable **Solana** embedded wallets in Privy — Dashboard → Wallets → Embedded → Solana | [Dashboard] |
+| [x] | Client: multi-chain onboarding (`ensure-agent-chain-wallet`, `NEXT_PUBLIC_ENABLED_AGENT_CHAINS`) | [Client] |
+| [x] | Client policy env: `NEXT_PUBLIC_PRIVY_EVM_POLICY_ID`, `NEXT_PUBLIC_PRIVY_SOLANA_POLICY_ID` | [Client] |
+| [x] | Backend: EVM/Solana address validation on `register-wallet`; `funded: false` when adapter missing | [Backend] |
+| [ ] | Optional: per-chain **policies** in Privy Dashboard → Policies (`PRIVY_EVM_POLICY_ID`, `PRIVY_SOLANA_POLICY_ID`) | [Dashboard] |
 
 ### 8.2 EVM adapter
 

@@ -9,12 +9,21 @@ import {
   useRef,
   useState,
 } from "react";
+import { useCreateWallet as useCreateEthereumWallet } from "@privy-io/react-auth";
 import { usePrivy, useSigners } from "@privy-io/react-auth";
-import { useCreateWallet } from "@privy-io/react-auth/extended-chains";
+import { useCreateWallet as useCreateExtendedChainWallet } from "@privy-io/react-auth/extended-chains";
+import { useCreateWallet as useCreateSolanaWallet } from "@privy-io/react-auth/solana";
 import { fetchAuthMe } from "@/lib/auth-api";
-import { findPrivySuiWallet } from "@/lib/privy-wallet";
-import { getSignerQuorumId, getSuiPolicyId } from "@/lib/privy-config";
-import { fetchWalletBalances, registerAgentWallet } from "@/lib/wallet-api";
+import {
+  getDefaultAgentChainId,
+  getEnabledAgentChainIds,
+  type AgentChainId,
+} from "@/lib/agent-chains";
+import {
+  ensureAgentChainWallet,
+  type ChainWalletCreators,
+} from "@/lib/ensure-agent-chain-wallet";
+import { fetchWalletBalances } from "@/lib/wallet-api";
 
 export type AgentWalletStatus = "idle" | "loading" | "ready" | "error";
 
@@ -37,7 +46,9 @@ function onboardingErrorMessage(err: unknown): string {
 
 export function AgentWalletProvider({ children }: { children: React.ReactNode }) {
   const { ready, authenticated, user } = usePrivy();
-  const { createWallet } = useCreateWallet();
+  const { createWallet: createEthereumWallet } = useCreateEthereumWallet();
+  const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
+  const { createWallet: createExtendedChainWallet } = useCreateExtendedChainWallet();
   const { addSigners } = useSigners();
 
   const [status, setStatus] = useState<AgentWalletStatus>("idle");
@@ -58,71 +69,77 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
   suiAddressRef.current = suiAddress;
 
   const userId = user?.id ?? null;
+  const enabledChains = useMemo(() => getEnabledAgentChainIds(), []);
+  const defaultChainId = useMemo(() => getDefaultAgentChainId(), []);
 
-  const loadBalances = useCallback(async (address: string) => {
-    const balances = await fetchWalletBalances();
-    if (balances.sui_address !== address) {
-      setSuiAddress(balances.sui_address);
-    }
-    setBalanceSui(balances.balance_sui);
-    setFunded(balances.funded);
-  }, []);
+  const walletCreators = useMemo<ChainWalletCreators>(
+    () => ({
+      sui: async () => createExtendedChainWallet({ chainType: "sui" }),
+      ethereum: async () => createEthereumWallet(),
+      solana: async () => createSolanaWallet(),
+    }),
+    [createEthereumWallet, createExtendedChainWallet, createSolanaWallet],
+  );
+
+  const loadBalances = useCallback(
+    async (address: string, chainId: AgentChainId = defaultChainId) => {
+      if (chainId !== "sui") {
+        return;
+      }
+
+      const balances = await fetchWalletBalances(chainId);
+      if (balances.sui_address !== address) {
+        setSuiAddress(balances.sui_address);
+      }
+      setBalanceSui(balances.balance_sui);
+      setFunded(balances.funded);
+    },
+    [defaultChainId],
+  );
 
   const ensureAgentWallet = useCallback(async () => {
     const currentUser = userRef.current;
     if (!authenticated || !currentUser) return;
 
-    const quorumId = getSignerQuorumId();
-    if (!quorumId) {
-      throw new Error("NEXT_PUBLIC_PRIVY_SIGNER_QUORUM_ID is not configured.");
-    }
-
     const me = await fetchAuthMe();
-    let wallet = findPrivySuiWallet(currentUser);
+    let primarySui:
+      | {
+          address: string;
+          signer_added: boolean;
+          funded: boolean;
+        }
+      | null = null;
 
-    if (!wallet) {
-      const created = await createWallet({ chainType: "sui" });
-      const privyWalletId = created.wallet.id;
-      if (!privyWalletId) {
-        throw new Error("Privy Sui wallet is missing a server wallet ID.");
-      }
-      wallet = {
-        privyWalletId,
-        address: created.wallet.address,
-      };
-    }
-
-    const primaryWallet =
-      me.agent_wallets.find((w) => w.chain_type === "sui") ?? me.agent_wallet;
-    let hasSigner = primaryWallet?.signer_added ?? false;
-
-    if (!hasSigner) {
-      const policyId = getSuiPolicyId();
-      await addSigners({
-        address: wallet.address,
-        signers: [
-          {
-            signerId: quorumId,
-            policyIds: policyId ? [policyId] : [],
-          },
-        ],
+    for (const chainId of enabledChains) {
+      const registered = await ensureAgentChainWallet({
+        user: currentUser,
+        me,
+        chainId,
+        creators: walletCreators,
+        addSigners,
       });
-      hasSigner = true;
+
+      if (chainId === "sui") {
+        primarySui = {
+          address: registered.address,
+          signer_added: registered.signer_added,
+          funded: registered.funded,
+        };
+      }
     }
 
-    const registered = await registerAgentWallet({
-      chain_type: "sui",
-      privy_wallet_id: wallet.privyWalletId,
-      address: wallet.address,
-      signer_added: hasSigner,
-    });
+    if (primarySui) {
+      setSuiAddress(primarySui.address);
+      setSignerAdded(primarySui.signer_added);
+      setFunded(primarySui.funded);
+      await loadBalances(primarySui.address, "sui");
+      return;
+    }
 
-    setSuiAddress(registered.address);
-    setSignerAdded(registered.signer_added);
-    setFunded(registered.funded);
-
-    await loadBalances(registered.address);
-  }, [addSigners, authenticated, createWallet, loadBalances]);
+    if (defaultChainId === "sui") {
+      throw new Error("Sui agent wallet was not provisioned.");
+    }
+  }, [addSigners, authenticated, defaultChainId, enabledChains, loadBalances, walletCreators]);
 
   const runOnboarding = useCallback(
     async (trigger: "auto" | "manual" = "auto") => {
@@ -149,7 +166,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
           statusRef.current === "ready" &&
           suiAddressRef.current
         ) {
-          await loadBalances(suiAddressRef.current);
+          await loadBalances(suiAddressRef.current, "sui");
           if (runId !== runIdRef.current) return;
           setError(null);
           setStatus("ready");
