@@ -18,6 +18,7 @@ export type WalletBalanceData = {
   native_symbol: string;
   coin_type?: string;
   funded: boolean;
+  evm_chain_id?: number;
   sui_address: string;
   balance_mist: string;
   balance_sui: number;
@@ -45,10 +46,18 @@ export async function registerAgentWallet(
 
 export async function fetchWalletBalances(
   chainId?: string,
+  options?: { evmChainId?: number },
 ): Promise<WalletBalanceData> {
-  const query =
-    chainId && chainId.length > 0
-      ? `?chain=${encodeURIComponent(chainId)}`
-      : "";
-  return apiFetch<WalletBalanceData>(`/api/v1/wallets/balances${query}`);
+  const params = new URLSearchParams();
+  if (chainId && chainId.length > 0) {
+    params.set("chain", chainId);
+  }
+  if (options?.evmChainId !== undefined) {
+    params.set("evm_chain_id", String(options.evmChainId));
+  }
+
+  const query = params.toString();
+  return apiFetch<WalletBalanceData>(
+    `/api/v1/wallets/balances${query.length > 0 ? `?${query}` : ""}`,
+  );
 }

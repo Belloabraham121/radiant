@@ -2,7 +2,7 @@ import type { AgentWallet } from "@prisma/client";
 import { getDefaultAgentChainId } from "../../config/chains.js";
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
-import type { ChainId } from "../chains/types.js";
+import type { BalanceContext, ChainId } from "../chains/types.js";
 import {
   balanceResultToWalletData,
   getBalanceForAddress,
@@ -55,6 +55,7 @@ export async function isWalletFunded(
 export async function getWalletBalancesForPrivyUser(
   privyUserId: string,
   chainId: ChainId = getDefaultAgentChainId(),
+  context?: BalanceContext,
 ): Promise<WalletBalanceData> {
   const wallet = await findAgentWalletByPrivyUserIdAndChain(privyUserId, chainId);
   if (!wallet) {
@@ -65,7 +66,7 @@ export async function getWalletBalancesForPrivyUser(
     );
   }
 
-  const result = await getBalanceForAddress(chainId, wallet.address);
+  const result = await getBalanceForAddress(chainId, wallet.address, context);
   return balanceResultToWalletData(result);
 }
 

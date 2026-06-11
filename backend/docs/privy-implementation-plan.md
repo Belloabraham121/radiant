@@ -392,6 +392,9 @@ PRIVY_SOLANA_POLICY_ID=            # Optional Solana policy
 ENABLED_CHAINS=sui                 # Comma-separated: sui,ethereum,solana
 DEFAULT_AGENT_CHAIN=sui
 SUI_RPC_URL=https://fullnode.mainnet.sui.io
+EVM_CHAIN_IDS=1,8453,137           # Networks for same agent 0x address
+EVM_DEFAULT_CHAIN_ID=1
+EVM_RPC_URL=                       # Default-chain RPC (optional; per-chain: EVM_RPC_URL_8453=...)
 ```
 
 Frontend (for signer registration only):

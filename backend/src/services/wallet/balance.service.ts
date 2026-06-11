@@ -1,6 +1,6 @@
 import { getDefaultAgentChainId } from "../../config/chains.js";
 import { getAdapter } from "../chains/registry.js";
-import type { BalanceResult, ChainId } from "../chains/types.js";
+import type { BalanceContext, BalanceResult, ChainId } from "../chains/types.js";
 import type { WalletBalanceData } from "./wallet.types.js";
 
 export { mistToSui } from "../../utils/sui-amount.js";
@@ -9,9 +9,10 @@ export { mistToSui } from "../../utils/sui-amount.js";
 export async function getBalanceForAddress(
   chainId: ChainId,
   address: string,
+  context?: BalanceContext,
 ): Promise<BalanceResult> {
   const adapter = getAdapter(chainId);
-  return adapter.getBalance(address);
+  return adapter.getBalance(address, context);
 }
 
 export async function getBalanceForAddressOnDefaultChain(
@@ -29,6 +30,7 @@ export function balanceResultToWalletData(result: BalanceResult): WalletBalanceD
     native_symbol: result.native_symbol,
     coin_type: result.coin_type,
     funded: result.funded,
+    evm_chain_id: result.evm_chain_id,
     sui_address: result.address,
     balance_mist: result.balance_atomic,
     balance_sui: result.balance_display,

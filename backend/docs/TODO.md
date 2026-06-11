@@ -296,12 +296,14 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `npm install viem` | [Backend] |
-| [ ] | `src/infrastructure/evm/client.ts` — viem `PublicClient` per chain ID | [Backend] |
-| [ ] | `src/services/chains/adapters/evm.ts` — `getBalance`, `executeTransaction` | [Backend] |
-| [ ] | `src/services/wallet/evm-signing.service.ts` — Privy sign + viem broadcast | [Backend] |
-| [ ] | Config: `EVM_CHAIN_IDS`, RPC URLs (mainnet, Base, Polygon, …) | [Backend] |
-| [ ] | Client: `createWallet({ chainType: 'ethereum' })` + `register-wallet` for EVM | [Client] |
+| [x] | `npm install viem` | [Backend] |
+| [x] | `src/infrastructure/evm/client.ts` — viem `PublicClient` per chain ID | [Backend] |
+| [x] | `src/services/chains/adapters/evm.ts` — `getBalance`, `executeTransaction` | [Backend] |
+| [x] | `src/services/wallet/evm-signing.service.ts` — Privy `createViemAccount` + viem broadcast | [Backend] |
+| [x] | `src/config/evm.ts` — `EVM_CHAIN_IDS`, `EVM_DEFAULT_CHAIN_ID`, `EVM_RPC_URL`, `EVM_RPC_URL_<id>` | [Backend] |
+| [x] | `GET /wallets/balances?chain=ethereum&evm_chain_id=8453` | [Backend] |
+| [x] | Client: `fetchWalletBalances('ethereum', { evmChainId })` | [Client] |
+| [x] | Client: EVM wallet onboarding (Phase 8.1) | [Client] |
 
 ### 8.3 Solana adapter
 

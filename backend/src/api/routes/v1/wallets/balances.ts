@@ -12,10 +12,20 @@ walletBalancesRouter.get("/api/v1/wallets/balances", requireAuth, async (req, re
     const query = walletBalancesQuerySchema.parse({
       chain:
         typeof req.query.chain === "string" ? req.query.chain : undefined,
+      evm_chain_id:
+        typeof req.query.evm_chain_id === "string"
+          ? req.query.evm_chain_id
+          : undefined,
     });
 
     const chainId = query.chain ?? getDefaultAgentChainId();
-    const balances = await getWalletBalancesForPrivyUser(req.user.privyUserId, chainId);
+    const balances = await getWalletBalancesForPrivyUser(
+      req.user.privyUserId,
+      chainId,
+      query.evm_chain_id !== undefined
+        ? { evm_chain_id: query.evm_chain_id }
+        : undefined,
+    );
     return ok(req, res, balances);
   } catch (err) {
     next(err);

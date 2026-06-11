@@ -3,6 +3,7 @@ import { afterEach, describe, it } from "node:test";
 import { resetChainConfigCacheForTests } from "../../../src/config/chains.js";
 import { AppError } from "../../../src/errors/app-error.js";
 import { getAdapter, parseChainId, setAdapterForTests } from "../../../src/services/chains/registry.js";
+import { evmAdapter } from "../../../src/services/chains/adapters/evm.js";
 import { suiAdapter } from "../../../src/services/chains/adapters/sui.js";
 import type { ChainAdapter } from "../../../src/services/chains/types.js";
 
@@ -10,7 +11,7 @@ describe("chains/registry", () => {
   afterEach(() => {
     resetChainConfigCacheForTests();
     setAdapterForTests("sui", suiAdapter);
-    setAdapterForTests("ethereum", undefined);
+    setAdapterForTests("ethereum", evmAdapter);
     setAdapterForTests("solana", undefined);
   });
 
@@ -32,6 +33,7 @@ describe("chains/registry", () => {
   it("getAdapter throws when adapter is not registered", () => {
     process.env.ENABLED_CHAINS = "ethereum";
     resetChainConfigCacheForTests();
+    setAdapterForTests("ethereum", undefined);
 
     assert.throws(
       () => getAdapter("ethereum"),

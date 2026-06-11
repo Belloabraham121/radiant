@@ -7,6 +7,11 @@ export type ChainId = (typeof CHAIN_IDS)[number];
 
 export const chainIdSchema = z.enum(CHAIN_IDS);
 
+export type BalanceContext = {
+  /** EVM network id (e.g. 1, 8453) when `chain_id` is `ethereum`. */
+  evm_chain_id?: number;
+};
+
 export type BalanceResult = {
   chain_id: ChainId;
   address: string;
@@ -17,6 +22,8 @@ export type BalanceResult = {
   native_symbol: string;
   coin_type?: string;
   funded: boolean;
+  /** Set when querying a specific EVM network. */
+  evm_chain_id?: number;
 };
 
 export type TxResult = {
@@ -24,6 +31,7 @@ export type TxResult = {
   digest: string;
   address: string;
   effects_status: "success" | "failure" | "unknown";
+  evm_chain_id?: number;
 };
 
 export type ExecuteTransactionInput = {
@@ -45,7 +53,7 @@ export type ExecuteTransactionInputParsed = z.infer<typeof executeTransactionInp
  */
 export interface ChainAdapter {
   readonly chainId: ChainId;
-  getBalance(address: string): Promise<BalanceResult>;
+  getBalance(address: string, context?: BalanceContext): Promise<BalanceResult>;
   executeTransaction(
     privyUserId: string,
     action: string,

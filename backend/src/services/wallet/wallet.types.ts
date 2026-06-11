@@ -82,6 +82,7 @@ export type WalletBalanceData = {
   native_symbol: string;
   coin_type?: string;
   funded: boolean;
+  evm_chain_id?: number;
   sui_address: string;
   balance_mist: string;
   balance_sui: number;
@@ -89,6 +90,7 @@ export type WalletBalanceData = {
 
 export const walletBalancesQuerySchema = z.object({
   chain: chainIdSchema.optional(),
+  evm_chain_id: z.coerce.number().int().positive().optional(),
 });
 
 export const signAndSendBodySchema = z.discriminatedUnion("action", [
