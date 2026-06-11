@@ -18,14 +18,34 @@ import {
 import type {
   AgentWalletSummary,
   RegisterWalletInput,
+  ResolvedAgentWallet,
   WalletBalanceData,
 } from "./wallet.types.js";
+import { parseChainId } from "../chains/registry.js";
+
+/** Map Prisma row → adapter shape (schema uses `address`, not legacy `sui_address`). */
+function toResolvedAgentWallet(wallet: AgentWallet): ResolvedAgentWallet {
+  const row = wallet as unknown as {
+    chain_type: string;
+    address: string;
+    privy_wallet_id: string;
+    signer_added: boolean;
+  };
+
+  return {
+    chain_type: parseChainId(row.chain_type),
+    address: row.address,
+    privy_wallet_id: row.privy_wallet_id,
+    signer_added: row.signer_added,
+  };
+}
 
 export async function resolveAgentWalletByPrivyUserId(
   privyUserId: string,
   chainId: ChainId = getDefaultAgentChainId(),
-): Promise<AgentWallet | null> {
-  return findAgentWalletByPrivyUserIdAndChain(privyUserId, chainId);
+): Promise<ResolvedAgentWallet | null> {
+  const wallet = await findAgentWalletByPrivyUserIdAndChain(privyUserId, chainId);
+  return wallet ? toResolvedAgentWallet(wallet) : null;
 }
 
 export async function listAgentWalletsForPrivyUser(

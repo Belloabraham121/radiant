@@ -395,6 +395,9 @@ SUI_RPC_URL=https://fullnode.mainnet.sui.io
 EVM_CHAIN_IDS=1,8453,137           # Networks for same agent 0x address
 EVM_DEFAULT_CHAIN_ID=1
 EVM_RPC_URL=                       # Default-chain RPC (optional; per-chain: EVM_RPC_URL_8453=...)
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
+SOLANA_CAIP2=solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp  # mainnet; devnet: solana:EtWTRABZaYq6iMfeYKouRu166VU2xqaew
+SOLANA_COMMITMENT=confirmed
 ```
 
 Frontend (for signer registration only):

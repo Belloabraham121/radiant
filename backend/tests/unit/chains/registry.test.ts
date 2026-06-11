@@ -4,6 +4,7 @@ import { resetChainConfigCacheForTests } from "../../../src/config/chains.js";
 import { AppError } from "../../../src/errors/app-error.js";
 import { getAdapter, parseChainId, setAdapterForTests } from "../../../src/services/chains/registry.js";
 import { evmAdapter } from "../../../src/services/chains/adapters/evm.js";
+import { solanaAdapter } from "../../../src/services/chains/adapters/solana.js";
 import { suiAdapter } from "../../../src/services/chains/adapters/sui.js";
 import type { ChainAdapter } from "../../../src/services/chains/types.js";
 
@@ -12,7 +13,7 @@ describe("chains/registry", () => {
     resetChainConfigCacheForTests();
     setAdapterForTests("sui", suiAdapter);
     setAdapterForTests("ethereum", evmAdapter);
-    setAdapterForTests("solana", undefined);
+    setAdapterForTests("solana", solanaAdapter);
   });
 
   it("getAdapter returns sui adapter when enabled", () => {

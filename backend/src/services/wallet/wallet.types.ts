@@ -64,6 +64,14 @@ export const registerWalletBodySchema = registerWalletBodyBaseSchema.superRefine
 
 export type RegisterWalletInput = z.infer<typeof registerWalletBodySchema>;
 
+/** Chain adapter view of a registered agent wallet (decoupled from Prisma codegen). */
+export type ResolvedAgentWallet = {
+  chain_type: ChainId;
+  address: string;
+  privy_wallet_id: string;
+  signer_added: boolean;
+};
+
 export type AgentWalletSummary = {
   chain_type: ChainId;
   address: string;

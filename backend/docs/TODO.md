@@ -309,11 +309,13 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `npm install @solana/web3.js` (or Privy-recommended Solana SDK) | [Backend] |
-| [ ] | `src/infrastructure/solana/client.ts` | [Backend] |
-| [ ] | `src/services/chains/adapters/solana.ts` | [Backend] |
-| [ ] | `src/services/wallet/solana-signing.service.ts` | [Backend] |
-| [ ] | Client: `createWallet({ chainType: 'solana' })` + `register-wallet` | [Client] |
+| [x] | `npm install @solana/web3.js` | [Backend] |
+| [x] | `src/infrastructure/solana/client.ts` — `@solana/web3.js` `Connection` | [Backend] |
+| [x] | `src/config/solana.ts` — `SOLANA_RPC_URL`, `SOLANA_CAIP2`, `SOLANA_COMMITMENT` | [Backend] |
+| [x] | `src/services/chains/adapters/solana.ts` — `getBalance`, `executeTransaction` | [Backend] |
+| [x] | `src/services/wallet/solana-signing.service.ts` — Privy `signAndSendTransaction` | [Backend] |
+| [x] | `src/services/wallet/solana-transaction.service.ts` — web3.js transfer + confirm | [Backend] |
+| [x] | Client: Solana wallet onboarding (Phase 8.1) | [Client] |
 
 ### 8.4 Client multi-chain UX
 

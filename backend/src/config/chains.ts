@@ -96,7 +96,7 @@ function buildChainCatalog(): Record<ChainId, ChainConfig> {
       id: "solana",
       enabled: false,
       nativeSymbol: "SOL",
-      rpcUrl: env.SOLANA_RPC_URL,
+      rpcUrl: env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
       policyId: env.PRIVY_SOLANA_POLICY_ID,
       privyChainType: "solana",
     },
