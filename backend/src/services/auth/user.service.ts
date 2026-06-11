@@ -65,7 +65,11 @@ export async function getOrCreateUser(
   });
 }
 
-export function toAuthMeData(user: UserWithWallet, privyUser: User): AuthMeData {
+export function toAuthMeData(
+  user: UserWithWallet,
+  privyUser: User,
+  funded = false,
+): AuthMeData {
   return {
     privy_user_id: user.privy_user_id,
     email: user.email,
@@ -73,7 +77,7 @@ export function toAuthMeData(user: UserWithWallet, privyUser: User): AuthMeData 
     agent_wallet: user.agent_wallet
       ? {
           sui_address: user.agent_wallet.sui_address,
-          funded: false,
+          funded,
         }
       : null,
   };

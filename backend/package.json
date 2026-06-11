@@ -17,6 +17,7 @@
     "test:integration": "tsx --test tests/integration/**/*.test.ts"
   },
   "dependencies": {
+    "@mysten/sui": "^2.17.0",
     "@prisma/client": "^6.5.0",
     "@privy-io/node": "^0.7.0",
     "cookie-parser": "^1.4.7",

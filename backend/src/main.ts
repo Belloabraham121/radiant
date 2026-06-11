@@ -40,7 +40,9 @@ async function start() {
         "GET /health",
         "GET /api/v1/version",
         "GET /api/v1/auth/me",
+        "POST /api/v1/auth/register-wallet",
         "POST /api/v1/auth/logout",
+        "GET /api/v1/wallets/balances",
       ],
     });
   });

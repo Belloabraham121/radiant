@@ -154,20 +154,20 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Add `AgentWallet` model to `schema.prisma` | [Backend] |
-| [ ] | `npx prisma migrate dev --name add_agent_wallet` | [Backend] |
+| [x] | Add `AgentWallet` model to `schema.prisma` | [Backend] |
+| [x] | `npx prisma migrate dev --name add_agent_wallet` | [Backend] |
 
 ### 3.3 Backend wallet services
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `src/config/privy.ts` — signer quorum, policy IDs | [Backend] |
-| [ ] | `src/services/wallet/agent-wallet.repository.ts` | [Backend] |
-| [ ] | `src/services/wallet/agent-wallet.service.ts` — resolve by `privyUserId` | [Backend] |
-| [ ] | `src/api/routes/v1/auth/register-wallet.ts` — `POST /api/v1/auth/register-wallet` | [Backend] |
-| [ ] | Extend `GET /auth/me` to include `agent_wallet` + `funded` flag | [Backend] |
-| [ ] | `src/services/wallet/balance.service.ts` — Sui RPC balance | [Backend] |
-| [ ] | `src/api/routes/v1/wallets/balances.ts` — `GET /api/v1/wallets/balances` | [Backend] |
+| [x] | `src/config/privy.ts` — signer quorum, policy IDs | [Backend] |
+| [x] | `src/services/wallet/agent-wallet.repository.ts` | [Backend] |
+| [x] | `src/services/wallet/agent-wallet.service.ts` — resolve by `privyUserId` | [Backend] |
+| [x] | `src/api/routes/v1/auth/register-wallet.ts` — `POST /api/v1/auth/register-wallet` | [Backend] |
+| [x] | Extend `GET /auth/me` to include `agent_wallet` + `funded` flag | [Backend] |
+| [x] | `src/services/wallet/balance.service.ts` — Sui RPC balance | [Backend] |
+| [x] | `src/api/routes/v1/wallets/balances.ts` — `GET /api/v1/wallets/balances` | [Backend] |
 
 ### 3.4 Client wallet onboarding
 
