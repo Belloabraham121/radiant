@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { chainIdSchema, type ChainId } from "../chains/types.js";
 
 export const suiAddressSchema = z
   .string()
@@ -13,12 +14,24 @@ export const registerWalletBodySchema = z.object({
 export type RegisterWalletInput = z.infer<typeof registerWalletBodySchema>;
 
 export type WalletBalanceData = {
-  sui_address: string;
-  balance_mist: string;
-  balance_sui: number;
-  coin_type: string;
+  chain_id: ChainId;
+  address: string;
+  balance_atomic: string;
+  balance_display: number;
+  native_symbol: string;
+  coin_type?: string;
   funded: boolean;
+  /** Sui-era alias — same as `address` while schema is Sui-only (Phase 7.3 generalizes). */
+  sui_address: string;
+  /** Sui-era alias — same as `balance_atomic`. */
+  balance_mist: string;
+  /** Sui-era alias — same as `balance_display`. */
+  balance_sui: number;
 };
+
+export const walletBalancesQuerySchema = z.object({
+  chain: chainIdSchema.optional(),
+});
 
 export const signAndSendBodySchema = z.discriminatedUnion("action", [
   z.object({

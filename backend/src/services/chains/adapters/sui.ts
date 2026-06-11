@@ -76,7 +76,7 @@ function toSuiExecuteAction(action: string, params: Record<string, unknown>): Su
   }
 }
 
-export async function getSuiAdapterBalance(suiAddress: string): Promise<ChainBalance> {
+async function getSuiAdapterBalance(suiAddress: string): Promise<ChainBalance> {
   const client = getSuiClient();
   const { balance } = await client.getBalance({
     owner: suiAddress,

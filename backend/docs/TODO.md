@@ -246,9 +246,11 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Move `balance.service.ts` + `infrastructure/sui/client.ts` logic → `adapters/sui.ts` | [Backend] |
-| [ ] | `wallet/balance.service.ts` becomes thin facade → `registry.getAdapter(chainId).getBalance()` | [Backend] |
-| [ ] | `GET /wallets/balances?chain=sui` (default chain from env) | [Backend] |
+| [x] | Move `balance.service.ts` + `infrastructure/sui/client.ts` logic → `adapters/sui.ts` | [Backend] |
+| [x] | `wallet/balance.service.ts` becomes thin facade → `registry.getAdapter(chainId).getBalance()` | [Backend] |
+| [x] | `GET /wallets/balances?chain=sui` (default chain from env) | [Backend] |
+| [x] | `WalletBalanceData` — canonical `chain_id` / `balance_atomic` + legacy `sui_*` aliases | [Backend] |
+| [x] | Client `fetchWalletBalances(chainId?)` optional `?chain=` | [Client] |
 
 ### 7.3 Multi-chain schema
 

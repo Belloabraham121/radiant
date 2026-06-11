@@ -7,7 +7,12 @@ import {
   findAgentWalletBySuiAddress,
   updateAgentWalletSignerAdded,
 } from "./agent-wallet.repository.js";
-import { getSuiBalanceForAddress } from "./balance.service.js";
+import { getDefaultAgentChainId } from "../../config/chains.js";
+import type { ChainId } from "../chains/types.js";
+import {
+  balanceResultToWalletData,
+  getBalanceForAddress,
+} from "./balance.service.js";
 import type { RegisterWalletInput, WalletBalanceData } from "./wallet.types.js";
 
 export async function resolveAgentWalletByPrivyUserId(
@@ -16,27 +21,40 @@ export async function resolveAgentWalletByPrivyUserId(
   return findAgentWalletByPrivyUserId(privyUserId);
 }
 
-export async function isWalletFunded(suiAddress: string): Promise<boolean> {
-  const { funded } = await getSuiBalanceForAddress(suiAddress);
-  return funded;
+export async function isWalletFunded(
+  address: string,
+  chainId: ChainId = getDefaultAgentChainId(),
+): Promise<boolean> {
+  const result = await getBalanceForAddress(chainId, address);
+  return result.funded;
+}
+
+function resolveWalletAddressForChain(
+  wallet: { sui_address: string },
+  chainId: ChainId,
+): string {
+  if (chainId !== "sui") {
+    throw new AppError(
+      404,
+      "WALLET_NOT_FOUND",
+      `No agent wallet registered for chain "${chainId}"`,
+    );
+  }
+  return wallet.sui_address;
 }
 
 export async function getWalletBalancesForPrivyUser(
   privyUserId: string,
+  chainId: ChainId = getDefaultAgentChainId(),
 ): Promise<WalletBalanceData> {
   const wallet = await findAgentWalletByPrivyUserId(privyUserId);
   if (!wallet) {
     throw new AppError(404, "WALLET_NOT_FOUND", "Agent wallet not registered");
   }
 
-  const balance = await getSuiBalanceForAddress(wallet.sui_address);
-  return {
-    sui_address: wallet.sui_address,
-    balance_mist: balance.balanceMist.toString(),
-    balance_sui: balance.balanceSui,
-    coin_type: balance.coinType,
-    funded: balance.funded,
-  };
+  const address = resolveWalletAddressForChain(wallet, chainId);
+  const result = await getBalanceForAddress(chainId, address);
+  return balanceResultToWalletData(result);
 }
 
 export async function registerAgentWallet(

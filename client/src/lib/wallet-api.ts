@@ -8,11 +8,16 @@ export type RegisterAgentWalletInput = {
 };
 
 export type WalletBalanceData = {
+  chain_id: string;
+  address: string;
+  balance_atomic: string;
+  balance_display: number;
+  native_symbol: string;
+  coin_type?: string;
+  funded: boolean;
   sui_address: string;
   balance_mist: string;
   balance_sui: number;
-  coin_type: string;
-  funded: boolean;
 };
 
 export async function registerAgentWallet(
@@ -24,6 +29,12 @@ export async function registerAgentWallet(
   });
 }
 
-export async function fetchWalletBalances(): Promise<WalletBalanceData> {
-  return apiFetch<WalletBalanceData>("/api/v1/wallets/balances");
+export async function fetchWalletBalances(
+  chainId?: string,
+): Promise<WalletBalanceData> {
+  const query =
+    chainId && chainId.length > 0
+      ? `?chain=${encodeURIComponent(chainId)}`
+      : "";
+  return apiFetch<WalletBalanceData>(`/api/v1/wallets/balances${query}`);
 }
