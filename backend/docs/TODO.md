@@ -150,7 +150,16 @@ HTTP / agent tools (chain-agnostic)
 | [x] | `client/src/lib/api.ts` — `fetch` wrapper with `credentials: 'include'` | [Client] |
 | [x] | Point at `NEXT_PUBLIC_API_URL` | [Client] |
 
-**Exit criteria:** Real Google/GitHub/email login sets Privy session · `/auth/me` returns user from backend.
+### 2.5 Logout
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [x] | `logoutSession()` → `POST /api/v1/auth/logout` in `auth-api.ts` | [Client] |
+| [x] | `useAuthLogout` — Privy `logout()` + backend cookie clear + redirect `/auth` | [Client] |
+| [x] | Log out control in sidebar footer + Settings profile | [Client] |
+| [x] | `AgentWalletProvider` clears wallet state on logout | [Client] |
+
+**Exit criteria:** Real Google/GitHub/email login sets Privy session · `/auth/me` returns user from backend · Log out clears session and returns to `/auth`.
 
 ---
 
@@ -228,10 +237,10 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `src/services/chains/types.ts` — `ChainId`, `ChainAdapter`, `BalanceResult`, `TxResult` | [Backend] |
-| [ ] | `src/services/chains/registry.ts` — `getAdapter(chainId)`, `listEnabledChains()` | [Backend] |
-| [ ] | `src/config/chains.ts` — enabled chains, RPC URLs, native symbols, policy IDs per chain | [Backend] |
-| [ ] | Agent tool contract: `execute_transaction({ chain_id, action, params })` — no chain SDK in routes | [Backend] |
+| [x] | `src/services/chains/types.ts` — `ChainId`, `ChainAdapter`, `BalanceResult`, `TxResult` | [Backend] |
+| [x] | `src/services/chains/registry.ts` — `getAdapter(chainId)`, `listEnabledChains()` | [Backend] |
+| [x] | `src/config/chains.ts` — enabled chains, RPC URLs, native symbols, policy IDs per chain | [Backend] |
+| [x] | Agent tool contract: `execute_transaction({ chain_id, action, params })` — no chain SDK in routes | [Backend] |
 
 ### 7.2 Refactor Sui into adapter
 

@@ -9,7 +9,72 @@ import {
   buildTransferSuiTransaction,
   executeSignedSuiTransaction,
 } from "../../wallet/sui-transaction.service.js";
-import type { ChainBalance, SuiExecuteAction, SuiTxResult } from "../types.js";
+import type {
+  BalanceResult,
+  ChainAdapter,
+  ChainBalance,
+  SuiExecuteAction,
+  SuiTxResult,
+  TxResult,
+} from "../types.js";
+
+function parseRecipient(params: Record<string, unknown>): string {
+  const recipient = params.recipient;
+  if (typeof recipient !== "string" || !/^0x[a-fA-F0-9]{64}$/.test(recipient)) {
+    throw new AppError(400, "VALIDATION_ERROR", "params.recipient must be a valid Sui address");
+  }
+  return recipient;
+}
+
+function parseAmountMist(params: Record<string, unknown>): bigint {
+  const raw = params.amount_mist ?? params.amount_atomic;
+  if (typeof raw !== "string" || !/^[1-9]\d*$/.test(raw)) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "params.amount_mist (or amount_atomic) must be a positive integer string",
+    );
+  }
+  return BigInt(raw);
+}
+
+function parseTransactionBytes(params: Record<string, unknown>): Uint8Array {
+  const raw = params.transaction_bytes;
+  if (typeof raw !== "string" || raw.length === 0) {
+    throw new AppError(400, "VALIDATION_ERROR", "params.transaction_bytes is required");
+  }
+
+  try {
+    const bytes = Uint8Array.from(Buffer.from(raw, "base64"));
+    if (bytes.length === 0) {
+      throw new Error("empty");
+    }
+    return bytes;
+  } catch {
+    throw new AppError(400, "VALIDATION_ERROR", "params.transaction_bytes must be valid base64");
+  }
+}
+
+function toSuiExecuteAction(action: string, params: Record<string, unknown>): SuiExecuteAction {
+  switch (action) {
+    case "transfer_sui":
+    case "transfer_native":
+      return {
+        action: "transfer_sui",
+        params: {
+          recipient: parseRecipient(params),
+          amountMist: parseAmountMist(params),
+        },
+      };
+    case "execute_bytes":
+      return {
+        action: "execute_bytes",
+        params: { transactionBytes: parseTransactionBytes(params) },
+      };
+    default:
+      throw new AppError(400, "UNSUPPORTED_ACTION", `Unsupported Sui action: ${action}`);
+  }
+}
 
 export async function getSuiAdapterBalance(suiAddress: string): Promise<ChainBalance> {
   const client = getSuiClient();
@@ -83,6 +148,15 @@ async function buildTransactionBytes(
   });
 }
 
+function toTxResult(result: SuiTxResult): TxResult {
+  return {
+    chain_id: "sui",
+    digest: result.digest,
+    address: result.sui_address,
+    effects_status: result.effects_status,
+  };
+}
+
 export async function executeSuiTransaction(
   privyUserId: string,
   action: SuiExecuteAction,
@@ -103,5 +177,32 @@ export async function executeSuiTransaction(
     suiAddress: agentWallet.sui_address,
   });
 }
+
+export const suiAdapter: ChainAdapter = {
+  chainId: "sui",
+
+  async getBalance(address: string): Promise<BalanceResult> {
+    const balance = await getSuiAdapterBalance(address);
+    return {
+      chain_id: "sui",
+      address: balance.address,
+      balance_atomic: balance.balanceMist.toString(),
+      balance_display: balance.balanceSui,
+      native_symbol: "SUI",
+      coin_type: balance.coinType,
+      funded: balance.funded,
+    };
+  },
+
+  async executeTransaction(
+    privyUserId: string,
+    action: string,
+    params: Record<string, unknown>,
+  ): Promise<TxResult> {
+    const suiAction = toSuiExecuteAction(action, params);
+    const result = await executeSuiTransaction(privyUserId, suiAction);
+    return toTxResult(result);
+  },
+};
 
 export { SUI_COIN_TYPE, mistToSui } from "../../../utils/sui-amount.js";

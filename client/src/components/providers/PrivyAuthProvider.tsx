@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { getAppOAuthRedirectUrl } from "@/lib/privy-oauth";
 
 const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
@@ -14,6 +15,7 @@ export function PrivyAuthProvider({ children }: { children: React.ReactNode }) {
       appId={appId}
       config={{
         loginMethods: ["google", "github", "email"],
+        customOAuthRedirectUrl: getAppOAuthRedirectUrl(),
         embeddedWallets: {
           ethereum: { createOnLogin: "off" },
           solana: { createOnLogin: "off" },
@@ -21,7 +23,6 @@ export function PrivyAuthProvider({ children }: { children: React.ReactNode }) {
         appearance: {
           theme: "light",
           showWalletLoginFirst: false,
-          walletChainType: "ethereum-only",
         },
       }}
     >

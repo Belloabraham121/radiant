@@ -20,3 +20,11 @@ export { ApiError as AuthApiError };
 export async function fetchAuthMe(): Promise<AuthMeData> {
   return apiFetch<AuthMeData>("/api/v1/auth/me");
 }
+
+/** Clear Radiant session cookies. Safe to call when already logged out. */
+export async function logoutSession(): Promise<void> {
+  await apiFetch<{ logged_out: boolean }>("/api/v1/auth/logout", {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}

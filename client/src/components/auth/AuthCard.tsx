@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  Captcha,
   useLoginWithEmail,
   useLoginWithOAuth,
   usePrivy,
@@ -13,6 +14,7 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { AuthApiError, fetchAuthMe } from "@/lib/auth-api";
+import { formatPrivyOAuthError, isPrivyOAuthReturn } from "@/lib/privy-oauth";
 
 gsap.registerPlugin(useGSAP);
 
@@ -71,6 +73,9 @@ export function AuthCard() {
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [emailStep, setEmailStep] = useState<EmailStep>("idle");
+  const [oauthReturn, setOauthReturn] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<"google" | "github" | null>(null);
+  const oauthProviderRef = useRef<"google" | "github" | null>(null);
   const handledAuthRef = useRef(false);
   const { ready, authenticated } = usePrivy();
 
@@ -97,14 +102,25 @@ export function AuthCard() {
         void completeLogin();
       },
       onError: (privyError) => {
-        setError(`Login failed (${privyError}). Please try again.`);
+        const provider = oauthProviderRef.current ?? "google";
+        setError(
+          formatPrivyOAuthError(new Error(String(privyError)), provider),
+        );
       },
     }),
     [completeLogin],
   );
 
-  const { initOAuth, loading: oauthLoading } = useLoginWithOAuth(loginCallbacks);
+  const {
+    initOAuth,
+    loading: oauthLoading,
+    state: oauthState,
+  } = useLoginWithOAuth(loginCallbacks);
   const { sendCode, loginWithCode, state: otpState } = useLoginWithEmail(loginCallbacks);
+
+  useEffect(() => {
+    setOauthReturn(isPrivyOAuthReturn());
+  }, []);
 
   useGSAP(
     () => {
@@ -148,12 +164,31 @@ export function AuthCard() {
     setError(null);
   };
 
-  const startOAuth = (provider: "google" | "github") => {
+  const startOAuth = async (provider: "google" | "github") => {
+    if (!ready) {
+      setError("Auth is still loading. Please wait a moment and try again.");
+      return;
+    }
+
     setError(null);
     resetEmailFlow();
     handledAuthRef.current = false;
-    void initOAuth({ provider });
+    setOauthProvider(provider);
+    oauthProviderRef.current = provider;
+
+    try {
+      await initOAuth({ provider });
+    } catch (err) {
+      setError(formatPrivyOAuthError(err, provider));
+    }
   };
+
+  useEffect(() => {
+    if (oauthState.status !== "error" || !oauthProvider) {
+      return;
+    }
+    setError(formatPrivyOAuthError(oauthState.error, oauthProvider));
+  }, [oauthState, oauthProvider]);
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,7 +213,10 @@ export function AuthCard() {
 
   const emailVerifying =
     otpState.status === "sending-code" || otpState.status === "submitting-code";
-  const busy = oauthLoading || syncing || emailVerifying;
+  const oauthCompleting =
+    oauthReturn || (oauthState.status === "loading" && !error);
+  const busy = oauthLoading || syncing || emailVerifying || oauthCompleting;
+  const authLoading = !ready;
 
   return (
     <div
@@ -250,6 +288,13 @@ export function AuthCard() {
           ))}
         </div>
 
+        {oauthCompleting ? (
+          <p className="mb-4 flex items-center justify-center gap-2 rounded-2xl border-2 border-[var(--hero-blue)] bg-[var(--hero-blue)]/10 px-4 py-3 text-sm font-semibold text-[var(--hero-ink)]">
+            <Loader2 className="size-4 animate-spin" />
+            Completing sign in…
+          </p>
+        ) : null}
+
         {error ? (
           <p
             role="alert"
@@ -259,11 +304,19 @@ export function AuthCard() {
           </p>
         ) : null}
 
+        {authLoading ? (
+          <p className="mb-4 text-center text-sm font-medium text-[var(--hero-ink)]/55">
+            Loading sign-in…
+          </p>
+        ) : null}
+
+        <Captcha />
+
         <div className="flex flex-col gap-3">
           <button
             type="button"
-            disabled={busy}
-            onClick={() => startOAuth("google")}
+            disabled={busy || authLoading}
+            onClick={() => void startOAuth("google")}
             className="flex items-center justify-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-white py-3 text-sm font-bold shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy ? <Loader2 className="size-5 animate-spin" /> : <GoogleIcon />}
@@ -271,8 +324,8 @@ export function AuthCard() {
           </button>
           <button
             type="button"
-            disabled={busy}
-            onClick={() => startOAuth("github")}
+            disabled={busy || authLoading}
+            onClick={() => void startOAuth("github")}
             className="flex items-center justify-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-white py-3 text-sm font-bold shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy ? <Loader2 className="size-5 animate-spin" /> : <GithubIcon />}

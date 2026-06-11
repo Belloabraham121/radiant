@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { Copy, Eye, EyeOff, Fingerprint, KeyRound } from "lucide-react";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { AgentWalletSection } from "@/components/app/AgentWalletSection";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { CREDENTIALS, USER } from "@/lib/app-data";
@@ -179,6 +180,9 @@ export default function SettingsPage() {
             <p className="font-heading text-xl font-extrabold tracking-tight">{USER.name}</p>
             <p className="text-sm font-medium text-[var(--hero-ink)]/55">{USER.email}</p>
           </div>
+        </div>
+        <div className="mt-4">
+          <LogoutButton variant="full" />
         </div>
       </section>
 

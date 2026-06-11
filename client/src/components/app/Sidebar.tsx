@@ -12,6 +12,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { formatAddress } from "@mysten/sui/utils";
+import { usePrivy } from "@privy-io/react-auth";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { CHATS, USER } from "@/lib/app-data";
 import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
 import { useSidebar } from "./SidebarContext";
@@ -25,7 +27,11 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const { open, setOpen } = useSidebar();
+  const { user } = usePrivy();
   const { suiAddress, status } = useAgentWallet();
+  const displayName =
+    user?.email?.address ?? user?.google?.email ?? user?.github?.username ?? USER.name;
+  const displayInitial = displayName.charAt(0).toUpperCase();
   const walletLabel =
     suiAddress != null
       ? formatAddress(suiAddress)
@@ -122,14 +128,15 @@ export function Sidebar() {
 
         <div className="flex items-center gap-3 border-t-2 border-[var(--hero-ink)] px-5 py-4">
           <span className="flex size-10 items-center justify-center rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)] font-heading text-base font-extrabold text-white">
-            {USER.name[0]}
+            {displayInitial}
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold">{USER.name}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold">{displayName}</p>
             <p className="truncate font-mono text-[11px] font-semibold text-[var(--hero-ink)]/45">
               {walletLabel}
             </p>
           </div>
+          <LogoutButton />
         </div>
       </aside>
     </>

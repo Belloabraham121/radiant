@@ -1,33 +1,23 @@
-import { AppError } from "../../errors/app-error.js";
-import { executeSuiTransaction } from "../chains/adapters/sui.js";
-import type { SuiExecuteAction } from "../chains/types.js";
+import { getDefaultAgentChainId } from "../../config/chains.js";
+import { executeTransactionForUser } from "../chains/execute-transaction.js";
 import type { SignAndSendBody, SignAndSendResult } from "./wallet.types.js";
 
-function toExecuteAction(body: SignAndSendBody): SuiExecuteAction {
+function toChainAction(body: SignAndSendBody): { action: string; params: Record<string, unknown> } {
   if (body.action === "transfer_sui") {
     return {
-      action: "transfer_sui",
+      action: "transfer_native",
       params: {
         recipient: body.recipient,
-        amountMist: BigInt(body.amount_mist),
+        amount_mist: body.amount_mist,
       },
     };
   }
 
-  let bytes: Uint8Array;
-  try {
-    bytes = Uint8Array.from(Buffer.from(body.transaction_bytes, "base64"));
-  } catch {
-    throw new AppError(400, "VALIDATION_ERROR", "transaction_bytes must be valid base64");
-  }
-
-  if (bytes.length === 0) {
-    throw new AppError(400, "VALIDATION_ERROR", "transaction_bytes cannot be empty");
-  }
-
   return {
     action: "execute_bytes",
-    params: { transactionBytes: bytes },
+    params: {
+      transaction_bytes: body.transaction_bytes,
+    },
   };
 }
 
@@ -35,6 +25,16 @@ export async function signAndSendForUser(
   privyUserId: string,
   body: SignAndSendBody,
 ): Promise<SignAndSendResult> {
-  const action = toExecuteAction(body);
-  return executeSuiTransaction(privyUserId, action);
+  const { action, params } = toChainAction(body);
+  const result = await executeTransactionForUser(privyUserId, {
+    chain_id: getDefaultAgentChainId(),
+    action,
+    params,
+  });
+
+  return {
+    digest: result.digest,
+    sui_address: result.address,
+    effects_status: result.effects_status,
+  };
 }
