@@ -321,9 +321,11 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `NEXT_PUBLIC_DEFAULT_AGENT_CHAIN` (e.g. `sui`) | [Client] |
-| [ ] | Settings: show agent wallets per enabled chain | [Client] |
-| [ ] | Deposits: map Brave / browser wallet chain → correct dapp-kit or wagmi connector | [Client] |
+| [x] | `NEXT_PUBLIC_DEFAULT_AGENT_CHAIN` + `NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID` | [Client] |
+| [x] | Settings: agent wallet card per enabled chain (`AgentWalletSection`) | [Client] |
+| [x] | Multi-chain balances in `AgentWalletProvider` | [Client] |
+| [x] | Deposits: Sui → dapp-kit · EVM → `window.ethereum` · Solana → `window.solana` | [Client] |
+| [x] | Sidebar shows default-chain wallet label | [Client] |
 
 **Exit criteria:** At least two chain families (e.g. Sui + EVM) work end-to-end · adding chain #3 is adapter + config only.
 

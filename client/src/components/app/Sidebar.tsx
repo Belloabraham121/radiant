@@ -11,11 +11,11 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react";
-import { formatAddress } from "@mysten/sui/utils";
 import { usePrivy } from "@privy-io/react-auth";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { CHATS, USER } from "@/lib/app-data";
 import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
+import { formatChainAddress, getChainMeta } from "@/lib/chain-meta";
 import { useSidebar } from "./SidebarContext";
 
 const NAV = [
@@ -28,13 +28,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const { open, setOpen } = useSidebar();
   const { user } = usePrivy();
-  const { suiAddress, status } = useAgentWallet();
+  const { primaryWallet, defaultChainId, status } = useAgentWallet();
   const displayName =
     user?.email?.address ?? user?.google?.email ?? user?.github?.username ?? USER.name;
   const displayInitial = displayName.charAt(0).toUpperCase();
   const walletLabel =
-    suiAddress != null
-      ? formatAddress(suiAddress)
+    primaryWallet?.address != null
+      ? `${getChainMeta(defaultChainId).nativeSymbol} ${formatChainAddress(defaultChainId, primaryWallet.address)}`
       : status === "loading"
         ? "Setting up wallet…"
         : "No wallet";

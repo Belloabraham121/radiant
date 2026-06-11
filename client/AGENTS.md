@@ -178,6 +178,8 @@ Before adding `useEffect` + async:
 
 - Agent wallet creation/signers: `AgentWalletProvider` → `ensure-agent-chain-wallet.ts` — one wallet per **chain family** (`sui`, `ethereum`, `solana`). **EVM:** one `0x` address for all EVM chains; do not create per-L2 rows.
 - Enabled families: `NEXT_PUBLIC_ENABLED_AGENT_CHAINS` (default `sui`). Mirror backend `ENABLED_CHAINS`.
+- Default UI chain: `NEXT_PUBLIC_DEFAULT_AGENT_CHAIN`. Balances/deposits for EVM use `NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID`.
+- Personal-wallet deposits (`lib/personal-wallet.ts`): Sui → dapp-kit · EVM → injected EIP-1193 · Solana → `window.solana` + `@solana/web3.js`.
 - Personal wallet: never used for agent automation; only user-initiated deposits in `AgentWalletSection`.
 
 ---
@@ -196,6 +198,8 @@ NEXT_PUBLIC_PRIVY_EVM_POLICY_ID=
 NEXT_PUBLIC_PRIVY_SOLANA_POLICY_ID=
 NEXT_PUBLIC_ENABLED_AGENT_CHAINS=sui
 NEXT_PUBLIC_DEFAULT_AGENT_CHAIN=sui
+NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID=1
+NEXT_PUBLIC_SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 ```
 
 OAuth callback setup is documented in `.env.example` (Privy + Google + GitHub redirect URIs).

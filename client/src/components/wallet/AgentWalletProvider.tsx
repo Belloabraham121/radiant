@@ -109,14 +109,9 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
   const runIdRef = useRef(0);
   const inFlightRef = useRef(false);
   const onboardedUserIdRef = useRef<string | null>(null);
-  const userRef = useRef(user);
-  const statusRef = useRef(status);
-  const walletsRef = useRef(wallets);
-  userRef.current = user;
-  statusRef.current = status;
-  walletsRef.current = wallets;
 
   const userId = user?.id ?? null;
+  const sessionActive = ready && authenticated && userId !== null;
   const enabledChains = useMemo(() => getEnabledAgentChainIds(), []);
   const defaultChainId = useMemo(() => getDefaultAgentChainId(), []);
 
@@ -151,15 +146,14 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const ensureAgentWallet = useCallback(async () => {
-    const currentUser = userRef.current;
-    if (!authenticated || !currentUser) return;
+    if (!authenticated || !user) return;
 
     const me = await fetchAuthMe();
     const provisioned: ChainWalletState[] = [];
 
     for (const chainId of enabledChains) {
       const registered = await ensureAgentChainWallet({
-        user: currentUser,
+        user,
         me,
         chainId,
         creators: walletCreators,
@@ -174,7 +168,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
 
     setWallets(provisioned);
     await refreshBalances(provisioned);
-  }, [addSigners, authenticated, enabledChains, refreshBalances, walletCreators]);
+  }, [addSigners, authenticated, enabledChains, refreshBalances, user, walletCreators]);
 
   const runOnboarding = useCallback(
     async (trigger: "auto" | "manual" = "auto") => {
@@ -183,7 +177,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
         return;
       }
 
-      const activeUserId = userRef.current?.id ?? null;
+      const activeUserId = user?.id ?? null;
       if (trigger === "auto" && activeUserId && onboardedUserIdRef.current === activeUserId) {
         return;
       }
@@ -192,12 +186,15 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       inFlightRef.current = true;
 
       const runId = ++runIdRef.current;
+      if (trigger === "auto" && activeUserId !== onboardedUserIdRef.current) {
+        setWallets([]);
+      }
       setStatus("loading");
       if (trigger === "manual") setError(null);
 
       try {
-        if (trigger === "manual" && statusRef.current === "ready" && walletsRef.current.length > 0) {
-          await refreshBalances(walletsRef.current);
+        if (trigger === "manual" && status === "ready" && wallets.length > 0) {
+          await refreshBalances(wallets);
           if (runId !== runIdRef.current) return;
           setError(null);
           setStatus("ready");
@@ -217,24 +214,18 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
         inFlightRef.current = false;
       }
     },
-    [authenticated, ensureAgentWallet, ready, refreshBalances],
+    [authenticated, ensureAgentWallet, ready, refreshBalances, status, user, wallets],
   );
 
-  const runOnboardingRef = useRef(runOnboarding);
-  runOnboardingRef.current = runOnboarding;
-
   const refresh = useCallback(() => {
-    void runOnboardingRef.current("manual");
-  }, []);
+    void runOnboarding("manual");
+  }, [runOnboarding]);
 
   useEffect(() => {
     if (!ready) return;
 
     if (!authenticated || !userId) {
       onboardedUserIdRef.current = null;
-      setStatus("idle");
-      setWallets([]);
-      setError(null);
       return;
     }
 
@@ -242,43 +233,60 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       return;
     }
 
-    void runOnboardingRef.current("auto");
-  }, [authenticated, ready, userId]);
+    void runOnboarding("auto");
+  }, [authenticated, ready, runOnboarding, userId]);
 
-  const primaryWallet = useMemo(
-    () => wallets.find((w) => w.chainId === defaultChainId) ?? wallets[0] ?? null,
-    [defaultChainId, wallets],
+  const displayWallets = useMemo(
+    () =>
+      sessionActive && wallets.length > 0
+        ? wallets
+        : enabledChains.map((chainId) => emptyChainWallet(chainId)),
+    [enabledChains, sessionActive, wallets],
   );
 
-  const suiWallet = useMemo(
-    () => wallets.find((w) => w.chainId === "sui") ?? null,
-    [wallets],
+  const displayPrimaryWallet = useMemo(
+    () =>
+      displayWallets.find((w) => w.chainId === defaultChainId) ?? displayWallets[0] ?? null,
+    [defaultChainId, displayWallets],
+  );
+
+  const displaySuiWallet = useMemo(
+    () => displayWallets.find((w) => w.chainId === "sui") ?? null,
+    [displayWallets],
   );
 
   const getWallet = useCallback(
-    (chainId: AgentChainId) => wallets.find((w) => w.chainId === chainId),
-    [wallets],
+    (chainId: AgentChainId) => displayWallets.find((w) => w.chainId === chainId),
+    [displayWallets],
   );
 
   const value = useMemo<AgentWalletContextValue>(
     () => ({
-      status,
+      status: sessionActive ? status : "idle",
       defaultChainId,
       enabledChains,
-      wallets:
-        wallets.length > 0
-          ? wallets
-          : enabledChains.map((chainId) => emptyChainWallet(chainId)),
-      primaryWallet,
-      suiAddress: suiWallet?.address ?? null,
-      balanceSui: suiWallet?.balanceDisplay ?? null,
-      funded: primaryWallet?.funded ?? false,
-      signerAdded: primaryWallet?.signerAdded ?? false,
-      error,
+      wallets: displayWallets,
+      primaryWallet: displayPrimaryWallet,
+      suiAddress: displaySuiWallet?.address ?? null,
+      balanceSui: displaySuiWallet?.balanceDisplay ?? null,
+      funded: displayPrimaryWallet?.funded ?? false,
+      signerAdded: displayPrimaryWallet?.signerAdded ?? false,
+      error: sessionActive ? error : null,
       refresh,
       getWallet,
     }),
-    [defaultChainId, enabledChains, error, getWallet, primaryWallet, refresh, status, suiWallet, wallets],
+    [
+      defaultChainId,
+      displayPrimaryWallet,
+      displaySuiWallet,
+      displayWallets,
+      enabledChains,
+      error,
+      getWallet,
+      refresh,
+      sessionActive,
+      status,
+    ],
   );
 
   return (

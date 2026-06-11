@@ -14,11 +14,13 @@ type SolanaInjected = {
   publicKey: { toBase58: () => string } | null;
 };
 
-declare global {
-  interface Window {
-    ethereum?: Eip1193Provider;
-    solana?: SolanaInjected;
-  }
+type BrowserWalletWindow = Window & {
+  ethereum?: Eip1193Provider;
+  solana?: SolanaInjected;
+};
+
+function browserWalletWindow(): BrowserWalletWindow {
+  return window as BrowserWalletWindow;
 }
 
 export function depositRailForChain(chainId: AgentChainId): DepositRail {
@@ -26,11 +28,17 @@ export function depositRailForChain(chainId: AgentChainId): DepositRail {
 }
 
 export function isEvmInjectedAvailable(): boolean {
-  return typeof window !== "undefined" && typeof window.ethereum?.request === "function";
+  return (
+    typeof window !== "undefined" &&
+    typeof browserWalletWindow().ethereum?.request === "function"
+  );
 }
 
 export function isSolanaInjectedAvailable(): boolean {
-  return typeof window !== "undefined" && typeof window.solana?.connect === "function";
+  return (
+    typeof window !== "undefined" &&
+    typeof browserWalletWindow().solana?.connect === "function"
+  );
 }
 
 /** Whether the personal-wallet deposit rail for a chain can run in this browser. */
@@ -54,12 +62,12 @@ export function isDepositRailAvailable(
 
 export function injectedEvmProvider(): Eip1193Provider | null {
   if (!isEvmInjectedAvailable()) return null;
-  return window.ethereum ?? null;
+  return browserWalletWindow().ethereum ?? null;
 }
 
 export function injectedSolanaProvider(): SolanaInjected | null {
   if (!isSolanaInjectedAvailable()) return null;
-  return window.solana ?? null;
+  return browserWalletWindow().solana ?? null;
 }
 
 export async function connectInjectedEvm(): Promise<string> {
@@ -100,7 +108,7 @@ export function parseDecimalToAtomic(amount: string, decimals: number): bigint |
 
   const paddedFraction = fraction.padEnd(decimals, "0");
   const atomic = BigInt(whole + paddedFraction);
-  return atomic > 0n ? atomic : null;
+  return atomic > BigInt(0) ? atomic : null;
 }
 
 export function atomicToHex(value: bigint): string {
@@ -188,10 +196,8 @@ export async function sendInjectedSolanaTransfer(input: {
 
   const transaction = new VersionedTransaction(message);
 
-  const solanaWindow = window.solana as SolanaInjected & {
-    signAndSendTransaction?: (
-      tx: VersionedTransaction,
-    ) => Promise<{ signature: string }>;
+  const solanaWindow = browserWalletWindow().solana as SolanaInjected & {
+    signAndSendTransaction?: (tx: unknown) => Promise<{ signature: string }>;
   };
 
   if (typeof solanaWindow.signAndSendTransaction !== "function") {
