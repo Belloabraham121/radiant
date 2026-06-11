@@ -4,6 +4,8 @@ Infrastructure and folder layout for the Node.js API — same layered architectu
 
 API and protocol reference: [api-ref.md](./api-ref.md).
 
+**Agent skill (required for all backend work):** [.agents/skills/radiant-backend/SKILL.md](./.agents/skills/radiant-backend/SKILL.md) — layered architecture, no `any`, Prisma migrate workflow, folder placement.
+
 ## Docker Compose (Postgres, Redis, RabbitMQ)
 
 From this directory:

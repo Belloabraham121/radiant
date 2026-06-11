@@ -8,8 +8,9 @@
     "start:prod": "npm run db:deploy && tsx src/main.ts",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:deploy": "prisma generate && prisma db push --accept-data-loss",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:deploy": "prisma migrate deploy && prisma generate",
     "db:check": "tsx scripts/check-db-schema.ts",
     "test": "tsx --test tests/integration/**/*.test.ts tests/unit/**/*.test.ts",
     "test:integration": "tsx --test tests/integration/**/*.test.ts"
