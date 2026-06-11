@@ -167,21 +167,15 @@ export function AuthCard() {
           <input
             type="email"
             required
+            autoComplete="email"
             placeholder="you@anywhere.com"
-            className="rounded-2xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 py-3 text-sm font-semibold placeholder:text-[var(--hero-ink)]/35 focus:outline-none focus:ring-2 focus:ring-[var(--hero-blue)]"
-          />
-          <input
-            type="password"
-            required
-            minLength={8}
-            placeholder={mode === "login" ? "your password" : "pick a strong password"}
             className="rounded-2xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 py-3 text-sm font-semibold placeholder:text-[var(--hero-ink)]/35 focus:outline-none focus:ring-2 focus:ring-[var(--hero-blue)]"
           />
           <button
             type="submit"
             className="group mt-1 flex items-center justify-center gap-2 rounded-full bg-[var(--hero-ink)] py-3.5 text-sm font-bold text-[var(--hero-bg)] shadow-[4px_4px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5"
           >
-            {mode === "login" ? "Log in" : "Create my agent"}
+            {mode === "login" ? "Continue with email" : "Create my agent"}
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
           </button>
         </form>
