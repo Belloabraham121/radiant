@@ -31,8 +31,9 @@ describe("POST /api/v1/auth/register-wallet", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        chain_type: "sui",
         privy_wallet_id: "wallet-1",
-        sui_address: `0x${"a".repeat(64)}`,
+        address: `0x${"a".repeat(64)}`,
       }),
     });
     assert.equal(response.status, 401);

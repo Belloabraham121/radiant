@@ -10,13 +10,13 @@ import {
   executeSignedSuiTransaction,
 } from "../../wallet/sui-transaction.service.js";
 import type {
-  BalanceResult,
   ChainAdapter,
   ChainBalance,
   SuiExecuteAction,
   SuiTxResult,
   TxResult,
 } from "../types.js";
+import { toSuiBalanceResult } from "./sui-balance.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;
@@ -122,7 +122,7 @@ async function resolveSigningWallet(privyUserId: string) {
   }
 
   const privyWallet = await fetchPrivySuiWallet(agentWallet.privy_wallet_id);
-  if (privyWallet.address !== agentWallet.sui_address) {
+  if (privyWallet.address !== agentWallet.address) {
     throw new AppError(
       409,
       "WALLET_ADDRESS_MISMATCH",
@@ -162,11 +162,11 @@ export async function executeSuiTransaction(
   action: SuiExecuteAction,
 ): Promise<SuiTxResult> {
   const { agentWallet, privyWallet } = await resolveSigningWallet(privyUserId);
-  const transactionBytes = await buildTransactionBytes(agentWallet.sui_address, action);
+  const transactionBytes = await buildTransactionBytes(agentWallet.address, action);
 
   const serializedSignature = await signSuiTransactionBytes({
     privyWalletId: agentWallet.privy_wallet_id,
-    suiAddress: agentWallet.sui_address,
+    suiAddress: agentWallet.address,
     publicKeyBase58: privyWallet.public_key!,
     transactionBytes,
   });
@@ -174,24 +174,16 @@ export async function executeSuiTransaction(
   return executeSignedSuiTransaction({
     transactionBytes,
     serializedSignature,
-    suiAddress: agentWallet.sui_address,
+    suiAddress: agentWallet.address,
   });
 }
 
 export const suiAdapter: ChainAdapter = {
   chainId: "sui",
 
-  async getBalance(address: string): Promise<BalanceResult> {
+  async getBalance(address: string) {
     const balance = await getSuiAdapterBalance(address);
-    return {
-      chain_id: "sui",
-      address: balance.address,
-      balance_atomic: balance.balanceMist.toString(),
-      balance_display: balance.balanceSui,
-      native_symbol: "SUI",
-      coin_type: balance.coinType,
-      funded: balance.funded,
-    };
+    return toSuiBalanceResult(balance);
   },
 
   async executeTransaction(

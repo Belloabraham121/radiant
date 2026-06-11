@@ -1,9 +1,11 @@
 import { apiFetch, ApiError } from "./api";
 
 export type AuthMeAgentWallet = {
-  sui_address: string;
+  chain_type: string;
+  address: string;
   funded: boolean;
   signer_added: boolean;
+  sui_address?: string;
 };
 
 export type AuthMeData = {
@@ -11,6 +13,7 @@ export type AuthMeData = {
   email: string | null;
   linked_accounts: Array<"google" | "github" | "email">;
   agent_wallet: AuthMeAgentWallet | null;
+  agent_wallets: AuthMeAgentWallet[];
 };
 
 /** @deprecated Use `ApiError` from `@/lib/api`. */

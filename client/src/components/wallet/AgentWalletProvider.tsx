@@ -92,7 +92,9 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       };
     }
 
-    let hasSigner = me.agent_wallet?.signer_added ?? false;
+    const primaryWallet =
+      me.agent_wallets.find((w) => w.chain_type === "sui") ?? me.agent_wallet;
+    let hasSigner = primaryWallet?.signer_added ?? false;
 
     if (!hasSigner) {
       const policyId = getSuiPolicyId();
@@ -109,16 +111,17 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
     }
 
     const registered = await registerAgentWallet({
+      chain_type: "sui",
       privy_wallet_id: wallet.privyWalletId,
-      sui_address: wallet.address,
+      address: wallet.address,
       signer_added: hasSigner,
     });
 
-    setSuiAddress(registered.sui_address);
+    setSuiAddress(registered.address);
     setSignerAdded(registered.signer_added);
     setFunded(registered.funded);
 
-    await loadBalances(registered.sui_address);
+    await loadBalances(registered.address);
   }, [addSigners, authenticated, createWallet, loadBalances]);
 
   const runOnboarding = useCallback(

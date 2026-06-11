@@ -1,24 +1,37 @@
 import type { AgentWallet } from "@prisma/client";
+import { getDefaultAgentChainId } from "../../config/chains.js";
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
-import {
-  createAgentWallet,
-  findAgentWalletByPrivyUserId,
-  findAgentWalletBySuiAddress,
-  updateAgentWalletSignerAdded,
-} from "./agent-wallet.repository.js";
-import { getDefaultAgentChainId } from "../../config/chains.js";
 import type { ChainId } from "../chains/types.js";
 import {
   balanceResultToWalletData,
   getBalanceForAddress,
 } from "./balance.service.js";
-import type { RegisterWalletInput, WalletBalanceData } from "./wallet.types.js";
+import {
+  createAgentWallet,
+  findAgentWalletByChainAndAddress,
+  findAgentWalletByPrivyUserIdAndChain,
+  findAgentWalletForUserChain,
+  findAgentWalletsByPrivyUserId,
+  updateAgentWalletSignerAdded,
+} from "./agent-wallet.repository.js";
+import type {
+  AgentWalletSummary,
+  RegisterWalletInput,
+  WalletBalanceData,
+} from "./wallet.types.js";
 
 export async function resolveAgentWalletByPrivyUserId(
   privyUserId: string,
+  chainId: ChainId = getDefaultAgentChainId(),
 ): Promise<AgentWallet | null> {
-  return findAgentWalletByPrivyUserId(privyUserId);
+  return findAgentWalletByPrivyUserIdAndChain(privyUserId, chainId);
+}
+
+export async function listAgentWalletsForPrivyUser(
+  privyUserId: string,
+): Promise<AgentWallet[]> {
+  return findAgentWalletsByPrivyUserId(privyUserId);
 }
 
 export async function isWalletFunded(
@@ -29,31 +42,20 @@ export async function isWalletFunded(
   return result.funded;
 }
 
-function resolveWalletAddressForChain(
-  wallet: { sui_address: string },
-  chainId: ChainId,
-): string {
-  if (chainId !== "sui") {
+export async function getWalletBalancesForPrivyUser(
+  privyUserId: string,
+  chainId: ChainId = getDefaultAgentChainId(),
+): Promise<WalletBalanceData> {
+  const wallet = await findAgentWalletByPrivyUserIdAndChain(privyUserId, chainId);
+  if (!wallet) {
     throw new AppError(
       404,
       "WALLET_NOT_FOUND",
       `No agent wallet registered for chain "${chainId}"`,
     );
   }
-  return wallet.sui_address;
-}
 
-export async function getWalletBalancesForPrivyUser(
-  privyUserId: string,
-  chainId: ChainId = getDefaultAgentChainId(),
-): Promise<WalletBalanceData> {
-  const wallet = await findAgentWalletByPrivyUserId(privyUserId);
-  if (!wallet) {
-    throw new AppError(404, "WALLET_NOT_FOUND", "Agent wallet not registered");
-  }
-
-  const address = resolveWalletAddressForChain(wallet, chainId);
-  const result = await getBalanceForAddress(chainId, address);
+  const result = await getBalanceForAddress(chainId, wallet.address);
   return balanceResultToWalletData(result);
 }
 
@@ -66,17 +68,17 @@ export async function registerAgentWallet(
     throw new AppError(404, "USER_NOT_FOUND", "User not found. Call GET /api/v1/auth/me first.");
   }
 
-  if (user.agent_wallet) {
-    const existing = user.agent_wallet;
+  const existing = await findAgentWalletForUserChain(user.id, input.chain_type);
+  if (existing) {
     const sameWallet =
       existing.privy_wallet_id === input.privy_wallet_id &&
-      existing.sui_address === input.sui_address;
+      existing.address === input.address;
 
     if (!sameWallet) {
       throw new AppError(
         409,
         "WALLET_ALREADY_REGISTERED",
-        "Agent wallet already exists for this user",
+        `Agent wallet already exists for chain "${input.chain_type}"`,
       );
     }
 
@@ -87,28 +89,37 @@ export async function registerAgentWallet(
     return existing;
   }
 
-  const addressOwner = await findAgentWalletBySuiAddress(input.sui_address);
+  const addressOwner = await findAgentWalletByChainAndAddress(
+    input.chain_type,
+    input.address,
+  );
   if (addressOwner && addressOwner.user.privy_user_id !== privyUserId) {
     throw new AppError(
       409,
       "WALLET_ADDRESS_CONFLICT",
-      "This Sui address is linked to another user",
+      "This wallet address is linked to another user",
     );
   }
 
   return createAgentWallet({
     user: { connect: { id: user.id } },
+    chain_type: input.chain_type,
+    address: input.address,
     privy_wallet_id: input.privy_wallet_id,
-    sui_address: input.sui_address,
     signer_added: input.signer_added,
   });
 }
 
-export function toAgentWalletSummary(wallet: AgentWallet, funded: boolean) {
+export function toAgentWalletSummary(
+  wallet: AgentWallet,
+  funded: boolean,
+): AgentWalletSummary {
   return {
-    sui_address: wallet.sui_address,
+    chain_type: wallet.chain_type as ChainId,
+    address: wallet.address,
     privy_wallet_id: wallet.privy_wallet_id,
     signer_added: wallet.signer_added,
     funded,
+    ...(wallet.chain_type === "sui" ? { sui_address: wallet.address } : {}),
   };
 }

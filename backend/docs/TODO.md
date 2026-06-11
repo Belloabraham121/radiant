@@ -256,18 +256,20 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Migrate `AgentWallet`: `sui_address` → `chain_type` + `address` | [Backend] |
-| [ ] | `@@unique([user_id, chain_type])` — one agent wallet per chain per user | [Backend] |
-| [ ] | `POST /register-wallet` body: `{ chain_type, privy_wallet_id, address, signer_added? }` | [Backend] |
-| [ ] | `GET /auth/me` — `agent_wallets[]` or primary chain + optional list | [Backend] |
-| [ ] | Backfill existing Sui rows (`chain_type: 'sui'`) | [Backend] |
+| [x] | Migrate `AgentWallet`: `sui_address` → `chain_type` + `address` | [Backend] |
+| [x] | `@@unique([user_id, chain_type])` — one agent wallet per chain per user | [Backend] |
+| [x] | `POST /register-wallet` body: `{ chain_type, privy_wallet_id, address, signer_added? }` | [Backend] |
+| [x] | `GET /auth/me` — `agent_wallets[]` + legacy `agent_wallet` (default chain) | [Backend] |
+| [x] | Backfill existing Sui rows (`chain_type: 'sui'`) | [Backend] |
+| [x] | Client: register with `chain_type` + `address`; read `agent_wallets` | [Client] |
 
 ### 7.4 Tests
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `tests/unit/chains/registry.test.ts` — unknown `chain_id` → error | [Backend] |
-| [ ] | `tests/unit/chains/sui.adapter.test.ts` — balance normalization | [Backend] |
+| [x] | `tests/unit/chains/registry.test.ts` — unknown `chain_id` → error | [Backend] |
+| [x] | `tests/unit/balance.service.test.ts` — balance facade + field mapping | [Backend] |
+| [x] | `tests/unit/chains/sui.adapter.test.ts` — balance normalization | [Backend] |
 
 **Exit criteria:** New chain = new adapter file + config only · routes and agent tools unchanged · Sui still works via registry.
 

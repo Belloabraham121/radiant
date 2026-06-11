@@ -5,6 +5,7 @@ import {
   registerAgentWallet,
   toAgentWalletSummary,
 } from "../../../../services/wallet/agent-wallet.service.js";
+import type { ChainId } from "../../../../services/chains/types.js";
 import { registerWalletBodySchema } from "../../../../services/wallet/wallet.types.js";
 import { fail, ok } from "../../../../utils/http-response.js";
 import { ZodError } from "zod";
@@ -18,7 +19,10 @@ authRegisterWalletRouter.post(
     try {
       const body = registerWalletBodySchema.parse(req.body);
       const wallet = await registerAgentWallet(req.user.privyUserId, body);
-      const funded = await isWalletFunded(wallet.sui_address);
+      const funded = await isWalletFunded(
+        wallet.address,
+        wallet.chain_type as ChainId,
+      );
       return ok(req, res, toAgentWalletSummary(wallet, funded), 201);
     } catch (err) {
       if (err instanceof ZodError) {

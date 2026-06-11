@@ -14,16 +14,20 @@ model User {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  agent_wallet AgentWallet?
+  agent_wallets AgentWallet[]
 }
 
 model AgentWallet {
   id              BigInt   @id @default(autoincrement())
-  user_id         BigInt   @unique
+  user_id         BigInt
   user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chain_type      String
+  address         String
   privy_wallet_id String   @unique
-  sui_address     String   @unique
   signer_added    Boolean  @default(false)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
+
+  @@unique([user_id, chain_type])
+  @@unique([chain_type, address])
 }

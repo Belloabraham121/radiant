@@ -5,13 +5,51 @@ export const suiAddressSchema = z
   .string()
   .regex(/^0x[a-fA-F0-9]{64}$/, "Invalid Sui address");
 
-export const registerWalletBodySchema = z.object({
+const registerWalletBodyBaseSchema = z.object({
+  chain_type: chainIdSchema.default("sui"),
   privy_wallet_id: z.string().min(1),
-  sui_address: suiAddressSchema,
+  address: z.string().min(1).optional(),
+  sui_address: suiAddressSchema.optional(),
   signer_added: z.boolean().optional().default(false),
 });
 
+export const registerWalletBodySchema = registerWalletBodyBaseSchema.superRefine(
+  (body, ctx) => {
+    const address = body.address ?? body.sui_address;
+    if (!address) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "address or sui_address is required",
+        path: ["address"],
+      });
+      return;
+    }
+    if (body.chain_type === "sui" && !suiAddressSchema.safeParse(address).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid Sui address",
+        path: ["address"],
+      });
+    }
+  },
+).transform((body) => ({
+  chain_type: body.chain_type,
+  privy_wallet_id: body.privy_wallet_id,
+  address: (body.address ?? body.sui_address)!,
+  signer_added: body.signer_added ?? false,
+}));
+
 export type RegisterWalletInput = z.infer<typeof registerWalletBodySchema>;
+
+export type AgentWalletSummary = {
+  chain_type: ChainId;
+  address: string;
+  privy_wallet_id: string;
+  signer_added: boolean;
+  funded: boolean;
+  /** Legacy alias when chain_type is sui. */
+  sui_address?: string;
+};
 
 export type WalletBalanceData = {
   chain_id: ChainId;
@@ -21,11 +59,8 @@ export type WalletBalanceData = {
   native_symbol: string;
   coin_type?: string;
   funded: boolean;
-  /** Sui-era alias — same as `address` while schema is Sui-only (Phase 7.3 generalizes). */
   sui_address: string;
-  /** Sui-era alias — same as `balance_atomic`. */
   balance_mist: string;
-  /** Sui-era alias — same as `balance_display`. */
   balance_sui: number;
 };
 

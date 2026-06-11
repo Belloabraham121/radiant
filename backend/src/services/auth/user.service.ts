@@ -1,20 +1,22 @@
 import type { User } from "@privy-io/node/resources/users.mjs";
+import { getDefaultAgentChainId } from "../../config/chains.js";
 import { AppError } from "../../errors/app-error.js";
 import { normalizeEmail } from "../../utils/normalize-email.js";
-import type { AuthMeData } from "./auth.types.js";
+import type { ChainId } from "../chains/types.js";
+import type { AuthMeAgentWallet, AuthMeData } from "./auth.types.js";
 import { extractEmailFromPrivyUser, extractLinkedAccountLabels } from "./extract-privy-email.js";
 import {
   createUser,
   findUserByEmail,
   findUserByPrivyId,
   updateUserEmail,
-  type UserWithWallet,
+  type UserWithWallets,
 } from "./user.repository.js";
 
 function assertNoEmailConflict(
   email: string,
   privyUserId: string,
-  existing: UserWithWallet | null,
+  existing: UserWithWallets | null,
 ): void {
   if (existing && existing.privy_user_id !== privyUserId) {
     throw new AppError(
@@ -29,7 +31,7 @@ function assertNoEmailConflict(
 export async function getOrCreateUser(
   privyUserId: string,
   privyUser: User,
-): Promise<UserWithWallet> {
+): Promise<UserWithWallets> {
   const email = extractEmailFromPrivyUser(privyUser);
   const existing = await findUserByPrivyId(privyUserId);
 
@@ -65,21 +67,47 @@ export async function getOrCreateUser(
   });
 }
 
+function toAuthMeAgentWallet(
+  wallet: {
+    chain_type: string;
+    address: string;
+    signer_added: boolean;
+  },
+  funded: boolean,
+): AuthMeAgentWallet {
+  const chainType = wallet.chain_type as ChainId;
+  return {
+    chain_type: chainType,
+    address: wallet.address,
+    funded,
+    signer_added: wallet.signer_added,
+    ...(chainType === "sui" ? { sui_address: wallet.address } : {}),
+  };
+}
+
 export function toAuthMeData(
-  user: UserWithWallet,
+  user: UserWithWallets,
   privyUser: User,
-  funded = false,
+  fundedByChain: Map<ChainId, boolean>,
 ): AuthMeData {
+  const agent_wallets = user.agent_wallets.map((wallet) =>
+    toAuthMeAgentWallet(
+      wallet,
+      fundedByChain.get(wallet.chain_type as ChainId) ?? false,
+    ),
+  );
+
+  const primaryChain = getDefaultAgentChainId();
+  const primaryWallet =
+    agent_wallets.find((wallet) => wallet.chain_type === primaryChain) ??
+    agent_wallets[0] ??
+    null;
+
   return {
     privy_user_id: user.privy_user_id,
     email: user.email,
     linked_accounts: extractLinkedAccountLabels(privyUser),
-    agent_wallet: user.agent_wallet
-      ? {
-          sui_address: user.agent_wallet.sui_address,
-          funded,
-          signer_added: user.agent_wallet.signer_added,
-        }
-      : null,
+    agent_wallet: primaryWallet,
+    agent_wallets,
   };
 }
