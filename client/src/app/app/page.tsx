@@ -15,18 +15,23 @@ const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
 function Bubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   return (
-    <div data-bubble className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[78%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-2`}>
+    <div
+      data-bubble
+      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+    >
+      <div
+        className={`max-w-[78%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-2`}
+      >
         {!isUser && (
           <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/40">
-            <Sparkles className="size-3 text-[var(--hero-amber)]" strokeWidth={3} />
+            <Sparkles className="size-3 text-(--hero-amber)" strokeWidth={3} />
             Radiant
           </span>
         )}
         <div
-          className={`rounded-3xl border-2 border-[var(--hero-ink)] px-5 py-3.5 text-sm font-medium leading-relaxed ${
+          className={`rounded-3xl border-2 border-(--hero-ink) px-5 py-3.5 text-sm font-medium leading-relaxed ${
             isUser
-              ? "rounded-br-md bg-[var(--hero-ink)] text-[var(--hero-bg)]"
+              ? "rounded-br-md bg-[var(--hero-ink)] text-(--hero-bg)"
               : "rounded-bl-md bg-white shadow-[4px_4px_0_var(--hero-ink)]"
           }`}
         >
@@ -40,7 +45,10 @@ function Bubble({ message }: { message: Message }) {
                 key={r.label}
                 className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold"
               >
-                <Check className="size-3.5 text-[var(--hero-mint)]" strokeWidth={3} />
+                <Check
+                  className="size-3.5 text-[var(--hero-mint)]"
+                  strokeWidth={3}
+                />
                 {r.label}
                 {r.detail && (
                   <span className="font-mono font-semibold text-[var(--hero-ink)]/45">
@@ -115,14 +123,19 @@ export default function ChatPage() {
     setTimeout(() => {
       const reply = CANNED_REPLIES[replyIdx.current % CANNED_REPLIES.length];
       replyIdx.current += 1;
-      setMessages((m) => [...m, { id: `a-${Date.now()}`, role: "agent", text: reply }]);
+      setMessages((m) => [
+        ...m,
+        { id: `a-${Date.now()}`, role: "agent", text: reply },
+      ]);
       setTyping(false);
     }, 1400);
   };
 
   return (
     <div ref={ref} className="flex h-full flex-col">
-      <header className={`${CHAT_COL} flex items-center justify-between gap-3 px-6 py-4`}>
+      <header
+        className={`${CHAT_COL} flex items-center justify-between gap-3 px-6 py-4`}
+      >
         <div className="flex min-w-0 items-center gap-3">
           <SidebarToggle />
           <h1 className="font-heading text-lg font-extrabold tracking-tight">
@@ -155,7 +168,9 @@ export default function ChatPage() {
       </div>
 
       <form onSubmit={send} className="px-6 py-4">
-        <div className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}>
+        <div
+          className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
+        >
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -171,8 +186,11 @@ export default function ChatPage() {
             <ArrowUp className="size-5" strokeWidth={2.5} />
           </button>
         </div>
-        <p className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}>
-          Radiant signs transactions with your wallet. Big moves always ask first.
+        <p
+          className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
+        >
+          Radiant signs transactions with your wallet. Big moves always ask
+          first.
         </p>
       </form>
     </div>

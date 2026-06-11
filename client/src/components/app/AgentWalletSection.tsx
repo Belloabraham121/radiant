@@ -1,10 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  type UiWallet,
+  getWalletUniqueIdentifier,
+  useCurrentAccount,
+  useCurrentNetwork,
+  useCurrentWallet,
+  useDAppKit,
+  useWalletConnection,
+  useWallets,
+} from "@mysten/dapp-kit-react";
+import { Transaction, coinWithBalance } from "@mysten/sui/transactions";
+import { formatAddress, parseToMist } from "@mysten/sui/utils";
 import {
   ArrowRight,
   Check,
   Copy,
+  ExternalLink,
   Loader2,
   Wallet,
   WalletMinimal,
@@ -15,28 +28,149 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { USER } from "@/lib/app-data";
-
-const PERSONAL_WALLETS = [
-  { id: "slush", name: "Slush", accent: "var(--hero-blue)" },
-  { id: "sui", name: "Sui Wallet", accent: "var(--hero-coral)" },
-  { id: "phantom", name: "Phantom", accent: "var(--hero-violet)" },
-] as const;
+import { dAppKit } from "@/lib/dapp-kit";
+import {
+  getAgentWalletAddress,
+  getAgentWalletShort,
+  mistToSui,
+  NETWORK_LABELS,
+  type SuiNetwork,
+} from "@/lib/sui-config";
 
 type DepositStep = "connect" | "amount" | "confirm" | "done";
 
+function parseAmountMist(value: string): bigint | null {
+  try {
+    const mist = parseToMist(value);
+    return mist > BigInt(0) ? mist : null;
+  } catch {
+    return null;
+  }
+}
+
+function walletIcon(wallet: UiWallet): string | undefined {
+  return typeof wallet.icon === "string" ? wallet.icon : undefined;
+}
+
+function explorerTxUrl(network: string, digest: string): string {
+  const base =
+    network === "mainnet"
+      ? "https://suiscan.xyz/mainnet/tx"
+      : network === "devnet"
+        ? "https://suiscan.xyz/devnet/tx"
+        : "https://suiscan.xyz/testnet/tx";
+  return `${base}/${digest}`;
+}
+
+function AgentBalance({
+  address,
+  network,
+  refreshToken,
+}: {
+  address: string;
+  network: SuiNetwork;
+  refreshToken: number;
+}) {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const client = dAppKit.getClient(network);
+        const { balance: coinBalance } = await client.getBalance({ owner: address });
+        if (!cancelled) setBalance(mistToSui(coinBalance.balance));
+      } catch {
+        if (!cancelled) setBalance(null);
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, network, refreshToken]);
+
+  if (!loaded) {
+    return (
+      <span className="inline-flex items-center gap-2 text-2xl text-[var(--hero-ink)]/40">
+        <Loader2 className="size-6 animate-spin" />
+        Loading…
+      </span>
+    );
+  }
+
+  if (balance === null) {
+    return <span className="text-xl text-[var(--hero-ink)]/45">— SUI</span>;
+  }
+
+  return (
+    <>
+      {balance.toFixed(4)} <span className="text-xl text-[var(--hero-ink)]/45">SUI</span>
+    </>
+  );
+}
+
+function ConnectedBalance({
+  address,
+  network,
+  refreshToken,
+}: {
+  address: string;
+  network: SuiNetwork;
+  refreshToken: number;
+}) {
+  const [balance, setBalance] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const client = dAppKit.getClient(network);
+        const { balance: coinBalance } = await client.getBalance({ owner: address });
+        if (!cancelled) setBalance(mistToSui(coinBalance.balance));
+      } catch {
+        if (!cancelled) setBalance(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, network, refreshToken]);
+
+  if (balance === null) return null;
+
+  return (
+    <span className="ml-2 text-[var(--hero-ink)]/40">· {balance.toFixed(4)} SUI</span>
+  );
+}
+
 export function AgentWalletSection() {
+  const dAppKitInstance = useDAppKit();
+  const wallets = useWallets();
+  const connection = useWalletConnection();
+  const account = useCurrentAccount();
+  const wallet = useCurrentWallet();
+  const network = useCurrentNetwork() as SuiNetwork;
+
+  const agentAddress = getAgentWalletAddress();
+  const agentShort = getAgentWalletShort();
+
   const [copied, setCopied] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [depositStep, setDepositStep] = useState<DepositStep>("connect");
-  const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
   const [confirming, setConfirming] = useState(false);
-  const [balance, setBalance] = useState(USER.balanceSui);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [txError, setTxError] = useState<string | null>(null);
+  const [txDigest, setTxDigest] = useState<string | null>(null);
+  const [balanceRefresh, setBalanceRefresh] = useState(0);
 
   const copyAddress = async () => {
     try {
-      await navigator.clipboard.writeText(USER.walletFull);
+      await navigator.clipboard.writeText(agentAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -45,36 +179,79 @@ export function AgentWalletSection() {
   };
 
   const resetDeposit = () => {
-    setDepositStep("connect");
-    setSelectedWallet(null);
     setAmount("");
     setConfirming(false);
+    setConnectingId(null);
+    setConnectError(null);
+    setTxError(null);
+    setTxDigest(null);
   };
 
   const closeDeposit = () => {
     setDepositOpen(false);
+    setDepositStep("connect");
     setTimeout(resetDeposit, 200);
   };
 
-  const connectWallet = (id: string) => {
-    setSelectedWallet(id);
-    setDepositStep("amount");
+  const openDeposit = () => {
+    resetDeposit();
+    setDepositStep(connection.isConnected ? "amount" : "connect");
+    setDepositOpen(true);
   };
 
-  const submitDeposit = () => {
+  const handleConnectWallet = async (selected: UiWallet) => {
+    setConnectError(null);
+    setConnectingId(getWalletUniqueIdentifier(selected));
+    try {
+      await dAppKitInstance.connectWallet({ wallet: selected });
+      setDepositStep("amount");
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : "Could not connect wallet.");
+    } finally {
+      setConnectingId(null);
+    }
+  };
+
+  const submitDeposit = async () => {
+    if (!account) return;
+    setTxError(null);
     setConfirming(true);
-    setTimeout(() => {
-      const parsed = parseFloat(amount);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        setBalance((b) => Math.round((b + parsed) * 100) / 100);
+    try {
+      const mist = parseAmountMist(amount);
+      if (!mist) throw new Error("Enter a valid amount.");
+
+      const tx = new Transaction();
+      tx.transferObjects([coinWithBalance({ balance: mist })], agentAddress);
+
+      const result = await dAppKitInstance.signAndExecuteTransaction({
+        transaction: tx,
+      });
+
+      if ("FailedTransaction" in result && result.FailedTransaction) {
+        const message =
+          result.FailedTransaction.status.error?.message ?? "Transaction failed.";
+        throw new Error(message);
       }
-      setConfirming(false);
+
+      const digest =
+        "Transaction" in result && result.Transaction?.digest
+          ? result.Transaction.digest
+          : null;
+
+      if (!digest) throw new Error("Transaction submitted but no digest returned.");
+
+      setTxDigest(digest);
       setDepositStep("done");
-    }, 1200);
+      setBalanceRefresh((n) => n + 1);
+    } catch (err) {
+      setTxError(err instanceof Error ? err.message : "Transaction failed.");
+    } finally {
+      setConfirming(false);
+    }
   };
 
-  const walletName =
-    PERSONAL_WALLETS.find((w) => w.id === selectedWallet)?.name ?? "wallet";
+  const walletName = wallet?.name ?? "wallet";
+  const networkLabel = NETWORK_LABELS[network] ?? network;
 
   return (
     <>
@@ -85,7 +262,7 @@ export function AgentWalletSection() {
             Agent wallet
           </h2>
           <span className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1 text-xs font-bold text-[var(--hero-mint)] shadow-[2px_2px_0_var(--hero-ink)]">
-            {USER.network}
+            {networkLabel}
           </span>
         </div>
 
@@ -102,13 +279,16 @@ export function AgentWalletSection() {
                 Balance
               </p>
               <p className="mt-1 font-heading text-4xl font-extrabold tracking-tight">
-                {balance.toFixed(2)}{" "}
-                <span className="text-xl text-[var(--hero-ink)]/45">SUI</span>
+                <AgentBalance
+                  address={agentAddress}
+                  network={network}
+                  refreshToken={balanceRefresh}
+                />
               </p>
             </div>
             <button
               type="button"
-              onClick={() => setDepositOpen(true)}
+              onClick={openDeposit}
               className="group flex shrink-0 items-center justify-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-5 py-3 text-sm font-bold text-[var(--hero-bg)] shadow-[4px_4px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5"
             >
               <WalletMinimal className="size-4" strokeWidth={2.5} />
@@ -145,7 +325,7 @@ export function AgentWalletSection() {
               </button>
             </div>
             <p className="mt-2 break-all font-mono text-sm font-semibold leading-relaxed">
-              {USER.walletFull}
+              {agentAddress}
             </p>
           </div>
 
@@ -191,50 +371,112 @@ export function AgentWalletSection() {
           <div className="px-6 py-5">
             {depositStep === "connect" && (
               <div className="flex flex-col gap-3">
-                {PERSONAL_WALLETS.map((w) => (
-                  <button
-                    key={w.id}
-                    type="button"
-                    onClick={() => connectWallet(w.id)}
-                    className="flex items-center gap-3 rounded-2xl border-2 border-[var(--hero-ink)] bg-white px-4 py-3.5 text-left shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
-                  >
-                    <span
-                      className="flex size-10 items-center justify-center rounded-xl border-2 border-[var(--hero-ink)] font-heading text-sm font-extrabold text-white"
-                      style={{ backgroundColor: w.accent }}
-                    >
-                      {w.name[0]}
-                    </span>
-                    <span className="text-sm font-bold">{w.name}</span>
-                  </button>
-                ))}
+                {wallets.length === 0 ? (
+                  <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/25 bg-white px-4 py-5 text-center">
+                    <p className="text-sm font-semibold text-[var(--hero-ink)]/70">
+                      No Sui wallets detected
+                    </p>
+                    <p className="mt-2 text-xs font-medium leading-relaxed text-[var(--hero-ink)]/50">
+                      Install{" "}
+                      <a
+                        href="https://suiwallet.com"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold text-[var(--hero-blue)] underline"
+                      >
+                        Sui Wallet
+                      </a>{" "}
+                      or use{" "}
+                      <a
+                        href="https://slush.app"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold text-[var(--hero-blue)] underline"
+                      >
+                        Slush
+                      </a>
+                      , then refresh this page.
+                    </p>
+                  </div>
+                ) : (
+                  wallets.map((w) => {
+                    const id = getWalletUniqueIdentifier(w);
+                    const isConnecting = connectingId === id;
+                    const icon = walletIcon(w);
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        disabled={Boolean(connectingId)}
+                        onClick={() => void handleConnectWallet(w)}
+                        className="flex items-center gap-3 rounded-2xl border-2 border-[var(--hero-ink)] bg-white px-4 py-3.5 text-left shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+                      >
+                        {icon ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={icon}
+                            alt=""
+                            className="size-10 rounded-xl border-2 border-[var(--hero-ink)] object-cover"
+                          />
+                        ) : (
+                          <span className="flex size-10 items-center justify-center rounded-xl border-2 border-[var(--hero-ink)] bg-[var(--hero-blue)] font-heading text-sm font-extrabold text-white">
+                            {w.name[0]}
+                          </span>
+                        )}
+                        <span className="flex-1 text-sm font-bold">{w.name}</span>
+                        {isConnecting && (
+                          <Loader2 className="size-4 animate-spin text-[var(--hero-ink)]/50" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+                {connectError && (
+                  <p className="rounded-xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-3 py-2 text-xs font-semibold text-[var(--hero-coral)]">
+                    {connectError}
+                  </p>
+                )}
               </div>
             )}
 
-            {depositStep === "amount" && (
+            {depositStep === "amount" && account && (
               <div className="flex flex-col gap-4">
+                <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
+                    Connected
+                  </p>
+                  <p className="mt-1 text-sm font-bold">{walletName}</p>
+                  <p className="font-mono text-xs font-semibold text-[var(--hero-ink)]/55">
+                    {formatAddress(account.address)}
+                    <ConnectedBalance
+                      address={account.address}
+                      network={network}
+                      refreshToken={balanceRefresh}
+                    />
+                  </p>
+                </div>
                 <label className="flex flex-col gap-2">
                   <span className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
                     Amount (SUI)
                   </span>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder="e.g. 25"
+                    placeholder="e.g. 0.1"
                     className="rounded-2xl border-2 border-[var(--hero-ink)] bg-white px-4 py-3 font-mono text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--hero-blue)]"
                   />
                 </label>
                 <p className="text-xs font-medium text-[var(--hero-ink)]/45">
                   To{" "}
                   <span className="font-mono font-semibold text-[var(--hero-ink)]/70">
-                    {USER.wallet}
+                    {agentShort}
                   </span>
                 </p>
                 <button
                   type="button"
-                  disabled={!amount || parseFloat(amount) <= 0}
+                  disabled={!parseAmountMist(amount)}
                   onClick={() => setDepositStep("confirm")}
                   className="flex items-center justify-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] py-3 text-sm font-bold text-[var(--hero-bg)] shadow-[4px_4px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5 disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0"
                 >
@@ -259,11 +501,21 @@ export function AgentWalletSection() {
                     From
                   </p>
                   <p className="mt-1 text-sm font-bold">{walletName}</p>
+                  {account && (
+                    <p className="font-mono text-xs text-[var(--hero-ink)]/55">
+                      {formatAddress(account.address)}
+                    </p>
+                  )}
                 </div>
+                {txError && (
+                  <p className="rounded-xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-3 py-2 text-xs font-semibold text-[var(--hero-coral)]">
+                    {txError}
+                  </p>
+                )}
                 <button
                   type="button"
                   disabled={confirming}
-                  onClick={submitDeposit}
+                  onClick={() => void submitDeposit()}
                   className="flex items-center justify-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] py-3 text-sm font-bold text-white shadow-[4px_4px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:opacity-70"
                 >
                   {confirming ? (
@@ -286,6 +538,17 @@ export function AgentWalletSection() {
                 <p className="text-sm font-medium text-[var(--hero-ink)]/60">
                   {amount} SUI is heading to your agent wallet.
                 </p>
+                {txDigest && (
+                  <a
+                    href={explorerTxUrl(network, txDigest)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-[var(--hero-blue)] hover:underline"
+                  >
+                    View on explorer
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={closeDeposit}

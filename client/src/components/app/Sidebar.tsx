@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { CHATS, USER } from "@/lib/app-data";
+import { getAgentWalletShort } from "@/lib/sui-config";
 import { useSidebar } from "./SidebarContext";
 
 const NAV = [
@@ -118,7 +119,7 @@ export function Sidebar() {
           <div className="min-w-0">
             <p className="truncate text-sm font-bold">{USER.name}</p>
             <p className="truncate font-mono text-[11px] font-semibold text-[var(--hero-ink)]/45">
-              {USER.wallet}
+              {getAgentWalletShort()}
             </p>
           </div>
         </div>
