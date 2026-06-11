@@ -1,7 +1,16 @@
 import "dotenv/config";
+import { z } from "zod";
 
 function optional(name: string, fallback: string): string {
   return process.env[name] ?? fallback;
+}
+
+function required(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
+  return value;
 }
 
 export function getServerEnv() {
@@ -18,4 +27,36 @@ export function getCorsEnv() {
   return {
     corsOrigin: optional("CORS_ORIGIN", "http://localhost:3000"),
   };
+}
+
+const privyEnvSchema = z.object({
+  PRIVY_APP_ID: z.string().min(1),
+  PRIVY_APP_SECRET: z.string().min(1),
+  DATABASE_URL: z.string().min(1),
+  CORS_ORIGIN: z.string().min(1),
+});
+
+export type PrivyEnv = z.infer<typeof privyEnvSchema>;
+
+let cachedPrivyEnv: PrivyEnv | undefined;
+
+/** Validated Privy + DB env — lazy so `/health` works without auth keys in tests. */
+export function getPrivyEnv(): PrivyEnv {
+  if (!cachedPrivyEnv) {
+    cachedPrivyEnv = privyEnvSchema.parse({
+      PRIVY_APP_ID: process.env.PRIVY_APP_ID,
+      PRIVY_APP_SECRET: process.env.PRIVY_APP_SECRET,
+      DATABASE_URL: process.env.DATABASE_URL,
+      CORS_ORIGIN: process.env.CORS_ORIGIN,
+    });
+  }
+  return cachedPrivyEnv;
+}
+
+export function getAuthCookieNames() {
+  return {
+    accessToken: "privy-token",
+    identityToken: "privy-id-token",
+    session: "privy-session",
+  } as const;
 }

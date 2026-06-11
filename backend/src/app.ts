@@ -4,6 +4,8 @@ import express from "express";
 import { correlationIdMiddleware } from "./api/middleware/correlation-id.js";
 import { errorHandlerMiddleware } from "./api/middleware/error-handler.js";
 import { requestLoggerMiddleware } from "./api/middleware/request-logger.js";
+import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
+import { authMeRouter } from "./api/routes/v1/auth/me.js";
 import { healthRouter } from "./api/routes/health.js";
 import { createCorsOptions } from "./config/cors.js";
 
@@ -17,6 +19,8 @@ export function createApp() {
   app.use(correlationIdMiddleware);
   app.use(requestLoggerMiddleware);
   app.use(healthRouter);
+  app.use(authMeRouter);
+  app.use(authLogoutRouter);
   app.use(errorHandlerMiddleware);
 
   return app;

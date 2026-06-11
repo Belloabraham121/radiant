@@ -31,15 +31,15 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 | [ ] | Enable login methods: **Google**, **GitHub**, **Email (OTP)** — no password | [Dashboard] |
 | [ ] | Enable **Login method transfer** (same-email merges) | [Dashboard] |
 | [ ] | Enable **Return user data in identity token** | [Dashboard] |
-| [ ] | Copy `PRIVY_APP_ID` + `PRIVY_APP_SECRET` → `backend/.env` | [Dashboard] |
-| [ ] | Copy `NEXT_PUBLIC_PRIVY_APP_ID` → `client/.env.local` | [Dashboard] |
+| [x] | Copy `PRIVY_APP_ID` + `PRIVY_APP_SECRET` → `backend/.env` | [Dashboard] |
+| [x] | Copy `NEXT_PUBLIC_PRIVY_APP_ID` → `client/.env.local` | [Dashboard] |
 
 ### 0.3 Client env
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `npm install @privy-io/react-auth` in `client/` | [Client] |
-| [ ] | `client/.env.local` with `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_API_URL=http://localhost:3001` | [Client] |
+| [x] | `npm install @privy-io/react-auth` in `client/` | [Client] |
+| [x] | `client/.env.local` with `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_API_URL=http://localhost:3001` | [Client] |
 
 **Exit criteria:** `curl localhost:3001/health` OK · Docker services healthy · Privy dev app configured.
 
@@ -53,43 +53,43 @@ Trackable checklist for Privy auth + agent wallet. Full context: [privy-implemen
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `prisma/schema.prisma` — `User` (`privy_user_id` @unique, `email` @unique) | [Backend] |
-| [ ] | `npx prisma migrate dev --name add_user` | [Backend] |
-| [ ] | `src/utils/normalize-email.ts` — trim + lowercase | [Backend] |
+| [x] | `prisma/schema.prisma` — `User` (`privy_user_id` @unique, `email` @unique) | [Backend] |
+| [x] | `npx prisma migrate dev --name add_user` | [Backend] |
+| [x] | `src/utils/normalize-email.ts` — trim + lowercase | [Backend] |
 
 ### 1.2 Privy + auth layer
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `src/config/env.ts` — Zod validate `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `CORS_ORIGIN`, `DATABASE_URL` | [Backend] |
-| [ ] | `src/config/cors.ts` — `credentials: true`, origin from env | [Backend] |
-| [ ] | `src/infrastructure/privy/client.ts` — `PrivyClient` singleton | [Backend] |
-| [ ] | `src/services/auth/auth.types.ts` — `AuthenticatedUser`, Zod schemas | [Backend] |
-| [ ] | `src/services/auth/privy-auth.service.ts` — `verifyAccessToken`, `fetchPrivyUser` | [Backend] |
-| [ ] | `src/services/auth/user.repository.ts` — upsert by `privy_user_id`, email conflict → 409 | [Backend] |
-| [ ] | `src/services/auth/user.service.ts` — `getOrCreateUser`, merge conflict handling | [Backend] |
+| [x] | `src/config/env.ts` — Zod validate `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `CORS_ORIGIN`, `DATABASE_URL` | [Backend] |
+| [x] | `src/config/cors.ts` — `credentials: true`, origin from env | [Backend] |
+| [x] | `src/infrastructure/privy/client.ts` — `PrivyClient` singleton | [Backend] |
+| [x] | `src/services/auth/auth.types.ts` — `AuthenticatedUser`, Zod schemas | [Backend] |
+| [x] | `src/services/auth/privy-auth.service.ts` — `verifyAccessToken`, `fetchPrivyUser` | [Backend] |
+| [x] | `src/services/auth/user.repository.ts` — upsert by `privy_user_id`, email conflict → 409 | [Backend] |
+| [x] | `src/services/auth/user.service.ts` — `getOrCreateUser`, merge conflict handling | [Backend] |
 
 ### 1.3 HTTP layer
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `src/api/middleware/correlation-id.ts` | [Backend] |
-| [ ] | `src/api/middleware/request-logger.ts` | [Backend] |
-| [ ] | `src/api/middleware/error-handler.ts` — standard envelope | [Backend] |
-| [ ] | `src/api/middleware/auth.ts` — read `privy-token` cookie → `req.user` | [Backend] |
-| [ ] | `src/types/express.d.ts` — augment `Request` with `user`, `correlationId` | [Backend] |
-| [ ] | `src/api/routes/health.ts` | [Backend] |
-| [ ] | `src/api/routes/v1/auth/me.ts` — `GET /api/v1/auth/me` | [Backend] |
-| [ ] | `src/api/routes/v1/auth/logout.ts` — `POST /api/v1/auth/logout` | [Backend] |
-| [ ] | Wire routes in `src/app.ts` (`cookie-parser`, CORS, middleware) | [Backend] |
+| [x] | `src/api/middleware/correlation-id.ts` | [Backend] |
+| [x] | `src/api/middleware/request-logger.ts` | [Backend] |
+| [x] | `src/api/middleware/error-handler.ts` — standard envelope | [Backend] |
+| [x] | `src/api/middleware/auth.ts` — read `privy-token` cookie → `req.user` | [Backend] |
+| [x] | `src/types/express.d.ts` — augment `Request` with `user`, `correlationId` | [Backend] |
+| [x] | `src/api/routes/health.ts` | [Backend] |
+| [x] | `src/api/routes/v1/auth/me.ts` — `GET /api/v1/auth/me` | [Backend] |
+| [x] | `src/api/routes/v1/auth/logout.ts` — `POST /api/v1/auth/logout` | [Backend] |
+| [x] | Wire routes in `src/app.ts` (`cookie-parser`, CORS, middleware) | [Backend] |
 
 ### 1.4 Tests
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `tests/unit/normalize-email.test.ts` | [Backend] |
-| [ ] | `tests/unit/auth-middleware.test.ts` — missing cookie → 401 | [Backend] |
-| [ ] | `tests/integration/auth-me.test.ts` — mock Privy verify | [Backend] |
+| [x] | `tests/unit/normalize-email.test.ts` | [Backend] |
+| [x] | `tests/unit/auth-middleware.test.ts` — missing cookie → 401 | [Backend] |
+| [x] | `tests/integration/auth-me.test.ts` — mock Privy verify | [Backend] |
 
 **Exit criteria:** Authenticated request with valid `privy-token` returns `/auth/me` with user row in Postgres.
 

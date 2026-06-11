@@ -36,7 +36,12 @@ async function start() {
       nodeEnv,
       logLevel: logger.level,
       corsOrigin,
-      routes: ["GET /health", "GET /api/v1/version"],
+      routes: [
+        "GET /health",
+        "GET /api/v1/version",
+        "GET /api/v1/auth/me",
+        "POST /api/v1/auth/logout",
+      ],
     });
   });
 
