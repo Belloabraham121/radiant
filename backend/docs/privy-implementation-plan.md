@@ -398,45 +398,22 @@ NEXT_PUBLIC_PRIVY_SUI_POLICY_ID=
 
 ## Implementation order
 
-### Phase A — Tool 1 (auth)
+**Full trackable checklist:** [TODO.md](./TODO.md) — phases 0–6 with owners (`[Backend]` / `[Client]` / `[Dashboard]`), dependencies, and exit criteria.
 
-- [ ] Install `@privy-io/node`, `cookie-parser`, `cors`
-- [ ] `PrivyClient` + env validation
-- [ ] Auth middleware (cookie → `verifyAccessToken`)
-- [ ] Prisma `User` model + migration
-- [ ] `GET /api/v1/auth/me`
-- [ ] CORS with `credentials: true`
-- [ ] Integration test with mock Privy verify
+| Phase | Focus | Depends on |
+| ----- | ----- | ---------- |
+| **0** | Infra, deps, Privy dev app, Docker | — |
+| **1** | Tool 1 — cookie auth backend (`/auth/me`, middleware, `User`) | 0 |
+| **2** | Client — PrivyProvider, OAuth, email OTP, API client | 0 |
+| **3** | Tool 2 — agent wallet, signers, balances, Sui signing | 1 + 2 |
+| **4** | Shared identity — unique email, merge, webhooks, link accounts | 3 |
+| **5** | Agent tools — `execute_transaction`, approval UI | 3 |
+| **6** | Production — HttpOnly cookies, `/refresh`, deploy | 4 + 5 |
 
-### Phase B — Tool 2 (agent wallet)
-
-- [ ] Prisma `AgentWallet` + migration
-- [ ] Dashboard: authorization key + optional Sui policy
-- [ ] `POST /api/v1/auth/register-wallet`
-- [ ] `agent-wallet.service` — resolve address by `privyUserId`
-- [ ] `sui-signing.service` — Privy `rawSign` / `signTransactionBytes`
-- [ ] Wire `services/chains/adapters/sui.ts` to signing service
-- [ ] `GET /api/v1/wallets/balances`
-
-### Phase C — Agent integration
-
-- [ ] `execute_transaction` tool uses sui adapter (no wallet in tool input)
-- [ ] User approval modal for high-value txs (frontend)
-- [ ] Update `api-ref.md` — remove `wallet` from request examples
-
-### Phase D — Shared identity & email OTP (client)
-
-- [ ] Email OTP UI: email input → `sendCode` → OTP input → `loginWithCode`
-- [ ] Enable **Login method transfer** in Privy Dashboard
-- [ ] Settings: optional `useLinkAccount` for GitHub / Google / email
-- [ ] Handle `linked_to_another_user` — show merge/transfer prompt
-- [ ] Webhook: `user.transferred_account` → backend user merge
-
-### Phase E — Production cookies
-
-- [ ] Production Privy app + domain DNS
-- [ ] Client `/refresh` page for `privy-session` edge case
-- [ ] Next.js middleware pattern from [Privy cookies doc](https://docs.privy.io/recipes/react/cookies)
+```
+Phase 0 → Phase 1 (backend auth) ──┐
+      → Phase 2 (client login)  ──┴→ Phase 3 (wallet) → Phase 4 / 5 / 6
+```
 
 ---
 

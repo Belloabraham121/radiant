@@ -4,7 +4,9 @@ Infrastructure and folder layout for the Node.js API — same layered architectu
 
 API and protocol reference: [api-ref.md](./api-ref.md).
 
-**Privy implementation plan (auth + agent wallet):** [docs/privy-implementation-plan.md](./docs/privy-implementation-plan.md) — two tools: (1) HttpOnly cookie sessions for Google/GitHub/email, (2) embedded Sui agent wallets with session signers for server-side agent transactions.
+**Privy implementation plan (auth + agent wallet):** [docs/privy-implementation-plan.md](./docs/privy-implementation-plan.md) — architecture and API contracts.
+
+**Implementation TODO (phases 0–6):** [docs/TODO.md](./docs/TODO.md) — granular checklist with `[Backend]` / `[Client]` / `[Dashboard]` owners.
 
 **Agent skill (required for all backend work):** [.agents/skills/radiant-backend/SKILL.md](./.agents/skills/radiant-backend/SKILL.md) — layered architecture, no `any`, Prisma migrate workflow, folder placement.
 
