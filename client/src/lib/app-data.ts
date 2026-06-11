@@ -46,7 +46,13 @@ export type Project = {
 export const USER = {
   name: "Kisi",
   email: "kisi@radiant.so",
+  /** Truncated — sidebar & profile chips */
   wallet: "0x8f3c…9a21",
+  /** Full Sui address for funding & onchain identity */
+  walletFull:
+    "0x8f3c2a1b9d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789a21",
+  balanceSui: 12.48,
+  network: "Sui Mainnet",
 };
 
 export const CHATS: Chat[] = [

@@ -14,6 +14,21 @@ You talk to it in plain language. It does things.
 
 ---
 
+## Your agent wallet
+
+When you create a Radiant account — Google, GitHub, or email — **your agent gets its own Sui wallet automatically**. You do not connect a wallet to sign up. Radiant generates the keypair, encrypts it, and ties it to your account. You hold the keys; Radiant never does.
+
+**Fund the agent** in Settings (or ask it in chat):
+
+1. **Send SUI to the agent address** — copy the full address and transfer from an exchange or any wallet.
+2. **Deposit from your personal wallet** — connect Slush, Sui Wallet, or another wallet *only to move funds in*. This is not login; it is a one-off transfer into your agent's wallet.
+
+Once funded, the agent signs transactions, deploys apps, and pays fees on your behalf. You approve big moves; small ones can auto-run based on your permissions.
+
+You never need to connect a wallet to use Radiant day to day. The agent already has one.
+
+---
+
 ## What can Radiant do?
 
 ### It acts for you
@@ -58,7 +73,7 @@ Set a fee. Anyone — human or AI agent — can discover your app, use it, and y
 
 ## What makes Radiant different
 
-**It has memory.** Most AI tools Radiantt you between sessions. Radiant doesn't. It accumulates context about who you are, what you have, and what you need — like a personal assistant who has worked with you for years.
+**It has memory.** Most AI tools reset you between sessions. Radiant doesn't. It accumulates context about who you are, what you have, and what you need — like a personal assistant who has worked with you for years.
 
 **It has hands.** Most AI tools tell you what to do. Radiant does it. It can sign transactions, connect wallets, execute swaps, register accounts, and interact with onchain protocols on your behalf.
 
@@ -90,7 +105,7 @@ Creators earn a fee on every use. Automatically. Onchain.
 **Session 2 — Credential management**
 
 > _"Sign me up for Scallop and deposit 20 SUI into the lending pool."_
-> Radiant signs up, connects your wallet, executes the deposit, and saves your Scallop credentials to your agent memory for next time.
+> Radiant signs up with credentials from its vault, executes the deposit from your agent wallet, and saves your Scallop login for next time.
 
 **Session 3 — Building a personal tool**
 
@@ -120,8 +135,10 @@ User (browser)
     ▼
 ┌──────────────────────────────────────────┐
 │             Next.js Frontend              │
-│   Chat UI · Dashboard · Explorer          │
-│   @mysten/dapp-kit (wallet)               │
+│   Chat UI · Dashboard · Explorer · Settings │
+│   Auth (Google / GitHub / email)            │
+│   Agent wallet (generated on signup)        │
+│   Optional @mysten/dapp-kit for deposits    │
 └───────────────────┬──────────────────────┘
                     │ HTTP / WebSocket
                     ▼
@@ -175,7 +192,7 @@ AppRegistry objects     Blobs (memory + config)
 | Layer             | Technology                                  |
 | ----------------- | ------------------------------------------- |
 | Frontend          | Next.js 14, React, Tailwind CSS             |
-| Wallet            | `@mysten/dapp-kit`, `@mysten/sui`           |
+| Wallet            | Agent-generated Sui wallet; `@mysten/dapp-kit` for optional deposits |
 | Backend           | TypeScript, Hono                            |
 | AI / Agent        | Anthropic Claude API (tool use mode)        |
 | Agent memory      | Walrus blobs (persistent across sessions)   |
@@ -191,10 +208,31 @@ AppRegistry objects     Blobs (memory + config)
 
 ## Repository Structure
 
+The UI prototype lives in `client/` today. Backend and Move contracts are planned alongside it.
+
 ```
 Radiant/
-├── apps/
-│   ├── web/                                  # Next.js frontend
+├── client/                                   # Next.js frontend (current)
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx                      # Landing
+│   │   │   ├── auth/                         # Sign up / log in
+│   │   │   ├── app/                          # Chat, projects, settings
+│   │   │   │   ├── page.tsx                  # Chat
+│   │   │   │   ├── projects/
+│   │   │   │   └── settings/                 # Profile, agent wallet, vault
+│   │   │   └── explorer/                     # Public marketplace
+│   │   ├── components/
+│   │   │   ├── app/                          # Sidebar, AgentWalletSection
+│   │   │   ├── auth/                         # AuthCard
+│   │   │   ├── explorer/                     # Charts, TxTable, AgentGrid
+│   │   │   └── landing/                      # Hero, pillars, footer
+│   │   └── lib/
+│   │       ├── app-data.ts                   # Mock chats, USER, credentials
+│   │       └── explorer-data.ts              # Mock explorer stats & agents
+│
+├── apps/                                     # Planned monorepo layout
+│   ├── web/                                  # Production Next.js (future merge)
 │   │   ├── app/
 │   │   │   ├── page.tsx                      # Chat interface (entry point)
 │   │   │   ├── dashboard/                    # Personal apps + history
@@ -206,7 +244,7 @@ Radiant/
 │   │   │   ├── ActionConfirm.tsx             # Transaction confirmation modal
 │   │   │   ├── BuildConfirm.tsx              # App deploy confirmation
 │   │   │   ├── AppCard.tsx                   # Explorer listing card
-│   │   │   └── WalletButton.tsx
+│   │   │   └── DepositButton.tsx             # Optional personal-wallet deposit
 │   │   └── lib/
 │   │       ├── sui.ts                        # Sui client config
 │   │       └── api.ts                        # Backend API client
@@ -796,11 +834,21 @@ Radiant_REGISTRY_PACKAGE_ID=0x...
 # BASE_RPC_URL=https://mainnet.base.org
 # SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 
-# Frontend — apps/web/.env.local
+# Frontend — client/.env.local (or apps/web/.env.local)
 NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_SUI_NETWORK=mainnet
 NEXT_PUBLIC_REGISTRY_PACKAGE_ID=0x...
 ```
+
+### Run the frontend prototype
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). Sign up at `/auth`, then fund your agent at `/app/settings`.
 
 ---
 

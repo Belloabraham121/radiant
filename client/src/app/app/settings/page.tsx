@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { Copy, Eye, EyeOff, Fingerprint, KeyRound, ShieldCheck } from "lucide-react";
+import { Copy, Eye, EyeOff, Fingerprint, KeyRound } from "lucide-react";
+import { AgentWalletSection } from "@/components/app/AgentWalletSection";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { CREDENTIALS, USER } from "@/lib/app-data";
 
@@ -178,12 +179,10 @@ export default function SettingsPage() {
             <p className="font-heading text-xl font-extrabold tracking-tight">{USER.name}</p>
             <p className="text-sm font-medium text-[var(--hero-ink)]/55">{USER.email}</p>
           </div>
-          <span className="hidden items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-4 py-2 font-mono text-xs font-semibold sm:flex">
-            <ShieldCheck className="size-4 text-[var(--hero-mint)]" strokeWidth={2.5} />
-            {USER.wallet}
-          </span>
         </div>
       </section>
+
+      <AgentWalletSection />
 
       {/* agent vault */}
       <section data-settings-block className="mt-10">
