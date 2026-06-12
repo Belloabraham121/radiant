@@ -10,6 +10,20 @@ export type AgentCategory =
   | "staking"
   | "portfolio";
 
+/** ERC-8004-style onchain reputation signals for a listed agent. */
+export type AgentReputation = {
+  /** Composite trust score, 0–100. */
+  score: number;
+  /** ERC-8004 identity registry reference (mock). */
+  registryId: string;
+  feedbackCount: number;
+  uniqueReviewers: number;
+  /** Share of feedback marked helpful / positive, 0–100. */
+  positiveRate: number;
+  /** Agents + humans that attested usage in the last 30 days. */
+  attestations30d: number;
+};
+
 export type Agent = {
   id: string;
   name: string;
@@ -27,6 +41,16 @@ export type Agent = {
   deployedAt: string;
   walrusUrl: string;
 };
+
+export type AgentSort =
+  | "trending"
+  | "reputation"
+  | "volume"
+  | "txs"
+  | "tvl"
+  | "users"
+  | "newest"
+  | "name";
 
 export type AgentTx = {
   /** Truncated for list views. */
@@ -313,6 +337,119 @@ export const AGENTS: Agent[] = [
 
 export function getAgent(id: string): Agent | undefined {
   return AGENTS.find((a) => a.id === id);
+}
+
+const MONTH_INDEX: Record<string, number> = {
+  Jan: 0,
+  Feb: 1,
+  Mar: 2,
+  Apr: 3,
+  May: 4,
+  Jun: 5,
+  Jul: 6,
+  Aug: 7,
+  Sep: 8,
+  Oct: 9,
+  Nov: 10,
+  Dec: 11,
+};
+
+export function deployedTimestamp(deployedAt: string): number {
+  const [mon, year] = deployedAt.split(" ");
+  const m = MONTH_INDEX[mon] ?? 0;
+  return (Number(year) || 2026) * 12 + m;
+}
+
+/** Deterministic ERC-8004-style reputation derived from agent id. */
+export function getAgentReputation(agent: Agent | string): AgentReputation {
+  const id = typeof agent === "string" ? agent : agent.id;
+  const rand = mulberry32(hashSeed(`${id}:erc8004`));
+  const score = Math.round(68 + rand() * 31);
+  const feedbackCount = Math.floor(40 + rand() * 2800);
+  const uniqueReviewers = Math.floor(feedbackCount * (0.35 + rand() * 0.45));
+  const positiveRate = Math.round(82 + rand() * 17);
+  const attestations30d = Math.floor(12 + rand() * 420);
+  const registrySuffix = Array.from({ length: 8 }, () =>
+    HEX[Math.floor(rand() * 16)],
+  ).join("");
+  return {
+    score,
+    registryId: `eip8004:sui:agent:${id}:${registrySuffix}`,
+    feedbackCount,
+    uniqueReviewers,
+    positiveRate,
+    attestations30d,
+  };
+}
+
+/** Higher = more trending (recent activity + reputation momentum). */
+export function trendingScore(agent: Agent): number {
+  const series = makeSeries(`${agent.id}:trend`, agent.txCount / 40, agent.txCount / 80);
+  const recent = series.slice(-7).reduce((sum, v) => sum + v, 0);
+  const rep = getAgentReputation(agent).score;
+  return recent * 0.65 + rep * 12 + agent.uses * 0.08;
+}
+
+export function searchAgents(
+  agents: Agent[],
+  query: string,
+  category: "all" | AgentCategory,
+  sort: AgentSort,
+): Agent[] {
+  const q = query.trim().toLowerCase();
+  let list =
+    category === "all" ? agents : agents.filter((a) => a.category === category);
+
+  if (q) {
+    list = list.filter((a) => {
+      const rep = getAgentReputation(a);
+      const haystack = [
+        a.name,
+        a.tagline,
+        a.description,
+        a.category,
+        a.id,
+        a.creator,
+        rep.registryId,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }
+
+  const sorted = [...list];
+  switch (sort) {
+    case "trending":
+      sorted.sort((a, b) => trendingScore(b) - trendingScore(a));
+      break;
+    case "reputation":
+      sorted.sort(
+        (a, b) => getAgentReputation(b).score - getAgentReputation(a).score,
+      );
+      break;
+    case "volume":
+      sorted.sort((a, b) => b.volumeSui - a.volumeSui);
+      break;
+    case "txs":
+      sorted.sort((a, b) => b.txCount - a.txCount);
+      break;
+    case "tvl":
+      sorted.sort((a, b) => b.tvlSui - a.tvlSui);
+      break;
+    case "users":
+      sorted.sort((a, b) => b.uses - a.uses);
+      break;
+    case "newest":
+      sorted.sort(
+        (a, b) => deployedTimestamp(b.deployedAt) - deployedTimestamp(a.deployedAt),
+      );
+      break;
+    case "name":
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+  }
+  return sorted;
 }
 
 /** 30-day series derived deterministically from an agent id (or any seed string). */

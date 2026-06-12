@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { PrivyAuthProvider } from "@/components/providers/PrivyAuthProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,7 +38,7 @@ export default function RootLayout({
       {/* suppressHydrationWarning: browser extensions and devtools inject
           attributes (e.g. cz-shortcut-listen) before React hydrates */}
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        {children}
+        <PrivyAuthProvider>{children}</PrivyAuthProvider>
       </body>
     </html>
   );

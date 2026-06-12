@@ -1,0 +1,74 @@
+import { Transaction, coinWithBalance } from "@mysten/sui/transactions";
+import { getSuiClient } from "../../infrastructure/sui/client.js";
+import { AppError } from "../../errors/app-error.js";
+import type { SuiTxResult } from "../chains/types.js";
+
+function mapEffectsStatus(
+  status: { success?: boolean; failure?: { error?: string } } | undefined,
+): SuiTxResult["effects_status"] {
+  if (!status) return "unknown";
+  if (status.success) return "success";
+  if (status.failure) return "failure";
+  return "unknown";
+}
+
+export async function buildTransferSuiTransaction(input: {
+  sender: string;
+  recipient: string;
+  amountMist: bigint;
+}): Promise<Uint8Array> {
+  if (input.amountMist <= 0n) {
+    throw new AppError(400, "VALIDATION_ERROR", "Transfer amount must be greater than zero");
+  }
+
+  const client = getSuiClient();
+  const tx = new Transaction();
+  tx.setSender(input.sender);
+  tx.transferObjects([coinWithBalance({ balance: input.amountMist })], input.recipient);
+
+  return tx.build({ client });
+}
+
+export async function executeSignedSuiTransaction(input: {
+  transactionBytes: Uint8Array;
+  serializedSignature: string;
+  suiAddress: string;
+}): Promise<SuiTxResult> {
+  const client = getSuiClient();
+  const result = await client.executeTransaction({
+    transaction: input.transactionBytes,
+    signatures: [input.serializedSignature],
+    include: { effects: true },
+  });
+
+  if (result.$kind === "FailedTransaction") {
+    const failedDigest = result.FailedTransaction.digest;
+    const message =
+      (result.FailedTransaction.effects?.status as { failure?: { error?: string } } | undefined)
+        ?.failure?.error ?? "Transaction failed on-chain";
+    throw new AppError(502, "TRANSACTION_FAILED", message, { digest: failedDigest });
+  }
+
+  const tx = result.Transaction;
+  const digest = tx.digest;
+  if (!digest) {
+    throw new AppError(502, "TRANSACTION_FAILED", "Transaction executed without a digest");
+  }
+
+  const effectsStatus = mapEffectsStatus(
+    tx.effects?.status as { success?: boolean; failure?: { error?: string } } | undefined,
+  );
+
+  if (effectsStatus === "failure") {
+    const message =
+      (tx.effects?.status as { failure?: { error?: string } } | undefined)?.failure?.error ??
+      "Transaction failed on-chain";
+    throw new AppError(502, "TRANSACTION_FAILED", message, { digest });
+  }
+
+  return {
+    digest,
+    sui_address: input.suiAddress,
+    effects_status: effectsStatus,
+  };
+}

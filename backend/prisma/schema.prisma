@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            BigInt   @id @default(autoincrement())
+  privy_user_id String   @unique
+  email         String?  @unique
+  display_name  String?
+  avatar_seed   String
+  avatar_style  String   @default("lorelei")
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  agent_wallets AgentWallet[]
+}
+
+model AgentWallet {
+  id              BigInt   @id @default(autoincrement())
+  user_id         BigInt
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chain_type      String
+  address         String
+  privy_wallet_id String   @unique
+  signer_added    Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@unique([user_id, chain_type])
+  @@unique([chain_type, address])
+}

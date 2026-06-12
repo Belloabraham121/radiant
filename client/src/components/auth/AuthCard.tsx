@@ -2,10 +2,23 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import {
+  Captcha,
+  useLoginWithEmail,
+  useLoginWithOAuth,
+  usePrivy,
+  type PrivyEvents,
+} from "@privy-io/react-auth";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { fetchAuthMe } from "@/lib/auth-api";
+import {
+  accountMergeErrorMessage,
+  isAccountMergeOrTransferError,
+} from "@/lib/auth-errors";
+import { formatPrivyOAuthError, isPrivyOAuthReturn } from "@/lib/privy-oauth";
 
 gsap.registerPlugin(useGSAP);
 
@@ -40,10 +53,69 @@ function GoogleIcon() {
   );
 }
 
+type EmailStep = "idle" | "code_sent";
+
 export function AuthCard() {
   const router = useRouter();
   const ref = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [email, setEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [emailStep, setEmailStep] = useState<EmailStep>("idle");
+  const [mergeRequired, setMergeRequired] = useState(false);
+  const [oauthReturn, setOauthReturn] = useState(false);
+  const [oauthProvider, setOauthProvider] = useState<"google" | "github" | null>(null);
+  const oauthProviderRef = useRef<"google" | "github" | null>(null);
+  const handledAuthRef = useRef(false);
+  const { ready, authenticated } = usePrivy();
+
+  const completeLogin = useCallback(async () => {
+    if (syncing) {
+      return;
+    }
+    setSyncing(true);
+    setError(null);
+    setMergeRequired(false);
+    try {
+      await fetchAuthMe();
+      router.push("/app");
+    } catch (err) {
+      const merge = isAccountMergeOrTransferError(err);
+      setMergeRequired(merge);
+      setError(accountMergeErrorMessage(err));
+    } finally {
+      setSyncing(false);
+    }
+  }, [router, syncing]);
+
+  const loginCallbacks = useMemo<PrivyEvents["login"]>(
+    () => ({
+      onComplete: () => {
+        handledAuthRef.current = true;
+        void completeLogin();
+      },
+      onError: (privyError) => {
+        const provider = oauthProviderRef.current ?? "google";
+        const message = formatPrivyOAuthError(new Error(String(privyError)), provider);
+        setMergeRequired(isAccountMergeOrTransferError(privyError));
+        setError(message);
+      },
+    }),
+    [completeLogin],
+  );
+
+  const {
+    initOAuth,
+    loading: oauthLoading,
+    state: oauthState,
+  } = useLoginWithOAuth(loginCallbacks);
+  const { sendCode, loginWithCode, state: otpState } = useLoginWithEmail(loginCallbacks);
+
+  useEffect(() => {
+    setOauthReturn(isPrivyOAuthReturn());
+  }, []);
 
   useGSAP(
     () => {
@@ -66,17 +138,91 @@ export function AuthCard() {
     { scope: ref },
   );
 
-  const enter = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    router.push("/app");
+  useEffect(() => {
+    if (!ready) {
+      return;
+    }
+    if (!authenticated) {
+      handledAuthRef.current = false;
+      return;
+    }
+    if (handledAuthRef.current) {
+      return;
+    }
+    handledAuthRef.current = true;
+    void completeLogin();
+  }, [ready, authenticated, completeLogin]);
+
+  const resetEmailFlow = () => {
+    setEmailStep("idle");
+    setOtpCode("");
+    setError(null);
   };
+
+  const startOAuth = async (provider: "google" | "github") => {
+    if (!ready) {
+      setError("Auth is still loading. Please wait a moment and try again.");
+      return;
+    }
+
+    setError(null);
+    setMergeRequired(false);
+    resetEmailFlow();
+    handledAuthRef.current = false;
+    setOauthProvider(provider);
+    oauthProviderRef.current = provider;
+
+    try {
+      await initOAuth({ provider });
+    } catch (err) {
+      setError(formatPrivyOAuthError(err, provider));
+    }
+  };
+
+  useEffect(() => {
+    if (oauthState.status !== "error" || !oauthProvider) {
+      return;
+    }
+    const message = formatPrivyOAuthError(oauthState.error, oauthProvider);
+    setMergeRequired(isAccountMergeOrTransferError(oauthState.error));
+    setError(message);
+  }, [oauthState, oauthProvider]);
+
+  const handleSendCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      await sendCode({ email: email.trim() });
+      setEmailStep("code_sent");
+    } catch (err) {
+      setMergeRequired(isAccountMergeOrTransferError(err));
+      setError(accountMergeErrorMessage(err));
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      await loginWithCode({ code: otpCode.trim() });
+    } catch (err) {
+      setMergeRequired(isAccountMergeOrTransferError(err));
+      setError(accountMergeErrorMessage(err));
+    }
+  };
+
+  const emailVerifying =
+    otpState.status === "sending-code" || otpState.status === "submitting-code";
+  const oauthCompleting =
+    oauthReturn || (oauthState.status === "loading" && !error);
+  const busy = oauthLoading || syncing || emailVerifying || oauthCompleting;
+  const authLoading = !ready;
 
   return (
     <div
       ref={ref}
       className="hero-selection relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[var(--hero-bg)] px-6 py-12 text-[var(--hero-ink)]"
     >
-      {/* floating decor */}
       <span
         data-auth-deco
         aria-hidden
@@ -124,12 +270,15 @@ export function AuthCard() {
           </p>
         </div>
 
-        {/* mode toggle */}
         <div className="mb-6 grid grid-cols-2 rounded-full border-2 border-[var(--hero-ink)] p-1 text-sm font-bold">
           {(["login", "signup"] as const).map((m) => (
             <button
               key={m}
-              onClick={() => setMode(m)}
+              type="button"
+              onClick={() => {
+                setMode(m);
+                resetEmailFlow();
+              }}
               className={`rounded-full py-2 transition-all ${
                 mode === m ? "bg-[var(--hero-ink)] text-[var(--hero-bg)]" : "hover:opacity-70"
               }`}
@@ -139,20 +288,55 @@ export function AuthCard() {
           ))}
         </div>
 
-        {/* providers */}
+        {oauthCompleting ? (
+          <p className="mb-4 flex items-center justify-center gap-2 rounded-2xl border-2 border-[var(--hero-blue)] bg-[var(--hero-blue)]/10 px-4 py-3 text-sm font-semibold text-[var(--hero-ink)]">
+            <Loader2 className="size-4 animate-spin" />
+            Completing sign in…
+          </p>
+        ) : null}
+
+        {error ? (
+          <div
+            role="alert"
+            className="mb-4 rounded-2xl border-2 border-[var(--hero-coral)] bg-[var(--hero-coral)]/10 px-4 py-3 text-sm font-semibold text-[var(--hero-ink)]"
+          >
+            <p>{error}</p>
+            {mergeRequired ? (
+              <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/70">
+                Tip: sign in with the login method you used first, open Settings → Connected
+                accounts, and link the other provider. Enable{" "}
+                <strong>Login method transfer</strong> in your Privy Dashboard if you have not
+                already.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {authLoading ? (
+          <p className="mb-4 text-center text-sm font-medium text-[var(--hero-ink)]/55">
+            Loading sign-in…
+          </p>
+        ) : null}
+
+        <Captcha />
+
         <div className="flex flex-col gap-3">
           <button
-            onClick={() => enter()}
-            className="flex items-center justify-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-white py-3 text-sm font-bold shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
+            type="button"
+            disabled={busy || authLoading}
+            onClick={() => void startOAuth("google")}
+            className="flex items-center justify-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-white py-3 text-sm font-bold shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <GoogleIcon />
+            {busy ? <Loader2 className="size-5 animate-spin" /> : <GoogleIcon />}
             Continue with Google
           </button>
           <button
-            onClick={() => enter()}
-            className="flex items-center justify-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-white py-3 text-sm font-bold shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
+            type="button"
+            disabled={busy || authLoading}
+            onClick={() => void startOAuth("github")}
+            className="flex items-center justify-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-white py-3 text-sm font-bold shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <GithubIcon />
+            {busy ? <Loader2 className="size-5 animate-spin" /> : <GithubIcon />}
             Continue with GitHub
           </button>
         </div>
@@ -163,32 +347,78 @@ export function AuthCard() {
           <span className="h-0.5 flex-1 bg-[var(--hero-ink)]/10" />
         </div>
 
-        <form onSubmit={enter} className="flex flex-col gap-3">
-          <input
-            type="email"
-            required
-            placeholder="you@anywhere.com"
-            className="rounded-2xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 py-3 text-sm font-semibold placeholder:text-[var(--hero-ink)]/35 focus:outline-none focus:ring-2 focus:ring-[var(--hero-blue)]"
-          />
-          <input
-            type="password"
-            required
-            minLength={8}
-            placeholder={mode === "login" ? "your password" : "pick a strong password"}
-            className="rounded-2xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 py-3 text-sm font-semibold placeholder:text-[var(--hero-ink)]/35 focus:outline-none focus:ring-2 focus:ring-[var(--hero-blue)]"
-          />
-          <button
-            type="submit"
-            className="group mt-1 flex items-center justify-center gap-2 rounded-full bg-[var(--hero-ink)] py-3.5 text-sm font-bold text-[var(--hero-bg)] shadow-[4px_4px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5"
-          >
-            {mode === "login" ? "Log in" : "Create my agent"}
-            <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-          </button>
-        </form>
+        {emailStep === "idle" ? (
+          <form onSubmit={handleSendCode} className="flex flex-col gap-3">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              disabled={busy}
+              placeholder="you@anywhere.com"
+              className="rounded-2xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 py-3 text-sm font-semibold placeholder:text-[var(--hero-ink)]/35 focus:outline-none focus:ring-2 focus:ring-[var(--hero-blue)] disabled:opacity-60"
+            />
+            <button
+              type="submit"
+              disabled={busy || email.trim().length === 0}
+              className="group mt-1 flex items-center justify-center gap-2 rounded-full bg-[var(--hero-ink)] py-3.5 text-sm font-bold text-[var(--hero-bg)] shadow-[4px_4px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {otpState.status === "sending-code" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              {mode === "login" ? "Continue with email" : "Create my agent"}
+              {otpState.status !== "sending-code" ? (
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+              ) : null}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyCode} className="flex flex-col gap-3">
+            <p className="text-center text-sm font-medium text-[var(--hero-ink)]/55">
+              Enter the code we sent to{" "}
+              <span className="font-bold text-[var(--hero-ink)]">{email}</span>
+            </p>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              disabled={busy}
+              placeholder="123456"
+              maxLength={6}
+              className="rounded-2xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 py-3 text-center text-lg font-bold tracking-[0.3em] placeholder:tracking-normal placeholder:text-[var(--hero-ink)]/35 focus:outline-none focus:ring-2 focus:ring-[var(--hero-blue)] disabled:opacity-60"
+            />
+            <button
+              type="submit"
+              disabled={busy || otpCode.length < 6}
+              className="group mt-1 flex items-center justify-center gap-2 rounded-full bg-[var(--hero-ink)] py-3.5 text-sm font-bold text-[var(--hero-bg)] shadow-[4px_4px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {otpState.status === "submitting-code" || syncing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : null}
+              Verify code
+              {otpState.status !== "submitting-code" && !syncing ? (
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+              ) : null}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={resetEmailFlow}
+              className="text-sm font-bold text-[var(--hero-blue)] hover:underline disabled:opacity-60"
+            >
+              Use a different email
+            </button>
+          </form>
+        )}
 
         <p className="mt-6 text-center text-xs font-medium text-[var(--hero-ink)]/45">
           {mode === "login" ? "New here? " : "Already have an agent? "}
           <button
+            type="button"
             onClick={() => setMode(mode === "login" ? "signup" : "login")}
             className="font-bold text-[var(--hero-blue)] hover:underline"
           >

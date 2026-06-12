@@ -6,7 +6,10 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ArrowUp, ArrowUpRight, Check, Sparkles } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
-import { CANNED_REPLIES, MESSAGES, type Message } from "@/lib/app-data";
+import { TransactionApprovalModal } from "@/components/app/TransactionApprovalModal";
+import { MESSAGES, type Message } from "@/lib/app-data";
+import { postChat, type PendingTransaction } from "@/lib/chat-api";
+import { ApiError } from "@/lib/api";
 
 gsap.registerPlugin(useGSAP);
 
@@ -93,7 +96,10 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>(MESSAGES);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
-  const replyIdx = useRef(0);
+  const [sessionId, setSessionId] = useState<string | undefined>();
+  const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   useGSAP(
     () => {
@@ -113,22 +119,67 @@ export default function ChatPage() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
 
-  const send = (e: React.FormEvent) => {
+  const appendAgentReply = (reply: string, receipts?: Message["receipts"]) => {
+    setMessages((m) => [
+      ...m,
+      {
+        id: `a-${Date.now()}`,
+        role: "agent",
+        text: reply,
+        receipts,
+      },
+    ]);
+  };
+
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
     if (!text || typing) return;
+
     setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", text }]);
     setInput("");
     setTyping(true);
-    setTimeout(() => {
-      const reply = CANNED_REPLIES[replyIdx.current % CANNED_REPLIES.length];
-      replyIdx.current += 1;
-      setMessages((m) => [
-        ...m,
-        { id: `a-${Date.now()}`, role: "agent", text: reply },
-      ]);
+    setChatError(null);
+
+    try {
+      const data = await postChat({ message: text, session_id: sessionId });
+      setSessionId(data.session_id);
+      appendAgentReply(data.reply);
+
+      if (data.pending_transaction) {
+        setPendingTx(data.pending_transaction);
+      }
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Could not reach your agent. Try again.";
+      setChatError(message);
+      appendAgentReply(message);
+    } finally {
       setTyping(false);
-    }, 1400);
+    }
+  };
+
+  const approvePending = async () => {
+    if (!pendingTx || approving) return;
+    setApproving(true);
+    setChatError(null);
+
+    try {
+      const data = await postChat({
+        message: "Approve transaction",
+        session_id: sessionId,
+        approve_transaction_id: pendingTx.id,
+      });
+      setSessionId(data.session_id);
+      setPendingTx(null);
+      appendAgentReply(data.reply, [{ label: "Transaction sent", detail: pendingTx.amount_display }]);
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Approval failed. Try again.";
+      setChatError(message);
+    } finally {
+      setApproving(false);
+    }
   };
 
   return (
@@ -167,7 +218,25 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <form onSubmit={send} className="px-6 py-4">
+      {chatError ? (
+        <p
+          role="alert"
+          className={`${CHAT_COL} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
+        >
+          {chatError}
+        </p>
+      ) : null}
+
+      {pendingTx ? (
+        <TransactionApprovalModal
+          pending={pendingTx}
+          busy={approving}
+          onApprove={() => void approvePending()}
+          onCancel={() => setPendingTx(null)}
+        />
+      ) : null}
+
+      <form onSubmit={(e) => void send(e)} className="px-6 py-4">
         <div
           className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
         >

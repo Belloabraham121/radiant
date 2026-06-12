@@ -1,0 +1,57 @@
+/** Privy OAuth callback — register this in Google Cloud Console and GitHub OAuth app settings. */
+export const PRIVY_OAUTH_PROVIDER_CALLBACK =
+  "https://auth.privy.io/api/v1/oauth/callback";
+
+/** Where Privy redirects users after OAuth — add this in Privy Dashboard → Advanced → Allowed OAuth redirect URLs. */
+export function getAppOAuthRedirectUrl(): string {
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
+    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+  return `${base}/auth`;
+}
+
+export function isPrivyOAuthReturn(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const params = new URLSearchParams(window.location.search);
+  return Boolean(
+    params.get("privy_oauth_code") &&
+      params.get("privy_oauth_state") &&
+      params.get("privy_oauth_provider"),
+  );
+}
+
+export function formatPrivyOAuthError(err: unknown, provider: "google" | "github"): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const label = provider === "google" ? "Google" : "GitHub";
+
+  if (raw.includes("disallowed_login_method") || /not allowed/i.test(raw)) {
+    return `${label} sign-in is not enabled for this Privy app. Open the Privy Dashboard → Login methods → Socials and enable ${label}.`;
+  }
+
+  if (raw.includes("CAPTCHA") || raw.includes("captcha")) {
+    return "CAPTCHA verification failed. Refresh the page and try again.";
+  }
+
+  if (raw.includes("redirect") || raw.includes("oauth_redirect")) {
+    return `OAuth redirect URL is not allowed. Add ${getAppOAuthRedirectUrl()} under Privy Dashboard → App settings → Advanced → Allowed OAuth redirect URLs.`;
+  }
+
+  if (raw.includes("in-app browser")) {
+    return "OAuth is blocked in embedded browsers. Open this page in Chrome, Safari, or Firefox.";
+  }
+
+  if (
+    raw.includes("account_transfer_required") ||
+    raw.includes("linked_to_another_user")
+  ) {
+    return "This email belongs to another account. Sign in with your original method first, then link this one under Settings → Connected accounts. If Privy prompts you, complete account transfer to merge profiles.";
+  }
+
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+
+  return `${label} sign-in failed. Check your Privy Dashboard OAuth settings and try again.`;
+}

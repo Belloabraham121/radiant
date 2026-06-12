@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight, Globe, Sparkles } from "lucide-react";
-import { AGENTS, getAgent, makeSeries, makeTxs } from "@/lib/explorer-data";
+import { AGENTS, getAgent, getAgentReputation, makeSeries, makeTxs } from "@/lib/explorer-data";
 import { ExplorerNav } from "@/components/explorer/ExplorerNav";
 import { CountUp } from "@/components/explorer/CountUp";
 import { AreaChart, BarChart } from "@/components/explorer/Charts";
+import { ReputationBadge, ReputationPanel } from "@/components/explorer/ReputationBadge";
 import { TxTable } from "@/components/explorer/TxTable";
 
 export function generateStaticParams() {
@@ -29,6 +30,8 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const agent = getAgent(id);
   if (!agent) notFound();
+
+  const reputation = getAgentReputation(agent);
 
   const stats = [
     { label: "Transactions", value: agent.txCount },
@@ -67,6 +70,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
                   >
                     {agent.category}
                   </span>
+                  <ReputationBadge reputation={reputation} size="lg" />
                 </div>
                 <p className="mt-3 max-w-xl text-base font-medium leading-relaxed text-[var(--hero-ink)]/65">
                   {agent.description}
@@ -99,6 +103,11 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
               </span>
             </div>
           </div>
+        </div>
+
+        {/* ERC-8004 reputation */}
+        <div className="mt-10">
+          <ReputationPanel reputation={reputation} />
         </div>
 
         {/* stats */}
