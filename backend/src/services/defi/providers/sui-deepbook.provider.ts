@@ -57,8 +57,13 @@ export function setSuiClientFactoryForTests(factory: () => SuiGrpcClient): void 
   suiClientFactory = factory;
 }
 
+/** Drop cached DeepBook clients (e.g. after a new balance manager is persisted). */
+export function clearDeepBookClientCache(): void {
+  clientCache.clear();
+}
+
 /** Test hook — reset client cache and restore default factory. */
 export function resetSuiDeepBookClientsForTests(): void {
-  clientCache.clear();
+  clearDeepBookClientCache();
   suiClientFactory = getSuiClient;
 }

@@ -32,6 +32,11 @@ export type TxResult = {
   address: string;
   effects_status: "success" | "failure" | "unknown";
   evm_chain_id?: number;
+  deepbook?: {
+    coin_key: string;
+    amount_display: number;
+    manager_object_id: string;
+  };
 };
 
 export type ExecuteTransactionInput = {

@@ -26,12 +26,13 @@ export const executeTransactionToolDefinition = {
       action: {
         type: "string",
         description:
-          "Chain-specific action name. Sui: transfer_native, transfer_sui, execute_bytes.",
+          "Chain-specific action name. Sui: transfer_native, transfer_sui, execute_bytes, deepbook_deposit, deepbook_withdraw.",
       },
       params: {
         type: "object",
         description:
           "Action parameters. transfer_native: { recipient, amount_atomic }. " +
+          "deepbook_deposit/withdraw: { coin_key, amount_display } (or amount_atomic). " +
           "execute_bytes: { transaction_bytes } (base64).",
         additionalProperties: true,
       },

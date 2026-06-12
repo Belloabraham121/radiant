@@ -17,6 +17,10 @@ import type {
   TxResult,
 } from "../types.js";
 import { toSuiBalanceResult } from "./sui-balance.js";
+import {
+  executeDeepBookDeposit,
+  executeDeepBookWithdraw,
+} from "../../defi/deepbook-balance-manager.service.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;
@@ -191,6 +195,36 @@ export const suiAdapter: ChainAdapter = {
     action: string,
     params: Record<string, unknown>,
   ): Promise<TxResult> {
+    if (action === "deepbook_deposit") {
+      const result = await executeDeepBookDeposit(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          coin_key: result.coin_key,
+          amount_display: result.amount_display,
+          manager_object_id: result.manager_object_id,
+        },
+      };
+    }
+
+    if (action === "deepbook_withdraw") {
+      const result = await executeDeepBookWithdraw(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          coin_key: result.coin_key,
+          amount_display: result.amount_display,
+          manager_object_id: result.manager_object_id,
+        },
+      };
+    }
+
     const suiAction = toSuiExecuteAction(action, params);
     const result = await executeSuiTransaction(privyUserId, suiAction);
     return toTxResult(result);

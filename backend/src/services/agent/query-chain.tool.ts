@@ -1,5 +1,11 @@
 import { AppError } from "../../errors/app-error.js";
 import { getAdapter } from "../chains/registry.js";
+import {
+  checkManagerBalance,
+  ensureBalanceManager,
+  getDeepBookManagerBalances,
+  getDeepBookManagerInfo,
+} from "../defi/deepbook-balance-manager.service.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import type { BalanceContext } from "../chains/types.js";
@@ -26,9 +32,15 @@ export const queryChainToolDefinition = {
       },
       query: {
         type: "string",
-        enum: ["balance", "native_balance", "token_balances"],
+        enum: [
+          "balance",
+          "native_balance",
+          "token_balances",
+          "deepbook_manager_info",
+          "deepbook_manager_balance",
+        ],
         description:
-          "Read-only query type: native balance or multi-token wallet holdings (Sui: SUI, USDC, DEEP, …).",
+          "Read-only query type: native balance, wallet holdings, or DeepBook balance manager state.",
       },
       params: {
         type: "object",
@@ -74,6 +86,36 @@ export async function runQueryChainTool(
         include_zero: parsed.params.include_zero,
         include_usd: parsed.params.include_usd,
       });
+    case "deepbook_manager_info": {
+      if (parsed.chain_id !== "sui") {
+        throw new AppError(
+          400,
+          "UNSUPPORTED_QUERY",
+          "deepbook_manager_info is only available on Sui.",
+        );
+      }
+      return getDeepBookManagerInfo(privyUserId);
+    }
+    case "deepbook_manager_balance": {
+      if (parsed.chain_id !== "sui") {
+        throw new AppError(
+          400,
+          "UNSUPPORTED_QUERY",
+          "deepbook_manager_balance is only available on Sui.",
+        );
+      }
+      if (parsed.params.coin_key) {
+        const manager = await ensureBalanceManager(privyUserId);
+        const balance = await checkManagerBalance(privyUserId, parsed.params.coin_key);
+        return {
+          chain_id: "sui",
+          manager_key: manager.manager_key,
+          manager_object_id: manager.manager_object_id,
+          balances: [balance],
+        };
+      }
+      return getDeepBookManagerBalances(privyUserId, parsed.params.coin_keys);
+    }
     default:
       throw new AppError(400, "UNSUPPORTED_QUERY", `Unsupported query: ${parsed.query}`);
   }

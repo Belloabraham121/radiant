@@ -159,21 +159,21 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Prisma `DeepBookBalanceManager` + migration |
-| [ ] | `services/defi/deepbook-balance-manager.service.ts` |
-| [ ] | `ensureBalanceManager(privyUserId)` — load from DB or create via SDK: `createAndShareBalanceManager` / `registerBalanceManager` |
-| [ ] | Persist `manager_object_id` + `manager_key` after first successful tx |
-| [ ] | Read: `checkManagerBalance(managerKey, coinKey)` — per-coin balances in manager |
-| [ ] | Write actions (via `execute_transaction`): `deepbook_deposit`, `deepbook_withdraw` |
-| [ ] | `generateProof` helper used by order placement PTBs |
-| [ ] | Extend `query_chain` queries: `deepbook_manager_balance`, `deepbook_manager_info` |
-| [ ] | Tests: ensure idempotent ensure (no duplicate managers) |
+| [x] | Prisma `DeepBookBalanceManager` + migration |
+| [x] | `services/defi/deepbook-balance-manager.service.ts` |
+| [x] | `ensureBalanceManager(privyUserId)` — load from DB or create via SDK: `createAndShareBalanceManager` / `registerBalanceManager` |
+| [x] | Persist `manager_object_id` + `manager_key` after first successful tx |
+| [x] | Read: `checkManagerBalance(managerKey, coinKey)` — per-coin balances in manager |
+| [x] | Write actions (via `execute_transaction`): `deepbook_deposit`, `deepbook_withdraw` |
+| [x] | `generateProof` helper used by order placement PTBs |
+| [x] | Extend `query_chain` queries: `deepbook_manager_balance`, `deepbook_manager_info` |
+| [x] | Tests: ensure idempotent ensure (no duplicate managers) |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Chat receipt template for deposit/withdraw (digest, coin, amount) |
+| [x] | Chat receipt template for deposit/withdraw (digest, coin, amount) |
 | [ ] | Optional: “DeepBook balances” line in agent wallet section (manager vs wallet) |
 
 ---

@@ -24,9 +24,10 @@ model User {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  agent_wallets  AgentWallet[]
-  chat_sessions  ChatSession[]
-  agent_memory   AgentMemory?
+  agent_wallets            AgentWallet[]
+  chat_sessions            ChatSession[]
+  agent_memory             AgentMemory?
+  deepbook_balance_manager DeepBookBalanceManager?
 }
 
 model AgentMemory {
@@ -59,6 +60,18 @@ model ChatMessage {
   created_at DateTime        @default(now())
 
   @@index([session_id, created_at(sort: Asc)])
+}
+
+model DeepBookBalanceManager {
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           BigInt   @unique
+  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chain_id          String   @default("sui")
+  manager_object_id String
+  manager_key       String
+  trade_cap_id      String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
 }
 
 model AgentWallet {
