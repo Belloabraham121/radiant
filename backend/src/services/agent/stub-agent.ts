@@ -1,7 +1,5 @@
-import { randomUUID } from "node:crypto";
 import { getDefaultAgentChainId } from "../../config/chains.js";
-import { getAnthropicConfig } from "../../config/agent.js";
-import type { ChatResponse, ToolCallRecord } from "./agent.types.js";
+import type { PendingTransaction, ToolCallRecord } from "./agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
 import { runAgentTool } from "./tools.js";
@@ -10,7 +8,7 @@ import type { ExecuteToolOutcome } from "./agent.types.js";
 import type { BalanceResult } from "../chains/types.js";
 
 function defaultChainId() {
-  return getAnthropicConfig().defaultChainId ?? getDefaultAgentChainId();
+  return getDefaultAgentChainId();
 }
 
 function parseTransferIntent(message: string): {
@@ -55,14 +53,20 @@ function formatExecuteReply(outcome: ExecuteToolOutcome): string {
   return `Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
 }
 
+export type StubAgentResult = {
+  reply: string;
+  tool_calls: ToolCallRecord[];
+  pending_transaction: PendingTransaction | null;
+};
+
 export async function runStubAgent(
   privyUserId: string,
   message: string,
-  sessionId?: string,
-): Promise<ChatResponse> {
+  _sessionId?: string,
+): Promise<StubAgentResult> {
   const chainId = defaultChainId();
   const tool_calls: ToolCallRecord[] = [];
-  let pending_transaction: ChatResponse["pending_transaction"] = null;
+  let pending_transaction: PendingTransaction | null = null;
   let reply: string;
 
   if (isBalanceIntent(message)) {
@@ -98,8 +102,6 @@ export async function runStubAgent(
 
   return {
     reply,
-    session_id: sessionId ?? randomUUID(),
-    mode: "stub",
     tool_calls,
     pending_transaction,
   };

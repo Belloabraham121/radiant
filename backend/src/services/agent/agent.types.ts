@@ -4,7 +4,7 @@ import type { BalanceResult, ChainId, TxResult } from "../chains/types.js";
 
 export const chatRequestSchema = z.object({
   message: z.string().min(1).max(8000),
-  session_id: z.string().min(1).max(128).optional(),
+  session_id: z.string().uuid().optional(),
   approve_transaction_id: z.string().uuid().optional(),
 });
 
@@ -27,9 +27,10 @@ export type PendingTransaction = {
 export type ChatResponse = {
   reply: string;
   session_id: string;
-  mode: "stub" | "claude";
+  mode: "openai" | "stub";
   tool_calls: ToolCallRecord[];
   pending_transaction: PendingTransaction | null;
+  message_id: string;
 };
 
 export const queryChainInputSchema = z.object({

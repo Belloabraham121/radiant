@@ -17,9 +17,10 @@ export type PendingTransaction = {
 export type ChatResponse = {
   reply: string;
   session_id: string;
-  mode: "stub" | "claude";
+  mode: "openai" | "stub";
   tool_calls: ChatToolCall[];
   pending_transaction: PendingTransaction | null;
+  message_id: string;
 };
 
 export type ChatRequest = {
@@ -27,6 +28,50 @@ export type ChatRequest = {
   session_id?: string;
   approve_transaction_id?: string;
 };
+
+export type ChatSessionListItem = {
+  id: string;
+  title: string;
+  updated_at: string;
+  preview: string | null;
+};
+
+export type ChatSessionDetail = {
+  id: string;
+  title: string;
+  updated_at: string;
+  created_at?: string;
+};
+
+export type ApiChatMessage = {
+  id: string;
+  role: "user" | "assistant" | "system" | "tool";
+  content: string;
+  tool_calls: unknown;
+  created_at: string;
+};
+
+export async function fetchChatSessions(): Promise<{ sessions: ChatSessionListItem[] }> {
+  return apiFetch<{ sessions: ChatSessionListItem[] }>("/api/v1/chat/sessions");
+}
+
+export async function createChatSession(
+  title?: string,
+): Promise<ChatSessionDetail & { created_at: string }> {
+  return apiFetch<ChatSessionDetail & { created_at: string }>("/api/v1/chat/sessions", {
+    method: "POST",
+    body: JSON.stringify(title ? { title } : {}),
+  });
+}
+
+export async function fetchSessionMessages(sessionId: string): Promise<{
+  session: ChatSessionDetail;
+  messages: ApiChatMessage[];
+}> {
+  return apiFetch<{ session: ChatSessionDetail; messages: ApiChatMessage[] }>(
+    `/api/v1/chat/sessions/${sessionId}/messages`,
+  );
+}
 
 /** Agent conversation — wallet resolved from session cookie; never send wallet addresses. */
 export async function postChat(body: ChatRequest): Promise<ChatResponse> {

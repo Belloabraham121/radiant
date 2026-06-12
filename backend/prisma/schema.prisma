@@ -7,6 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ChatMessageRole {
+  user
+  assistant
+  system
+  tool
+}
+
 model User {
   id            BigInt   @id @default(autoincrement())
   privy_user_id String   @unique
@@ -17,7 +24,33 @@ model User {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  agent_wallets AgentWallet[]
+  agent_wallets  AgentWallet[]
+  chat_sessions  ChatSession[]
+}
+
+model ChatSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    BigInt
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  title      String   @default("New chat")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  @@index([user_id, updated_at(sort: Desc)])
+}
+
+model ChatMessage {
+  id         String          @id @default(uuid()) @db.Uuid
+  session_id String          @db.Uuid
+  session    ChatSession     @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  role       ChatMessageRole
+  content    String
+  tool_calls Json?
+  created_at DateTime        @default(now())
+
+  @@index([session_id, created_at(sort: Asc)])
 }
 
 model AgentWallet {

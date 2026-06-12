@@ -1,0 +1,115 @@
+import type { Prisma } from "@prisma/client";
+import { getAgentProvider, getOpenAiConfig } from "../../config/agent.js";
+import { deriveSessionTitle, resolveOrCreateSession } from "../conversation/conversation.service.js";
+import { appendMessage, listMessagesBySessionId } from "../conversation/message.repository.js";
+import { touchSession } from "../conversation/session.repository.js";
+import type { ChatRequest, ChatResponse } from "./agent.types.js";
+import { buildAgentContextMessages } from "./context-window.js";
+import { getAgentRuntime } from "./runtime/index.js";
+import type { AgentRuntime } from "./runtime/types.js";
+import { stubRuntime } from "./runtime/stub.runtime.js";
+
+type RunChatTurnOptions = {
+  forceRuntime?: AgentRuntime;
+};
+
+export async function runChatTurn(
+  privyUserId: string,
+  request: ChatRequest,
+  options: RunChatTurnOptions = {},
+): Promise<ChatResponse> {
+  const { session } = await resolveOrCreateSession(
+    privyUserId,
+    request.session_id,
+  );
+
+  const priorMessages = await listMessagesBySessionId(session.id);
+  const isFirstUserMessage = priorMessages.length === 0;
+
+  await appendMessage(session.id, "user", request.message);
+
+  const history = await listMessagesBySessionId(session.id);
+  const contextMessages = buildAgentContextMessages(history);
+
+  const runtime = options.forceRuntime ?? getAgentRuntime();
+  const result = await runtime.runTurn({
+    privyUserId,
+    sessionId: session.id,
+    messages: contextMessages,
+    memoryBlock: "",
+  });
+
+  const toolCallsJson: Prisma.InputJsonValue | undefined =
+    result.tool_calls.length > 0 ? (result.tool_calls as Prisma.InputJsonValue) : undefined;
+
+  const assistantMessage = await appendMessage(
+    session.id,
+    "assistant",
+    result.reply,
+    toolCallsJson,
+  );
+
+  const sessionTitle =
+    isFirstUserMessage && session.title === "New chat"
+      ? deriveSessionTitle(request.message)
+      : session.title;
+
+  await touchSession(session.id, {
+    title: sessionTitle,
+    updated_at: new Date(),
+  });
+
+  return {
+    reply: result.reply,
+    session_id: session.id,
+    mode: options.forceRuntime?.id ?? runtime.id,
+    tool_calls: result.tool_calls,
+    pending_transaction: result.pending_transaction,
+    message_id: assistantMessage.id,
+  };
+}
+
+/** Persist an approval outcome into the session transcript when possible. */
+export async function persistApprovalTurn(
+  privyUserId: string,
+  request: ChatRequest,
+  reply: string,
+  toolCalls: ChatResponse["tool_calls"],
+): Promise<ChatResponse> {
+  const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
+
+  await appendMessage(session.id, "user", request.message);
+
+  const assistantMessage = await appendMessage(
+    session.id,
+    "assistant",
+    reply,
+    toolCalls.length > 0 ? (toolCalls as Prisma.InputJsonValue) : undefined,
+  );
+
+  await touchSession(session.id, { updated_at: new Date() });
+
+  return {
+    reply,
+    session_id: session.id,
+    mode: getAgentProvider(),
+    tool_calls: toolCalls,
+    pending_transaction: null,
+    message_id: assistantMessage.id,
+  };
+}
+
+export async function runChatTurnWithFallback(
+  privyUserId: string,
+  request: ChatRequest,
+): Promise<ChatResponse> {
+  try {
+    return await runChatTurn(privyUserId, request);
+  } catch (err) {
+    if (getAgentProvider() === "openai" && getOpenAiConfig().fallbackStub) {
+      console.warn("OpenAI agent failed; falling back to stub runtime.", err);
+      return runChatTurn(privyUserId, request, { forceRuntime: stubRuntime });
+    }
+    throw err;
+  }
+}

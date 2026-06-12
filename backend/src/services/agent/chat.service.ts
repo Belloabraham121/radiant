@@ -1,9 +1,6 @@
-import { randomUUID } from "node:crypto";
-import { getAnthropicConfig } from "../../config/agent.js";
 import { AppError } from "../../errors/app-error.js";
 import type { ChatRequest, ChatResponse } from "./agent.types.js";
-import { runClaudeAgent } from "./claude-agent.js";
-import { runStubAgent } from "./stub-agent.js";
+import { persistApprovalTurn, runChatTurnWithFallback } from "./chat-orchestrator.js";
 import { approvePendingTransaction } from "./transaction-approval.service.js";
 
 export async function handleChatMessage(
@@ -24,27 +21,15 @@ export async function handleChatMessage(
       );
     }
 
-    return {
-      reply: `Approved. Transaction submitted on ${approved.result.chain_id}. Digest: ${approved.result.digest}`,
-      session_id: request.session_id ?? randomUUID(),
-      mode: getAnthropicConfig().enabled ? "claude" : "stub",
-      tool_calls: [
-        {
-          name: "execute_transaction",
-          result: { status: "executed", result: approved.result },
-        },
-      ],
-      pending_transaction: null,
-    };
+    const reply = `Approved. Transaction submitted on ${approved.result.chain_id}. Digest: ${approved.result.digest}`;
+
+    return persistApprovalTurn(privyUserId, request, reply, [
+      {
+        name: "execute_transaction",
+        result: { status: "executed", result: approved.result },
+      },
+    ]);
   }
 
-  if (getAnthropicConfig().enabled) {
-    try {
-      return await runClaudeAgent(privyUserId, request.message, request.session_id);
-    } catch {
-      return runStubAgent(privyUserId, request.message, request.session_id);
-    }
-  }
-
-  return runStubAgent(privyUserId, request.message, request.session_id);
+  return runChatTurnWithFallback(privyUserId, request);
 }

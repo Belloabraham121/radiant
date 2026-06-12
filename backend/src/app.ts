@@ -11,6 +11,7 @@ import { walletBalancesRouter } from "./api/routes/v1/wallets/balances.js";
 import { walletSignAndSendRouter } from "./api/routes/v1/wallets/sign-and-send.js";
 import { healthRouter } from "./api/routes/health.js";
 import { chatRouter } from "./api/routes/v1/chat/chat.js";
+import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
 import { createCorsOptions } from "./config/cors.js";
 
@@ -35,6 +36,7 @@ export function createApp() {
   app.use(walletBalancesRouter);
   app.use(walletSignAndSendRouter);
   app.use(chatRouter);
+  app.use(chatSessionsRouter);
   app.use(errorHandlerMiddleware);
 
   return app;
