@@ -9,10 +9,7 @@ import {
 } from "../../../src/services/defi/token-catalog.service.js";
 import { setAdapterForTests } from "../../../src/services/chains/registry.js";
 import { suiAdapter } from "../../../src/services/chains/adapters/sui.js";
-import {
-  clearWalletAssetsCacheForTests,
-  getWalletAssetsForAddress,
-} from "../../../src/services/wallet/wallet-assets.service.js";
+import { getWalletAssetsForAddress } from "../../../src/services/wallet/wallet-assets.service.js";
 import {
   setPrivyBalanceGetForTests,
 } from "../../../src/services/wallet/privy-balance.service.js";
@@ -40,7 +37,6 @@ describe("getWalletAssetsForPrivyUser", () => {
     resetDeepBookEnvForTests();
     resetSuiBalanceClientForTests();
     setPrivyBalanceGetForTests(null);
-    clearWalletAssetsCacheForTests();
     setAdapterForTests("sui", suiAdapter);
   });
 

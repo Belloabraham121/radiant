@@ -55,6 +55,9 @@ export type AgentWalletContextValue = {
   /** @deprecated Prefer per-chain `signerAdded`. */
   signerAdded: boolean;
   error: string | null;
+  /** Re-fetch native balances only (no wallet reprovisioning). */
+  refreshBalancesOnly: () => Promise<void>;
+  /** Full retry — balances when ready, otherwise reprovision wallets. */
   refresh: () => void;
   getWallet: (chainId: AgentChainId) => ChainWalletState | undefined;
 };
@@ -109,6 +112,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
   const runIdRef = useRef(0);
   const inFlightRef = useRef(false);
   const onboardedUserIdRef = useRef<string | null>(null);
+  const balancesLoadedRef = useRef(false);
 
   const userId = user?.id ?? null;
   const sessionActive = ready && authenticated && userId !== null;
@@ -142,8 +146,14 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       }),
     );
     setWallets(updated);
+    balancesLoadedRef.current = true;
     return updated;
   }, []);
+
+  const refreshBalancesOnly = useCallback(async () => {
+    if (wallets.length === 0) return;
+    await refreshBalances(wallets);
+  }, [refreshBalances, wallets]);
 
   const ensureAgentWallet = useCallback(async () => {
     if (!authenticated || !user) return;
@@ -167,7 +177,9 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
     }
 
     setWallets(provisioned);
-    await refreshBalances(provisioned);
+    if (!balancesLoadedRef.current) {
+      await refreshBalances(provisioned);
+    }
   }, [addSigners, authenticated, enabledChains, refreshBalances, user, walletCreators]);
 
   const runOnboarding = useCallback(
@@ -226,6 +238,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
 
     if (!authenticated || !userId) {
       onboardedUserIdRef.current = null;
+      balancesLoadedRef.current = false;
       return;
     }
 
@@ -272,6 +285,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       funded: displayPrimaryWallet?.funded ?? false,
       signerAdded: displayPrimaryWallet?.signerAdded ?? false,
       error: sessionActive ? error : null,
+      refreshBalancesOnly,
       refresh,
       getWallet,
     }),
@@ -284,6 +298,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       error,
       getWallet,
       refresh,
+      refreshBalancesOnly,
       sessionActive,
       status,
     ],

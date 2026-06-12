@@ -81,10 +81,11 @@ Supported named assets (Privy): `usdc`, `usdc.e`, `eth`, `pol`, `usdt`, `eurc`, 
 
 ### Caching
 
-| Layer | TTL | Notes |
-| ----- | --- | ----- |
-| Redis (backend) | 30–60s | Per `(user_id, chain_id)` asset snapshot |
-| Client SWR | 60s | Refetch on expand + after deposit tx |
+| Layer | Policy | Notes |
+| ----- | ------ | ----- |
+| Backend API | **No cache** | Always fresh on request; client owns session cache |
+| Client session (`wallet-session-cache.ts`) | Until logout | Fetch once when profile/settings opens; manual **Refresh** only |
+| Agent wallet balances (`AgentWalletProvider`) | In-memory per session | Loaded at login provisioning; **Refresh balances** button only |
 
 ---
 
@@ -207,7 +208,7 @@ Reuse DeepBook indexer asset scalars (see [deepbook-v3-TODO.md](./deepbook-v3-TO
 | [x] | `services/wallet/sui-coin-balances.ts` — batch `getBalance` for catalog coin types |
 | [x] | `services/wallet/wallet-assets.service.ts` — orchestrate catalog + balances |
 | [x] | `GET /api/v1/wallets/assets` route + Zod schemas |
-| [x] | Redis cache wrapper (ioredis + in-memory fallback) |
+| [x] | Client session cache (no backend Redis for wallet assets) |
 | [x] | Extend `query_chain` with `token_balances` |
 | [x] | Tests: mock SuiClient, empty wallet, partial holdings |
 
@@ -229,13 +230,13 @@ Reuse DeepBook indexer asset scalars (see [deepbook-v3-TODO.md](./deepbook-v3-TO
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `lib/wallet-assets-api.ts` — `fetchWalletAssets(chain?)` |
-| [ ] | `components/profile/InYourWalletSection.tsx` — collapsible, below `UserProfileCard` |
-| [ ] | Asset row: icon/initial, symbol, name, balance, optional USD |
-| [ ] | Loading skeleton; error retry |
-| [ ] | Mount on Settings profile section (and optionally sidebar profile popover later) |
-| [ ] | Refresh after successful deposit dialog |
-| [ ] | Link “Fund wallet” → existing deposit flow when all zeros |
+| [x] | `lib/wallet-assets-api.ts` — `fetchWalletAssets(chain?)` |
+| [x] | `components/profile/InYourWalletSection.tsx` — collapsible, below `UserProfileCard` |
+| [x] | Asset row: icon/initial, symbol, name, balance, optional USD |
+| [x] | Loading skeleton; error retry |
+| [x] | Mount on Settings profile section (and optionally sidebar profile popover later) |
+| [x] | Refresh after successful deposit dialog |
+| [x] | Link “Fund wallet” → existing deposit flow when all zeros |
 
 ### UX details
 

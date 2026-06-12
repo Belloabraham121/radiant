@@ -447,7 +447,7 @@ Phase 0 (infra + dashboard)
 | [x] | `GET /api/v1/wallets/assets` — Sui multi-coin balances | [Backend] |
 | [x] | Privy `wallets().balance.get` for EVM/Solana named assets | [Backend] |
 | [x] | `query_chain` → `token_balances` | [Backend] |
-| [ ] | `InYourWalletSection` on profile / settings | [Client] |
+| [x] | `InYourWalletSection` on profile / settings | [Client] |
 | [ ] | Agent pre-swap balance checks | [Backend] |
 
 **Depends on:** Phase 3 (agent wallet + `privy_wallet_id`). Shares indexer client with Phase 9.

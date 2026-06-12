@@ -3,11 +3,6 @@ import { resolvePrivyEvmChainId } from "./privy-chain-map.js";
 import { getCatalogForWallet, getTokenCatalog } from "../defi/token-catalog.service.js";
 import { isStablecoinSymbol } from "../defi/asset-scalars.js";
 import { resolveAgentWalletByPrivyUserId } from "./agent-wallet.service.js";
-import {
-  clearWalletAssetsCacheForTests,
-  getCachedWalletAssets,
-  setCachedWalletAssets,
-} from "./wallet-assets.cache.js";
 import type { WalletAssetsData, WalletAssetsQuery } from "./wallet-assets.types.js";
 import {
   fetchEvmPrivyWalletAssets,
@@ -164,11 +159,6 @@ export async function getWalletAssetsForPrivyUser(
   privyUserId: string,
   query: WalletAssetsQuery,
 ): Promise<WalletAssetsData> {
-  const cached = await getCachedWalletAssets(privyUserId, query);
-  if (cached) {
-    return finalizeAssets(cached, query);
-  }
-
   const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, query.chain_id);
   if (!wallet) {
     throw new AppError(
@@ -178,9 +168,5 @@ export async function getWalletAssetsForPrivyUser(
     );
   }
 
-  const data = await buildWalletAssets(wallet, query);
-  await setCachedWalletAssets(privyUserId, query, data);
-  return data;
+  return buildWalletAssets(wallet, query);
 }
-
-export { clearWalletAssetsCacheForTests };

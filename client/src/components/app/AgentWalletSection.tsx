@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useWallets } from "@mysten/dapp-kit-react";
-import { Check, Copy, Loader2, Wallet, WalletMinimal } from "lucide-react";
+import { Check, Copy, Loader2, RefreshCw, Wallet, WalletMinimal } from "lucide-react";
 import { useAgentWallet, type ChainWalletState } from "@/components/wallet/AgentWalletProvider";
 import { EvmDepositDialog } from "@/components/wallet/deposits/EvmDepositDialog";
 import { SolanaDepositDialog } from "@/components/wallet/deposits/SolanaDepositDialog";
@@ -13,6 +13,8 @@ import {
   depositRailForChain,
   isDepositRailAvailable,
 } from "@/lib/personal-wallet";
+import { invalidateWalletAssetsForChain } from "@/lib/wallet-assets-events";
+import { getEvmDefaultChainId } from "@/lib/chain-meta";
 
 function AgentWalletChainCard({
   wallet,
@@ -114,6 +116,7 @@ export function AgentWalletSection() {
     enabledChains,
     error: walletError,
     refresh: refreshAgentWallet,
+    refreshBalancesOnly,
   } = useAgentWallet();
 
   const suiWallets = useWallets();
@@ -122,6 +125,7 @@ export function AgentWalletSection() {
   const [depositHint, setDepositHint] = useState<string | null>(null);
 
   const walletLoading = walletStatus === "loading" || walletStatus === "idle";
+  const walletReady = walletStatus === "ready";
 
   const copyAddress = async (chainId: AgentChainId, address: string) => {
     try {
@@ -152,15 +156,26 @@ export function AgentWalletSection() {
 
   return (
     <>
-      <section data-settings-block className="mt-10">
+      <section id="agent-wallets" data-settings-block className="mt-10 scroll-mt-8">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-[var(--hero-ink)]/40">
             <Wallet className="size-4" strokeWidth={2.5} />
             Agent wallets
           </h2>
-          <span className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-3 py-1 text-xs font-bold text-[var(--hero-violet)] shadow-[2px_2px_0_var(--hero-ink)]">
-            Default: {getChainMeta(defaultChainId).label}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={walletLoading || !walletReady}
+              onClick={() => void refreshBalancesOnly()}
+              className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw className="size-3.5" />
+              Refresh balances
+            </button>
+            <span className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-3 py-1 text-xs font-bold text-[var(--hero-violet)] shadow-[2px_2px_0_var(--hero-ink)]">
+              Default: {getChainMeta(defaultChainId).label}
+            </span>
+          </div>
         </div>
 
         <p className="mb-5 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
@@ -223,7 +238,10 @@ export function AgentWalletSection() {
           onOpenChange={(open) => !open && setDepositChain(null)}
           agentAddress={suiWallet.address}
           agentShort={formatChainAddress("sui", suiWallet.address)}
-          onSuccess={refreshAgentWallet}
+          onSuccess={() => {
+            void refreshBalancesOnly();
+            invalidateWalletAssetsForChain("sui");
+          }}
         />
       )}
 
@@ -232,7 +250,10 @@ export function AgentWalletSection() {
           open={depositChain === "ethereum"}
           onOpenChange={(open) => !open && setDepositChain(null)}
           agentAddress={evmWallet.address}
-          onSuccess={refreshAgentWallet}
+          onSuccess={() => {
+            void refreshBalancesOnly();
+            invalidateWalletAssetsForChain("ethereum", getEvmDefaultChainId());
+          }}
         />
       )}
 
@@ -241,7 +262,10 @@ export function AgentWalletSection() {
           open={depositChain === "solana"}
           onOpenChange={(open) => !open && setDepositChain(null)}
           agentAddress={solanaWallet.address}
-          onSuccess={refreshAgentWallet}
+          onSuccess={() => {
+            void refreshBalancesOnly();
+            invalidateWalletAssetsForChain("solana");
+          }}
         />
       )}
     </>
