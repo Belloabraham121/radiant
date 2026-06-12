@@ -13,6 +13,7 @@ import {
   mapToolCallsToReceipts,
   type ChatMessage,
 } from "@/lib/chat-messages";
+import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 
 export function useChatSession(sessionId?: string) {
@@ -35,6 +36,15 @@ export function useChatSession(sessionId?: string) {
     if (!sessionId) {
       setMessages([]);
       setTitle("New chat");
+      setLoading(false);
+      setLoadError(null);
+      return;
+    }
+
+    const cached = takeCachedChatSession(sessionId);
+    if (cached) {
+      setTitle(cached.title);
+      setMessages(cached.messages);
       setLoading(false);
       setLoadError(null);
       return;
@@ -84,23 +94,36 @@ export function useChatSession(sessionId?: string) {
           session_id: activeSessionId,
         });
 
+        const nextTitle =
+          title === "New chat" ? text.slice(0, 60) : title;
+
         setActiveSessionId(data.session_id);
-        setTitle((current) => (current === "New chat" ? text.slice(0, 60) : current));
+        setTitle(nextTitle);
+        setMessages((current) => {
+          const nextMessages: ChatMessage[] = [
+            ...current.filter((message) => message.id !== optimisticId),
+            { id: optimisticId, role: "user", text },
+            {
+              id: data.message_id,
+              role: "agent",
+              text: data.reply,
+              receipts: mapToolCallsToReceipts(data.tool_calls),
+            },
+          ];
+
+          if (!sessionId && data.session_id) {
+            cacheChatSession(data.session_id, {
+              messages: nextMessages,
+              title: nextTitle,
+            });
+          }
+
+          return nextMessages;
+        });
 
         if (!sessionId && data.session_id) {
           router.replace(`/app/chat/${data.session_id}`);
         }
-
-        setMessages((current) => [
-          ...current.filter((message) => message.id !== optimisticId),
-          { id: optimisticId, role: "user", text },
-          {
-            id: data.message_id,
-            role: "agent",
-            text: data.reply,
-            receipts: mapToolCallsToReceipts(data.tool_calls),
-          },
-        ]);
 
         if (data.pending_transaction) {
           setPendingTx(data.pending_transaction);
@@ -115,7 +138,7 @@ export function useChatSession(sessionId?: string) {
         setTyping(false);
       }
     },
-    [activeSessionId, refreshSessions, router, sessionId, typing],
+    [activeSessionId, refreshSessions, router, sessionId, title, typing],
   );
 
   const approvePending = useCallback(async () => {

@@ -2,14 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
 import { ArrowUp, Check, Sparkles } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { TransactionApprovalModal } from "@/components/app/TransactionApprovalModal";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage } from "@/lib/chat-messages";
-
-gsap.registerPlugin(useGSAP);
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
 
@@ -18,6 +15,7 @@ function Bubble({ message }: { message: ChatMessage }) {
   return (
     <div
       data-bubble
+      data-message-id={message.id}
       className={`flex ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
@@ -87,6 +85,7 @@ type ChatViewProps = {
 export function ChatView({ sessionId }: ChatViewProps) {
   const ref = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const animatedMessageIdsRef = useRef(new Set<string>());
   const [input, setInput] = useState("");
 
   const {
@@ -103,23 +102,35 @@ export function ChatView({ sessionId }: ChatViewProps) {
     dismissPending,
   } = useChatSession(sessionId);
 
-  useGSAP(
-    () => {
-      if (loading || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      const scope = ref.current;
-      if (!scope) return;
-      const targets = scope.querySelectorAll("[data-bubble]");
-      if (targets.length === 0) return;
-      gsap.from(targets, {
-        y: 24,
-        opacity: 0,
-        duration: 0.55,
-        stagger: 0.1,
-        ease: "back.out(1.4)",
-      });
-    },
-    { scope: ref, dependencies: [messages.length, loading] },
-  );
+  useEffect(() => {
+    animatedMessageIdsRef.current.clear();
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (loading || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const scope = ref.current;
+    if (!scope) return;
+
+    const newTargets: Element[] = [];
+    for (const message of messages) {
+      if (animatedMessageIdsRef.current.has(message.id)) continue;
+      const element = scope.querySelector(`[data-message-id="${message.id}"]`);
+      if (!element) continue;
+      animatedMessageIdsRef.current.add(message.id);
+      newTargets.push(element);
+    }
+
+    if (newTargets.length === 0) return;
+
+    gsap.from(newTargets, {
+      y: 24,
+      opacity: 0,
+      duration: 0.55,
+      stagger: 0.1,
+      ease: "back.out(1.4)",
+    });
+  }, [loading, messages]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
