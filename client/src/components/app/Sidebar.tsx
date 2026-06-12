@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   ChevronsLeft,
   FolderKanban,
@@ -13,10 +14,11 @@ import {
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { UserAvatar } from "@/components/profile/UserAvatar";
-import { CHATS } from "@/lib/app-data";
+import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
 import { formatChainAddress, getChainMeta } from "@/lib/chain-meta";
+import { formatSessionTime } from "@/lib/chat-messages";
 import { useSidebar } from "./SidebarContext";
 
 const NAV = [
@@ -27,9 +29,13 @@ const NAV = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { open, setOpen } = useSidebar();
   const { seed, displayName } = useUserProfile();
   const { primaryWallet, defaultChainId, status } = useAgentWallet();
+  const { sessions, loading, error, createSession } = useChatSessions();
+  const [creating, setCreating] = useState(false);
+
   const walletLabel =
     primaryWallet?.address != null
       ? `${getChainMeta(defaultChainId).nativeSymbol} ${formatChainAddress(defaultChainId, primaryWallet.address)}`
@@ -37,11 +43,26 @@ export function Sidebar() {
         ? "Setting up wallet…"
         : "No wallet";
 
+  const activeSessionId = pathname.startsWith("/app/chat/")
+    ? pathname.split("/app/chat/")[1]?.split("/")[0]
+    : null;
+
+  const handleNewChat = async () => {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const id = await createSession();
+      router.push(`/app/chat/${id}`);
+      setOpen(false);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
     <>
-      {/* mobile backdrop */}
       <button
         type="button"
         aria-label="Close sidebar"
@@ -56,13 +77,15 @@ export function Sidebar() {
             Radiant
           </Link>
           <div className="flex items-center gap-2">
-            <Link
-              href="/app"
-              className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-1.5 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
+            <button
+              type="button"
+              onClick={() => void handleNewChat()}
+              disabled={creating}
+              className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-1.5 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:opacity-50"
             >
               <Plus className="size-3.5" strokeWidth={3} />
-              New chat
-            </Link>
+              {creating ? "Creating…" : "New chat"}
+            </button>
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -77,7 +100,9 @@ export function Sidebar() {
         <nav className="flex gap-1.5 border-b-2 border-[var(--hero-ink)] px-4 py-3">
           {NAV.map(({ href, label, Icon }) => {
             const active =
-              href === "/app" ? pathname === "/app" : pathname.startsWith(href);
+              href === "/app"
+                ? pathname === "/app" || pathname.startsWith("/app/chat/")
+                : pathname.startsWith(href);
             return (
               <Link
                 key={href}
@@ -100,27 +125,47 @@ export function Sidebar() {
             Your chats
           </p>
           <div className="flex flex-col gap-2">
-            {CHATS.map((chat, i) => (
-              <Link
-                key={chat.id}
-                href="/app"
-                className={`group rounded-2xl border-2 px-4 py-3 transition-all ${
-                  i === 0
-                    ? "border-[var(--hero-ink)] bg-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-ink)]"
-                    : "border-transparent hover:border-[var(--hero-ink)] hover:bg-[var(--hero-bg)]"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold">{chat.title}</span>
-                  <span className="text-[11px] font-bold text-[var(--hero-ink)]/35">
-                    {chat.time}
-                  </span>
-                </div>
-                <p className="mt-0.5 truncate text-xs font-medium text-[var(--hero-ink)]/50">
-                  {chat.preview}
-                </p>
-              </Link>
-            ))}
+            {loading && sessions.length === 0 ? (
+              <p className="px-2 text-xs font-medium text-[var(--hero-ink)]/40">Loading chats…</p>
+            ) : null}
+
+            {error ? (
+              <p className="px-2 text-xs font-semibold text-[var(--hero-coral)]">{error}</p>
+            ) : null}
+
+            {!loading && sessions.length === 0 ? (
+              <p className="px-2 text-xs font-medium text-[var(--hero-ink)]/40">
+                No chats yet — start one above.
+              </p>
+            ) : null}
+
+            {sessions.map((chat) => {
+              const active = activeSessionId === chat.id;
+              return (
+                <Link
+                  key={chat.id}
+                  href={`/app/chat/${chat.id}`}
+                  onClick={() => setOpen(false)}
+                  className={`group rounded-2xl border-2 px-4 py-3 transition-all ${
+                    active
+                      ? "border-[var(--hero-ink)] bg-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-ink)]"
+                      : "border-transparent hover:border-[var(--hero-ink)] hover:bg-[var(--hero-bg)]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-bold">{chat.title}</span>
+                    <span className="shrink-0 text-[11px] font-bold text-[var(--hero-ink)]/35">
+                      {formatSessionTime(chat.updated_at)}
+                    </span>
+                  </div>
+                  {chat.preview ? (
+                    <p className="mt-0.5 truncate text-xs font-medium text-[var(--hero-ink)]/50">
+                      {chat.preview}
+                    </p>
+                  ) : null}
+                </Link>
+              );
+            })}
           </div>
         </div>
 

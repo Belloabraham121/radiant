@@ -13,7 +13,7 @@ import {
   mapToolCallsToReceipts,
   type ChatMessage,
 } from "@/lib/chat-messages";
-import { useChatSessions } from "@/components/app/ChatSessionsProvider";
+import { useChatSessions } from "@/components/app/chat-sessions-context";
 
 export function useChatSession(sessionId?: string) {
   const router = useRouter();

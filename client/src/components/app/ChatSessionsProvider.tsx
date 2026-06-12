@@ -1,29 +1,13 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   createChatSession,
   fetchChatSessions,
   type ChatSessionListItem,
 } from "@/lib/chat-api";
-
-type ChatSessionsContextValue = {
-  sessions: ChatSessionListItem[];
-  loading: boolean;
-  error: string | null;
-  refreshSessions: () => Promise<void>;
-  createSession: () => Promise<string>;
-};
-
-const ChatSessionsContext = createContext<ChatSessionsContextValue | null>(null);
+import { ChatSessionsContext } from "./chat-sessions-context";
 
 export function ChatSessionsProvider({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
@@ -75,12 +59,4 @@ export function ChatSessionsProvider({ children }: { children: React.ReactNode }
   return (
     <ChatSessionsContext.Provider value={value}>{children}</ChatSessionsContext.Provider>
   );
-}
-
-export function useChatSessions() {
-  const context = useContext(ChatSessionsContext);
-  if (!context) {
-    throw new Error("useChatSessions must be used within ChatSessionsProvider");
-  }
-  return context;
 }

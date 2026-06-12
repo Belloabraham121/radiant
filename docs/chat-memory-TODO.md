@@ -482,9 +482,9 @@ On OpenAI failure in production: optional fallback to stub with logged warning (
 
 | Status | Task                                                           | Owner     |
 | ------ | -------------------------------------------------------------- | --------- |
-| [ ]    | Update `backend/api-ref.md` with session + message endpoints   | [Backend] |
-| [ ]    | Update `client/AGENTS.md` — chat session flow, no mock `CHATS` | [Client]  |
-| [ ]    | Remove or gate mock `CHATS` / `MESSAGES` in `app-data.ts`      | [Client]  |
+| [x]    | Update `backend/api-ref.md` with session + message endpoints   | [Backend] |
+| [x]    | Update `client/AGENTS.md` — chat session flow, no mock `CHATS` | [Client]  |
+| [x]    | Remove or gate mock `CHATS` / `MESSAGES` in `app-data.ts`      | [Client]  |
 
 ---
 
@@ -492,12 +492,12 @@ On OpenAI failure in production: optional fallback to stub with logged warning (
 
 | Status | Task                                               | Owner    |
 | ------ | -------------------------------------------------- | -------- |
-| [ ]    | Extend `chat-api.ts` types for sessions/messages   | [Client] |
-| [ ]    | Sidebar: real session list + “New chat”            | [Client] |
-| [ ]    | Chat page: load history on mount; no seed messages | [Client] |
-| [ ]    | URL ↔ `session_id` sync                            | [Client] |
-| [ ]    | Display `mode` / errors; tool receipts from API    | [Client] |
-| [ ]    | Empty + loading states                             | [Client] |
+| [x]    | Extend `chat-api.ts` types for sessions/messages   | [Client] |
+| [x]    | Sidebar: real session list + “New chat”            | [Client] |
+| [x]    | Chat page: load history on mount; no seed messages | [Client] |
+| [x]    | URL ↔ `session_id` sync                            | [Client] |
+| [x]    | Display `mode` / errors; tool receipts from API    | [Client] |
+| [x]    | Empty + loading states                             | [Client] |
 
 ---
 

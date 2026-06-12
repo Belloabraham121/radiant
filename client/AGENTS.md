@@ -40,6 +40,8 @@ client/src/
 └── lib/                    # API clients, config, pure helpers — no JSX
     ├── api.ts              # apiFetch, ApiError, envelope parsing
     ├── auth-api.ts         # /auth/me
+    ├── chat-api.ts         # sessions, messages, POST /chat
+    ├── chat-messages.ts    # API message → UI mapping, receipts
     ├── wallet-api.ts       # register-wallet, balances
     └── privy-*.ts          # Privy/OAuth config helpers
 ```
@@ -50,6 +52,14 @@ client/src/
 | Reusable UI | `components/**` | One-off markup duplicated across pages |
 | HTTP + types | `lib/**` | `fetch` scattered in components |
 | Session/global state | Context providers in `components/wallet/` or `providers/` | Prop drilling through 5+ layers |
+
+### Chat sessions
+
+- Routes: `/app` (redirect to latest or empty new chat), `/app/chat/[sessionId]` (active thread).
+- `ChatSessionsProvider` + `useChatSessions()` — sidebar session list, `createSession`, `refreshSessions`.
+- `useChatSession(sessionId?)` — load history, send messages, approval flow.
+- `ChatView` — shared chat UI; pages stay thin.
+- Do **not** seed chat from `app-data.ts`; all threads come from `/api/v1/chat/sessions`.
 
 ---
 
