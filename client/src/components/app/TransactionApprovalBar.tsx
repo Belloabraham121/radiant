@@ -20,6 +20,12 @@ export function TransactionApprovalBar({
   const isProvision = pending.action === "deepbook_provision_manager";
   const isDeposit =
     pending.action === "deepbook_deposit" || pending.action === "deepbook_withdraw";
+  const isLimitOrder = pending.action === "deepbook_place_limit_order";
+  const isMarketOrder = pending.action === "deepbook_place_market_order";
+  const isCancelOrder =
+    pending.action === "deepbook_cancel_order" ||
+    pending.action === "deepbook_cancel_all_orders";
+  const isOrder = isLimitOrder || isMarketOrder;
 
   return (
     <div
@@ -36,16 +42,30 @@ export function TransactionApprovalBar({
             id="tx-approval-title"
             className="font-heading text-lg font-extrabold tracking-tight text-[var(--hero-ink)]"
           >
-            {isSwap ? "Approve swap" : isProvision ? "Approve setup" : "Approve transaction"}
+            {isSwap
+              ? "Approve swap"
+              : isOrder
+                ? "Approve order"
+                : isCancelOrder
+                  ? "Approve cancel"
+                  : isProvision
+                    ? "Approve setup"
+                    : "Approve transaction"}
           </p>
           <p className="mt-0.5 text-xs font-medium text-[var(--hero-ink)]/50">
             {isSwap
               ? "Review the quote, then approve to execute on chain."
-              : isProvision
-                ? "Creates your DeepBook balance manager on chain. No token deposit — only network gas."
-                : isDeposit
-                  ? "Review the amount, then approve to sign and send."
-                  : "Review the details, then approve to sign and send."}
+              : isLimitOrder
+                ? "Review price and size, then approve to place the limit order on DeepBook."
+                : isMarketOrder
+                  ? "Review the order size and side, then approve to place on DeepBook."
+                  : isCancelOrder
+                    ? "Review the cancellation, then approve to update your open orders."
+                    : isProvision
+                      ? "Creates your DeepBook balance manager on chain. No token deposit — only network gas."
+                      : isDeposit
+                        ? "Review the amount, then approve to sign and send."
+                        : "Review the details, then approve to sign and send."}
           </p>
         </div>
         <span className="shrink-0 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)]/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-[var(--hero-amber)]">
@@ -66,6 +86,10 @@ export function TransactionApprovalBar({
         {isSwap ? (
           <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
             Estimated output may shift slightly before the transaction lands on chain.
+          </p>
+        ) : isLimitOrder ? (
+          <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
+            Limit orders lock funds in your DeepBook balance manager until filled or cancelled.
           </p>
         ) : null}
       </div>

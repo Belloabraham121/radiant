@@ -27,6 +27,11 @@ import {
   isDeepBookSwapAction,
   preflightDeepBookSwap,
 } from "../defi/deepbook-swap.service.js";
+import {
+  isDeepBookPlaceOrderAction,
+  preflightDeepBookPlaceLimitOrder,
+  preflightDeepBookPlaceMarketOrder,
+} from "../defi/deepbook-orders.service.js";
 import { preflightDeepBookWithdraw } from "../defi/deepbook-balance-manager.service.js";
 
 export const agentToolDefinitions = [
@@ -53,12 +58,30 @@ function toToolErrorResult(err: AppError): AgentToolErrorResult {
   };
 }
 
-export async function runAgentTool(
+type AgentToolHandler = (
+  privyUserId: string,
+  name: string,
+  input: Record<string, unknown>,
+  options?: { approved?: boolean },
+) => Promise<unknown>;
+
+let agentToolHandler: AgentToolHandler | null = null;
+
+/** Test hook — inject tool handler for workflow/orchestration tests. */
+export function setAgentToolHandlerForTests(handler: AgentToolHandler | null): void {
+  agentToolHandler = handler;
+}
+
+async function dispatchAgentTool(
   privyUserId: string,
   name: string,
   input: Record<string, unknown>,
   options?: { approved?: boolean },
 ): Promise<unknown> {
+  if (agentToolHandler) {
+    return agentToolHandler(privyUserId, name, input, options);
+  }
+
   try {
     switch (name) {
       case QUERY_CHAIN_TOOL_NAME:
@@ -79,6 +102,15 @@ export async function runAgentTool(
   }
 }
 
+export async function runAgentTool(
+  privyUserId: string,
+  name: string,
+  input: Record<string, unknown>,
+  options?: { approved?: boolean },
+): Promise<unknown> {
+  return dispatchAgentTool(privyUserId, name, input, options);
+}
+
 export async function runExecuteTransactionToolWithApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
@@ -91,6 +123,12 @@ export async function runExecuteTransactionToolWithApproval(
     if (needsApproval) {
       if (isDeepBookSwapAction(input.action)) {
         await preflightDeepBookSwap(privyUserId, input.params);
+      }
+      if (input.action === "deepbook_place_limit_order") {
+        await preflightDeepBookPlaceLimitOrder(privyUserId, input.params);
+      }
+      if (input.action === "deepbook_place_market_order") {
+        await preflightDeepBookPlaceMarketOrder(privyUserId, input.params);
       }
       if (input.action === "deepbook_withdraw") {
         await preflightDeepBookWithdraw(privyUserId, input.params);

@@ -14,6 +14,8 @@ export type AgentTurnInput = {
   messages: AgentTurnMessage[];
   memoryBlock?: string;
   agentPermissions?: AgentPermissions;
+  /** When true, invoked from sequential workflow — avoid nested workflow routing. */
+  workflowMode?: boolean;
 };
 
 export type AgentTurnResult = {

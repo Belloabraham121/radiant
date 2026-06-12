@@ -13,6 +13,14 @@ import type { TransactionErrorContext } from "./transaction-error-context.js";
 import { synthesizeErrorExplanationReply } from "./runtime/error-explanation.js";
 import { stubRuntime } from "./runtime/stub.runtime.js";
 import type { AgentToolErrorResult } from "./tools.js";
+import {
+  isClarificationContinuationRequest,
+  tryStartWorkflowFromMessage,
+} from "./workflow/workflow-coordinator.js";
+import {
+  isApprovalContinuationMessage,
+  persistWorkflowChatResponse,
+} from "./workflow/workflow-runner.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
@@ -33,12 +41,35 @@ export async function runChatTurn(
 
   await appendMessage(session.id, "user", request.message);
 
-  const history = await listMessagesBySessionId(session.id);
-  const contextMessages = buildAgentContextMessages(history);
-
   const memory = await loadAgentMemory(privyUserId);
   const memoryBlock = formatMemoryBlock(memory);
   const agentPermissions = await getAgentPermissions(privyUserId);
+
+  if (!isApprovalContinuationMessage(request.message) && !isClarificationContinuationRequest(request)) {
+    const workflowOutcome = await tryStartWorkflowFromMessage(
+      privyUserId,
+      session.id,
+      request.message,
+      { memoryBlock, agentPermissions },
+    );
+
+    if (workflowOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, workflowOutcome);
+    }
+  }
+
+  const history = await listMessagesBySessionId(session.id);
+  const contextMessages = buildAgentContextMessages(history);
 
   const runtime = options.forceRuntime ?? getAgentRuntime();
   const result = await runtime.runTurn({
@@ -75,6 +106,7 @@ export async function runChatTurn(
     mode: options.forceRuntime?.id ?? runtime.id,
     tool_calls: result.tool_calls,
     pending_transaction: result.pending_transaction,
+    pending_clarification: null,
     message_id: assistantMessage.id,
   };
 }
@@ -125,6 +157,7 @@ export async function persistToolFailureTurn(
     mode: getAgentProvider(),
     tool_calls: toolCalls,
     pending_transaction: null,
+    pending_clarification: null,
     message_id: assistantMessage.id,
   };
 }
@@ -155,6 +188,7 @@ export async function persistApprovalTurn(
     mode: getAgentProvider(),
     tool_calls: toolCalls,
     pending_transaction: null,
+    pending_clarification: null,
     message_id: assistantMessage.id,
   };
 }

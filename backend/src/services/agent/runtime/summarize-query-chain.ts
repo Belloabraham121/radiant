@@ -9,11 +9,26 @@ import type {
   DeepBookTickerMap,
 } from "../../defi/deepbook-pools.service.js";
 import type { DeepBookSwapQuoteResult } from "../../defi/deepbook-swap.service.js";
+import type { DeepBookOpenOrdersResult } from "../../defi/deepbook-orders.service.js";
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
 
 export function summarizeQueryChainResult(result: unknown): string | null {
   if (typeof result !== "object" || result === null) {
     return null;
+  }
+
+  const openOrders = result as DeepBookOpenOrdersResult;
+  if (Array.isArray(openOrders.orders) && openOrders.pool_key && openOrders.manager_object_id) {
+    if (openOrders.orders.length === 0) {
+      return `No open orders on ${openOrders.pool_key}`;
+    }
+    const lines = openOrders.orders.slice(0, 8).map((order) => {
+      const side = order.is_bid ? "buy" : "sell";
+      return `${side} ${order.remaining_quantity} @ ${order.price} (id ${order.order_id.slice(0, 10)}…)`;
+    });
+    const suffix =
+      openOrders.orders.length > 8 ? `\n…and ${openOrders.orders.length - 8} more` : "";
+    return `Open orders on ${openOrders.pool_key} (${openOrders.orders.length}):\n${lines.join("\n")}${suffix}`;
   }
 
   const swapQuote = result as DeepBookSwapQuoteResult;

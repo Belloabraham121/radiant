@@ -1,0 +1,88 @@
+import type { ExecuteTransactionInput } from "../../chains/types.js";
+import type { QueryChainInput } from "../agent.types.js";
+import type { ToolCallRecord } from "../agent.types.js";
+import type { TxResult } from "../../chains/types.js";
+import type { PendingClarification } from "./clarification.types.js";
+import type { WorkflowLedgerEntry } from "./workflow-ledger.js";
+
+export type WorkflowQueryStep = {
+  kind: "query";
+  label: string;
+  input: QueryChainInput;
+};
+
+export type WorkflowExecuteStep = {
+  kind: "execute";
+  label: string;
+  input: ExecuteTransactionInput;
+};
+
+/** Fallback when planner cannot map a segment to a concrete tool input. */
+export type WorkflowAgentStep = {
+  kind: "agent";
+  label: string;
+  instruction: string;
+};
+
+export type WorkflowStep = WorkflowQueryStep | WorkflowExecuteStep | WorkflowAgentStep;
+
+export type WorkflowPlan = {
+  originalMessage: string;
+  steps: WorkflowStep[];
+};
+
+export type CompletedWorkflowStep = {
+  index: number;
+  label: string;
+  tool_calls: ToolCallRecord[];
+  digest?: string;
+};
+
+export type SessionWorkflowStatus =
+  | "active"
+  | "paused_approval"
+  | "paused_clarification"
+  | "completed"
+  | "failed";
+
+export type SessionWorkflowState = {
+  sessionId: string;
+  plan: WorkflowPlan;
+  currentStepIndex: number;
+  completed: CompletedWorkflowStep[];
+  ledger: WorkflowLedgerEntry[];
+  status: SessionWorkflowStatus;
+  pendingTransactionId?: string;
+  pendingClarificationId?: string;
+  failureMessage?: string;
+  createdAt: number;
+};
+
+export type WorkflowStepOutcome =
+  | {
+      status: "executed";
+      tool_calls: ToolCallRecord[];
+      txResult?: TxResult;
+    }
+  | {
+      status: "approval_required";
+      tool_calls: ToolCallRecord[];
+      pendingId: string;
+    }
+  | {
+      status: "clarification_required";
+      pending: PendingClarification;
+    }
+  | {
+      status: "error";
+      tool_calls: ToolCallRecord[];
+      error: { code: string; message: string };
+    };
+
+export type WorkflowRunOutcome = {
+  reply: string;
+  tool_calls: ToolCallRecord[];
+  pending_transaction: import("../agent.types.js").PendingTransaction | null;
+  pending_clarification: PendingClarification | null;
+  workflowCompleted: boolean;
+};

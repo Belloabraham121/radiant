@@ -27,7 +27,8 @@ export const executeTransactionToolDefinition = {
         type: "string",
         description:
           "Chain-specific action name. Sui: transfer_native, transfer_sui, execute_bytes, " +
-          "deepbook_provision_manager, deepbook_deposit, deepbook_withdraw, swap (alias deepbook_swap).",
+          "deepbook_provision_manager, deepbook_deposit, deepbook_withdraw, swap (alias deepbook_swap), " +
+          "deepbook_place_limit_order, deepbook_place_market_order, deepbook_cancel_order, deepbook_cancel_all_orders.",
       },
       params: {
         type: "object",
@@ -36,6 +37,9 @@ export const executeTransactionToolDefinition = {
           "deepbook_provision_manager: {} — create on-chain balance manager (gas only, no token deposit). " +
           "deepbook_deposit/withdraw: { coin_key, amount_display } or { coin_key, withdraw_all: true } for full balance. " +
           "swap/deepbook_swap: { pool_key?, amount, side: buy|sell, pay_with_deep?, slippage_bps?, estimated_out_display? }. " +
+          "deepbook_place_limit_order: { pool_key?, price, quantity, side: buy|sell, pay_with_deep?, client_order_id? }. " +
+          "deepbook_place_market_order: { pool_key?, quantity, side: buy|sell, pay_with_deep?, client_order_id? }. " +
+          "deepbook_cancel_order: { pool_key?, order_id }. deepbook_cancel_all_orders: { pool_key? }. " +
           "execute_bytes: { transaction_bytes } (base64).",
         additionalProperties: true,
       },

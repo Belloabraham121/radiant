@@ -4,6 +4,12 @@ import {
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
 } from "../defi/deepbook-swap.service.js";
+import {
+  parseDeepBookCancelAllOrdersParams,
+  parseDeepBookCancelOrderParams,
+  parseDeepBookLimitOrderParams,
+  parseDeepBookMarketOrderParams,
+} from "../defi/deepbook-orders.service.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 
 export const DEEPBOOK_PROVISION_MANAGER_ACTION = "deepbook_provision_manager" as const;
@@ -33,5 +39,25 @@ export function validateExecuteTransactionInput(input: ExecuteTransactionInput):
 
   if (isDeepBookSwapAction(input.action)) {
     parseDeepBookSwapParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_place_limit_order") {
+    parseDeepBookLimitOrderParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_place_market_order") {
+    parseDeepBookMarketOrderParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_cancel_order") {
+    parseDeepBookCancelOrderParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_cancel_all_orders") {
+    parseDeepBookCancelAllOrdersParams(input.params);
   }
 }

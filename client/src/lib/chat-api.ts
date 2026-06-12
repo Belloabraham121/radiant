@@ -14,12 +14,21 @@ export type PendingTransaction = {
   amount_display: string;
 };
 
+export type PendingClarification = {
+  id: string;
+  question: string;
+  step_index?: number;
+  kind: "intent" | "amount_ref" | "constraint_skip";
+  plan_preview?: string;
+};
+
 export type ChatResponse = {
   reply: string;
   session_id: string;
   mode: "openai" | "stub";
   tool_calls: ChatToolCall[];
   pending_transaction: PendingTransaction | null;
+  pending_clarification: PendingClarification | null;
   message_id: string;
 };
 
@@ -27,6 +36,8 @@ export type ChatRequest = {
   message: string;
   session_id?: string;
   approve_transaction_id?: string;
+  clarification_id?: string;
+  clarification_response?: "yes" | "no";
 };
 
 export type ChatSessionListItem = {

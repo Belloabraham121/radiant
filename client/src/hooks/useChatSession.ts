@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api";
 import {
   fetchSessionMessages,
   postChat,
+  type PendingClarification,
   type PendingTransaction,
 } from "@/lib/chat-api";
 import {
@@ -24,6 +25,7 @@ function initialChatSessionState(sessionId?: string) {
       loading: false,
       skipFetch: true,
       pending_transaction: null as PendingTransaction | null,
+      pending_clarification: null as PendingClarification | null,
     };
   }
 
@@ -35,6 +37,7 @@ function initialChatSessionState(sessionId?: string) {
       loading: false,
       skipFetch: true,
       pending_transaction: cached.pending_transaction ?? null,
+      pending_clarification: cached.pending_clarification ?? null,
     };
   }
 
@@ -44,6 +47,7 @@ function initialChatSessionState(sessionId?: string) {
     loading: true,
     skipFetch: false,
     pending_transaction: null as PendingTransaction | null,
+    pending_clarification: null as PendingClarification | null,
   };
 }
 
@@ -62,7 +66,10 @@ export function useChatSession(sessionId?: string) {
   const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(
     boot.pending_transaction,
   );
+  const [pendingClarification, setPendingClarification] =
+    useState<PendingClarification | null>(boot.pending_clarification);
   const [approving, setApproving] = useState(false);
+  const [respondingClarification, setRespondingClarification] = useState(false);
 
   useEffect(() => {
     if (!sessionId || boot.skipFetch) {
@@ -141,16 +148,18 @@ export function useChatSession(sessionId?: string) {
               messages: nextMessages,
               title: nextTitle,
               pending_transaction: data.pending_transaction,
+              pending_clarification: data.pending_clarification,
             });
           }
 
           return nextMessages;
         });
 
+        setPendingTx(data.pending_transaction ?? null);
+        setPendingClarification(data.pending_clarification ?? null);
+
         if (!sessionId && data.session_id) {
           router.replace(`/app/chat/${data.session_id}`);
-        } else if (data.pending_transaction) {
-          setPendingTx(data.pending_transaction);
         }
 
         void refreshSessions();
@@ -179,7 +188,8 @@ export function useChatSession(sessionId?: string) {
       });
 
       setActiveSessionId(data.session_id);
-      setPendingTx(null);
+      setPendingTx(data.pending_transaction ?? null);
+      setPendingClarification(data.pending_clarification ?? null);
       setMessages((current) => [
         ...current,
         {
@@ -200,6 +210,47 @@ export function useChatSession(sessionId?: string) {
     }
   }, [activeSessionId, approving, pendingTx, refreshSessions]);
 
+  const respondClarification = useCallback(
+    async (response: "yes" | "no") => {
+      if (!pendingClarification || respondingClarification) return;
+
+      setRespondingClarification(true);
+      setChatError(null);
+
+      try {
+        const data = await postChat({
+          message: response === "yes" ? "Yes" : "No",
+          session_id: activeSessionId,
+          clarification_id: pendingClarification.id,
+          clarification_response: response,
+        });
+
+        setActiveSessionId(data.session_id);
+        setPendingClarification(data.pending_clarification ?? null);
+        setPendingTx(data.pending_transaction ?? null);
+        setMessages((current) => [
+          ...current,
+          { id: `u-clarify-${Date.now()}`, role: "user", text: response === "yes" ? "Yes" : "No" },
+          {
+            id: data.message_id,
+            role: "agent",
+            text: data.reply,
+            receipts: mapToolCallsToReceipts(data.tool_calls),
+          },
+        ]);
+
+        void refreshSessions();
+      } catch (err) {
+        const message =
+          err instanceof ApiError ? err.message : "Could not process your response.";
+        setChatError(message);
+      } finally {
+        setRespondingClarification(false);
+      }
+    },
+    [activeSessionId, pendingClarification, refreshSessions, respondingClarification],
+  );
+
   return {
     messages,
     title,
@@ -208,9 +259,13 @@ export function useChatSession(sessionId?: string) {
     typing,
     chatError,
     pendingTx,
+    pendingClarification,
     approving,
+    respondingClarification,
     sendMessage,
     approvePending,
+    respondClarification,
     dismissPending: () => setPendingTx(null),
+    dismissClarification: () => setPendingClarification(null),
   };
 }

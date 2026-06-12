@@ -2,6 +2,8 @@ import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { AppError } from "../../../errors/app-error.js";
 import type {
   IndexerAssetsResponse,
+  IndexerOrderRecord,
+  IndexerOrderUpdateRecord,
   IndexerOrderbookResponse,
   IndexerPoolRecord,
   IndexerSummaryResponse,
@@ -106,4 +108,77 @@ export async function fetchIndexerOrderbook(
   }
 
   return body;
+}
+
+export async function fetchIndexerOrders(
+  poolName: string,
+  balanceManagerId: string,
+  options?: { limit?: number; status?: string },
+  indexerUrl?: string,
+): Promise<IndexerOrderRecord[]> {
+  const params = new URLSearchParams();
+  if (options?.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+  if (options?.status) {
+    params.set("status", options.status);
+  }
+
+  const query = params.toString();
+  const path =
+    `/orders/${encodeURIComponent(poolName)}/${encodeURIComponent(balanceManagerId)}` +
+    (query.length > 0 ? `?${query}` : "");
+
+  try {
+    const body = await indexerFetch<IndexerOrderRecord[]>(path, indexerUrl);
+    return Array.isArray(body) ? body : [];
+  } catch (err) {
+    if (err instanceof IndexerRequestError && (err.status === 404 || err.status === 400)) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+export async function fetchIndexerOrderUpdates(
+  poolName: string,
+  options?: {
+    limit?: number;
+    start_time?: number;
+    end_time?: number;
+    status?: string;
+    balance_manager_id?: string;
+  },
+  indexerUrl?: string,
+): Promise<IndexerOrderUpdateRecord[]> {
+  const params = new URLSearchParams();
+  if (options?.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+  if (options?.start_time !== undefined) {
+    params.set("start_time", String(options.start_time));
+  }
+  if (options?.end_time !== undefined) {
+    params.set("end_time", String(options.end_time));
+  }
+  if (options?.status) {
+    params.set("status", options.status);
+  }
+  if (options?.balance_manager_id) {
+    params.set("balance_manager_id", options.balance_manager_id);
+  }
+
+  const query = params.toString();
+  const path =
+    `/order_updates/${encodeURIComponent(poolName)}` + (query.length > 0 ? `?${query}` : "");
+
+  try {
+    const body = await indexerFetch<IndexerOrderUpdateRecord[]>(path, indexerUrl);
+    return Array.isArray(body) ? body : [];
+  } catch (err) {
+    if (err instanceof IndexerRequestError && (err.status === 404 || err.status === 400)) {
+      return [];
+    }
+    throw err;
+  }
 }

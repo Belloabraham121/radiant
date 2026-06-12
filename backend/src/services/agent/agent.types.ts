@@ -12,14 +12,25 @@ import type {
   DeepBookTickerMap,
 } from "../defi/deepbook-pools.service.js";
 import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
+import type { DeepBookOpenOrdersResult } from "../defi/deepbook-orders.service.js";
 
 export const chatRequestSchema = z.object({
   message: z.string().min(1).max(8000),
   session_id: z.string().uuid().optional(),
   approve_transaction_id: z.string().uuid().optional(),
+  clarification_id: z.string().uuid().optional(),
+  clarification_response: z.enum(["yes", "no"]).optional(),
 });
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
+
+export type PendingClarification = {
+  id: string;
+  question: string;
+  step_index?: number;
+  kind: "intent" | "amount_ref" | "constraint_skip";
+  plan_preview?: string;
+};
 
 export type ToolCallRecord = {
   name: string;
@@ -41,6 +52,7 @@ export type ChatResponse = {
   mode: "openai" | "stub";
   tool_calls: ToolCallRecord[];
   pending_transaction: PendingTransaction | null;
+  pending_clarification: PendingClarification | null;
   message_id: string;
 };
 
@@ -56,6 +68,7 @@ export const queryChainInputSchema = z.object({
     "deepbook_pool_info",
     "deepbook_ticker",
     "swap_quote",
+    "deepbook_open_orders",
   ]),
   params: z
     .object({
@@ -87,7 +100,8 @@ export type QueryChainResult =
   | DeepBookPoolsList
   | DeepBookPoolInfo
   | DeepBookTickerMap
-  | DeepBookSwapQuoteResult;
+  | DeepBookSwapQuoteResult
+  | DeepBookOpenOrdersResult;
 
 export type ExecuteToolOutcome =
   | { status: "executed"; result: TxResult }

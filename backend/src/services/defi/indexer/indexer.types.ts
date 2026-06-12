@@ -54,3 +54,26 @@ export type IndexerAssetRecord = {
 };
 
 export type IndexerAssetsResponse = Record<string, IndexerAssetRecord>;
+
+export type IndexerOrderRecord = {
+  order_id: string;
+  balance_manager_id: string;
+  type: string;
+  current_status: string;
+  price: number;
+  placed_at: number;
+  last_updated_at: number;
+  original_quantity: number;
+  filled_quantity: number;
+  remaining_quantity: number;
+};
+
+export type IndexerOrderUpdateRecord = {
+  order_id: string;
+  balance_manager_id: string;
+  type: string;
+  status: string;
+  price: number;
+  quantity: number;
+  timestamp: number;
+};

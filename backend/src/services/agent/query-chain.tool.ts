@@ -13,6 +13,7 @@ import {
 } from "../defi/deepbook-pools.service.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
 import { getDeepBookSwapQuote } from "../defi/deepbook-swap.service.js";
+import { getDeepBookOpenOrders } from "../defi/deepbook-orders.service.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import type { BalanceContext } from "../chains/types.js";
@@ -59,9 +60,10 @@ export const queryChainToolDefinition = {
           "deepbook_pool_info",
           "deepbook_ticker",
           "swap_quote",
+          "deepbook_open_orders",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, or swap_quote.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, or deepbook_open_orders.",
       },
       params: {
         type: "object",
@@ -164,6 +166,10 @@ export async function runQueryChainTool(
     case "swap_quote": {
       assertSuiDeepBookQuery(parsed.chain_id);
       return getDeepBookSwapQuote(privyUserId, parsed.params);
+    }
+    case "deepbook_open_orders": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return getDeepBookOpenOrders(privyUserId, parsed.params);
     }
     default:
       throw new AppError(

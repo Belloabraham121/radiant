@@ -83,6 +83,27 @@ export function buildTransactionErrorUserContext(
         ctx.amount_display ? `Swap size: ${ctx.amount_display}.` : "",
       );
       break;
+    case "deepbook_place_limit_order":
+      parts.push(
+        "The user requested a DeepBook limit order using their balance manager.",
+        ctx.amount_display ? `Order: ${ctx.amount_display}.` : "",
+        "If funds are insufficient, explain the shortage is in the DeepBook balance manager — suggest depositing or reducing size.",
+      );
+      break;
+    case "deepbook_place_market_order":
+      parts.push(
+        "The user requested a DeepBook market order using their balance manager.",
+        ctx.amount_display ? `Order: ${ctx.amount_display}.` : "",
+        "If funds are insufficient, explain the shortage is in the DeepBook balance manager.",
+      );
+      break;
+    case "deepbook_cancel_order":
+    case "deepbook_cancel_all_orders":
+      parts.push(
+        "The user requested cancelling DeepBook orders.",
+        ctx.summary ? ctx.summary : "",
+      );
+      break;
     default:
       if (ctx.summary) {
         parts.push(`Transaction: ${ctx.summary}.`);

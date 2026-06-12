@@ -11,11 +11,48 @@ import {
   buildTransactionErrorUserContext,
   transactionContextFromPending,
 } from "./transaction-error-context.js";
+import { getAgentPermissions } from "./agent-permissions.service.js";
+import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.service.js";
+import {
+  continueWorkflowAfterClarification,
+  isClarificationContinuationRequest,
+} from "./workflow/workflow-coordinator.js";
+import {
+  continueWorkflowAfterApproval,
+  persistWorkflowChatResponse,
+} from "./workflow/workflow-runner.js";
 
 export async function handleChatMessage(
   privyUserId: string,
   request: ChatRequest,
 ): Promise<ChatResponse> {
+  if (isClarificationContinuationRequest(request)) {
+    const memoryBlock = formatMemoryBlock(await loadAgentMemory(privyUserId));
+    const agentPermissions = await getAgentPermissions(privyUserId);
+
+    if (!request.session_id) {
+      throw new AppError(400, "SESSION_REQUIRED", "session_id is required for clarification.");
+    }
+
+    const continued = await continueWorkflowAfterClarification(
+      privyUserId,
+      request.session_id,
+      request.clarification_id!,
+      request.clarification_response!,
+      { memoryBlock, agentPermissions },
+    );
+
+    if (!continued) {
+      throw new AppError(
+        404,
+        "CLARIFICATION_NOT_FOUND",
+        "Clarification expired or was not found.",
+      );
+    }
+
+    return persistWorkflowChatResponse(privyUserId, request, continued);
+  }
+
   if (request.approve_transaction_id) {
     const outcome = await approvePendingTransaction(
       privyUserId,
@@ -31,6 +68,23 @@ export async function handleChatMessage(
     }
 
     if (outcome.ok) {
+      const memoryBlock = formatMemoryBlock(await loadAgentMemory(privyUserId));
+      const agentPermissions = await getAgentPermissions(privyUserId);
+
+      if (request.session_id) {
+        const continued = await continueWorkflowAfterApproval(
+          privyUserId,
+          request.session_id,
+          outcome.result,
+          request.approve_transaction_id,
+          { memoryBlock, agentPermissions },
+        );
+
+        if (continued) {
+          return persistWorkflowChatResponse(privyUserId, request, continued);
+        }
+      }
+
       const reply = `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
 
       return persistApprovalTurn(privyUserId, request, reply, [

@@ -5,6 +5,16 @@ import {
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
 } from "../defi/deepbook-swap.service.js";
+import {
+  estimatePlaceOrderNotionalSui,
+  isDeepBookCancelOrderAction,
+  isDeepBookOrderAction,
+  isDeepBookPlaceOrderAction,
+  parseDeepBookCancelAllOrdersParams,
+  parseDeepBookCancelOrderParams,
+  parseDeepBookLimitOrderParams,
+  parseDeepBookMarketOrderParams,
+} from "../defi/deepbook-orders.service.js";
 import type { ExecuteTransactionInput, ChainId } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import type { TxResult } from "../chains/types.js";
@@ -15,8 +25,8 @@ import {
   getAgentPermissions,
   resolveAutoApproveMaxAtomic,
   resolveAutoApproveMaxDisplay,
-  type AgentPermissions,
 } from "./agent-permissions.service.js";
+import type { AgentPermissions } from "./agent-permissions.types.js";
 import {
   checkManagerBalance,
   getDeepBookManagerInfo,
@@ -44,11 +54,19 @@ const MUTATING_EXECUTE_ACTIONS = new Set([
   ...DEEPBOOK_PROVISION_ACTIONS,
   "swap",
   "deepbook_swap",
+  "deepbook_place_limit_order",
+  "deepbook_place_market_order",
+  "deepbook_cancel_order",
+  "deepbook_cancel_all_orders",
   "execute_bytes",
 ]);
 
 function isMutatingExecuteAction(action: string): boolean {
-  return isDeepBookSwapAction(action) || MUTATING_EXECUTE_ACTIONS.has(action);
+  return (
+    isDeepBookSwapAction(action) ||
+    isDeepBookOrderAction(action) ||
+    MUTATING_EXECUTE_ACTIONS.has(action)
+  );
 }
 
 type PendingRecord = {
@@ -132,6 +150,28 @@ export function swapRequiresApprovalWithPermissions(
   }
 }
 
+export function orderRequiresApprovalWithPermissions(
+  permissions: AgentPermissions,
+  input: ExecuteTransactionInput,
+): boolean {
+  if (!isDeepBookPlaceOrderAction(input.action) || input.chain_id !== "sui") {
+    return false;
+  }
+
+  if (!permissions.auto_approve_enabled) {
+    return true;
+  }
+
+  try {
+    const price =
+      typeof input.params.estimated_price === "number" ? input.params.estimated_price : null;
+    const notionalSui = estimatePlaceOrderNotionalSui(input.action, input.params, price);
+    return notionalSui > resolveAutoApproveMaxDisplay(permissions, "sui");
+  } catch {
+    return true;
+  }
+}
+
 export function transferRequiresApprovalWithPermissions(
   permissions: AgentPermissions,
   input: ExecuteTransactionInput,
@@ -146,6 +186,14 @@ export function transferRequiresApprovalWithPermissions(
 
   if (isDeepBookSwapAction(input.action)) {
     return swapRequiresApprovalWithPermissions(permissions, input);
+  }
+
+  if (isDeepBookCancelOrderAction(input.action)) {
+    return true;
+  }
+
+  if (isDeepBookPlaceOrderAction(input.action)) {
+    return orderRequiresApprovalWithPermissions(permissions, input);
   }
 
   if (!TRANSFER_ACTIONS.has(input.action)) {
@@ -235,6 +283,44 @@ export async function createPendingTransaction(
     } catch {
       amountDisplay = "DeepBook swap";
       summary = "Swap via DeepBook";
+    }
+  } else if (input.action === "deepbook_place_limit_order") {
+    try {
+      const parsed = parseDeepBookLimitOrderParams(input.params);
+      const side = parsed.is_bid ? "buy" : "sell";
+      amountDisplay = `${side} ${parsed.quantity} @ ${parsed.price} (${parsed.pool_key})`;
+      summary = `Place limit order on DeepBook (${parsed.pool_key})`;
+    } catch {
+      amountDisplay = "DeepBook limit order";
+      summary = "Place limit order via DeepBook";
+    }
+  } else if (input.action === "deepbook_place_market_order") {
+    try {
+      const parsed = parseDeepBookMarketOrderParams(input.params);
+      const side = parsed.is_bid ? "buy" : "sell";
+      amountDisplay = `${side} ${parsed.quantity} market (${parsed.pool_key})`;
+      summary = `Place market order on DeepBook (${parsed.pool_key})`;
+    } catch {
+      amountDisplay = "DeepBook market order";
+      summary = "Place market order via DeepBook";
+    }
+  } else if (input.action === "deepbook_cancel_order") {
+    try {
+      const parsed = parseDeepBookCancelOrderParams(input.params);
+      amountDisplay = `Cancel order ${parsed.order_id.slice(0, 12)}…`;
+      summary = `Cancel DeepBook order (${parsed.pool_key})`;
+    } catch {
+      amountDisplay = "Cancel order";
+      summary = "Cancel DeepBook order";
+    }
+  } else if (input.action === "deepbook_cancel_all_orders") {
+    try {
+      const parsed = parseDeepBookCancelAllOrdersParams(input.params);
+      amountDisplay = `Cancel all open orders (${parsed.pool_key})`;
+      summary = "Cancel all DeepBook orders";
+    } catch {
+      amountDisplay = "Cancel all orders";
+      summary = "Cancel all DeepBook orders";
     }
   }
 

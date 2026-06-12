@@ -6,6 +6,7 @@ import { ArrowUp, Check, Sparkles } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
+import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage } from "@/lib/chat-messages";
 
@@ -99,10 +100,14 @@ export function ChatView({ sessionId }: ChatViewProps) {
     typing,
     chatError,
     pendingTx,
+    pendingClarification,
     approving,
+    respondingClarification,
     sendMessage,
     approvePending,
+    respondClarification,
     dismissPending,
+    dismissClarification,
   } = useChatSession(sessionId);
 
   useEffect(() => {
@@ -243,6 +248,16 @@ export function ChatView({ sessionId }: ChatViewProps) {
       ) : null}
 
       <div className="shrink-0 px-6 pb-4">
+        {pendingClarification ? (
+          <ClarificationBar
+            className={`${CHAT_COL} mb-3`}
+            pending={pendingClarification}
+            busy={respondingClarification}
+            onYes={() => void respondClarification("yes")}
+            onNo={() => void respondClarification("no")}
+          />
+        ) : null}
+
         {pendingTx ? (
           <TransactionApprovalBar
             className={`${CHAT_COL} mb-3`}
@@ -268,7 +283,13 @@ export function ChatView({ sessionId }: ChatViewProps) {
               type="submit"
               aria-label="Send"
               className="flex size-10 items-center justify-center rounded-full bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
-              disabled={!input.trim() || typing || Boolean(loadError) || Boolean(pendingTx)}
+              disabled={
+                !input.trim() ||
+                typing ||
+                Boolean(loadError) ||
+                Boolean(pendingTx) ||
+                Boolean(pendingClarification)
+              }
             >
               <ArrowUp className="size-5" strokeWidth={2.5} />
             </button>

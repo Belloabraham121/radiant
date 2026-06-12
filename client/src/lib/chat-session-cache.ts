@@ -1,10 +1,11 @@
 import type { ChatMessage } from "@/lib/chat-messages";
-import type { PendingTransaction } from "@/lib/chat-api";
+import type { PendingClarification, PendingTransaction } from "@/lib/chat-api";
 
 export type CachedChatSession = {
   messages: ChatMessage[];
   title: string;
   pending_transaction?: PendingTransaction | null;
+  pending_clarification?: PendingClarification | null;
 };
 
 /** In-memory handoff so URL navigation after first send does not refetch and flash. */

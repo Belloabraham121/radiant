@@ -239,19 +239,19 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `execute_transaction` actions: `deepbook_place_limit_order`, `deepbook_place_market_order`, `deepbook_cancel_order`, `deepbook_cancel_all_orders` |
-| [ ] | Params: `pool_key`, `client_order_id`, `price`, `quantity`, `is_bid`, `pay_with_deep` |
-| [ ] | Extend `query_chain`: `deepbook_open_orders` (SDK `accountOpenOrders` + order details) |
-| [ ] | Indexer reads: `/orders/:pool/:balance_manager_id`, `/order_updates/:pool` for history |
-| [ ] | Approval: limit orders with locked notional above threshold |
-| [ ] | Validate tick/lot/min size before build (clear `VALIDATION_ERROR` messages) |
+| [x] | `execute_transaction` actions: `deepbook_place_limit_order`, `deepbook_place_market_order`, `deepbook_cancel_order`, `deepbook_cancel_all_orders` |
+| [x] | Params: `pool_key`, `client_order_id`, `price`, `quantity`, `is_bid`, `pay_with_deep` |
+| [x] | Extend `query_chain`: `deepbook_open_orders` (SDK `accountOpenOrders` + order details) |
+| [x] | Indexer reads: `/orders/:pool/:balance_manager_id`, `/order_updates/:pool` for history |
+| [x] | Approval: limit orders with locked notional above threshold |
+| [x] | Validate tick/lot/min size before build (clear `VALIDATION_ERROR` messages) |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Approval modal variant for limit orders (price, size, side, time-in-force if added) |
-| [ ] | Chat receipt for place/cancel with order id |
+| [x] | Approval modal variant for limit orders (price, size, side, time-in-force if added) |
+| [x] | Chat receipt for place/cancel with order id |
 | [ ] | Optional: “Open orders” panel under agent wallet (list from API) |
 
 ---

@@ -7,16 +7,13 @@ import {
 } from "../../../src/services/agent/unsupported-capabilities.js";
 
 describe("unsupported-capabilities", () => {
-  it("detects open orders requests", () => {
-    const cap = detectUnsupportedCapability("Show my open orders on DeepBook.");
-    assert.equal(cap?.id, "open_orders");
-  });
-
-  it("detects limit order placement", () => {
-    const cap = detectUnsupportedCapability(
-      "Place a limit order to buy SUI at 2 USDC on DeepBook.",
+  it("does not flag supported order requests", () => {
+    assert.equal(detectUnsupportedCapability("Show my open orders on DeepBook."), null);
+    assert.equal(
+      detectUnsupportedCapability("Place a limit order to buy SUI at 2 USDC on DeepBook."),
+      null,
     );
-    assert.equal(cap?.id, "place_limit_order");
+    assert.equal(detectUnsupportedCapability("Cancel all my orders"), null);
   });
 
   it("does not flag supported swap requests", () => {
@@ -24,11 +21,15 @@ describe("unsupported-capabilities", () => {
     assert.equal(detectUnsupportedCapability("What is the SUI_USDC price?"), null);
   });
 
-  it("nudge forbids fake empty order lists", () => {
+  it("detects flash loans", () => {
+    assert.equal(detectUnsupportedCapability("Get me a flash loan on DeepBook")?.id, "flash_loan");
+  });
+
+  it("nudge forbids fake empty results for unsupported features", () => {
     const nudge = buildUnsupportedCapabilityNudge({
-      id: "open_orders",
-      label: "viewing open orders",
-      pattern: /open orders/i,
+      id: "flash_loan",
+      label: "flash loans",
+      pattern: /flash loan/i,
     });
     assert.match(nudge, /NOT support this in chat yet/i);
     assert.match(nudge, /Do not say the list is empty/i);

@@ -7,26 +7,6 @@ export type UnsupportedCapability = {
 /** DeepBook / chat features documented in deepbook-v3-TODO but not wired yet. */
 export const UNSUPPORTED_CAPABILITIES: UnsupportedCapability[] = [
   {
-    id: "open_orders",
-    label: "viewing open orders on DeepBook",
-    pattern: /\b(open|active|pending)\s+orders?\b|\bshow\s+(my\s+)?orders?\b|\border\s+book\b/i,
-  },
-  {
-    id: "place_limit_order",
-    label: "placing limit orders on DeepBook",
-    pattern: /\blimit\s+order\b|\bplace\s+(a\s+)?(buy|sell)\s+order\b/i,
-  },
-  {
-    id: "place_market_order",
-    label: "placing market orders on DeepBook (use swap instead)",
-    pattern: /\bmarket\s+order\b/i,
-  },
-  {
-    id: "cancel_order",
-    label: "cancelling DeepBook orders",
-    pattern: /\bcancel\s+(all\s+)?(my\s+)?orders?\b/i,
-  },
-  {
     id: "stake_deep",
     label: "staking DEEP on DeepBook",
     pattern: /\bstake\s+\d*\s*deep\b|\bstaking\s+deep\b/i,
@@ -44,7 +24,7 @@ export const UNSUPPORTED_CAPABILITIES: UnsupportedCapability[] = [
 ];
 
 export const SUPPORTED_DEEPBOOK_SUMMARY =
-  "swaps, balance manager setup, deposits, withdrawals, wallet and manager balances, pool listings, ticker/pool info, and swap quotes";
+  "swaps, limit/market orders, cancel orders, open orders, balance manager setup, deposits, withdrawals, wallet and manager balances, pool listings, ticker/pool info, and swap quotes";
 
 export function detectUnsupportedCapability(message: string): UnsupportedCapability | null {
   for (const capability of UNSUPPORTED_CAPABILITIES) {

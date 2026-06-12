@@ -50,6 +50,12 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         input_amount_display?: number;
         output_amount_display?: number;
         pool_key?: string;
+        orders?: Array<{
+          order_id: string;
+          price: number;
+          remaining_quantity: number;
+          is_bid: boolean;
+        }>;
       };
 
       if (result.error?.message) {
@@ -70,6 +76,17 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         receipts.push({
           label: "Swap quote",
           detail: `${result.input_amount_display} ${result.input_coin} → ~${result.output_amount_display} ${result.output_coin}${result.pool_key ? ` (${result.pool_key})` : ""}`,
+        });
+      }
+
+      if (Array.isArray(result.orders) && result.pool_key) {
+        const count = result.orders.length;
+        receipts.push({
+          label: count === 0 ? "No open orders" : "Open orders",
+          detail:
+            count === 0
+              ? result.pool_key
+              : `${count} on ${result.pool_key}`,
         });
       }
 
@@ -115,6 +132,15 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               out_amount_display?: number;
               pool_key?: string;
             };
+            order?: {
+              pool_key?: string;
+              action?: string;
+              order_id?: string;
+              price?: number;
+              quantity?: number;
+              is_bid?: boolean;
+              cancelled_count?: number;
+            };
           };
         };
         pending?: { action?: string; amount_display?: string };
@@ -144,42 +170,69 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             label: "Swap approval required",
             detail: outcome.pending.amount_display,
           });
+        } else if (
+          action === "deepbook_place_limit_order" ||
+          action === "deepbook_place_market_order"
+        ) {
+          receipts.push({
+            label: "Order approval required",
+            detail: outcome.pending.amount_display,
+          });
+        } else if (
+          action === "deepbook_cancel_order" ||
+          action === "deepbook_cancel_all_orders"
+        ) {
+          receipts.push({
+            label: "Cancel approval required",
+            detail: outcome.pending.amount_display,
+          });
         }
       }
 
       if (outcome.status === "executed" && outcome.result?.digest) {
         const digest = outcome.result.digest;
         const swap = outcome.result.deepbook?.swap;
+        const order = outcome.result.deepbook?.order;
         const coinKey = outcome.result.deepbook?.coin_key;
         const amount = outcome.result.deepbook?.amount_display;
         const managerObjectId = outcome.result.deepbook?.manager_object_id;
         const alreadyProvisioned = outcome.result.deepbook?.already_provisioned === true;
         const isSwap = swap?.input_coin && swap.output_coin;
+        const isOrder = order?.action?.includes("place");
+        const isCancel = order?.action?.includes("cancel");
         const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
-        const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer;
+        const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer && !isOrder && !isCancel;
 
         receipts.push({
           label: isSwap
             ? "Swap executed"
-            : isProvision
-              ? alreadyProvisioned
-                ? "Balance manager ready"
-                : "Balance manager created"
-              : isDeepBookTransfer
-                ? "DeepBook transfer"
-                : "Transaction sent",
+            : isOrder
+              ? "Order placed"
+              : isCancel
+                ? "Order cancelled"
+                : isProvision
+                  ? alreadyProvisioned
+                    ? "Balance manager ready"
+                    : "Balance manager created"
+                  : isDeepBookTransfer
+                    ? "DeepBook transfer"
+                    : "Transaction sent",
           detail: isSwap
             ? `${swap.in_amount_display} ${swap.input_coin} → ${swap.out_amount_display} ${swap.output_coin} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-            : isProvision
-              ? managerObjectId.length > 12
-                ? `${managerObjectId.slice(0, 10)}…`
-                : managerObjectId
-              : isDeepBookTransfer
-                ? `${amount} ${coinKey} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-                : digest.length > 12
-                  ? `${digest.slice(0, 10)}…`
-                  : digest,
+            : isOrder && order
+              ? `${order.is_bid ? "buy" : "sell"} ${order.quantity ?? ""}${order.price != null ? ` @ ${order.price}` : ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+              : isCancel && order
+                ? `${order.cancelled_count ?? 1} order(s) · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                : isProvision
+                  ? managerObjectId.length > 12
+                    ? `${managerObjectId.slice(0, 10)}…`
+                    : managerObjectId
+                  : isDeepBookTransfer
+                    ? `${amount} ${coinKey} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                    : digest.length > 12
+                      ? `${digest.slice(0, 10)}…`
+                      : digest,
         });
       }
     }

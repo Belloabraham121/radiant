@@ -26,6 +26,13 @@ import {
   executeDeepBookSwap,
   isDeepBookSwapAction,
 } from "../../defi/deepbook-swap.service.js";
+import {
+  executeDeepBookCancelAllOrders,
+  executeDeepBookCancelOrder,
+  executeDeepBookPlaceLimitOrder,
+  executeDeepBookPlaceMarketOrder,
+  isDeepBookOrderAction,
+} from "../../defi/deepbook-orders.service.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;
@@ -262,6 +269,37 @@ export const suiAdapter: ChainAdapter = {
             fee_deep: result.fee_deep,
             price: result.price,
             pay_with_deep: result.pay_with_deep,
+          },
+        },
+      };
+    }
+
+    if (isDeepBookOrderAction(action)) {
+      const result =
+        action === "deepbook_place_limit_order"
+          ? await executeDeepBookPlaceLimitOrder(privyUserId, params)
+          : action === "deepbook_place_market_order"
+            ? await executeDeepBookPlaceMarketOrder(privyUserId, params)
+            : action === "deepbook_cancel_order"
+              ? await executeDeepBookCancelOrder(privyUserId, params)
+              : await executeDeepBookCancelAllOrders(privyUserId, params);
+
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          order: {
+            pool_key: result.pool_key,
+            action: result.action,
+            order_id: result.order_id,
+            client_order_id: result.client_order_id,
+            price: result.price,
+            quantity: result.quantity,
+            is_bid: result.is_bid,
+            pay_with_deep: result.pay_with_deep,
+            cancelled_count: result.cancelled_count,
           },
         },
       };
