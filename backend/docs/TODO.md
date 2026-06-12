@@ -445,7 +445,7 @@ Phase 0 (infra + dashboard)
 | ------ | ---- | ----- |
 | [x] | Token catalog from DeepBook indexer `/assets` | [Backend] |
 | [x] | `GET /api/v1/wallets/assets` — Sui multi-coin balances | [Backend] |
-| [ ] | Privy `wallets().balance.get` for EVM/Solana named assets | [Backend] |
+| [x] | Privy `wallets().balance.get` for EVM/Solana named assets | [Backend] |
 | [x] | `query_chain` → `token_balances` | [Backend] |
 | [ ] | `InYourWalletSection` on profile / settings | [Client] |
 | [ ] | Agent pre-swap balance checks | [Backend] |

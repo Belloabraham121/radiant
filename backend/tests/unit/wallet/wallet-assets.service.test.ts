@@ -12,8 +12,10 @@ import { suiAdapter } from "../../../src/services/chains/adapters/sui.js";
 import {
   clearWalletAssetsCacheForTests,
   getWalletAssetsForAddress,
-  getWalletAssetsForPrivyUser,
 } from "../../../src/services/wallet/wallet-assets.service.js";
+import {
+  setPrivyBalanceGetForTests,
+} from "../../../src/services/wallet/privy-balance.service.js";
 import {
   resetSuiBalanceClientForTests,
   setSuiBalanceClientForTests,
@@ -37,19 +39,20 @@ describe("getWalletAssetsForPrivyUser", () => {
     resetTokenCatalogForTests();
     resetDeepBookEnvForTests();
     resetSuiBalanceClientForTests();
+    setPrivyBalanceGetForTests(null);
     clearWalletAssetsCacheForTests();
     setAdapterForTests("sui", suiAdapter);
   });
 
-  it("rejects non-Sui chains in phase A", async () => {
+  it("rejects getWalletAssetsForAddress on non-Sui chains", async () => {
     await assert.rejects(
       () =>
-        getWalletAssetsForPrivyUser("user-1", {
+        getWalletAssetsForAddress("0x" + "a".repeat(40), {
           chain_id: "ethereum",
         }),
       (err: unknown) => {
         assert.ok(err instanceof AppError);
-        assert.equal(err.code, "NOT_IMPLEMENTED");
+        assert.equal(err.code, "VALIDATION_ERROR");
         return true;
       },
     );

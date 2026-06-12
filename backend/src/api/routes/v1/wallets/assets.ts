@@ -20,6 +20,7 @@ walletAssetsRouter.get("/api/v1/wallets/assets", requireAuth, async (req, res, n
 
     const assets = await getWalletAssetsForPrivyUser(req.user.privyUserId, {
       chain_id: query.chain,
+      evm_chain_id: query.evm_chain_id,
       include_zero: query.include_zero,
       include_usd: query.include_usd,
     });

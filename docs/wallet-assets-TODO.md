@@ -217,11 +217,11 @@ Reuse DeepBook indexer asset scalars (see [deepbook-v3-TODO.md](./deepbook-v3-TO
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `services/wallet/privy-balance.service.ts` — `getPrivyClient().wallets().balance.get` |
-| [ ] | Map Privy response → unified `WalletAsset` type |
-| [ ] | Wire `privy_wallet_id` from `AgentWallet` row |
-| [ ] | Named assets per chain: EVM `eth`+`usdc`+`usdt`; Solana `sol`+`usdc` |
-| [ ] | Tests: mock Privy client |
+| [x] | `services/wallet/privy-balance.service.ts` — `getPrivyClient().wallets().balance.get` |
+| [x] | Map Privy response → unified `WalletAsset` type |
+| [x] | Wire `privy_wallet_id` from `AgentWallet` row |
+| [x] | Named assets per chain: EVM `eth`+`usdc`+`usdt`; Solana `sol`+`usdc` |
+| [x] | Tests: mock Privy client |
 
 ---
 

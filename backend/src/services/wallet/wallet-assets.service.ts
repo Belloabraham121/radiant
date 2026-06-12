@@ -1,5 +1,5 @@
 import { AppError } from "../../errors/app-error.js";
-import type { ChainId } from "../chains/types.js";
+import { resolvePrivyEvmChainId } from "./privy-chain-map.js";
 import { getCatalogForWallet, getTokenCatalog } from "../defi/token-catalog.service.js";
 import { isStablecoinSymbol } from "../defi/asset-scalars.js";
 import { resolveAgentWalletByPrivyUserId } from "./agent-wallet.service.js";
@@ -8,14 +8,12 @@ import {
   getCachedWalletAssets,
   setCachedWalletAssets,
 } from "./wallet-assets.cache.js";
-import type { WalletAssetsData } from "./wallet-assets.types.js";
+import type { WalletAssetsData, WalletAssetsQuery } from "./wallet-assets.types.js";
+import {
+  fetchEvmPrivyWalletAssets,
+  fetchSolanaPrivyWalletAssets,
+} from "./privy-balance.service.js";
 import { fetchSuiCoinBalances } from "./sui-coin-balances.js";
-
-export type WalletAssetsQuery = {
-  chain_id: ChainId;
-  include_zero?: boolean;
-  include_usd?: boolean;
-};
 
 function sumUsd(assets: WalletAssetsData["assets"]): number | null {
   const values = assets.map((a) => a.usd_value).filter((v): v is number => v !== null);
@@ -48,32 +46,103 @@ function filterAssets(
   return assets.filter((asset) => asset.balance_atomic !== "0");
 }
 
+function finalizeAssets(
+  data: Omit<WalletAssetsData, "total_usd">,
+  query: WalletAssetsQuery,
+): WalletAssetsData {
+  const includeZero = query.include_zero ?? true;
+  const includeUsd = query.include_usd ?? true;
+  let assets = applyStablecoinUsd(data.assets, includeUsd);
+  assets = filterAssets(assets, includeZero);
+  return {
+    ...data,
+    assets,
+    total_usd: sumUsd(assets),
+  };
+}
+
 async function buildSuiWalletAssets(
   address: string,
   query: WalletAssetsQuery,
 ): Promise<WalletAssetsData> {
-  const includeZero = query.include_zero ?? true;
-  const includeUsd = query.include_usd ?? true;
-
   const [catalog, catalogMeta] = await Promise.all([
     getCatalogForWallet(),
     getTokenCatalog(),
   ]);
 
   let assets = await fetchSuiCoinBalances(address, catalog);
-  assets = applyStablecoinUsd(assets, includeUsd);
-  assets = filterAssets(assets, includeZero);
 
-  const updatedAt = new Date().toISOString();
+  return finalizeAssets(
+    {
+      chain_id: "sui",
+      address,
+      assets,
+      catalog_source: catalogMeta.source,
+      updated_at: new Date().toISOString(),
+    },
+    query,
+  );
+}
 
-  return {
-    chain_id: "sui",
-    address,
-    total_usd: sumUsd(assets),
-    assets,
-    catalog_source: catalogMeta.source,
-    updated_at: updatedAt,
-  };
+async function buildEvmWalletAssets(
+  address: string,
+  privyWalletId: string,
+  query: WalletAssetsQuery,
+): Promise<WalletAssetsData> {
+  const evmChainId = resolvePrivyEvmChainId(query.evm_chain_id);
+  const includeUsd = query.include_usd ?? true;
+  const { assets } = await fetchEvmPrivyWalletAssets(privyWalletId, {
+    evmChainId,
+    includeUsd,
+  });
+
+  return finalizeAssets(
+    {
+      chain_id: "ethereum",
+      address,
+      evm_chain_id: evmChainId,
+      assets,
+      catalog_source: "privy",
+      updated_at: new Date().toISOString(),
+    },
+    query,
+  );
+}
+
+async function buildSolanaWalletAssets(
+  address: string,
+  privyWalletId: string,
+  query: WalletAssetsQuery,
+): Promise<WalletAssetsData> {
+  const includeUsd = query.include_usd ?? true;
+  const assets = await fetchSolanaPrivyWalletAssets(privyWalletId, { includeUsd });
+
+  return finalizeAssets(
+    {
+      chain_id: "solana",
+      address,
+      assets,
+      catalog_source: "privy",
+      updated_at: new Date().toISOString(),
+    },
+    query,
+  );
+}
+
+async function buildWalletAssets(
+  wallet: { address: string; privy_wallet_id: string },
+  query: WalletAssetsQuery,
+): Promise<WalletAssetsData> {
+  switch (query.chain_id) {
+    case "sui":
+      return buildSuiWalletAssets(wallet.address, query);
+    case "ethereum":
+      return buildEvmWalletAssets(wallet.address, wallet.privy_wallet_id, query);
+    case "solana":
+      return buildSolanaWalletAssets(wallet.address, wallet.privy_wallet_id, query);
+    default:
+      throw new AppError(400, "UNSUPPORTED_CHAIN", `Unsupported chain: ${query.chain_id}`);
+  }
 }
 
 /** Resolve multi-asset balances for a Sui address (no auth / DB). */
@@ -83,9 +152,9 @@ export async function getWalletAssetsForAddress(
 ): Promise<WalletAssetsData> {
   if (query.chain_id !== "sui") {
     throw new AppError(
-      501,
-      "NOT_IMPLEMENTED",
-      `Multi-asset balances for "${query.chain_id}" are not implemented yet. Use chain=sui.`,
+      400,
+      "VALIDATION_ERROR",
+      "getWalletAssetsForAddress only supports chain_id=sui without a registered wallet.",
     );
   }
   return buildSuiWalletAssets(address, query);
@@ -95,25 +164,9 @@ export async function getWalletAssetsForPrivyUser(
   privyUserId: string,
   query: WalletAssetsQuery,
 ): Promise<WalletAssetsData> {
-  if (query.chain_id !== "sui") {
-    throw new AppError(
-      501,
-      "NOT_IMPLEMENTED",
-      `Multi-asset balances for "${query.chain_id}" are not implemented yet. Use chain=sui.`,
-    );
-  }
-
-  const cached = await getCachedWalletAssets(privyUserId, query.chain_id);
+  const cached = await getCachedWalletAssets(privyUserId, query);
   if (cached) {
-    const includeZero = query.include_zero ?? true;
-    const includeUsd = query.include_usd ?? true;
-    let assets = applyStablecoinUsd(cached.assets, includeUsd);
-    assets = filterAssets(assets, includeZero);
-    return {
-      ...cached,
-      assets,
-      total_usd: sumUsd(assets),
-    };
+    return finalizeAssets(cached, query);
   }
 
   const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, query.chain_id);
@@ -125,8 +178,8 @@ export async function getWalletAssetsForPrivyUser(
     );
   }
 
-  const data = await buildSuiWalletAssets(wallet.address, query);
-  await setCachedWalletAssets(privyUserId, query.chain_id, data);
+  const data = await buildWalletAssets(wallet, query);
+  await setCachedWalletAssets(privyUserId, query, data);
   return data;
 }
 

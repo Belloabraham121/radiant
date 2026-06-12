@@ -70,6 +70,7 @@ export async function runQueryChainTool(
     case "token_balances":
       return getWalletAssetsForPrivyUser(privyUserId, {
         chain_id: parsed.chain_id,
+        evm_chain_id: parsed.params.evm_chain_id,
         include_zero: parsed.params.include_zero,
         include_usd: parsed.params.include_usd,
       });
