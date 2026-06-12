@@ -12,6 +12,7 @@ import {
   listDeepBookPools,
 } from "../defi/deepbook-pools.service.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
+import { getDeepBookSwapQuote } from "../defi/deepbook-swap.service.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import type { BalanceContext } from "../chains/types.js";
@@ -53,6 +54,7 @@ export const queryChainToolDefinition = {
           "deepbook_pools",
           "deepbook_pool_info",
           "deepbook_ticker",
+          "swap_quote",
         ],
         description:
           "Read-only query type: balances, wallet holdings, DeepBook manager, or pool market data.",
@@ -143,6 +145,10 @@ export async function runQueryChainTool(
       assertSuiDeepBookQuery(parsed.chain_id);
       const poolKey = parsed.params.pool_key ?? getDeepBookEnv().defaultPool;
       return getDeepBookPoolInfo(poolKey, privyUserId);
+    }
+    case "swap_quote": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return getDeepBookSwapQuote(privyUserId, parsed.params);
     }
     default:
       throw new AppError(400, "UNSUPPORTED_QUERY", `Unsupported query: ${parsed.query}`);

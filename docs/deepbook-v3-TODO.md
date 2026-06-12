@@ -212,22 +212,22 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Quote: combine indexer best bid/ask + SDK `getQuote` / market order simulation |
-| [ ] | Extend `query_chain`: `swap_quote` with `{ pool_key, amount, side, pay_with_deep? }` |
-| [ ] | `execute_transaction` action: `swap` (alias `deepbook_swap`) |
-| [ ] | Build PTB: ensure manager → deposit if needed → market/limit swap via `DeepBookContract` |
-| [ ] | Extend `transaction-approval.service.ts` — `swapRequiresApproval` using notional in SUI/USDC |
-| [ ] | Return structured result: `{ digest, pool, in_amount, out_amount, fee_deep?, price }` |
-| [ ] | Agent prompt hints: default pool `SUI_USDC`, respect `lot_size` / `min_size` |
-| [ ] | Integration test: quote + build (dry-run/dev-inspect) on testnet |
+| [x] | Quote: combine indexer best bid/ask + SDK `getQuote` / market order simulation |
+| [x] | Extend `query_chain`: `swap_quote` with `{ pool_key, amount, side, pay_with_deep? }` |
+| [x] | `execute_transaction` action: `swap` (alias `deepbook_swap`) |
+| [x] | Build PTB: direct wallet swap via `swapExactQuantity` (SDK `DeepBookContract`) |
+| [x] | Extend `transaction-approval.service.ts` — `swapRequiresApproval` using notional in SUI/USDC |
+| [x] | Return structured result: `{ digest, pool, in_amount, out_amount, fee_deep?, price }` |
+| [x] | Agent prompt hints: default pool `SUI_USDC`, respect `lot_size` / `min_size` |
+| [x] | Integration test: quote + build (dry-run/dev-inspect) on testnet |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Approval modal: show swap pair, estimated out, slippage note, DEEP fee option |
-| [ ] | Chat tool receipt card for swaps (pair, amounts, explorer link) |
-| [ ] | `lib/chat-messages.ts` — format `swap` tool results |
+| [x] | Approval modal: show swap pair, estimated out, slippage note, DEEP fee option |
+| [x] | Chat tool receipt card for swaps (pair, amounts, explorer link) |
+| [x] | `lib/chat-messages.ts` — format `swap` tool results |
 
 ---
 

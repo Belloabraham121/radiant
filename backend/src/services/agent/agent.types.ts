@@ -11,6 +11,7 @@ import type {
   DeepBookPoolsList,
   DeepBookTickerMap,
 } from "../defi/deepbook-pools.service.js";
+import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
 
 export const chatRequestSchema = z.object({
   message: z.string().min(1).max(8000),
@@ -54,6 +55,7 @@ export const queryChainInputSchema = z.object({
     "deepbook_pools",
     "deepbook_pool_info",
     "deepbook_ticker",
+    "swap_quote",
   ]),
   params: z
     .object({
@@ -63,6 +65,12 @@ export const queryChainInputSchema = z.object({
       coin_key: z.string().min(1).optional(),
       coin_keys: z.array(z.string().min(1)).optional(),
       pool_key: z.string().min(1).optional(),
+      amount: z.number().positive().optional(),
+      amount_display: z.number().positive().optional(),
+      side: z.enum(["buy", "sell"]).optional(),
+      pay_with_deep: z.boolean().optional(),
+      slippage_bps: z.number().int().min(0).max(5000).optional(),
+      min_out_display: z.number().positive().optional(),
     })
     .passthrough()
     .optional()
@@ -78,7 +86,8 @@ export type QueryChainResult =
   | DeepBookManagerBalancesResult
   | DeepBookPoolsList
   | DeepBookPoolInfo
-  | DeepBookTickerMap;
+  | DeepBookTickerMap
+  | DeepBookSwapQuoteResult;
 
 export type ExecuteToolOutcome =
   | { status: "executed"; result: TxResult }

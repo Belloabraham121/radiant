@@ -33,9 +33,20 @@ export type TxResult = {
   effects_status: "success" | "failure" | "unknown";
   evm_chain_id?: number;
   deepbook?: {
-    coin_key: string;
-    amount_display: number;
-    manager_object_id: string;
+    coin_key?: string;
+    amount_display?: number;
+    manager_object_id?: string;
+    swap?: {
+      pool_key: string;
+      side: "buy" | "sell";
+      input_coin: string;
+      output_coin: string;
+      in_amount_display: number;
+      out_amount_display: number;
+      fee_deep: number | null;
+      price: number | null;
+      pay_with_deep?: boolean;
+    };
   };
 };
 

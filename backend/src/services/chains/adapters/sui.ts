@@ -21,6 +21,10 @@ import {
   executeDeepBookDeposit,
   executeDeepBookWithdraw,
 } from "../../defi/deepbook-balance-manager.service.js";
+import {
+  executeDeepBookSwap,
+  isDeepBookSwapAction,
+} from "../../defi/deepbook-swap.service.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;
@@ -221,6 +225,29 @@ export const suiAdapter: ChainAdapter = {
           coin_key: result.coin_key,
           amount_display: result.amount_display,
           manager_object_id: result.manager_object_id,
+        },
+      };
+    }
+
+    if (isDeepBookSwapAction(action)) {
+      const result = await executeDeepBookSwap(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          swap: {
+            pool_key: result.pool_key,
+            side: result.side,
+            input_coin: result.input_coin,
+            output_coin: result.output_coin,
+            in_amount_display: result.in_amount_display,
+            out_amount_display: result.out_amount_display,
+            fee_deep: result.fee_deep,
+            price: result.price,
+            pay_with_deep: result.pay_with_deep,
+          },
         },
       };
     }

@@ -37,7 +37,24 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         native_symbol?: string;
         provisioned?: boolean;
         balances?: Array<{ coin_key: string; balance_display: number }>;
+        input_coin?: string;
+        output_coin?: string;
+        input_amount_display?: number;
+        output_amount_display?: number;
+        pool_key?: string;
       };
+
+      if (
+        result.input_coin &&
+        result.output_coin &&
+        result.input_amount_display != null &&
+        result.output_amount_display != null
+      ) {
+        receipts.push({
+          label: "Swap quote",
+          detail: `${result.input_amount_display} ${result.input_coin} → ~${result.output_amount_display} ${result.output_coin}${result.pool_key ? ` (${result.pool_key})` : ""}`,
+        });
+      }
 
       if (result.balance_display != null) {
         receipts.push({
@@ -68,7 +85,17 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         status?: string;
         result?: {
           digest?: string;
-          deepbook?: { coin_key?: string; amount_display?: number };
+          deepbook?: {
+            coin_key?: string;
+            amount_display?: number;
+            swap?: {
+              input_coin?: string;
+              output_coin?: string;
+              in_amount_display?: number;
+              out_amount_display?: number;
+              pool_key?: string;
+            };
+          };
         };
         pending?: { action?: string; amount_display?: string };
       };
@@ -81,23 +108,32 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             label: `${verb} approval required`,
             detail: outcome.pending.amount_display,
           });
+        } else if (action === "swap" || action === "deepbook_swap") {
+          receipts.push({
+            label: "Swap approval required",
+            detail: outcome.pending.amount_display,
+          });
         }
       }
 
       if (outcome.status === "executed" && outcome.result?.digest) {
         const digest = outcome.result.digest;
+        const swap = outcome.result.deepbook?.swap;
         const coinKey = outcome.result.deepbook?.coin_key;
         const amount = outcome.result.deepbook?.amount_display;
-        const isDeepBook =
+        const isSwap = swap?.input_coin && swap.output_coin;
+        const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
 
         receipts.push({
-          label: isDeepBook ? "DeepBook transfer" : "Transaction sent",
-          detail: isDeepBook
-            ? `${amount} ${coinKey} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-            : digest.length > 12
-              ? `${digest.slice(0, 10)}…`
-              : digest,
+          label: isSwap ? "Swap executed" : isDeepBookTransfer ? "DeepBook transfer" : "Transaction sent",
+          detail: isSwap
+            ? `${swap.in_amount_display} ${swap.input_coin} → ${swap.out_amount_display} ${swap.output_coin} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+            : isDeepBookTransfer
+              ? `${amount} ${coinKey} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+              : digest.length > 12
+                ? `${digest.slice(0, 10)}…`
+                : digest,
         });
       }
     }

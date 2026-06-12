@@ -33,7 +33,9 @@ export function TransactionApprovalModal({
               Approve transaction
             </h2>
             <p className="mt-1 text-sm font-medium text-[var(--hero-ink)]/55">
-              This transfer is above your auto-approve threshold.
+              {pending.action === "swap" || pending.action === "deepbook_swap"
+                ? "This swap is above your auto-approve threshold."
+                : "This transfer is above your auto-approve threshold."}
             </p>
           </div>
         </div>
@@ -46,6 +48,12 @@ export function TransactionApprovalModal({
           <p className="mt-2 text-lg font-extrabold text-[var(--hero-ink)]">
             {pending.amount_display}
           </p>
+          {(pending.action === "swap" || pending.action === "deepbook_swap") && (
+            <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/45">
+              Estimated output may vary with market movement. Slippage protection is applied on
+              chain.
+            </p>
+          )}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">
