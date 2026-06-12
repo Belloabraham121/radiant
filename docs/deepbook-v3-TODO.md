@@ -174,7 +174,7 @@ One row per user (MVP: single manager per agent wallet).
 | Status | Task |
 | ------ | ---- |
 | [x] | Chat receipt template for deposit/withdraw (digest, coin, amount) |
-| [ ] | Optional: “DeepBook balances” line in agent wallet section (manager vs wallet) |
+| [x] | Optional: “DeepBook balances” line in agent wallet section (manager vs wallet) |
 
 ---
 
@@ -186,20 +186,20 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `services/defi/indexer/deepbook-indexer.client.ts` — typed fetch wrapper |
-| [ ] | Implement reads: `GET /get_pools`, `/ticker`, `/summary`, `/assets` |
-| [ ] | `services/defi/indexer/normalize.ts` — apply asset scalars (SUI 9, USDC 6, DEEP 6, …) |
-| [ ] | Extend `query_chain`: `deepbook_pools`, `deepbook_pool_info`, `deepbook_ticker` |
-| [ ] | SDK read helpers: pool trade params (`taker_fee`, `maker_fee`, `stake_required`), book params (`tick_size`, `lot_size`, `min_size`) |
-| [ ] | `GET /api/v1/defi/pools` — optional REST mirror for UI |
-| [ ] | `GET /api/v1/defi/pools/:poolName/orderbook?level=&depth=` — proxy indexer `/orderbook` |
-| [ ] | Tests: normalize volume; handle indexer 404/timeout gracefully |
+| [x] | `services/defi/indexer/deepbook-indexer.client.ts` — typed fetch wrapper |
+| [x] | Implement reads: `GET /get_pools`, `/ticker`, `/summary`, `/assets` |
+| [x] | `services/defi/indexer/normalize.ts` — apply asset scalars (SUI 9, USDC 6, DEEP 6, …) |
+| [x] | Extend `query_chain`: `deepbook_pools`, `deepbook_pool_info`, `deepbook_ticker` |
+| [x] | SDK read helpers: pool trade params (`taker_fee`, `maker_fee`, `stake_required`), book params (`tick_size`, `lot_size`, `min_size`) |
+| [x] | `GET /api/v1/defi/pools` — optional REST mirror for UI |
+| [x] | `GET /api/v1/defi/pools/:poolName/orderbook?level=&depth=` — proxy indexer `/orderbook` |
+| [x] | Tests: normalize volume; handle indexer 404/timeout gracefully |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `lib/deepbook-api.ts` — fetch pools, ticker, orderbook (if REST exposed) |
+| [x] | `lib/deepbook-api.ts` — fetch pools, ticker, orderbook (if REST exposed) |
 | [ ] | Explorer / marketing copy already mentions DeepBook — link live pool stats when available |
 
 ---

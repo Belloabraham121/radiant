@@ -6,6 +6,12 @@ import {
   getDeepBookManagerBalances,
   getDeepBookManagerInfo,
 } from "../defi/deepbook-balance-manager.service.js";
+import {
+  getDeepBookPoolInfo,
+  getDeepBookTicker,
+  listDeepBookPools,
+} from "../defi/deepbook-pools.service.js";
+import { getDeepBookEnv } from "../../config/deepbook.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import type { BalanceContext } from "../chains/types.js";
@@ -16,6 +22,12 @@ import {
 } from "./agent.types.js";
 
 export const QUERY_CHAIN_TOOL_NAME = "query_chain" as const;
+
+function assertSuiDeepBookQuery(chainId: string): void {
+  if (chainId !== "sui") {
+    throw new AppError(400, "UNSUPPORTED_QUERY", "DeepBook queries are only available on Sui.");
+  }
+}
 
 export const queryChainToolDefinition = {
   name: QUERY_CHAIN_TOOL_NAME,
@@ -38,9 +50,12 @@ export const queryChainToolDefinition = {
           "token_balances",
           "deepbook_manager_info",
           "deepbook_manager_balance",
+          "deepbook_pools",
+          "deepbook_pool_info",
+          "deepbook_ticker",
         ],
         description:
-          "Read-only query type: native balance, wallet holdings, or DeepBook balance manager state.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, or pool market data.",
       },
       params: {
         type: "object",
@@ -115,6 +130,19 @@ export async function runQueryChainTool(
         };
       }
       return getDeepBookManagerBalances(privyUserId, parsed.params.coin_keys);
+    }
+    case "deepbook_pools": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return listDeepBookPools();
+    }
+    case "deepbook_ticker": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return getDeepBookTicker();
+    }
+    case "deepbook_pool_info": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      const poolKey = parsed.params.pool_key ?? getDeepBookEnv().defaultPool;
+      return getDeepBookPoolInfo(poolKey, privyUserId);
     }
     default:
       throw new AppError(400, "UNSUPPORTED_QUERY", `Unsupported query: ${parsed.query}`);

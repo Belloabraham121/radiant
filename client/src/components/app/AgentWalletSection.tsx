@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useWallets } from "@mysten/dapp-kit-react";
 import { Check, Copy, Loader2, RefreshCw, Wallet, WalletMinimal } from "lucide-react";
 import { useAgentWallet, type ChainWalletState } from "@/components/wallet/AgentWalletProvider";
@@ -15,6 +15,8 @@ import {
 } from "@/lib/personal-wallet";
 import { invalidateWalletAssetsForChain } from "@/lib/wallet-assets-events";
 import { getEvmDefaultChainId } from "@/lib/chain-meta";
+import { DeepBookBalancesLine } from "@/components/wallet/DeepBookBalancesLine";
+import { invalidateDeepBookManagerCache } from "@/lib/wallet-session-cache";
 
 function AgentWalletChainCard({
   wallet,
@@ -22,12 +24,14 @@ function AgentWalletChainCard({
   onDeposit,
   onCopy,
   copied,
+  footer,
 }: {
   wallet: ChainWalletState;
   loading: boolean;
   onDeposit: () => void;
   copied: boolean;
   onCopy: () => void;
+  footer?: ReactNode;
 }) {
   const meta = getChainMeta(wallet.chainId);
   const address = wallet.address ?? "";
@@ -104,6 +108,7 @@ function AgentWalletChainCard({
       </div>
 
       <p className="mt-3 text-xs font-medium text-[var(--hero-ink)]/50">{meta.depositFallbackHint}</p>
+      {footer}
     </div>
   );
 }
@@ -227,6 +232,14 @@ export function AgentWalletSection() {
                 if (wallet.address) void copyAddress(wallet.chainId, wallet.address);
               }}
               onDeposit={() => openDeposit(wallet.chainId)}
+              footer={
+                wallet.chainId === "sui" && walletReady && wallet.address ? (
+                  <DeepBookBalancesLine
+                    enabled={walletReady}
+                    walletSuiBalance={wallet.balanceDisplay}
+                  />
+                ) : null
+              }
             />
           ))}
         </div>
@@ -241,6 +254,7 @@ export function AgentWalletSection() {
           onSuccess={() => {
             void refreshBalancesOnly();
             invalidateWalletAssetsForChain("sui");
+            invalidateDeepBookManagerCache();
           }}
         />
       )}

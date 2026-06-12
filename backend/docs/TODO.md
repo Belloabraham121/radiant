@@ -424,7 +424,7 @@ Phase 0 (infra + dashboard)
 | ------ | ---- | ----- |
 | [x] | Phase A — SDK, `services/defi/`, config | [Backend] |
 | [x] | Phase B — Balance manager (Prisma + ensure + deposit/withdraw) | [Backend] |
-| [ ] | Phase C — Pools + indexer client (reads) | [Backend] |
+| [x] | Phase C — Pools + indexer client (reads) | [Backend] |
 | [ ] | Phase D — Swap (quote + execute + approval) | [Both] |
 | [ ] | Phase E — Orders (place/cancel + open orders) | [Both] |
 | [ ] | Phase F — Flash loans (permission-gated, always approve) | [Both] |

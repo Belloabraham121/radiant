@@ -6,6 +6,11 @@ import type {
   DeepBookManagerBalancesResult,
   DeepBookManagerInfo,
 } from "../defi/deepbook-balance-manager.types.js";
+import type {
+  DeepBookPoolInfo,
+  DeepBookPoolsList,
+  DeepBookTickerMap,
+} from "../defi/deepbook-pools.service.js";
 
 export const chatRequestSchema = z.object({
   message: z.string().min(1).max(8000),
@@ -46,6 +51,9 @@ export const queryChainInputSchema = z.object({
     "token_balances",
     "deepbook_manager_info",
     "deepbook_manager_balance",
+    "deepbook_pools",
+    "deepbook_pool_info",
+    "deepbook_ticker",
   ]),
   params: z
     .object({
@@ -54,6 +62,7 @@ export const queryChainInputSchema = z.object({
       include_usd: z.boolean().optional(),
       coin_key: z.string().min(1).optional(),
       coin_keys: z.array(z.string().min(1)).optional(),
+      pool_key: z.string().min(1).optional(),
     })
     .passthrough()
     .optional()
@@ -66,7 +75,10 @@ export type QueryChainResult =
   | BalanceResult
   | WalletAssetsData
   | DeepBookManagerInfo
-  | DeepBookManagerBalancesResult;
+  | DeepBookManagerBalancesResult
+  | DeepBookPoolsList
+  | DeepBookPoolInfo
+  | DeepBookTickerMap;
 
 export type ExecuteToolOutcome =
   | { status: "executed"; result: TxResult }

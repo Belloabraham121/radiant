@@ -14,6 +14,8 @@ import { healthRouter } from "./api/routes/health.js";
 import { chatRouter } from "./api/routes/v1/chat/chat.js";
 import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
+import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.js";
+import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
 import { createCorsOptions } from "./config/cors.js";
 
 /** Express app without DB connect or workers (for tests and main entry). */
@@ -39,6 +41,8 @@ export function createApp() {
   app.use(walletSignAndSendRouter);
   app.use(chatRouter);
   app.use(chatSessionsRouter);
+  app.use(defiPoolsRouter);
+  app.use(defiBalanceManagerRouter);
   app.use(errorHandlerMiddleware);
 
   return app;

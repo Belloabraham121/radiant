@@ -1,7 +1,9 @@
 import type { AgentChainId } from "./agent-chains";
+import type { DeepBookManagerUiData } from "./deepbook-api";
 import type { WalletAssetsData } from "./wallet-assets-api";
 
 const walletAssetsByKey = new Map<string, WalletAssetsData>();
+let deepBookManagerCache: DeepBookManagerUiData | undefined;
 
 export function walletAssetsCacheKey(
   chainId: AgentChainId,
@@ -29,7 +31,20 @@ export function invalidateWalletAssetsCache(key?: string): void {
   walletAssetsByKey.clear();
 }
 
+export function readDeepBookManagerCache(): DeepBookManagerUiData | undefined {
+  return deepBookManagerCache;
+}
+
+export function writeDeepBookManagerCache(data: DeepBookManagerUiData): void {
+  deepBookManagerCache = data;
+}
+
+export function invalidateDeepBookManagerCache(): void {
+  deepBookManagerCache = undefined;
+}
+
 /** Clear all wallet UI caches (e.g. on logout). */
 export function clearWalletSessionCache(): void {
   walletAssetsByKey.clear();
+  deepBookManagerCache = undefined;
 }

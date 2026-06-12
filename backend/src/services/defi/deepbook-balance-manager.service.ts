@@ -329,12 +329,12 @@ export async function getDeepBookManagerInfo(
   return row ? toManagerInfo(row) : unprovisionedManagerInfo();
 }
 
-export async function checkManagerBalance(
+async function readManagerBalance(
   privyUserId: string,
+  manager: ProvisionedDeepBookManager,
   coinKey: string,
 ): Promise<DeepBookManagerBalance> {
   const normalizedCoin = assertCoinKey(coinKey);
-  const manager = await ensureBalanceManager(privyUserId);
   const wallet = await resolveSuiAgentWallet(privyUserId);
   const client = getDeepBookClient(toClientContext(wallet.address, manager));
   const result = await client.checkManagerBalance(manager.manager_key, normalizedCoin);
@@ -346,18 +346,34 @@ export async function checkManagerBalance(
   };
 }
 
+export async function checkManagerBalance(
+  privyUserId: string,
+  coinKey: string,
+): Promise<DeepBookManagerBalance> {
+  const manager = await ensureBalanceManager(privyUserId);
+  return readManagerBalance(privyUserId, manager, coinKey);
+}
+
 export async function getDeepBookManagerBalances(
   privyUserId: string,
   coinKeys?: string[],
 ): Promise<DeepBookManagerBalancesResult> {
   const manager = await ensureBalanceManager(privyUserId);
+  return getDeepBookManagerBalancesForManager(privyUserId, manager, coinKeys);
+}
+
+async function getDeepBookManagerBalancesForManager(
+  privyUserId: string,
+  manager: ProvisionedDeepBookManager,
+  coinKeys?: string[],
+): Promise<DeepBookManagerBalancesResult> {
   const keys =
     coinKeys && coinKeys.length > 0
       ? coinKeys.map(assertCoinKey)
       : ["SUI", "USDC", "DEEP", "USDT"];
 
   const balances = await Promise.all(
-    keys.map((coinKey) => checkManagerBalance(privyUserId, coinKey)),
+    keys.map((coinKey) => readManagerBalance(privyUserId, manager, coinKey)),
   );
 
   return {
@@ -366,6 +382,30 @@ export async function getDeepBookManagerBalances(
     manager_object_id: manager.manager_object_id,
     balances,
   };
+}
+
+/** UI read — does not provision a manager; returns empty balances when absent. */
+export async function getDeepBookManagerUiData(privyUserId: string): Promise<{
+  manager: DeepBookManagerInfo;
+  balances: DeepBookManagerBalancesResult | null;
+  updated_at: string;
+}> {
+  const manager = await getDeepBookManagerInfo(privyUserId);
+  if (!manager.provisioned || !manager.manager_object_id) {
+    return { manager, balances: null, updated_at: new Date().toISOString() };
+  }
+
+  const row = await findBalanceManagerByPrivyUserId(privyUserId);
+  if (!row) {
+    return { manager, balances: null, updated_at: new Date().toISOString() };
+  }
+
+  const balances = await getDeepBookManagerBalancesForManager(
+    privyUserId,
+    toManagerInfo(row),
+  );
+
+  return { manager, balances, updated_at: new Date().toISOString() };
 }
 
 export async function executeDeepBookDeposit(
