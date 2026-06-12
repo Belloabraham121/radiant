@@ -566,6 +566,31 @@ export async function executeDeepBookDeposit(
   };
 }
 
+export async function preflightDeepBookWithdraw(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<void> {
+  const parsed = parseDeepBookDepositWithdrawParams(params);
+  const balance = await checkManagerBalance(privyUserId, parsed.coin_key);
+  const requested = parsed.withdraw_all ? balance.balance_display : parsed.amount_display;
+
+  if (requested <= 0) {
+    throw new AppError(
+      400,
+      "INSUFFICIENT_BALANCE",
+      `No ${parsed.coin_key} in your DeepBook balance manager to withdraw.`,
+    );
+  }
+
+  if (balance.balance_display < requested) {
+    throw new AppError(
+      400,
+      "INSUFFICIENT_BALANCE",
+      `Your DeepBook balance manager has ${balance.balance_display} ${parsed.coin_key}, which is not enough to withdraw ${parsed.withdraw_all ? "everything" : `${requested} ${parsed.coin_key}`}.`,
+    );
+  }
+}
+
 export async function executeDeepBookWithdraw(
   privyUserId: string,
   params: Record<string, unknown>,
@@ -577,9 +602,10 @@ export async function executeDeepBookWithdraw(
   const ctx = toClientContext(wallet.address, manager);
 
   let amountDisplay = parsed.amount_display;
+  const managerBalance = await readManagerBalance(privyUserId, manager, parsed.coin_key);
+
   if (parsed.withdraw_all) {
-    const balance = await readManagerBalance(privyUserId, manager, parsed.coin_key);
-    amountDisplay = balance.balance_display;
+    amountDisplay = managerBalance.balance_display;
     if (amountDisplay <= 0) {
       throw new AppError(
         400,
@@ -587,6 +613,12 @@ export async function executeDeepBookWithdraw(
         `No ${parsed.coin_key} in your DeepBook balance manager to withdraw.`,
       );
     }
+  } else if (managerBalance.balance_display < amountDisplay) {
+    throw new AppError(
+      400,
+      "INSUFFICIENT_BALANCE",
+      `Your DeepBook balance manager has ${managerBalance.balance_display} ${parsed.coin_key}, which is not enough to withdraw ${amountDisplay} ${parsed.coin_key}.`,
+    );
   }
 
   const result = await buildAndExecuteTransaction(

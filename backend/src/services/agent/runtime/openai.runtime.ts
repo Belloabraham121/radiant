@@ -22,12 +22,13 @@ import {
 import { agentToolDefinitions, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { toOpenAiTools } from "./openai-tools.js";
+import type { ExecuteTransactionInput } from "../chains/types.js";
 import {
-  ERROR_EXPLANATION_NUDGE,
-  fallbackErrorReply,
+  explainTransactionError,
   isAgentToolErrorResult,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { transactionContextFromInput } from "../transaction-error-context.js";
 import { summarizeToolResult } from "./summarize-tool-result.js";
 import type { AgentRuntime, AgentTurnInput, AgentTurnResult } from "./types.js";
 import type { AgentToolErrorResult } from "../tools.js";
@@ -153,6 +154,7 @@ export const openaiRuntime: AgentRuntime = {
       messages.push(choice);
 
       let executeToolError: AgentToolErrorResult | null = null;
+      let lastExecuteInput: ExecuteTransactionInput | null = null;
 
       for (const toolCall of toolCallList) {
         if (toolCall.type !== "function") continue;
@@ -166,6 +168,10 @@ export const openaiRuntime: AgentRuntime = {
 
         const result = await runAgentTool(input.privyUserId, toolCall.function.name, args);
         tool_calls.push({ name: toolCall.function.name, result });
+
+        if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
+          lastExecuteInput = args as ExecuteTransactionInput;
+        }
 
         if (
           toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
@@ -204,29 +210,18 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
-        messages.push({
-          role: "user",
-          content:
-            "The execute_transaction tool failed — see the tool result above (including any swap quote). " +
-            `${ERROR_EXPLANATION_NUDGE} ` +
-            "Reply directly to me. Do not call query_chain or execute_transaction again for this request.",
-        });
-
-        let explanation;
         try {
-          explanation = await client.chat.completions.create({
+          reply = await explainTransactionError({
+            client,
             model,
             messages,
-            tool_choice: "none",
-            max_tokens: 512,
+            toolName: EXECUTE_TRANSACTION_TOOL_NAME,
+            toolResult: executeToolError,
+            transactionContext: transactionContextFromInput(lastExecuteInput),
           });
         } catch (err) {
           throw mapOpenAiError(err);
         }
-
-        reply =
-          explanation.choices[0]?.message?.content?.trim() ??
-          fallbackErrorReply(executeToolError.error);
         break;
       }
     }

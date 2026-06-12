@@ -27,6 +27,7 @@ import {
   isDeepBookSwapAction,
   preflightDeepBookSwap,
 } from "../defi/deepbook-swap.service.js";
+import { preflightDeepBookWithdraw } from "../defi/deepbook-balance-manager.service.js";
 
 export const agentToolDefinitions = [
   executeTransactionToolDefinition,
@@ -90,6 +91,9 @@ export async function runExecuteTransactionToolWithApproval(
     if (needsApproval) {
       if (isDeepBookSwapAction(input.action)) {
         await preflightDeepBookSwap(privyUserId, input.params);
+      }
+      if (input.action === "deepbook_withdraw") {
+        await preflightDeepBookWithdraw(privyUserId, input.params);
       }
       return {
         status: "approval_required",

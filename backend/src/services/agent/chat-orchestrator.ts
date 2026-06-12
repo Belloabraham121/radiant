@@ -9,6 +9,7 @@ import type { ChatRequest, ChatResponse } from "./agent.types.js";
 import { buildAgentContextMessages } from "./context-window.js";
 import { getAgentRuntime } from "./runtime/index.js";
 import type { AgentRuntime } from "./runtime/types.js";
+import type { TransactionErrorContext } from "./transaction-error-context.js";
 import { synthesizeErrorExplanationReply } from "./runtime/error-explanation.js";
 import { stubRuntime } from "./runtime/stub.runtime.js";
 import type { AgentToolErrorResult } from "./tools.js";
@@ -86,6 +87,7 @@ export async function persistToolFailureTurn(
     toolName: string;
     toolResult: AgentToolErrorResult;
     userContext: string;
+    transactionContext?: TransactionErrorContext;
   },
 ): Promise<ChatResponse> {
   const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
@@ -104,6 +106,7 @@ export async function persistToolFailureTurn(
     memoryBlock,
     agentPermissions,
     userContext: input.userContext,
+    transactionContext: input.transactionContext,
   });
 
   const toolCalls = [{ name: input.toolName, result: input.toolResult }];

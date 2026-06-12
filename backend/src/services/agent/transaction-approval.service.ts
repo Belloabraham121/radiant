@@ -7,6 +7,9 @@ import {
 } from "../defi/deepbook-swap.service.js";
 import type { ExecuteTransactionInput, ChainId } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
+import type { TxResult } from "../chains/types.js";
+import { AppError } from "../../errors/app-error.js";
+import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { runExecuteTransactionTool } from "./execute-transaction.tool.js";
 import {
   getAgentPermissions,
@@ -254,10 +257,14 @@ export async function createPendingTransaction(
   return pending;
 }
 
+export type ApprovalResult =
+  | { ok: true; pending: PendingTransaction; result: TxResult }
+  | { ok: false; pending: PendingTransaction; error: AppError };
+
 export async function approvePendingTransaction(
   privyUserId: string,
   transactionId: string,
-) {
+): Promise<ApprovalResult | null> {
   pruneExpired();
   const record = pendingById.get(transactionId);
 
@@ -270,8 +277,13 @@ export async function approvePendingTransaction(
   }
 
   pendingById.delete(transactionId);
-  const result = await runExecuteTransactionTool(privyUserId, record.input);
-  return { pending: record.pending, result };
+
+  try {
+    const result = await runExecuteTransactionTool(privyUserId, record.input);
+    return { ok: true, pending: record.pending, result };
+  } catch (err) {
+    return { ok: false, pending: record.pending, error: mapAgentToolError(err) };
+  }
 }
 
 /** Test hook — clear in-memory pending transactions. */
