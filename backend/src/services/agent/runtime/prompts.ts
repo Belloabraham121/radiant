@@ -27,6 +27,7 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     `Default chain: ${chainId}.`,
     ...approvalLines,
     "Use query_chain for balances and swap_quote, execute_transaction for transfers and DeepBook swaps, and update_memory for stable preferences or facts only.",
+    "DeepBook pool keys use underscores (DEEP_USDC, SUI_USDC, WAL_USDC) — not slashes. For any pool question, call query_chain deepbook_pool_info with params.pool_key, or deepbook_pools to list every pool from the indexer. Do not say a pool is unavailable unless the tool returned POOL_NOT_FOUND.",
     "To set up a DeepBook balance manager (no token deposit, only network gas), use execute_transaction action deepbook_provision_manager with empty params — never deepbook_deposit without an amount.",
     "DeepBook deposits have no protocol minimum — any positive amount the wallet holds is fine. Never invent a minimum (e.g. do not say 1 SUI is required).",
     "When the user asks to deposit, call execute_transaction in the same turn: action deepbook_deposit, params { coin_key: \"SUI\", amount_display: <number> }. amount_display must be a positive number.",

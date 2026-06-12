@@ -36,8 +36,43 @@ export function ChatSessionsProvider({ children }: { children: React.ReactNode }
   }, [authenticated, ready]);
 
   useEffect(() => {
-    void refreshSessions();
-  }, [refreshSessions]);
+    let cancelled = false;
+
+    async function loadSessions() {
+      if (!ready || !authenticated) {
+        if (!cancelled) {
+          setSessions([]);
+          setError(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const data = await fetchChatSessions();
+        if (!cancelled) {
+          setSessions(data.sessions);
+          setError(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setSessions([]);
+          setError("Could not load your chats.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadSessions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, ready]);
 
   const createSession = useCallback(async () => {
     const session = await createChatSession();

@@ -1,3 +1,4 @@
+import { normalizePoolKey } from "../pool-key.js";
 import { atomicToDisplay } from "../asset-scalars.js";
 import type {
   IndexerPoolRecord,
@@ -110,8 +111,15 @@ export function findPoolByKey(
   pools: IndexerPoolRecord[],
   poolKey: string,
 ): IndexerPoolRecord | undefined {
-  const normalized = poolKey.toUpperCase();
-  return pools.find((pool) => pool.pool_name.toUpperCase() === normalized);
+  const normalized = normalizePoolKey(poolKey);
+  const exact = pools.find((pool) => pool.pool_name.toUpperCase() === normalized);
+  if (exact) {
+    return exact;
+  }
+
+  // Indexer occasionally uses alternate symbols (e.g. BETH vs BWETH).
+  const compact = normalized.replace(/_/g, "");
+  return pools.find((pool) => pool.pool_name.toUpperCase().replace(/_/g, "") === compact);
 }
 
 export function summaryKeyToPoolKey(key: string): string {

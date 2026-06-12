@@ -28,5 +28,5 @@ export default function AppChatIndexPage() {
     return null;
   }
 
-  return <ChatView />;
+  return <ChatView key="new-chat" />;
 }

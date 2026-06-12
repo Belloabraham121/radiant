@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Loader2, RefreshCw, Wallet } from "lucide-react";
+import { ChevronDown, RefreshCw, Wallet } from "lucide-react";
 import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
 import { useProfileWalletData } from "@/hooks/useProfileWalletData";
 import { useWalletAssets } from "@/hooks/useWalletAssets";

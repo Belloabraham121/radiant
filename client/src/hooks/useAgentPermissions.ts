@@ -20,36 +20,39 @@ export function useAgentPermissions(authenticated: boolean) {
 
   useEffect(() => {
     if (!authenticated) {
-      setPermissions(DEFAULT_PERMISSIONS);
-      setLoading(false);
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
-    void fetchAuthMe()
-      .then((me) => {
+    async function loadPermissions() {
+      setLoading(true);
+      setError(null);
+      try {
+        const me = await fetchAuthMe();
         if (!cancelled && me.agent_permissions) {
           setPermissions(me.agent_permissions);
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setError("Could not load agent permissions.");
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setLoading(false);
         }
-      });
+      }
+    }
+
+    void loadPermissions();
 
     return () => {
       cancelled = true;
     };
   }, [authenticated]);
+
+  const effectivePermissions = authenticated ? permissions : DEFAULT_PERMISSIONS;
+  const effectiveLoading = authenticated && loading;
 
   const savePermissions = useCallback(async (patch: Partial<AgentPermissions>) => {
     setSaving(true);
@@ -71,8 +74,8 @@ export function useAgentPermissions(authenticated: boolean) {
   }, [permissions]);
 
   return {
-    permissions,
-    loading,
+    permissions: effectivePermissions,
+    loading: effectiveLoading,
     saving,
     error,
     setAutoApproveEnabled: (enabled: boolean) => savePermissions({ auto_approve_enabled: enabled }),

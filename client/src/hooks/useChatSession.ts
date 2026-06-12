@@ -16,14 +16,43 @@ import {
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 
+function initialChatSessionState(sessionId?: string) {
+  if (!sessionId) {
+    return {
+      messages: [] as ChatMessage[],
+      title: "New chat",
+      loading: false,
+      skipFetch: true,
+    };
+  }
+
+  const cached = takeCachedChatSession(sessionId);
+  if (cached) {
+    return {
+      messages: cached.messages,
+      title: cached.title,
+      loading: false,
+      skipFetch: true,
+    };
+  }
+
+  return {
+    messages: [] as ChatMessage[],
+    title: "New chat",
+    loading: true,
+    skipFetch: false,
+  };
+}
+
 export function useChatSession(sessionId?: string) {
   const router = useRouter();
   const { refreshSessions } = useChatSessions();
+  const [boot] = useState(() => initialChatSessionState(sessionId));
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [title, setTitle] = useState("New chat");
+  const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
+  const [title, setTitle] = useState(boot.title);
   const [activeSessionId, setActiveSessionId] = useState(sessionId);
-  const [loading, setLoading] = useState(Boolean(sessionId));
+  const [loading, setLoading] = useState(boot.loading);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -31,50 +60,41 @@ export function useChatSession(sessionId?: string) {
   const [approving, setApproving] = useState(false);
 
   useEffect(() => {
-    setActiveSessionId(sessionId);
-
-    if (!sessionId) {
-      setMessages([]);
-      setTitle("New chat");
-      setLoading(false);
-      setLoadError(null);
+    if (!sessionId || boot.skipFetch) {
       return;
     }
 
-    const cached = takeCachedChatSession(sessionId);
-    if (cached) {
-      setTitle(cached.title);
-      setMessages(cached.messages);
-      setLoading(false);
-      setLoadError(null);
-      return;
-    }
+    const id = sessionId;
 
     let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
 
-    void fetchSessionMessages(sessionId)
-      .then((data) => {
+    async function loadSession() {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const data = await fetchSessionMessages(id);
         if (cancelled) return;
         setTitle(data.session.title);
         setMessages(apiMessagesToChatMessages(data.messages));
-      })
-      .catch((err) => {
+      } catch (err) {
         if (cancelled) return;
         setMessages([]);
         setLoadError(
           err instanceof ApiError ? err.message : "Could not load this conversation.",
         );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadSession();
 
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [boot.skipFetch, sessionId]);
 
   const sendMessage = useCallback(
     async (text: string) => {

@@ -111,8 +111,42 @@ export function ConnectedAccountsSection() {
     if (!ready) {
       return;
     }
-    void refreshMe();
-  }, [ready, refreshMe]);
+
+    let cancelled = false;
+
+    async function loadMe() {
+      if (!authenticated) {
+        if (!cancelled) {
+          setMe(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const data = await fetchAuthMe();
+        if (!cancelled) {
+          setMe(data);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(accountMergeErrorMessage(err));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadMe();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated, ready]);
 
   const linked = new Set(me?.linked_accounts ?? []);
 

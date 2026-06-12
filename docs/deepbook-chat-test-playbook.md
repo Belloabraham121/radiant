@@ -401,13 +401,13 @@ You do not have a DeepBook balance manager set up in your wallet. If you would l
 
 ---
 
-### C-03 — Specific pool info
+### C-03 — Specific pool info (DEEP_USDC)
 
 **Ask the agent:**
 
 > Give me info on the DEEP_USDC pool on DeepBook.
 
-**Expected:** `deepbook_pool_info` for `DEEP_USDC` (or agent picks valid pool from list).
+**Expected:** `deepbook_pool_info` with `pool_key: DEEP_USDC`. Reply includes DEEP/USDC pair, last price, min size — **not** “pool unavailable”. Also works if you say `DEEP/USDC` (normalized to `DEEP_USDC`).
 
 **Pass?** ☐ Yes ☐ No
 

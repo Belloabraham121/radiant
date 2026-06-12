@@ -2,7 +2,7 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAgentPermissions } from "@/hooks/useAgentPermissions";
 
 function PermissionToggle({
@@ -54,11 +54,10 @@ export function AgentPermissionsSection() {
     setAutoApproveEnabled,
     setAutoApproveMaxSui,
   } = useAgentPermissions(authenticated);
-  const [draftMaxSui, setDraftMaxSui] = useState(String(permissions.auto_approve_max_sui));
-
-  useEffect(() => {
-    setDraftMaxSui(String(permissions.auto_approve_max_sui));
-  }, [permissions.auto_approve_max_sui]);
+  const serverMaxSui = String(permissions.auto_approve_max_sui);
+  const [draftMaxSui, setDraftMaxSui] = useState(serverMaxSui);
+  const [editingMaxSui, setEditingMaxSui] = useState(false);
+  const thresholdInputValue = editingMaxSui ? draftMaxSui : serverMaxSui;
 
   const thresholdLabel = permissions.auto_approve_enabled
     ? `Swaps and transfers up to ${permissions.auto_approve_max_sui} SUI go through instantly. Larger amounts pause for your approval.`
@@ -110,12 +109,17 @@ export function AgentPermissionsSection() {
                 max={1000000}
                 step={0.01}
                 disabled={loading || saving}
-                value={draftMaxSui}
+                value={thresholdInputValue}
+                onFocus={() => {
+                  setEditingMaxSui(true);
+                  setDraftMaxSui(serverMaxSui);
+                }}
                 onChange={(event) => setDraftMaxSui(event.target.value)}
                 onBlur={() => {
+                  setEditingMaxSui(false);
                   const next = Number(draftMaxSui);
                   if (!Number.isFinite(next) || next <= 0) {
-                    setDraftMaxSui(String(permissions.auto_approve_max_sui));
+                    setDraftMaxSui(serverMaxSui);
                     return;
                   }
                   if (next !== permissions.auto_approve_max_sui) {

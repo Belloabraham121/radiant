@@ -20,6 +20,7 @@ import {
   type NormalizedTicker,
 } from "./indexer/normalize.js";
 import type { IndexerOrderbookResponse, IndexerPoolRecord } from "./indexer/indexer.types.js";
+import { normalizePoolKey } from "./pool-key.js";
 import type { PoolSummary } from "./types.js";
 
 export type DeepBookPoolInfo = NormalizedPool & {
@@ -108,10 +109,16 @@ export async function getDeepBookPoolInfo(
   poolKey: string,
   privyUserId?: string,
 ): Promise<DeepBookPoolInfo> {
+  const normalizedKey = normalizePoolKey(poolKey);
   const pools = await fetchPoolsFn();
-  const pool = findPoolByKey(pools, poolKey);
+  const pool = findPoolByKey(pools, normalizedKey);
   if (!pool) {
-    throw new AppError(404, "POOL_NOT_FOUND", `DeepBook pool not found: ${poolKey}`);
+    const available = pools.map((p) => p.pool_name).sort().join(", ");
+    throw new AppError(
+      404,
+      "POOL_NOT_FOUND",
+      `DeepBook pool not found: ${poolKey}. Available pools: ${available}`,
+    );
   }
 
   let ticker: NormalizedTicker | null = null;

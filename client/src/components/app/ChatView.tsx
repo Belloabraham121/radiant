@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ArrowUp, Check, Sparkles } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
+import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage } from "@/lib/chat-messages";
@@ -34,14 +35,14 @@ function Bubble({ message }: { message: ChatMessage }) {
               : "rounded-bl-md bg-white shadow-[4px_4px_0_var(--hero-ink)]"
           }`}
         >
-          {message.text}
+          {isUser ? message.text : <AgentMessageMarkdown text={message.text} />}
         </div>
 
         {message.receipts && message.receipts.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {message.receipts.map((receipt) => (
+            {message.receipts.map((receipt, index) => (
               <span
-                key={receipt.label}
+                key={`${message.id}-receipt-${index}`}
                 className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold"
               >
                 <Check
@@ -84,8 +85,10 @@ type ChatViewProps = {
 
 export function ChatView({ sessionId }: ChatViewProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const animatedMessageIdsRef = useRef(new Set<string>());
+  const initialBatchDoneRef = useRef(false);
   const [input, setInput] = useState("");
 
   const {
@@ -104,6 +107,18 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
   useEffect(() => {
     animatedMessageIdsRef.current.clear();
+    initialBatchDoneRef.current = false;
+  }, [sessionId]);
+
+  useEffect(() => {
+    const scope = ref.current;
+    if (!scope) return;
+
+    return () => {
+      const bubbles = scope.querySelectorAll("[data-message-id]");
+      gsap.killTweensOf(bubbles);
+      gsap.set(bubbles, { clearProps: "opacity,transform" });
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -112,10 +127,20 @@ export function ChatView({ sessionId }: ChatViewProps) {
     const scope = ref.current;
     if (!scope) return;
 
+    if (!initialBatchDoneRef.current) {
+      const bubbles = scope.querySelectorAll("[data-message-id]");
+      gsap.set(bubbles, { opacity: 1, y: 0, clearProps: "opacity,transform" });
+      for (const message of messages) {
+        animatedMessageIdsRef.current.add(message.id);
+      }
+      initialBatchDoneRef.current = true;
+      return;
+    }
+
     const newTargets: Element[] = [];
     for (const message of messages) {
       if (animatedMessageIdsRef.current.has(message.id)) continue;
-      const element = scope.querySelector(`[data-message-id="${message.id}"]`);
+      const element = scope.querySelector(`[data-message-id="${CSS.escape(message.id)}"]`);
       if (!element) continue;
       animatedMessageIdsRef.current.add(message.id);
       newTargets.push(element);
@@ -133,8 +158,16 @@ export function ChatView({ sessionId }: ChatViewProps) {
   }, [loading, messages]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typing, pendingTx]);
+    const container = scrollRef.current;
+    if (!container || loading) return;
+    container.scrollTop = container.scrollHeight;
+  }, [loading, sessionId]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || loading) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [loading, messages, pendingTx, typing]);
 
   const send = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,7 +178,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   };
 
   return (
-    <div ref={ref} className="flex h-full flex-col">
+    <div ref={ref} className="flex h-full min-h-0 flex-col">
       <header
         className={`${CHAT_COL} flex items-center justify-between gap-3 px-6 py-4`}
       >
@@ -161,7 +194,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
         </span>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-6 py-8">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         {loading ? (
           <ChatLoadingSkeleton />
         ) : loadError ? (

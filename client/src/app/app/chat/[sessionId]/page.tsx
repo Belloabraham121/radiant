@@ -9,5 +9,5 @@ export default function ChatSessionPage({
   params: Promise<{ sessionId: string }>;
 }) {
   const { sessionId } = use(params);
-  return <ChatView sessionId={sessionId} />;
+  return <ChatView key={sessionId} sessionId={sessionId} />;
 }

@@ -1,7 +1,6 @@
-import type { BalanceResult } from "../../chains/types.js";
 import type { UpdateMemoryResult } from "../../memory/agent-memory.types.js";
-import type { DeepBookSwapQuoteResult } from "../../defi/deepbook-swap.service.js";
 import { toolErrorToModelContent } from "../../../utils/agent-tool-errors.js";
+import { summarizeQueryChainResult } from "./summarize-query-chain.js";
 import type { AgentToolErrorResult } from "../tools.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
@@ -28,20 +27,7 @@ export function summarizeToolResult(name: string, result: unknown): string {
   }
 
   if (name === QUERY_CHAIN_TOOL_NAME) {
-    const swapQuote = result as DeepBookSwapQuoteResult;
-    if (swapQuote.input_coin && swapQuote.output_amount_display != null) {
-      return (
-        `Swap quote: ${swapQuote.input_amount_display} ${swapQuote.input_coin} → ` +
-        `~${swapQuote.output_amount_display} ${swapQuote.output_coin} (${swapQuote.pool_key})`
-      );
-    }
-
-    const balance = result as BalanceResult;
-    if (balance.balance_display != null && balance.native_symbol) {
-      return `Balance: ${balance.balance_display} ${balance.native_symbol}`;
-    }
-
-    return "Query completed.";
+    return summarizeQueryChainResult(result) ?? "Query completed.";
   }
 
   if (name !== EXECUTE_TRANSACTION_TOOL_NAME) {

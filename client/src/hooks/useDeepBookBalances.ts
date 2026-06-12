@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { fetchDeepBookManager, type DeepBookManagerUiData } from "@/lib/deepbook-api";
 import {
   readDeepBookManagerCache,
@@ -50,14 +50,6 @@ export function useDeepBookBalances({ enabled = true }: UseDeepBookBalancesOptio
     if (fetchedRef.current) return;
     await reload();
   }, [enabled, reload]);
-
-  useEffect(() => {
-    const cached = readDeepBookManagerCache();
-    if (cached) {
-      setData(cached);
-      fetchedRef.current = true;
-    }
-  }, []);
 
   return { data, loading, error, reload, loadIfNeeded };
 }

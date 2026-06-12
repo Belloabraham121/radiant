@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AgentChainId } from "@/lib/agent-chains";
 import { subscribeWalletAssetsInvalidation } from "@/lib/wallet-assets-events";
 import { fetchWalletAssets, type WalletAssetsData } from "@/lib/wallet-assets-api";
@@ -27,7 +27,17 @@ export function useWalletAssets({
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fetchedRef = useRef(readWalletAssetsCache(cacheKey) !== undefined);
+  const [hasFetched, setHasFetched] = useState(
+    () => readWalletAssetsCache(cacheKey) !== undefined,
+  );
+  const [trackedCacheKey, setTrackedCacheKey] = useState(cacheKey);
+
+  if (cacheKey !== trackedCacheKey) {
+    setTrackedCacheKey(cacheKey);
+    const cached = readWalletAssetsCache(cacheKey);
+    setData(cached ?? null);
+    setHasFetched(cached !== undefined);
+  }
 
   const reload = useCallback(async () => {
     if (!enabled) return;
@@ -41,9 +51,9 @@ export function useWalletAssets({
       });
       writeWalletAssetsCache(cacheKey, result);
       setData(result);
-      fetchedRef.current = true;
+      setHasFetched(true);
     } catch (err) {
-      fetchedRef.current = false;
+      setHasFetched(false);
       setError(err instanceof Error ? err.message : "Could not load wallet assets.");
     } finally {
       setLoading(false);
@@ -56,28 +66,20 @@ export function useWalletAssets({
     const cached = readWalletAssetsCache(cacheKey);
     if (cached) {
       setData(cached);
-      fetchedRef.current = true;
+      setHasFetched(true);
       setError(null);
       return;
     }
 
-    if (fetchedRef.current) return;
+    if (hasFetched) return;
     await reload();
-  }, [cacheKey, enabled, reload]);
-
-  useEffect(() => {
-    const cached = readWalletAssetsCache(cacheKey);
-    if (cached) {
-      setData(cached);
-      fetchedRef.current = true;
-    }
-  }, [cacheKey]);
+  }, [cacheKey, enabled, hasFetched, reload]);
 
   useEffect(
     () =>
       subscribeWalletAssetsInvalidation((invalidatedChain) => {
         if (invalidatedChain !== chainId) return;
-        fetchedRef.current = false;
+        setHasFetched(false);
         void reload();
       }),
     [chainId, reload],
