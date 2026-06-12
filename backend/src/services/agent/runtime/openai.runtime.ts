@@ -25,10 +25,15 @@ import {
   shouldNudgeSwapExecute,
   SWAP_EXECUTE_NUDGE,
 } from "../swap-approval-flow.js";
+import {
+  buildUnsupportedCapabilityNudge,
+  detectUnsupportedCapability,
+  isUnsupportedCapabilityNudge,
+} from "../unsupported-capabilities.js";
 import { agentToolDefinitions, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { toOpenAiTools } from "./openai-tools.js";
-import type { ExecuteTransactionInput } from "../chains/types.js";
+import type { ExecuteTransactionInput } from "../../chains/types.js";
 import {
   explainTransactionError,
   isAgentToolErrorResult,
@@ -118,6 +123,23 @@ export const openaiRuntime: AgentRuntime = {
 
       const toolCallList = choice.tool_calls ?? [];
       if (toolCallList.length === 0) {
+        const unsupported = detectUnsupportedCapability(lastUserMessage);
+        const lastUserContent =
+          messages.length > 0 ? messages[messages.length - 1]?.content : undefined;
+        const lastContentStr =
+          typeof lastUserContent === "string" ? lastUserContent : "";
+
+        if (
+          unsupported &&
+          !isUnsupportedCapabilityNudge(lastContentStr)
+        ) {
+          messages.push({
+            role: "user",
+            content: buildUnsupportedCapabilityNudge(unsupported),
+          });
+          continue;
+        }
+
         if (shouldNudgePoolInfoBeforeSwap(tool_calls, lastUserMessage)) {
           messages.push({
             role: "user",

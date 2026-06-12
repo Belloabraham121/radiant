@@ -26,7 +26,11 @@ export const QUERY_CHAIN_TOOL_NAME = "query_chain" as const;
 
 function assertSuiDeepBookQuery(chainId: string): void {
   if (chainId !== "sui") {
-    throw new AppError(400, "UNSUPPORTED_QUERY", "DeepBook queries are only available on Sui.");
+    throw new AppError(
+      400,
+      "UNSUPPORTED_QUERY",
+      "DeepBook queries are only available on Sui.",
+    );
   }
 }
 
@@ -80,7 +84,10 @@ export async function runQueryChainTool(
   input: QueryChainInput,
 ): Promise<QueryChainResult> {
   const parsed = queryChainInputSchema.parse(input);
-  const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, parsed.chain_id);
+  const wallet = await resolveAgentWalletByPrivyUserId(
+    privyUserId,
+    parsed.chain_id,
+  );
 
   if (!wallet) {
     throw new AppError(
@@ -128,7 +135,10 @@ export async function runQueryChainTool(
       }
       if (parsed.params.coin_key) {
         const manager = await ensureBalanceManager(privyUserId);
-        const balance = await checkManagerBalance(privyUserId, parsed.params.coin_key);
+        const balance = await checkManagerBalance(
+          privyUserId,
+          parsed.params.coin_key,
+        );
         return {
           chain_id: "sui",
           manager_key: manager.manager_key,
@@ -156,6 +166,10 @@ export async function runQueryChainTool(
       return getDeepBookSwapQuote(privyUserId, parsed.params);
     }
     default:
-      throw new AppError(400, "UNSUPPORTED_QUERY", `Unsupported query: ${parsed.query}`);
+      throw new AppError(
+        400,
+        "UNSUPPORTED_QUERY",
+        `Unsupported query: ${parsed.query}`,
+      );
   }
 }

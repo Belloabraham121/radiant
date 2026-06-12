@@ -1,5 +1,8 @@
 import type { BalanceResult } from "../../chains/types.js";
-import type { DeepBookManagerBalancesResult, DeepBookManagerInfo } from "../../defi/deepbook-balance-manager.types.js";
+import type {
+  DeepBookManagerBalancesResult,
+  DeepBookManagerInfo,
+} from "../../defi/deepbook-balance-manager.types.js";
 import type {
   DeepBookPoolInfo,
   DeepBookPoolsList,
@@ -22,10 +25,12 @@ export function summarizeQueryChainResult(result: unknown): string | null {
   }
 
   const poolsList = result as DeepBookPoolsList;
-  if (Array.isArray(poolsList.pools) && typeof poolsList.default_pool === "string") {
+  if (
+    Array.isArray(poolsList.pools) &&
+    typeof poolsList.default_pool === "string"
+  ) {
     const lines = poolsList.pools.map((pool) => {
-      const price =
-        pool.last_price != null ? ` @ ${pool.last_price}` : "";
+      const price = pool.last_price != null ? ` @ ${pool.last_price}` : "";
       return `${pool.pool_key} (${pool.base_coin}/${pool.quote_coin}${price})`;
     });
     return (
@@ -69,8 +74,13 @@ export function summarizeQueryChainResult(result: unknown): string | null {
   }
 
   const managerBalances = result as DeepBookManagerBalancesResult;
-  if (Array.isArray(managerBalances.balances) && managerBalances.manager_object_id) {
-    const nonZero = managerBalances.balances.filter((b) => b.balance_display > 0);
+  if (
+    Array.isArray(managerBalances.balances) &&
+    managerBalances.manager_object_id
+  ) {
+    const nonZero = managerBalances.balances.filter(
+      (b) => b.balance_display > 0,
+    );
     if (nonZero.length === 0) {
       return "DeepBook manager balances: all zero";
     }

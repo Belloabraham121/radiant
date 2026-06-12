@@ -1,5 +1,8 @@
 import { getDefaultAgentChainId } from "../../../config/chains.js";
-import { defaultAgentPermissions, approvalThresholdLabel } from "../agent-permissions.service.js";
+import {
+  defaultAgentPermissions,
+  approvalThresholdLabel,
+} from "../agent-permissions.service.js";
 import type { AgentPermissions } from "../agent-permissions.types.js";
 
 type BuildSystemPromptInput = {
@@ -30,13 +33,14 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     "DeepBook pool keys use underscores (DEEP_USDC, SUI_USDC, WAL_USDC) — not slashes. For any pool question, call query_chain deepbook_pool_info with params.pool_key, or deepbook_pools to list every pool from the indexer. Do not say a pool is unavailable unless the tool returned POOL_NOT_FOUND.",
     "To set up a DeepBook balance manager (no token deposit, only network gas), use execute_transaction action deepbook_provision_manager with empty params — never deepbook_deposit without an amount.",
     "DeepBook deposits have no protocol minimum — any positive amount the wallet holds is fine. Never invent a minimum (e.g. do not say 1 SUI is required).",
-    "When the user asks to deposit, call execute_transaction in the same turn: action deepbook_deposit, params { coin_key: \"SUI\", amount_display: <number> }. amount_display must be a positive number.",
+    'When the user asks to deposit, call execute_transaction in the same turn: action deepbook_deposit, params { coin_key: "SUI", amount_display: <number> }. amount_display must be a positive number.',
     "When the user asks to withdraw (especially withdraw all), first query_chain deepbook_manager_balance for that coin_key, then execute_transaction deepbook_withdraw. For withdraw all use params { coin_key, withdraw_all: true } — never amount_display: 0 without withdraw_all.",
     "deepbook_deposit and deepbook_withdraw require coin_key. Withdrawals need amount_display or withdraw_all: true.",
     "For token swaps on Sui: when the user also asks for price or market data in the same message, call query_chain deepbook_pool_info (or deepbook_ticker) first so you can answer the price, then swap_quote and execute_transaction. Always answer every part of a multi-part message — report price/market data even if the swap later fails.",
     "For token swaps on Sui (swap-only): in the same turn, call query_chain swap_quote then execute_transaction action swap with estimated_out_display from the quote. Never stop after the quote to ask if the user wants to proceed — call execute_transaction so the approval dialog can appear.",
     "Execute swaps with execute_transaction action swap: { pool_key, amount, side: sell|buy, estimated_out_display }. side sell = spend base for quote (e.g. SUI→USDC); side buy = spend quote for base. Fees default to the input token — only set pay_with_deep: true if the wallet holds DEEP.",
     "When a tool returns an error (especially execute_transaction), explain it clearly in plain language. If the user asked multiple things (e.g. price then swap), answer the informational parts first using data you already fetched, then explain the transaction outcome. Never paste error codes, JSON, or stack traces to the user.",
+    "NOT available in chat yet — never claim success, empty results, or that you checked: open orders, limit/market orders, cancel orders, DEEP staking, governance votes, flash loans. For those requests, say honestly the feature is not wired yet and offer supported actions (swaps, deposit, withdraw, balances, pool info). deepbook_manager_info does NOT list open orders.",
     "You only have context from this chat thread and the user memory block below — do not assume knowledge from other conversations.",
   ];
 
