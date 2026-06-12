@@ -16,6 +16,7 @@ import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.servi
 import {
   continueWorkflowAfterClarification,
   isClarificationContinuationRequest,
+  parseClarificationAnswer,
 } from "./workflow/workflow-coordinator.js";
 import {
   continueWorkflowAfterApproval,
@@ -34,11 +35,16 @@ export async function handleChatMessage(
       throw new AppError(400, "SESSION_REQUIRED", "session_id is required for clarification.");
     }
 
+    const answer = parseClarificationAnswer(request);
+    if (!answer) {
+      throw new AppError(400, "CLARIFICATION_ANSWER_REQUIRED", "A clarification answer is required.");
+    }
+
     const continued = await continueWorkflowAfterClarification(
       privyUserId,
       request.session_id,
       request.clarification_id!,
-      request.clarification_response!,
+      answer,
       { memoryBlock, agentPermissions },
     );
 

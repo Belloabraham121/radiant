@@ -2,14 +2,23 @@ import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { getDeepBookPoolInfo } from "../../defi/deepbook-pools.service.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import type { QueryChainInput } from "../agent.types.js";
-import type { ClarificationKind } from "./clarification.types.js";
+import type { ClarificationGap, ClarificationKind } from "./clarification.types.js";
+import {
+  collectClarificationGaps,
+  type CollectGapsOptions,
+} from "./workflow-clarification-gaps.js";
 import {
   CONFIDENCE_EXECUTE_THRESHOLD,
   type PlannerOutput,
   type PlannedStep,
   type PlanSlot,
 } from "./planner.types.js";
-import { formatLedgerRef, resolveParamsFromLedger, type WorkflowLedgerEntry } from "./workflow-ledger.js";
+import type { WorkflowLedgerEntry } from "./workflow-ledger.js";
+import {
+  flattenPlannedParams,
+  normalizeExecuteParams,
+  validateExecuteStepParams,
+} from "./workflow-param-normalizer.js";
 import type { WorkflowPlan, WorkflowStep } from "./workflow.types.js";
 
 export type PlanValidationResult =
@@ -21,38 +30,19 @@ export type PlanValidationResult =
   | {
       status: "clarify";
       plan: WorkflowPlan;
-      question: string;
-      step_index?: number;
-      kind: ClarificationKind;
+      gap: ClarificationGap;
       confidence: number;
-      on_yes_bindings?: Array<{ step_index: number; params: Record<string, unknown> }>;
-      skip_step_indices?: number[];
     }
   | {
       status: "not_workflow";
     };
 
-function isPlanSlot(value: unknown): value is PlanSlot {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "kind" in value &&
-    ((value as PlanSlot).kind === "literal" ||
-      (value as PlanSlot).kind === "ref" ||
-      (value as PlanSlot).kind === "missing")
-  );
-}
-
 function flattenParams(
   params: Record<string, PlanSlot | string | number | boolean>,
   ledger: WorkflowLedgerEntry[],
 ): { flat: Record<string, unknown>; unresolved: string[] } {
-  const slotParams: Record<string, PlanSlot | string | number | boolean> = {};
-  for (const [key, value] of Object.entries(params)) {
-    slotParams[key] = value;
-  }
-  const { resolved, unresolved } = resolveParamsFromLedger(slotParams, ledger);
-  return { flat: resolved, unresolved };
+  const raw: Record<string, unknown> = { ...params };
+  return flattenPlannedParams(raw, ledger);
 }
 
 function plannedToWorkflowStep(
@@ -76,10 +66,12 @@ function plannedToWorkflowStep(
     return { step: { kind: "query", label: step.label, input }, unresolved };
   }
 
+  const normalized = normalizeExecuteParams(step.action, flat);
+
   const input: ExecuteTransactionInput = {
     chain_id: "sui",
     action: step.action,
-    params: { ...step.params },
+    params: normalized,
   };
 
   return {
@@ -92,10 +84,35 @@ function buildPlanPreview(steps: WorkflowStep[]): string {
   return steps.map((step, index) => `${index + 1}. ${step.label}`).join("\n");
 }
 
+async function collectConstraintGaps(
+  workflowSteps: WorkflowStep[],
+): Promise<ClarificationGap[]> {
+  const gaps: ClarificationGap[] = [];
+  for (let index = 0; index < workflowSteps.length; index += 1) {
+    const preflight = await preflightStep(workflowSteps[index]);
+    if (!preflight.ok && preflight.clarify) {
+      gaps.push({
+        gap_id: `step${index}.constraint`,
+        interaction_type: "confirm",
+        question: preflight.clarify.question,
+        step_index: index,
+        kind: preflight.clarify.kind,
+        skip_step_indices_on_no: preflight.clarify.kind === "constraint_skip" ? [index] : undefined,
+      });
+    }
+  }
+  return gaps;
+}
+
 async function preflightStep(
   step: WorkflowStep,
 ): Promise<{ ok: boolean; clarify?: { question: string; kind: ClarificationKind } }> {
   if (step.kind !== "execute") {
+    return { ok: true };
+  }
+
+  const validation = validateExecuteStepParams(step.input.action, step.input.params);
+  if (!validation.ok) {
     return { ok: true };
   }
 
@@ -105,17 +122,7 @@ async function preflightStep(
     const poolKey =
       (step.input.params.pool_key as string | undefined) ?? getDeepBookEnv().defaultPool;
 
-    if (price === undefined || !Number.isFinite(price)) {
-      return {
-        ok: false,
-        clarify: {
-          question: `What limit price should I use for ${step.label}?`,
-          kind: "intent",
-        },
-      };
-    }
-
-    if (quantity !== undefined) {
+    if (quantity !== undefined && price !== undefined && Number.isFinite(price)) {
       try {
         const info = await getDeepBookPoolInfo(poolKey);
         const minSize = info.on_chain?.min_size;
@@ -147,15 +154,11 @@ export async function validatePlannerOutput(
   }
 
   const workflowSteps: WorkflowStep[] = [];
-  let firstUnresolved: { stepIndex: number; keys: string[] } | null = null;
 
   for (let index = 0; index < planner.steps.length; index += 1) {
     const converted = plannedToWorkflowStep(planner.steps[index], ledger);
     if (!converted.step) {
       return { status: "not_workflow" };
-    }
-    if (converted.unresolved.length > 0 && !firstUnresolved) {
-      firstUnresolved = { stepIndex: index, keys: converted.unresolved };
     }
     workflowSteps.push(converted.step);
   }
@@ -165,86 +168,33 @@ export async function validatePlannerOutput(
     steps: workflowSteps,
   };
 
-  if (planner.needs_clarification && planner.clarification) {
+  const gapOptions: CollectGapsOptions = {
+    assumptions: planner.assumptions,
+    confidence: planner.confidence,
+    constraintGaps: await collectConstraintGaps(workflowSteps),
+  };
+
+  if (planner.confidence < CONFIDENCE_EXECUTE_THRESHOLD && planner.assumptions.length === 0) {
+    gapOptions.constraintGaps = [
+      ...(gapOptions.constraintGaps ?? []),
+      {
+        gap_id: "plan.preview",
+        interaction_type: "confirm",
+        question: `I'll run ${planner.steps.length} steps:\n${buildPlanPreview(workflowSteps)}\n\nDoes this match what you want?`,
+        step_index: 0,
+        kind: "intent",
+      },
+    ];
+  }
+
+  const gaps = collectClarificationGaps(plan, gapOptions);
+  if (gaps.length > 0) {
     return {
       status: "clarify",
       plan,
-      question: planner.clarification.question,
-      step_index: planner.clarification.step_index,
-      kind: planner.clarification.kind,
-      confidence: planner.confidence,
-      skip_step_indices:
-        planner.clarification.kind === "constraint_skip" &&
-        planner.clarification.step_index !== undefined
-          ? [planner.clarification.step_index]
-          : undefined,
-    };
-  }
-
-  if (planner.assumptions.length > 0 && planner.confidence < CONFIDENCE_EXECUTE_THRESHOLD) {
-    const first = planner.assumptions[0];
-    return {
-      status: "clarify",
-      plan,
-      question: `Did you mean ${first.interpreted} (from "${first.from_phrase}")?`,
-      step_index: 0,
-      kind: "intent",
+      gap: gaps[0],
       confidence: planner.confidence,
     };
-  }
-
-  if (firstUnresolved) {
-    const refStep = planner.steps[firstUnresolved.stepIndex];
-    const amountSlot = refStep.params.amount_display;
-    const refIndex =
-      typeof amountSlot === "object" &&
-      amountSlot !== null &&
-      "kind" in amountSlot &&
-      (amountSlot as PlanSlot).kind === "ref"
-        ? (amountSlot as Extract<PlanSlot, { kind: "ref" }>).step_index
-        : -1;
-    const ledgerEntry = ledger.find((entry) => entry.step_index === refIndex);
-    const refLabel = ledgerEntry ? formatLedgerRef(ledgerEntry) : "the previous step output";
-    return {
-      status: "clarify",
-      plan,
-      question: `Should I use ${refLabel} for ${refStep.label}?`,
-      step_index: firstUnresolved.stepIndex,
-      kind: "amount_ref",
-      confidence: planner.confidence,
-      on_yes_bindings: [
-        {
-          step_index: firstUnresolved.stepIndex,
-          params: await resolveBindingsForStep(planner.steps[firstUnresolved.stepIndex], ledger),
-        },
-      ],
-    };
-  }
-
-  if (planner.confidence < CONFIDENCE_EXECUTE_THRESHOLD) {
-    return {
-      status: "clarify",
-      plan,
-      question: `I'll run ${planner.steps.length} steps:\n${buildPlanPreview(workflowSteps)}\n\nDoes this match what you want?`,
-      step_index: undefined,
-      kind: "intent",
-      confidence: planner.confidence,
-    };
-  }
-
-  for (let index = 0; index < workflowSteps.length; index += 1) {
-    const preflight = await preflightStep(workflowSteps[index]);
-    if (!preflight.ok && preflight.clarify) {
-      return {
-        status: "clarify",
-        plan,
-        question: preflight.clarify.question,
-        step_index: index,
-        kind: preflight.clarify.kind,
-        confidence: planner.confidence,
-        skip_step_indices: preflight.clarify.kind === "constraint_skip" ? [index] : undefined,
-      };
-    }
   }
 
   return {

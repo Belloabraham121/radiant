@@ -70,6 +70,15 @@ function normalizeTypoSegment(segment: string): {
     });
   }
 
+  if (/\bwap\b/i.test(normalized) && !/\bswap\b/i.test(normalized)) {
+    normalized = normalized.replace(/\bwap\b/gi, "swap");
+    assumptions.push({
+      field: "action",
+      interpreted: "swap",
+      from_phrase: "wap",
+    });
+  }
+
   return { normalized, assumptions };
 }
 

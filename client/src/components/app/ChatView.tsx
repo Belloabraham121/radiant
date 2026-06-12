@@ -253,8 +253,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
             className={`${CHAT_COL} mb-3`}
             pending={pendingClarification}
             busy={respondingClarification}
-            onYes={() => void respondClarification("yes")}
-            onNo={() => void respondClarification("no")}
+            onRespond={(answer) => void respondClarification(answer)}
           />
         ) : null}
 

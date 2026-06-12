@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { SessionClarificationState } from "./clarification.types.js";
+import type { ClarificationGap, SessionClarificationState } from "./clarification.types.js";
 
 const clarificationsBySession = new Map<string, SessionClarificationState>();
 const clarificationsById = new Map<string, SessionClarificationState>();

@@ -72,7 +72,44 @@ describe("workflow planner system", () => {
     const result = await validatePlannerOutput(planner, "with all SUI then swap");
     assert.equal(result.status, "clarify");
     if (result.status === "clarify") {
-      assert.match(result.question, /withdraw all SUI/i);
+      assert.equal(result.gap.interaction_type, "confirm");
+      assert.match(result.gap.question, /withdraw all SUI/i);
+    }
+  });
+
+  it("validator requests input for missing limit order price", async () => {
+    const planner: PlannerOutput = {
+      is_multi_step: true,
+      confidence: 0.95,
+      needs_clarification: false,
+      assumptions: [],
+      steps: [
+        {
+          action: "deepbook_deposit",
+          label: "Deposit 1.2 SUI",
+          params: { coin_key: "SUI", amount_display: 1.2 },
+        },
+        {
+          action: "deepbook_place_limit_order",
+          label: "Limit buy 1.1 SUI",
+          params: {
+            pool_key: "SUI_USDC",
+            quantity: 1.1,
+            side: "buy",
+          },
+        },
+      ],
+    };
+
+    const result = await validatePlannerOutput(
+      planner,
+      "deposit 1.2 SUI and buy 1.1 SUI on sui/usdc",
+    );
+    assert.equal(result.status, "clarify");
+    if (result.status === "clarify") {
+      assert.equal(result.gap.interaction_type, "input");
+      assert.equal(result.gap.field, "price");
+      assert.match(result.gap.question, /limit price/i);
     }
   });
 
@@ -186,24 +223,75 @@ describe("workflow planner system", () => {
       "privy-planner",
       SESSION,
       first!.pending_clarification!.id,
-      "yes",
+      { confirm: "yes" },
     );
 
     assert.ok(continued);
     assert.equal(continued!.workflowCompleted, true);
   });
 
-  it("skips step on clarification no", async () => {
+  it("fills missing price via input clarification then starts workflow", async () => {
+    setPlannerHandlerForTests(async () => ({
+      is_multi_step: true,
+      confidence: 0.95,
+      needs_clarification: false,
+      assumptions: [],
+      steps: [
+        {
+          action: "deepbook_deposit",
+          label: "Deposit 1.2 SUI",
+          params: { coin_key: "SUI", amount_display: 1.2 },
+        },
+        {
+          action: "deepbook_place_limit_order",
+          label: "Limit buy 1.1 SUI",
+          params: {
+            pool_key: "SUI_USDC",
+            quantity: 1.1,
+            side: "buy",
+          },
+        },
+      ],
+    }));
+
+    const first = await tryStartWorkflowFromMessage(
+      "privy-planner",
+      SESSION,
+      "deposit 1.2 SUI, buy 1.1 SUI on sui/usdc",
+    );
+    assert.ok(first?.pending_clarification);
+    assert.equal(first.pending_clarification.interaction_type, "input");
+
+    setAgentToolHandlerForTests(async () => ({
+      status: "approval_required",
+      pending: {
+        id: "22222222-2222-4222-8222-222222222222",
+        chain_id: "sui",
+        action: "deepbook_deposit",
+        params: { coin_key: "SUI", amount_display: 1.2 },
+        summary: "Deposit",
+        amount_display: "1.2 SUI",
+      },
+    }));
+
+    const continued = await continueWorkflowAfterClarification(
+      "privy-planner",
+      SESSION,
+      first!.pending_clarification!.id,
+      { value: 2.05 },
+    );
+
+    assert.ok(continued);
+    assert.ok(continued!.pending_transaction);
+    assert.equal(continued!.pending_transaction!.action, "deepbook_deposit");
+  });
+
+  it("aborts workflow when user declines plan preview", async () => {
     setPlannerHandlerForTests(async () => ({
       is_multi_step: true,
       confidence: 0.75,
-      needs_clarification: true,
+      needs_clarification: false,
       assumptions: [],
-      clarification: {
-        question: "Skip order step?",
-        kind: "constraint_skip",
-        step_index: 1,
-      },
       steps: [
         {
           action: "deepbook_deposit",
@@ -229,15 +317,16 @@ describe("workflow planner system", () => {
       "deposit 1 SUI, buy 0.1 SUI at 2 USDC",
     );
     assert.ok(first?.pending_clarification);
+    assert.equal(first.pending_clarification.interaction_type, "confirm");
 
     const continued = await continueWorkflowAfterClarification(
       "privy-planner",
       SESSION,
       first!.pending_clarification!.id,
-      "no",
+      { confirm: "no" },
     );
 
     assert.ok(continued);
-    assert.match(continued!.reply, /not enough steps|won't run/i);
+    assert.match(continued!.reply, /won't run/i);
   });
 });

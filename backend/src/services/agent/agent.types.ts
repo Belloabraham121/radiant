@@ -14,21 +14,51 @@ import type {
 import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
 import type { DeepBookOpenOrdersResult } from "../defi/deepbook-orders.service.js";
 
-export const chatRequestSchema = z.object({
-  message: z.string().min(1).max(8000),
-  session_id: z.string().uuid().optional(),
-  approve_transaction_id: z.string().uuid().optional(),
-  clarification_id: z.string().uuid().optional(),
-  clarification_response: z.enum(["yes", "no"]).optional(),
-});
+export const chatRequestSchema = z
+  .object({
+    message: z.string().max(8000).optional().default(""),
+    session_id: z.string().uuid().optional(),
+    approve_transaction_id: z.string().uuid().optional(),
+    clarification_id: z.string().uuid().optional(),
+    /** @deprecated use clarification_confirm */
+    clarification_response: z.enum(["yes", "no"]).optional(),
+    clarification_confirm: z.enum(["yes", "no"]).optional(),
+    clarification_value: z.union([z.string(), z.number()]).optional(),
+    clarification_option_id: z.string().optional(),
+    clarification_option_ids: z.array(z.string()).optional(),
+  })
+  .refine(
+    (body) =>
+      Boolean(body.message?.trim()) ||
+      Boolean(body.approve_transaction_id) ||
+      Boolean(body.clarification_id),
+    { message: "message, approve_transaction_id, or clarification_id is required" },
+  );
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
 
+export type ClarificationInteractionType =
+  | "confirm"
+  | "input"
+  | "single_choice"
+  | "multi_choice";
+
+export type ClarificationOption = {
+  id: string;
+  label: string;
+};
+
 export type PendingClarification = {
   id: string;
+  gap_id: string;
+  interaction_type: ClarificationInteractionType;
   question: string;
-  step_index?: number;
+  step_index: number;
+  field?: string;
   kind: "intent" | "amount_ref" | "constraint_skip";
+  input_kind?: "number" | "text";
+  placeholder?: string;
+  options?: ClarificationOption[];
   plan_preview?: string;
 };
 

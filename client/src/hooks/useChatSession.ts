@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api";
 import {
   fetchSessionMessages,
   postChat,
+  type ClarificationAnswer,
   type PendingClarification,
   type PendingTransaction,
 } from "@/lib/chat-api";
@@ -211,18 +212,36 @@ export function useChatSession(sessionId?: string) {
   }, [activeSessionId, approving, pendingTx, refreshSessions]);
 
   const respondClarification = useCallback(
-    async (response: "yes" | "no") => {
+    async (answer: ClarificationAnswer) => {
       if (!pendingClarification || respondingClarification) return;
+
+      const userText =
+        answer.confirm !== undefined
+          ? answer.confirm === "yes"
+            ? "Yes"
+            : "No"
+          : answer.value !== undefined
+            ? String(answer.value)
+            : answer.selected_option_id ?? answer.selected_option_ids?.join(", ") ?? "Answered";
 
       setRespondingClarification(true);
       setChatError(null);
 
       try {
         const data = await postChat({
-          message: response === "yes" ? "Yes" : "No",
+          message: userText,
           session_id: activeSessionId,
           clarification_id: pendingClarification.id,
-          clarification_response: response,
+          ...(answer.confirm !== undefined
+            ? { clarification_confirm: answer.confirm }
+            : {}),
+          ...(answer.value !== undefined ? { clarification_value: answer.value } : {}),
+          ...(answer.selected_option_id
+            ? { clarification_option_id: answer.selected_option_id }
+            : {}),
+          ...(answer.selected_option_ids?.length
+            ? { clarification_option_ids: answer.selected_option_ids }
+            : {}),
         });
 
         setActiveSessionId(data.session_id);
@@ -230,7 +249,7 @@ export function useChatSession(sessionId?: string) {
         setPendingTx(data.pending_transaction ?? null);
         setMessages((current) => [
           ...current,
-          { id: `u-clarify-${Date.now()}`, role: "user", text: response === "yes" ? "Yes" : "No" },
+          { id: `u-clarify-${Date.now()}`, role: "user", text: userText },
           {
             id: data.message_id,
             role: "agent",

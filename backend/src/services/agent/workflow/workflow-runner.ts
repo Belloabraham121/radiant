@@ -12,15 +12,25 @@ import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { getAgentRuntime } from "../runtime/index.js";
 import { runAgentTool, type AgentToolErrorResult } from "../tools.js";
 import { startSessionClarification } from "./clarification.store.js";
-import type { PendingClarification } from "./clarification.types.js";
+import type { ClarificationAnswer, ClarificationGap, PendingClarification } from "./clarification.types.js";
+import {
+  applyClarificationAnswer,
+  collectClarificationGaps,
+  gapToPending,
+} from "./workflow-clarification-gaps.js";
+import { skipStepsInPlan } from "./workflow-plan-validator.js";
 import {
   clearSessionWorkflow,
   getSessionWorkflow,
   startSessionWorkflow,
   updateSessionWorkflow,
 } from "./session-workflow.store.js";
-import { ledgerEntryFromToolCalls, resolveParamsFromLedger } from "./workflow-ledger.js";
-import type { PlanSlot } from "./planner.types.js";
+import { ledgerEntryFromToolCalls } from "./workflow-ledger.js";
+import {
+  flattenPlannedParams,
+  normalizeExecuteParams,
+  validateExecuteStepParams,
+} from "./workflow-param-normalizer.js";
 import type {
   SessionWorkflowState,
   WorkflowPlan,
@@ -154,13 +164,14 @@ function resolveExecuteInput(
   input: ExecuteTransactionInput,
   ledger: import("./workflow-ledger.js").WorkflowLedgerEntry[],
 ): { input: ExecuteTransactionInput; unresolved: string[] } {
-  const { resolved, unresolved } = resolveParamsFromLedger(
-    input.params as Record<string, PlanSlot | string | number | boolean>,
+  const { flat, unresolved } = flattenPlannedParams(
+    input.params as Record<string, unknown>,
     ledger,
   );
+  const normalized = normalizeExecuteParams(input.action, flat);
 
   return {
-    input: { ...input, params: resolved },
+    input: { ...input, params: normalized },
     unresolved,
   };
 }
@@ -186,27 +197,35 @@ async function executeWorkflowStep(
   if (step.kind === "execute") {
     const { input: resolvedInput, unresolved } = resolveExecuteInput(step.input, state.ledger);
     if (unresolved.length > 0) {
-      const clarificationState = startSessionClarification({
-        sessionId,
-        question: `I need to confirm: should I use the output from a previous step for ${step.label}?`,
+      const gap: ClarificationGap = {
+        gap_id: `step${stepIndex}.runtime.ref`,
+        interaction_type: "confirm",
+        question: `Should I use the output from a previous step for ${step.label}?`,
         step_index: stepIndex,
         kind: "amount_ref",
+      };
+      const clarificationState = startSessionClarification({
+        sessionId,
+        gap,
         plan: state.plan,
-        on_yes_bindings: [{ step_index: stepIndex, params: resolvedInput.params }],
       });
       updateSessionWorkflow(sessionId, {
         status: "paused_clarification",
         pendingClarificationId: clarificationState.id,
       });
-      const pending: PendingClarification = {
-        id: clarificationState.id,
-        question: clarificationState.question,
-        step_index: stepIndex,
-        kind: "amount_ref",
-      };
+      const pending = gapToPending(gap, clarificationState.id);
       return {
         status: "clarification_required" as const,
         pending,
+      };
+    }
+
+    const paramCheck = validateExecuteStepParams(resolvedInput.action, resolvedInput.params);
+    if (!paramCheck.ok) {
+      return {
+        status: "error",
+        tool_calls: [],
+        error: { code: "VALIDATION_ERROR", message: paramCheck.message },
       };
     }
 
@@ -431,6 +450,110 @@ async function resolvePendingFromOutcome(
   throw new Error("Workflow approval_required without pending transaction");
 }
 
+export async function continueWorkflowAfterMidRunClarification(
+  privyUserId: string,
+  sessionId: string,
+  clarificationId: string,
+  gap: ClarificationGap,
+  answer: ClarificationAnswer,
+  options?: {
+    memoryBlock?: string;
+    agentPermissions?: AgentPermissions;
+  },
+): Promise<WorkflowRunOutcome | null> {
+  const state = getSessionWorkflow(sessionId);
+  if (!state || state.status !== "paused_clarification") {
+    return null;
+  }
+  if (state.pendingClarificationId !== clarificationId) {
+    return null;
+  }
+
+  const applied = applyClarificationAnswer(state.plan, gap, answer);
+  if (applied === null) {
+    const clarificationState = startSessionClarification({
+      sessionId,
+      gap,
+      plan: state.plan,
+    });
+    updateSessionWorkflow(sessionId, {
+      status: "paused_clarification",
+      pendingClarificationId: clarificationState.id,
+    });
+    const pending = gapToPending(gap, clarificationState.id);
+    return {
+      reply: `I didn't understand that answer. ${gap.question}`,
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: pending,
+      workflowCompleted: false,
+    };
+  }
+
+  if ("skip_step_indices" in applied) {
+    if (applied.skip_step_indices.length === 0) {
+      clearSessionWorkflow(sessionId);
+      return {
+        reply: "Understood — I won't run those steps.",
+        tool_calls: [],
+        pending_transaction: null,
+        pending_clarification: null,
+        workflowCompleted: true,
+      };
+    }
+
+    const trimmed = skipStepsInPlan(state.plan, applied.skip_step_indices);
+    if (trimmed.steps.length === 0 || state.currentStepIndex >= trimmed.steps.length) {
+      clearSessionWorkflow(sessionId);
+      return {
+        reply: "Understood — not enough steps remain to continue the workflow.",
+        tool_calls: [],
+        pending_transaction: null,
+        pending_clarification: null,
+        workflowCompleted: true,
+      };
+    }
+
+    updateSessionWorkflow(sessionId, {
+      plan: trimmed,
+      status: "active",
+      pendingClarificationId: undefined,
+    });
+    return runWorkflowFromStep(privyUserId, sessionId, state.currentStepIndex, options);
+  }
+
+  const normalizedPlan = applied;
+  const gaps = collectClarificationGaps(normalizedPlan);
+  if (gaps.length > 0) {
+    const nextGap = gaps[0];
+    const clarificationState = startSessionClarification({
+      sessionId,
+      gap: nextGap,
+      plan: normalizedPlan,
+    });
+    updateSessionWorkflow(sessionId, {
+      plan: normalizedPlan,
+      status: "paused_clarification",
+      pendingClarificationId: clarificationState.id,
+    });
+    const pending = gapToPending(nextGap, clarificationState.id);
+    return {
+      reply: nextGap.question,
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: pending,
+      workflowCompleted: false,
+    };
+  }
+
+  updateSessionWorkflow(sessionId, {
+    plan: normalizedPlan,
+    status: "active",
+    pendingClarificationId: undefined,
+  });
+  return runWorkflowFromStep(privyUserId, sessionId, state.currentStepIndex, options);
+}
+
 export async function startAndRunWorkflow(
   privyUserId: string,
   sessionId: string,
@@ -556,10 +679,14 @@ export async function persistWorkflowChatResponse(
   const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
 
   if (
+    request.clarification_id ||
     isApprovalContinuationMessage(request.message) ||
     isClarificationContinuationMessage(request.message)
   ) {
-    await appendMessage(session.id, "user", request.message);
+    const userMessage = request.clarification_id
+      ? request.message?.trim() || "Answered"
+      : request.message;
+    await appendMessage(session.id, "user", userMessage);
   }
 
   const toolCallsJson: Prisma.InputJsonValue | undefined =

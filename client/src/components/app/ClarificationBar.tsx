@@ -1,21 +1,59 @@
 "use client";
 
+import { useState } from "react";
 import { HelpCircle } from "lucide-react";
-import type { PendingClarification } from "@/lib/chat-api";
+import type { ClarificationAnswer, PendingClarification } from "@/lib/chat-api";
+
+function interactionLabel(type: PendingClarification["interaction_type"]): string {
+  switch (type) {
+    case "confirm":
+      return "Confirm intent";
+    case "input":
+      return "More details needed";
+    case "single_choice":
+      return "Choose one";
+    case "multi_choice":
+      return "Choose options";
+    default:
+      return "Clarification";
+  }
+}
 
 export function ClarificationBar({
   pending,
   busy,
-  onYes,
-  onNo,
+  onRespond,
   className = "",
 }: {
   pending: PendingClarification;
   busy?: boolean;
-  onYes: () => void;
-  onNo: () => void;
+  onRespond: (answer: ClarificationAnswer) => void;
   className?: string;
 }) {
+  const [inputValue, setInputValue] = useState("");
+  const [selectedOptionId, setSelectedOptionId] = useState("");
+  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
+
+  const submitInput = () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    const value =
+      pending.input_kind === "number" ? Number(trimmed) : trimmed;
+    if (pending.input_kind === "number" && !Number.isFinite(value as number)) {
+      return;
+    }
+    onRespond({ value });
+    setInputValue("");
+  };
+
+  const toggleMultiOption = (optionId: string) => {
+    setSelectedOptionIds((current) =>
+      current.includes(optionId)
+        ? current.filter((id) => id !== optionId)
+        : [...current, optionId],
+    );
+  };
+
   return (
     <div
       role="region"
@@ -31,7 +69,7 @@ export function ClarificationBar({
             id="clarification-title"
             className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/50"
           >
-            Confirm intent
+            {interactionLabel(pending.interaction_type)}
           </p>
           <p className="mt-1 text-sm font-medium leading-relaxed text-[var(--hero-ink)]">
             {pending.question}
@@ -41,24 +79,112 @@ export function ClarificationBar({
               {pending.plan_preview}
             </pre>
           ) : null}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onYes}
-              className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
-            >
-              Yes
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onNo}
-              className="rounded-full border-2 border-[var(--hero-ink)] bg-white px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
-            >
-              No
-            </button>
-          </div>
+
+          {pending.interaction_type === "confirm" ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onRespond({ confirm: "yes" })}
+                className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onRespond({ confirm: "no" })}
+                className="rounded-full border-2 border-[var(--hero-ink)] bg-white px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+              >
+                No
+              </button>
+            </div>
+          ) : null}
+
+          {pending.interaction_type === "input" ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <input
+                type={pending.input_kind === "number" ? "number" : "text"}
+                inputMode={pending.input_kind === "number" ? "decimal" : "text"}
+                value={inputValue}
+                disabled={busy}
+                placeholder={pending.placeholder ?? "Your answer"}
+                onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitInput();
+                  }
+                }}
+                className="min-w-[10rem] flex-1 rounded-full border-2 border-[var(--hero-ink)] bg-white px-4 py-2 text-sm font-medium text-[var(--hero-ink)] outline-none focus:ring-2 focus:ring-[var(--hero-mint)]"
+              />
+              <button
+                type="button"
+                disabled={busy || !inputValue.trim()}
+                onClick={submitInput}
+                className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+              >
+                Submit
+              </button>
+            </div>
+          ) : null}
+
+          {pending.interaction_type === "single_choice" && pending.options?.length ? (
+            <div className="mt-4 space-y-2">
+              {pending.options.map((option) => (
+                <label
+                  key={option.id}
+                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--hero-ink)]/15 bg-white/70 px-3 py-2 text-sm text-[var(--hero-ink)]"
+                >
+                  <input
+                    type="radio"
+                    name={`clarify-${pending.id}`}
+                    value={option.id}
+                    checked={selectedOptionId === option.id}
+                    disabled={busy}
+                    onChange={() => setSelectedOptionId(option.id)}
+                  />
+                  {option.label}
+                </label>
+              ))}
+              <button
+                type="button"
+                disabled={busy || !selectedOptionId}
+                onClick={() => onRespond({ selected_option_id: selectedOptionId })}
+                className="mt-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+              >
+                Continue
+              </button>
+            </div>
+          ) : null}
+
+          {pending.interaction_type === "multi_choice" && pending.options?.length ? (
+            <div className="mt-4 space-y-2">
+              {pending.options.map((option) => (
+                <label
+                  key={option.id}
+                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--hero-ink)]/15 bg-white/70 px-3 py-2 text-sm text-[var(--hero-ink)]"
+                >
+                  <input
+                    type="checkbox"
+                    value={option.id}
+                    checked={selectedOptionIds.includes(option.id)}
+                    disabled={busy}
+                    onChange={() => toggleMultiOption(option.id)}
+                  />
+                  {option.label}
+                </label>
+              ))}
+              <button
+                type="button"
+                disabled={busy || selectedOptionIds.length === 0}
+                onClick={() => onRespond({ selected_option_ids: selectedOptionIds })}
+                className="mt-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+              >
+                Continue
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

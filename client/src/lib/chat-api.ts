@@ -14,11 +14,35 @@ export type PendingTransaction = {
   amount_display: string;
 };
 
+export type ClarificationInteractionType =
+  | "confirm"
+  | "input"
+  | "single_choice"
+  | "multi_choice";
+
+export type ClarificationOption = {
+  id: string;
+  label: string;
+};
+
+export type ClarificationAnswer = {
+  confirm?: "yes" | "no";
+  value?: string | number;
+  selected_option_id?: string;
+  selected_option_ids?: string[];
+};
+
 export type PendingClarification = {
   id: string;
+  gap_id: string;
+  interaction_type: ClarificationInteractionType;
   question: string;
-  step_index?: number;
+  step_index: number;
+  field?: string;
   kind: "intent" | "amount_ref" | "constraint_skip";
+  input_kind?: "number" | "text";
+  placeholder?: string;
+  options?: ClarificationOption[];
   plan_preview?: string;
 };
 
@@ -37,7 +61,12 @@ export type ChatRequest = {
   session_id?: string;
   approve_transaction_id?: string;
   clarification_id?: string;
+  /** @deprecated use clarification_confirm */
   clarification_response?: "yes" | "no";
+  clarification_confirm?: "yes" | "no";
+  clarification_value?: string | number;
+  clarification_option_id?: string;
+  clarification_option_ids?: string[];
 };
 
 export type ChatSessionListItem = {

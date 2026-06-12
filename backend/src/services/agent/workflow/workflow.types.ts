@@ -2,7 +2,7 @@ import type { ExecuteTransactionInput } from "../../chains/types.js";
 import type { QueryChainInput } from "../agent.types.js";
 import type { ToolCallRecord } from "../agent.types.js";
 import type { TxResult } from "../../chains/types.js";
-import type { PendingClarification } from "./clarification.types.js";
+import type { ClarificationGap, PendingClarification } from "./clarification.types.js";
 import type { WorkflowLedgerEntry } from "./workflow-ledger.js";
 
 export type WorkflowQueryStep = {

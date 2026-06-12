@@ -6,21 +6,49 @@ import {
   getClarificationById,
   startSessionClarification,
 } from "./clarification.store.js";
-import type { PendingClarification } from "./clarification.types.js";
+import type { ClarificationAnswer, PendingClarification } from "./clarification.types.js";
 import { planWorkflowMessage } from "./workflow-planner.js";
+import { skipStepsInPlan, validatePlannerOutput } from "./workflow-plan-validator.js";
 import {
-  applyBindingsToPlan,
-  skipStepsInPlan,
-  validatePlannerOutput,
-} from "./workflow-plan-validator.js";
+  applyClarificationAnswer,
+  buildPlanPreview,
+  collectClarificationGaps,
+  gapToPending,
+} from "./workflow-clarification-gaps.js";
+import {
+  normalizeWorkflowPlan,
+  validateWorkflowPlan,
+} from "./workflow-param-normalizer.js";
 import {
   persistWorkflowChatResponse,
   startAndRunWorkflow,
+  continueWorkflowAfterMidRunClarification,
 } from "./workflow-runner.js";
-import type { WorkflowRunOutcome } from "./workflow.types.js";
+import { getSessionWorkflow, updateSessionWorkflow } from "./session-workflow.store.js";
+import type { WorkflowPlan, WorkflowRunOutcome } from "./workflow.types.js";
+
+export function parseClarificationAnswer(request: ChatRequest): ClarificationAnswer | null {
+  const confirm = request.clarification_confirm ?? request.clarification_response;
+  if (confirm) {
+    return { confirm };
+  }
+  if (request.clarification_value !== undefined) {
+    return { value: request.clarification_value };
+  }
+  if (request.clarification_option_id) {
+    return { selected_option_id: request.clarification_option_id };
+  }
+  if (request.clarification_option_ids?.length) {
+    return { selected_option_ids: request.clarification_option_ids };
+  }
+  return null;
+}
 
 export function isClarificationContinuationRequest(request: ChatRequest): boolean {
-  return Boolean(request.clarification_id && request.clarification_response);
+  if (!request.clarification_id) {
+    return false;
+  }
+  return parseClarificationAnswer(request) !== null;
 }
 
 function buildClarificationOutcome(
@@ -34,6 +62,84 @@ function buildClarificationOutcome(
     pending_clarification: clarification,
     workflowCompleted: false,
   };
+}
+
+function workflowAbortedReply(): WorkflowRunOutcome {
+  return {
+    reply: "Understood — I won't run those steps.",
+    tool_calls: [],
+    pending_transaction: null,
+    pending_clarification: null,
+    workflowCompleted: true,
+  };
+}
+
+function notEnoughStepsReply(): WorkflowRunOutcome {
+  return {
+    reply: "Understood — not enough steps remain to continue the workflow.",
+    tool_calls: [],
+    pending_transaction: null,
+    pending_clarification: null,
+    workflowCompleted: true,
+  };
+}
+
+async function continueWithResolvedPlan(
+  privyUserId: string,
+  sessionId: string,
+  plan: WorkflowPlan,
+  options?: {
+    memoryBlock?: string;
+    agentPermissions?: AgentPermissions;
+  },
+): Promise<WorkflowRunOutcome> {
+  const normalized = normalizeWorkflowPlan(plan);
+  const gaps = collectClarificationGaps(normalized);
+  if (gaps.length > 0) {
+    const gap = gaps[0];
+    const clarificationState = startSessionClarification({
+      sessionId,
+      gap,
+      plan: normalized,
+    });
+    const pending = gapToPending(gap, clarificationState.id);
+    pending.plan_preview = buildPlanPreview(normalized);
+    return buildClarificationOutcome(gap.question, pending);
+  }
+
+  const paramCheck = validateWorkflowPlan(normalized);
+  if (!paramCheck.ok) {
+    const gapsAfterValidation = collectClarificationGaps(normalized);
+    if (gapsAfterValidation.length > 0) {
+      const gap = gapsAfterValidation[0];
+      const clarificationState = startSessionClarification({
+        sessionId,
+        gap,
+        plan: normalized,
+      });
+      const pending = gapToPending(gap, clarificationState.id);
+      return buildClarificationOutcome(gap.question, pending);
+    }
+    return {
+      reply: paramCheck.message,
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
+  if (normalized.steps.length < 2) {
+    return {
+      reply: "Confirmed, but not enough steps remain to run a workflow.",
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
+  return startAndRunWorkflow(privyUserId, sessionId, normalized, options);
 }
 
 export async function tryStartWorkflowFromMessage(
@@ -59,33 +165,29 @@ export async function tryStartWorkflowFromMessage(
   if (validation.status === "clarify") {
     const clarificationState = startSessionClarification({
       sessionId,
-      question: validation.question,
-      step_index: validation.step_index,
-      kind: validation.kind,
+      gap: validation.gap,
       plan: validation.plan,
-      on_yes_bindings: validation.on_yes_bindings,
-      skip_step_indices: validation.skip_step_indices,
     });
 
-    const pending: PendingClarification = {
-      id: clarificationState.id,
-      question: validation.question,
-      step_index: validation.step_index,
-      kind: validation.kind,
-      plan_preview: validation.plan.steps.map((step, i) => `${i + 1}. ${step.label}`).join("\n"),
-    };
+    const pending = gapToPending(validation.gap, clarificationState.id);
+    pending.plan_preview = buildPlanPreview(validation.plan);
 
-    return buildClarificationOutcome(validation.question, pending);
+    return buildClarificationOutcome(validation.gap.question, pending);
   }
 
-  return startAndRunWorkflow(privyUserId, sessionId, validation.plan, options);
+  return startAndRunWorkflow(
+    privyUserId,
+    sessionId,
+    normalizeWorkflowPlan(validation.plan),
+    options,
+  );
 }
 
 export async function continueWorkflowAfterClarification(
   privyUserId: string,
   sessionId: string,
   clarificationId: string,
-  response: "yes" | "no",
+  answer: ClarificationAnswer,
   options?: {
     memoryBlock?: string;
     agentPermissions?: AgentPermissions;
@@ -96,54 +198,74 @@ export async function continueWorkflowAfterClarification(
     return null;
   }
 
+  const workflowState = getSessionWorkflow(sessionId);
+  const isMidRunClarification =
+    workflowState?.status === "paused_clarification" &&
+    workflowState.pendingClarificationId === clarificationId;
+
+  if (isMidRunClarification) {
+    clearSessionClarification(sessionId);
+    const midRun = await continueWorkflowAfterMidRunClarification(
+      privyUserId,
+      sessionId,
+      clarificationId,
+      state.gap,
+      answer,
+      options,
+    );
+    if (midRun) {
+      return midRun;
+    }
+
+    const clarificationState = startSessionClarification({
+      sessionId,
+      gap: state.gap,
+      plan: workflowState.plan,
+    });
+    updateSessionWorkflow(sessionId, {
+      status: "paused_clarification",
+      pendingClarificationId: clarificationState.id,
+    });
+    const pending = gapToPending(state.gap, clarificationState.id);
+    return buildClarificationOutcome(
+      `I didn't understand that answer. ${state.gap.question}`,
+      pending,
+    );
+  }
+
   clearSessionClarification(sessionId);
 
-  if (response === "no") {
-    const skipIndices =
-      state.skip_step_indices ??
-      (state.step_index !== undefined ? [state.step_index] : []);
+  const applied = applyClarificationAnswer(state.plan, state.gap, answer);
+  if (applied === null) {
+    const clarificationState = startSessionClarification({
+      sessionId,
+      gap: state.gap,
+      plan: state.plan,
+    });
+    const pending = gapToPending(state.gap, clarificationState.id);
+    return buildClarificationOutcome(
+      `I didn't understand that answer. ${state.gap.question}`,
+      pending,
+    );
+  }
 
-    const trimmed = skipStepsInPlan(state.plan, skipIndices);
+  if ("skip_step_indices" in applied) {
+    if (applied.skip_step_indices.length === 0) {
+      return workflowAbortedReply();
+    }
 
+    const trimmed = skipStepsInPlan(state.plan, applied.skip_step_indices);
     if (trimmed.steps.length === 0) {
-      return {
-        reply: "Understood — I won't run those steps.",
-        tool_calls: [],
-        pending_transaction: null,
-        pending_clarification: null,
-        workflowCompleted: true,
-      };
+      return workflowAbortedReply();
     }
-
     if (trimmed.steps.length < 2) {
-      return {
-        reply: "Understood — not enough steps remain to continue the workflow.",
-        tool_calls: [],
-        pending_transaction: null,
-        pending_clarification: null,
-        workflowCompleted: true,
-      };
+      return notEnoughStepsReply();
     }
 
-    return startAndRunWorkflow(privyUserId, sessionId, trimmed, options);
+    return continueWithResolvedPlan(privyUserId, sessionId, trimmed, options);
   }
 
-  let plan = state.plan;
-  if (state.on_yes_bindings && state.on_yes_bindings.length > 0) {
-    plan = applyBindingsToPlan(plan, state.on_yes_bindings);
-  }
-
-  if (plan.steps.length < 2) {
-    return {
-      reply: "Confirmed, but not enough steps remain to run a workflow.",
-      tool_calls: [],
-      pending_transaction: null,
-      pending_clarification: null,
-      workflowCompleted: true,
-    };
-  }
-
-  return startAndRunWorkflow(privyUserId, sessionId, plan, options);
+  return continueWithResolvedPlan(privyUserId, sessionId, applied, options);
 }
 
 export async function persistClarificationChatResponse(
@@ -152,10 +274,6 @@ export async function persistClarificationChatResponse(
   outcome: WorkflowRunOutcome,
 ): Promise<ChatResponse> {
   return persistWorkflowChatResponse(privyUserId, request, outcome);
-}
-
-export function clarificationReplyPrefix(response: "yes" | "no"): string {
-  return response === "yes" ? "Yes" : "No";
 }
 
 export function getWorkflowChatMode(): ChatResponse["mode"] {
