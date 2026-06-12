@@ -1,8 +1,7 @@
 import type { BalanceResult } from "../../chains/types.js";
 import type { UpdateMemoryResult } from "../../memory/agent-memory.types.js";
 import type { DeepBookSwapQuoteResult } from "../../defi/deepbook-swap.service.js";
-import { formatAgentToolErrorMessage } from "../../../utils/agent-tool-errors.js";
-import { AppError } from "../../../errors/app-error.js";
+import { toolErrorToModelContent } from "../../../utils/agent-tool-errors.js";
 import type { AgentToolErrorResult } from "../tools.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
@@ -20,9 +19,7 @@ function isToolError(result: unknown): result is AgentToolErrorResult {
 
 export function summarizeToolResult(name: string, result: unknown): string {
   if (isToolError(result)) {
-    return formatAgentToolErrorMessage(
-      new AppError(400, result.error.code, result.error.message, result.error.details),
-    );
+    return toolErrorToModelContent(result.error);
   }
 
   if (name === UPDATE_MEMORY_TOOL_NAME) {

@@ -9,7 +9,9 @@ import type { ChatRequest, ChatResponse } from "./agent.types.js";
 import { buildAgentContextMessages } from "./context-window.js";
 import { getAgentRuntime } from "./runtime/index.js";
 import type { AgentRuntime } from "./runtime/types.js";
+import { synthesizeErrorExplanationReply } from "./runtime/error-explanation.js";
 import { stubRuntime } from "./runtime/stub.runtime.js";
+import type { AgentToolErrorResult } from "./tools.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
@@ -72,6 +74,54 @@ export async function runChatTurn(
     mode: options.forceRuntime?.id ?? runtime.id,
     tool_calls: result.tool_calls,
     pending_transaction: result.pending_transaction,
+    message_id: assistantMessage.id,
+  };
+}
+
+/** Persist a failed tool outcome and let the agent explain it in plain language. */
+export async function persistToolFailureTurn(
+  privyUserId: string,
+  request: ChatRequest,
+  input: {
+    toolName: string;
+    toolResult: AgentToolErrorResult;
+    userContext: string;
+  },
+): Promise<ChatResponse> {
+  const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
+
+  await appendMessage(session.id, "user", request.message);
+
+  const history = await listMessagesBySessionId(session.id);
+  const contextMessages = buildAgentContextMessages(history);
+  const memoryBlock = formatMemoryBlock(await loadAgentMemory(privyUserId));
+  const agentPermissions = await getAgentPermissions(privyUserId);
+
+  const reply = await synthesizeErrorExplanationReply({
+    toolName: input.toolName,
+    toolResult: input.toolResult,
+    messages: contextMessages,
+    memoryBlock,
+    agentPermissions,
+    userContext: input.userContext,
+  });
+
+  const toolCalls = [{ name: input.toolName, result: input.toolResult }];
+  const assistantMessage = await appendMessage(
+    session.id,
+    "assistant",
+    reply,
+    toolCalls as Prisma.InputJsonValue,
+  );
+
+  await touchSession(session.id, { updated_at: new Date() });
+
+  return {
+    reply,
+    session_id: session.id,
+    mode: getAgentProvider(),
+    tool_calls: toolCalls,
+    pending_transaction: null,
     message_id: assistantMessage.id,
   };
 }

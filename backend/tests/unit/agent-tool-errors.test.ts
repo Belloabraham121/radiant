@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { AppError } from "../../src/errors/app-error.js";
 import {
-  formatAgentToolErrorMessage,
   mapAgentToolError,
+  toolErrorToModelContent,
 } from "../../src/utils/agent-tool-errors.js";
 
 describe("agent-tool-errors", () => {
@@ -18,10 +18,18 @@ describe("agent-tool-errors", () => {
     assert.equal(mapAgentToolError(original), original);
   });
 
-  it("formatAgentToolErrorMessage guides agent on balance errors", () => {
-    const message = formatAgentToolErrorMessage(
-      new AppError(400, "INSUFFICIENT_BALANCE", "Not enough SUI"),
-    );
-    assert.match(message, /fund their agent wallet/i);
+  it("toolErrorToModelContent returns structured JSON for the model", () => {
+    const content = toolErrorToModelContent({
+      code: "INSUFFICIENT_BALANCE",
+      message: "Not enough SUI",
+    });
+    const parsed = JSON.parse(content) as {
+      ok: boolean;
+      code: string;
+      agent_instruction: string;
+    };
+    assert.equal(parsed.ok, false);
+    assert.equal(parsed.code, "INSUFFICIENT_BALANCE");
+    assert.match(parsed.agent_instruction, /fund/i);
   });
 });

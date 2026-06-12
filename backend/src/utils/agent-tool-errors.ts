@@ -51,25 +51,52 @@ export function mapAgentToolError(err: unknown): AppError {
   return new AppError(400, "TRANSACTION_ERROR", message.slice(0, 500));
 }
 
-/** Plain-language summary for the agent runtime (tool role messages). */
-export function formatAgentToolErrorMessage(err: AppError): string {
-  switch (err.code) {
+export type AgentToolErrorPayload = {
+  code: string;
+  message: string;
+  details?: unknown;
+};
+
+/** Structured tool error content for the model (tool role) — not shown directly to users. */
+export function toolErrorToModelContent(error: AgentToolErrorPayload): string {
+  const guidance = guidanceForErrorCode(error.code);
+  return JSON.stringify(
+    {
+      ok: false,
+      code: error.code,
+      message: error.message,
+      ...(error.details !== undefined ? { details: error.details } : {}),
+      agent_instruction: guidance,
+    },
+    null,
+    2,
+  );
+}
+
+function guidanceForErrorCode(code: string): string {
+  switch (code) {
     case "INSUFFICIENT_BALANCE":
-      return (
-        `Insufficient balance: ${err.message} ` +
-        "Tell the user they need to fund their agent wallet or use a smaller amount."
-      );
+      return "Explain the wallet lacks enough of the required token. Suggest funding the agent wallet or using a smaller amount.";
     case "SLIPPAGE_EXCEEDED":
-      return `Swap failed due to slippage: ${err.message}. Suggest retrying with higher slippage or a smaller amount.`;
+      return "Explain the swap could not complete due to price movement. Suggest a smaller amount or higher slippage.";
     case "TRANSACTION_FAILED":
-      return `Transaction failed on-chain: ${err.message}`;
+      return "Explain the transaction failed on chain in plain language.";
     case "INVALID_PUBLIC_KEY":
     case "WALLET_METADATA_MISSING":
     case "SIGNING_FAILED":
-      return `Signing error (${err.code}): ${err.message}`;
+      return "Explain there was a wallet signing issue and suggest reconnecting or re-registering the agent wallet.";
     default:
-      return `Error (${err.code}): ${err.message}`;
+      return "Explain what went wrong in plain language and suggest a practical next step.";
   }
+}
+
+/** @deprecated Use toolErrorToModelContent for model-facing tool results. */
+export function formatAgentToolErrorMessage(err: AppError): string {
+  return toolErrorToModelContent({
+    code: err.code,
+    message: err.message,
+    details: err.details,
+  });
 }
 
 export function isBase58Encoded(value: string): boolean {

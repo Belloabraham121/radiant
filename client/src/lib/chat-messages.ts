@@ -33,6 +33,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
   for (const call of toolCalls) {
     if (call.name === "query_chain") {
       const result = call.result as {
+        error?: { code?: string; message?: string };
         balance_display?: number;
         native_symbol?: string;
         provisioned?: boolean;
@@ -43,6 +44,14 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         output_amount_display?: number;
         pool_key?: string;
       };
+
+      if (result.error?.message) {
+        receipts.push({
+          label: "Query failed",
+          detail: result.error.code?.replace(/_/g, " ").toLowerCase(),
+        });
+        continue;
+      }
 
       if (
         result.input_coin &&
@@ -81,7 +90,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
     }
 
     if (call.name === "execute_transaction") {
-      const outcome = call.result as {
+      const raw = call.result as {
+        error?: { code?: string; message?: string };
         status?: string;
         result?: {
           digest?: string;
@@ -99,6 +109,16 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         };
         pending?: { action?: string; amount_display?: string };
       };
+
+      if (raw.error?.message) {
+        receipts.push({
+          label: "Transaction failed",
+          detail: raw.error.code?.replace(/_/g, " ").toLowerCase(),
+        });
+        continue;
+      }
+
+      const outcome = raw;
 
       if (outcome.status === "approval_required" && outcome.pending) {
         const action = outcome.pending.action ?? "";

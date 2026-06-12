@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ArrowUp, Check, Sparkles } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
-import { TransactionApprovalModal } from "@/components/app/TransactionApprovalModal";
+import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage } from "@/lib/chat-messages";
 
@@ -134,7 +134,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typing]);
+  }, [messages, typing, pendingTx]);
 
   const send = (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,41 +209,44 @@ export function ChatView({ sessionId }: ChatViewProps) {
         </p>
       ) : null}
 
-      <form onSubmit={send} className="relative z-10 px-6 py-4">
-        <div
-          className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
-        >
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Tell your agent what you want…"
-            className="flex-1 bg-transparent text-sm font-semibold placeholder:text-[var(--hero-ink)]/35 focus:outline-none"
-            disabled={Boolean(loadError)}
+      <div className="shrink-0 px-6 pb-4">
+        {pendingTx ? (
+          <TransactionApprovalBar
+            className={`${CHAT_COL} mb-3`}
+            pending={pendingTx}
+            busy={approving}
+            onApprove={() => void approvePending()}
+            onCancel={dismissPending}
           />
-          <button
-            type="submit"
-            aria-label="Send"
-            className="flex size-10 items-center justify-center rounded-full bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
-            disabled={!input.trim() || typing || Boolean(loadError)}
-          >
-            <ArrowUp className="size-5" strokeWidth={2.5} />
-          </button>
-        </div>
-        <p
-          className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
-        >
-          Radiant signs transactions with your wallet. Big moves always ask first.
-        </p>
-      </form>
+        ) : null}
 
-      {pendingTx ? (
-        <TransactionApprovalModal
-          pending={pendingTx}
-          busy={approving}
-          onApprove={() => void approvePending()}
-          onCancel={dismissPending}
-        />
-      ) : null}
+        <form onSubmit={send}>
+          <div
+            className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
+          >
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Tell your agent what you want…"
+              className="flex-1 bg-transparent text-sm font-semibold placeholder:text-[var(--hero-ink)]/35 focus:outline-none"
+              disabled={Boolean(loadError)}
+            />
+            <button
+              type="submit"
+              aria-label="Send"
+              className="flex size-10 items-center justify-center rounded-full bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
+              disabled={!input.trim() || typing || Boolean(loadError) || Boolean(pendingTx)}
+            >
+              <ArrowUp className="size-5" strokeWidth={2.5} />
+            </button>
+          </div>
+          <p
+            className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
+          >
+            Radiant signs transactions with your wallet. Big moves always ask first.
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

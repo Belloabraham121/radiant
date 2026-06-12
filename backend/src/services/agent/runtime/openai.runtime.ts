@@ -10,8 +10,14 @@ import {
 import { agentToolDefinitions, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { toOpenAiTools } from "./openai-tools.js";
+import {
+  isAgentToolErrorResult,
+  synthesizeErrorExplanationReply,
+} from "./error-explanation.js";
+import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { summarizeToolResult } from "./summarize-tool-result.js";
 import type { AgentRuntime, AgentTurnInput, AgentTurnResult } from "./types.js";
+import type { AgentToolErrorResult } from "../tools.js";
 
 function mapOpenAiError(err: unknown): AppError {
   if (err instanceof OpenAI.APIError) {
@@ -106,6 +112,8 @@ export const openaiRuntime: AgentRuntime = {
 
       messages.push(choice);
 
+      let executeToolError: AgentToolErrorResult | null = null;
+
       for (const toolCall of toolCallList) {
         if (toolCall.type !== "function") continue;
 
@@ -118,6 +126,13 @@ export const openaiRuntime: AgentRuntime = {
 
         const result = await runAgentTool(input.privyUserId, toolCall.function.name, args);
         tool_calls.push({ name: toolCall.function.name, result });
+
+        if (
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          isAgentToolErrorResult(result)
+        ) {
+          executeToolError = result;
+        }
 
         if (toolCall.function.name === "execute_transaction") {
           const outcome = result as ExecuteToolOutcome;
@@ -140,6 +155,17 @@ export const openaiRuntime: AgentRuntime = {
       if (pending_transaction) {
         reply =
           "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
+        break;
+      }
+
+      if (executeToolError) {
+        reply = await synthesizeErrorExplanationReply({
+          toolName: EXECUTE_TRANSACTION_TOOL_NAME,
+          toolResult: executeToolError,
+          messages: input.messages,
+          memoryBlock: input.memoryBlock,
+          agentPermissions: input.agentPermissions,
+        });
         break;
       }
     }

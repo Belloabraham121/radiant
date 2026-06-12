@@ -162,7 +162,7 @@ export function useChatSession(sessionId?: string) {
           id: data.message_id,
           role: "agent",
           text: data.reply,
-          receipts: [{ label: "Transaction sent", detail: pendingTx.amount_display }],
+          receipts: mapToolCallsToReceipts(data.tool_calls),
         },
       ]);
 
