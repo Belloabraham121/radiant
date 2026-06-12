@@ -85,6 +85,8 @@ function guidanceForErrorCode(code: string): string {
     case "WALLET_METADATA_MISSING":
     case "SIGNING_FAILED":
       return "Explain there was a wallet signing issue and suggest reconnecting or re-registering the agent wallet.";
+    case "VALIDATION_ERROR":
+      return "Explain the transaction params were incomplete. For deepbook_deposit include coin_key and amount_display (positive number). Retry the tool call with correct params — do not ask the user to confirm in chat.";
     default:
       return "Explain what went wrong in plain language and suggest a practical next step.";
   }

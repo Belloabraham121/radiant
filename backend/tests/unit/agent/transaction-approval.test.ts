@@ -98,9 +98,34 @@ describe("transaction approval", () => {
     );
   });
 
-  it("creates pending transaction records", () => {
+  it("creates pending provision manager with gas-only display", async () => {
     clearPendingTransactionsForTests();
-    const pending = createPendingTransaction("did:privy:test", {
+    const pending = await createPendingTransaction("did:privy:test", {
+      chain_id: "sui",
+      action: "deepbook_provision_manager",
+      params: {},
+    });
+
+    assert.match(pending.summary, /Create DeepBook balance manager/i);
+    assert.match(pending.amount_display, /Network fee only/i);
+  });
+
+  it("rejects deposit pending without amount", async () => {
+    clearPendingTransactionsForTests();
+    await assert.rejects(
+      () =>
+        createPendingTransaction("did:privy:test", {
+          chain_id: "sui",
+          action: "deepbook_deposit",
+          params: { coin_key: "SUI" },
+        }),
+      /VALIDATION_ERROR|amount/i,
+    );
+  });
+
+  it("creates pending transaction records", async () => {
+    clearPendingTransactionsForTests();
+    const pending = await createPendingTransaction("did:privy:test", {
       chain_id: "sui",
       action: "transfer_native",
       params: {

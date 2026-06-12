@@ -17,6 +17,9 @@ export function TransactionApprovalBar({
   className?: string;
 }) {
   const isSwap = pending.action === "swap" || pending.action === "deepbook_swap";
+  const isProvision = pending.action === "deepbook_provision_manager";
+  const isDeposit =
+    pending.action === "deepbook_deposit" || pending.action === "deepbook_withdraw";
 
   return (
     <div
@@ -33,12 +36,16 @@ export function TransactionApprovalBar({
             id="tx-approval-title"
             className="font-heading text-lg font-extrabold tracking-tight text-[var(--hero-ink)]"
           >
-            {isSwap ? "Approve swap" : "Approve transaction"}
+            {isSwap ? "Approve swap" : isProvision ? "Approve setup" : "Approve transaction"}
           </p>
           <p className="mt-0.5 text-xs font-medium text-[var(--hero-ink)]/50">
             {isSwap
               ? "Review the quote, then approve to execute on chain."
-              : "Review the details, then approve to sign and send."}
+              : isProvision
+                ? "Creates your DeepBook balance manager on chain. No token deposit — only network gas."
+                : isDeposit
+                  ? "Review the amount, then approve to sign and send."
+                  : "Review the details, then approve to sign and send."}
           </p>
         </div>
         <span className="shrink-0 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)]/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-[var(--hero-amber)]">

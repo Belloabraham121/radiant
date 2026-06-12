@@ -100,15 +100,58 @@ function assertCoinKey(coinKey: string): string {
   return normalized;
 }
 
+const DEPOSIT_AMOUNT_PARAM_KEYS = [
+  "amount_display",
+  "amount",
+  "quantity",
+  "deposit_amount",
+  "value",
+  "size",
+] as const;
+
+const COIN_AMOUNT_PARAM_KEYS: Record<string, readonly string[]> = {
+  SUI: ["amount_sui", "sui_amount"],
+  USDC: ["amount_usdc", "usdc_amount"],
+  DEEP: ["amount_deep", "deep_amount"],
+  WAL: ["amount_wal", "wal_amount"],
+  USDT: ["amount_usdt", "usdt_amount"],
+};
+
+function readPositiveNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim().replace(/,/g, "");
+    if (!trimmed) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
 function parseAmountDisplay(
   params: Record<string, unknown>,
   coinKey: string,
 ): number {
-  if (typeof params.amount_display === "number" && params.amount_display > 0) {
-    return params.amount_display;
+  for (const key of DEPOSIT_AMOUNT_PARAM_KEYS) {
+    const amount = readPositiveNumber(params[key]);
+    if (amount !== null) {
+      return amount;
+    }
   }
-  if (typeof params.amount === "number" && params.amount > 0) {
-    return params.amount;
+
+  for (const key of COIN_AMOUNT_PARAM_KEYS[coinKey] ?? []) {
+    const amount = readPositiveNumber(params[key]);
+    if (amount !== null) {
+      return amount;
+    }
   }
 
   const rawAtomic = params.amount_atomic;
@@ -120,18 +163,66 @@ function parseAmountDisplay(
   throw new AppError(
     400,
     "VALIDATION_ERROR",
-    "params.amount_display, params.amount, or params.amount_atomic is required",
+    "Deposit/withdraw requires a positive amount: params.amount_display (preferred), amount, quantity, or amount_atomic.",
   );
+}
+
+function inferCoinKeyFromParams(params: Record<string, unknown>): string | null {
+  for (const [coin, keys] of Object.entries(COIN_AMOUNT_PARAM_KEYS)) {
+    for (const key of keys) {
+      if (readPositiveNumber(params[key]) !== null) {
+        return coin;
+      }
+    }
+  }
+  return null;
+}
+
+function resolveCoinKey(params: Record<string, unknown>): string {
+  for (const key of ["coin_key", "coin", "token", "asset"] as const) {
+    const raw = params[key];
+    if (typeof raw === "string" && raw.trim().length > 0) {
+      return assertCoinKey(raw);
+    }
+  }
+
+  const inferred = inferCoinKeyFromParams(params);
+  if (inferred) {
+    return inferred;
+  }
+
+  throw new AppError(
+    400,
+    "VALIDATION_ERROR",
+    'params.coin_key is required (e.g. "SUI", "USDC").',
+  );
+}
+
+function isWithdrawAllRequest(params: Record<string, unknown>): boolean {
+  const flag = params.withdraw_all ?? params.withdrawAll;
+  if (flag === true || flag === "true" || flag === 1) {
+    return true;
+  }
+  if (params.all === true || params.all === "true") {
+    return true;
+  }
+
+  for (const key of DEPOSIT_AMOUNT_PARAM_KEYS) {
+    const raw = params[key];
+    if (typeof raw === "string" && raw.trim().toLowerCase() === "all") {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export function parseDeepBookDepositWithdrawParams(
   params: Record<string, unknown>,
 ): DeepBookDepositWithdrawParams {
-  const coinKey = assertCoinKey(
-    typeof params.coin_key === "string" ? params.coin_key : "",
-  );
+  const coinKey = resolveCoinKey(params);
 
-  if (params.withdraw_all === true) {
+  if (isWithdrawAllRequest(params)) {
     return { coin_key: coinKey, amount_display: 0, withdraw_all: true };
   }
 
@@ -256,7 +347,10 @@ async function createAndPersistBalanceManager(
 
   clearDeepBookClientCache();
 
-  const manager = toManagerInfo(row);
+  const manager: ProvisionedDeepBookManager = {
+    ...toManagerInfo(row),
+    provision_digest: createResult.digest,
+  };
   const ctx = toClientContext(walletAddress, manager);
 
   try {
@@ -272,6 +366,39 @@ async function createAndPersistBalanceManager(
   }
 
   return manager;
+}
+
+export async function executeDeepBookProvisionManager(
+  privyUserId: string,
+): Promise<
+  TxResult & {
+    manager_object_id: string;
+    already_provisioned: boolean;
+  }
+> {
+  const existing = await findBalanceManagerByPrivyUserId(privyUserId);
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+
+  if (existing) {
+    return {
+      chain_id: "sui",
+      digest: "",
+      address: wallet.address,
+      effects_status: "success",
+      manager_object_id: existing.manager_object_id,
+      already_provisioned: true,
+    };
+  }
+
+  const manager = await ensureBalanceManager(privyUserId);
+  return {
+    chain_id: "sui",
+    digest: manager.provision_digest ?? "",
+    address: wallet.address,
+    effects_status: "success",
+    manager_object_id: manager.manager_object_id,
+    already_provisioned: false,
+  };
 }
 
 export async function ensureBalanceManager(privyUserId: string): Promise<ProvisionedDeepBookManager> {
@@ -449,6 +576,19 @@ export async function executeDeepBookWithdraw(
   const recipient = parsed.recipient ?? wallet.address;
   const ctx = toClientContext(wallet.address, manager);
 
+  let amountDisplay = parsed.amount_display;
+  if (parsed.withdraw_all) {
+    const balance = await readManagerBalance(privyUserId, manager, parsed.coin_key);
+    amountDisplay = balance.balance_display;
+    if (amountDisplay <= 0) {
+      throw new AppError(
+        400,
+        "INSUFFICIENT_BALANCE",
+        `No ${parsed.coin_key} in your DeepBook balance manager to withdraw.`,
+      );
+    }
+  }
+
   const result = await buildAndExecuteTransaction(
     privyUserId,
     (tx, client) => {
@@ -477,7 +617,7 @@ export async function executeDeepBookWithdraw(
   return {
     ...result,
     coin_key: parsed.coin_key,
-    amount_display: parsed.amount_display,
+    amount_display: amountDisplay,
     manager_object_id: manager.manager_object_id,
   };
 }

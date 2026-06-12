@@ -14,6 +14,15 @@ import {
   resolveAutoApproveMaxDisplay,
   type AgentPermissions,
 } from "./agent-permissions.service.js";
+import {
+  checkManagerBalance,
+  getDeepBookManagerInfo,
+  parseDeepBookDepositWithdrawParams,
+} from "../defi/deepbook-balance-manager.service.js";
+import {
+  isDeepBookProvisionAction,
+  validateExecuteTransactionInput,
+} from "./validate-execute-transaction.js";
 
 const TRANSFER_ACTIONS = new Set([
   "transfer_native",
@@ -24,10 +33,12 @@ const TRANSFER_ACTIONS = new Set([
 ]);
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
+const DEEPBOOK_PROVISION_ACTIONS = new Set(["deepbook_provision_manager"]);
 
 const MUTATING_EXECUTE_ACTIONS = new Set([
   ...TRANSFER_ACTIONS,
   ...DEEPBOOK_WRITE_ACTIONS,
+  ...DEEPBOOK_PROVISION_ACTIONS,
   "swap",
   "deepbook_swap",
   "execute_bytes",
@@ -126,7 +137,7 @@ export function transferRequiresApprovalWithPermissions(
     return true;
   }
 
-  if (DEEPBOOK_WRITE_ACTIONS.has(input.action)) {
+  if (DEEPBOOK_WRITE_ACTIONS.has(input.action) || DEEPBOOK_PROVISION_ACTIONS.has(input.action)) {
     return true;
   }
 
@@ -154,14 +165,22 @@ export async function transferRequiresApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
 ): Promise<boolean> {
+  if (isDeepBookProvisionAction(input.action)) {
+    const info = await getDeepBookManagerInfo(privyUserId);
+    if (info.provisioned) {
+      return false;
+    }
+  }
+
   const permissions = await getAgentPermissions(privyUserId);
   return transferRequiresApprovalWithPermissions(permissions, input);
 }
 
-export function createPendingTransaction(
+export async function createPendingTransaction(
   privyUserId: string,
   input: ExecuteTransactionInput,
-): PendingTransaction {
+): Promise<PendingTransaction> {
+  validateExecuteTransactionInput(input);
   pruneExpired();
 
   const amount = parseAmountAtomic(input.params) ?? BigInt(0);
@@ -171,21 +190,24 @@ export function createPendingTransaction(
   let summary = `Send ${formatAmountDisplay(input.chain_id, amount)} to ${recipient.slice(0, 12)}… on ${input.chain_id}`;
   let amountDisplay = formatAmountDisplay(input.chain_id, amount);
 
-  if (DEEPBOOK_WRITE_ACTIONS.has(input.action)) {
-    const coinKey =
-      typeof input.params.coin_key === "string" ? input.params.coin_key.toUpperCase() : "coin";
-    const displayAmount =
-      typeof input.params.amount_display === "number"
-        ? input.params.amount_display
-        : typeof input.params.amount === "number"
-          ? input.params.amount
-          : null;
-    amountDisplay =
-      displayAmount !== null
-        ? `${displayAmount} ${coinKey}`
-        : input.params.withdraw_all === true
-          ? `all ${coinKey}`
-          : `${coinKey} (amount pending)`;
+  if (isDeepBookProvisionAction(input.action)) {
+    summary = "Create DeepBook balance manager";
+    amountDisplay = "Network fee only (~0.01 SUI)";
+  } else if (DEEPBOOK_WRITE_ACTIONS.has(input.action)) {
+    const parsed = parseDeepBookDepositWithdrawParams(input.params);
+    if (parsed.withdraw_all && input.action === "deepbook_withdraw") {
+      try {
+        const balance = await checkManagerBalance(privyUserId, parsed.coin_key);
+        amountDisplay =
+          balance.balance_display > 0
+            ? `all ${parsed.coin_key} (${balance.balance_display} ${parsed.coin_key})`
+            : `all ${parsed.coin_key}`;
+      } catch {
+        amountDisplay = `all ${parsed.coin_key}`;
+      }
+    } else {
+      amountDisplay = `${parsed.amount_display} ${parsed.coin_key}`;
+    }
     const verb = input.action === "deepbook_deposit" ? "Deposit" : "Withdraw";
     summary = `${verb} ${amountDisplay} via DeepBook balance manager`;
   } else if (isDeepBookSwapAction(input.action)) {

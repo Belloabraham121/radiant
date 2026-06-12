@@ -22,6 +22,7 @@ import {
   createPendingTransaction,
   transferRequiresApproval,
 } from "./transaction-approval.service.js";
+import { validateExecuteTransactionInput } from "./validate-execute-transaction.js";
 
 export const agentToolDefinitions = [
   executeTransactionToolDefinition,
@@ -78,10 +79,12 @@ export async function runExecuteTransactionToolWithApproval(
   input: ExecuteTransactionInput,
   approved = false,
 ): Promise<ExecuteToolOutcome> {
+  validateExecuteTransactionInput(input);
+
   if (!approved && (await transferRequiresApproval(privyUserId, input))) {
     return {
       status: "approval_required",
-      pending: createPendingTransaction(privyUserId, input),
+      pending: await createPendingTransaction(privyUserId, input),
     };
   }
 

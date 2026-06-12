@@ -96,6 +96,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         result?: {
           digest?: string;
           deepbook?: {
+            manager_object_id?: string;
+            already_provisioned?: boolean;
             coin_key?: string;
             amount_display?: number;
             swap?: {
@@ -122,7 +124,12 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
 
       if (outcome.status === "approval_required" && outcome.pending) {
         const action = outcome.pending.action ?? "";
-        if (action === "deepbook_deposit" || action === "deepbook_withdraw") {
+        if (action === "deepbook_provision_manager") {
+          receipts.push({
+            label: "Setup approval required",
+            detail: outcome.pending.amount_display,
+          });
+        } else if (action === "deepbook_deposit" || action === "deepbook_withdraw") {
           const verb = action === "deepbook_deposit" ? "Deposit" : "Withdraw";
           receipts.push({
             label: `${verb} approval required`,
@@ -141,19 +148,34 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const swap = outcome.result.deepbook?.swap;
         const coinKey = outcome.result.deepbook?.coin_key;
         const amount = outcome.result.deepbook?.amount_display;
+        const managerObjectId = outcome.result.deepbook?.manager_object_id;
+        const alreadyProvisioned = outcome.result.deepbook?.already_provisioned === true;
         const isSwap = swap?.input_coin && swap.output_coin;
         const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
+        const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer;
 
         receipts.push({
-          label: isSwap ? "Swap executed" : isDeepBookTransfer ? "DeepBook transfer" : "Transaction sent",
+          label: isSwap
+            ? "Swap executed"
+            : isProvision
+              ? alreadyProvisioned
+                ? "Balance manager ready"
+                : "Balance manager created"
+              : isDeepBookTransfer
+                ? "DeepBook transfer"
+                : "Transaction sent",
           detail: isSwap
             ? `${swap.in_amount_display} ${swap.input_coin} → ${swap.out_amount_display} ${swap.output_coin} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-            : isDeepBookTransfer
-              ? `${amount} ${coinKey} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-              : digest.length > 12
-                ? `${digest.slice(0, 10)}…`
-                : digest,
+            : isProvision
+              ? managerObjectId.length > 12
+                ? `${managerObjectId.slice(0, 10)}…`
+                : managerObjectId
+              : isDeepBookTransfer
+                ? `${amount} ${coinKey} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                : digest.length > 12
+                  ? `${digest.slice(0, 10)}…`
+                  : digest,
         });
       }
     }

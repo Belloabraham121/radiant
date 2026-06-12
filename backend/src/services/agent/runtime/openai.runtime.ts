@@ -4,6 +4,18 @@ import { getOpenAiConfig } from "../../../config/agent.js";
 import { AppError } from "../../../errors/app-error.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
 import {
+  buildDepositExecuteNudge,
+  extractDepositIntent,
+  shouldNudgeDepositExecute,
+} from "../deposit-approval-flow.js";
+import {
+  buildWithdrawBalanceNudge,
+  buildWithdrawExecuteNudge,
+  extractWithdrawIntent,
+  shouldNudgeWithdrawBalanceQuery,
+  shouldNudgeWithdrawExecute,
+} from "../withdraw-approval-flow.js";
+import {
   shouldNudgeSwapExecute,
   SWAP_EXECUTE_NUDGE,
 } from "../swap-approval-flow.js";
@@ -106,6 +118,33 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
+        if (shouldNudgeWithdrawBalanceQuery(tool_calls, lastUserMessage)) {
+          const intent = extractWithdrawIntent(lastUserMessage)!;
+          messages.push({
+            role: "user",
+            content: buildWithdrawBalanceNudge(intent.coin_key),
+          });
+          continue;
+        }
+
+        if (shouldNudgeWithdrawExecute(tool_calls, lastUserMessage)) {
+          const intent = extractWithdrawIntent(lastUserMessage)!;
+          messages.push({
+            role: "user",
+            content: buildWithdrawExecuteNudge(intent),
+          });
+          continue;
+        }
+
+        if (shouldNudgeDepositExecute(tool_calls, lastUserMessage)) {
+          const intent = extractDepositIntent(lastUserMessage)!;
+          messages.push({
+            role: "user",
+            content: buildDepositExecuteNudge(intent),
+          });
+          continue;
+        }
+
         reply = choice.content?.trim() || "Done.";
         break;
       }
@@ -159,6 +198,11 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       if (executeToolError) {
+        if (executeToolError.error.code === "VALIDATION_ERROR") {
+          // Allow the model to retry with corrected params in the next step.
+          continue;
+        }
+
         reply = await synthesizeErrorExplanationReply({
           toolName: EXECUTE_TRANSACTION_TOOL_NAME,
           toolResult: executeToolError,

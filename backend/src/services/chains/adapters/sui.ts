@@ -20,6 +20,7 @@ import { toSuiBalanceResult } from "./sui-balance.js";
 import {
   executeDeepBookDeposit,
   executeDeepBookWithdraw,
+  executeDeepBookProvisionManager,
 } from "../../defi/deepbook-balance-manager.service.js";
 import {
   executeDeepBookSwap,
@@ -199,6 +200,20 @@ export const suiAdapter: ChainAdapter = {
     action: string,
     params: Record<string, unknown>,
   ): Promise<TxResult> {
+    if (action === "deepbook_provision_manager") {
+      const result = await executeDeepBookProvisionManager(privyUserId);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          manager_object_id: result.manager_object_id,
+          already_provisioned: result.already_provisioned,
+        },
+      };
+    }
+
     if (action === "deepbook_deposit") {
       const result = await executeDeepBookDeposit(privyUserId, params);
       return {

@@ -133,8 +133,8 @@ describe("swap approval", () => {
     );
   });
 
-  it("creates pending swap transaction summaries", () => {
-    const pending = createPendingTransaction("did:privy:swap-test", {
+  it("creates pending swap transaction summaries", async () => {
+    const pending = await createPendingTransaction("did:privy:swap-test", {
       chain_id: "sui",
       action: "swap",
       params: {

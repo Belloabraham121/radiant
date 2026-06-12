@@ -127,7 +127,7 @@ export function AgentPermissionsSection() {
               <span className="text-sm font-semibold text-[var(--hero-ink)]/55">SUI</span>
             </div>
             <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/45">
-              Set any amount — e.g. 30, 100. DeepBook deposits and withdrawals always ask first.
+              Set any amount — e.g. 30, 100. Balance manager setup, deposits, and withdrawals always ask first.
             </p>
           </div>
         ) : null}

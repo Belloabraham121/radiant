@@ -63,6 +63,29 @@ describe("deepbook-balance-manager.service", () => {
     assert.equal(fromAtomic.amount_display, 1.5);
   });
 
+  it("parseDeepBookDepositWithdrawParams accepts string amounts and quantity alias", () => {
+    const parsed = parseDeepBookDepositWithdrawParams({
+      coin_key: "SUI",
+      amount_display: "1",
+    });
+    assert.equal(parsed.amount_display, 1);
+
+    const fromQuantity = parseDeepBookDepositWithdrawParams({
+      coin: "usdc",
+      quantity: 2.5,
+    });
+    assert.equal(fromQuantity.coin_key, "USDC");
+    assert.equal(fromQuantity.amount_display, 2.5);
+  });
+
+  it("parseDeepBookDepositWithdrawParams infers coin from amount_sui", () => {
+    const parsed = parseDeepBookDepositWithdrawParams({
+      amount_sui: 1,
+    });
+    assert.equal(parsed.coin_key, "SUI");
+    assert.equal(parsed.amount_display, 1);
+  });
+
   it("ensureBalanceManager is idempotent when a row already exists", async () => {
     const user = await prisma.user.findUniqueOrThrow({
       where: { privy_user_id: privyUserId },
@@ -84,6 +107,15 @@ describe("deepbook-balance-manager.service", () => {
     const rows = await findBalanceManagerByPrivyUserId(privyUserId);
     assert.ok(rows);
     assert.equal(rows.manager_object_id, managerObjectId);
+  });
+
+  it("parseDeepBookDepositWithdrawParams accepts withdraw_all as string", () => {
+    const parsed = parseDeepBookDepositWithdrawParams({
+      coin_key: "SUI",
+      withdraw_all: "true",
+    });
+    assert.equal(parsed.withdraw_all, true);
+    assert.equal(parsed.coin_key, "SUI");
   });
 
   it("requires approval for deepbook deposit and withdraw actions", () => {

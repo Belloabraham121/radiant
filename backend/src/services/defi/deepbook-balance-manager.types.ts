@@ -9,6 +9,8 @@ export type DeepBookManagerInfo = {
 export type ProvisionedDeepBookManager = DeepBookManagerInfo & {
   manager_object_id: string;
   provisioned: true;
+  /** Set when the manager was just created on chain in this session. */
+  provision_digest?: string;
 };
 
 export type DeepBookManagerBalance = {

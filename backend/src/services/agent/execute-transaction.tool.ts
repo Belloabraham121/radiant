@@ -26,13 +26,15 @@ export const executeTransactionToolDefinition = {
       action: {
         type: "string",
         description:
-          "Chain-specific action name. Sui: transfer_native, transfer_sui, execute_bytes, deepbook_deposit, deepbook_withdraw, swap (alias deepbook_swap).",
+          "Chain-specific action name. Sui: transfer_native, transfer_sui, execute_bytes, " +
+          "deepbook_provision_manager, deepbook_deposit, deepbook_withdraw, swap (alias deepbook_swap).",
       },
       params: {
         type: "object",
         description:
           "Action parameters. transfer_native: { recipient, amount_atomic }. " +
-          "deepbook_deposit/withdraw: { coin_key, amount_display } (or amount_atomic). " +
+          "deepbook_provision_manager: {} — create on-chain balance manager (gas only, no token deposit). " +
+          "deepbook_deposit/withdraw: { coin_key, amount_display } or { coin_key, withdraw_all: true } for full balance. " +
           "swap/deepbook_swap: { pool_key?, amount, side: buy|sell, pay_with_deep?, slippage_bps?, estimated_out_display? }. " +
           "execute_bytes: { transaction_bytes } (base64).",
         additionalProperties: true,
