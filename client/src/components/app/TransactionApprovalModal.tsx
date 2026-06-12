@@ -15,7 +15,7 @@ export function TransactionApprovalModal({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--hero-ink)]/30 px-6">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[var(--hero-ink)]/40 px-6 backdrop-blur-[2px]">
       <div
         role="dialog"
         aria-labelledby="tx-approval-title"
@@ -34,8 +34,8 @@ export function TransactionApprovalModal({
             </h2>
             <p className="mt-1 text-sm font-medium text-[var(--hero-ink)]/55">
               {pending.action === "swap" || pending.action === "deepbook_swap"
-                ? "This swap is above your auto-approve threshold."
-                : "This transfer is above your auto-approve threshold."}
+                ? "Review this swap quote, then approve to execute on chain."
+                : "Review this transaction, then approve to sign and send."}
             </p>
           </div>
         </div>

@@ -1,3 +1,4 @@
+import type { AgentPermissions } from "../agent-permissions.types.js";
 import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "../agent.types.js";
 
 export type AgentRuntimeId = "openai" | "stub";
@@ -12,6 +13,7 @@ export type AgentTurnInput = {
   sessionId: string;
   messages: AgentTurnMessage[];
   memoryBlock?: string;
+  agentPermissions?: AgentPermissions;
 };
 
 export type AgentTurnResult = {

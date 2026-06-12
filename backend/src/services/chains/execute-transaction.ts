@@ -1,3 +1,4 @@
+import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { getDefaultAgentChainId } from "../../config/chains.js";
 import { getAdapter } from "./registry.js";
 import type { ExecuteTransactionInput, ExecuteTransactionInputParsed, TxResult } from "./types.js";
@@ -17,9 +18,13 @@ export async function executeTransactionForUser(
   privyUserId: string,
   input: ExecuteTransactionInput,
 ): Promise<TxResult> {
-  const parsed = parseExecuteTransactionInput(input);
-  const adapter = getAdapter(parsed.chain_id);
-  return adapter.executeTransaction(privyUserId, parsed.action, parsed.params);
+  try {
+    const parsed = parseExecuteTransactionInput(input);
+    const adapter = getAdapter(parsed.chain_id);
+    return await adapter.executeTransaction(privyUserId, parsed.action, parsed.params);
+  } catch (err) {
+    throw mapAgentToolError(err);
+  }
 }
 
 export async function executeTransactionForUserOnDefaultChain(

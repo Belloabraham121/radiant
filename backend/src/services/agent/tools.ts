@@ -1,4 +1,5 @@
 import { AppError } from "../../errors/app-error.js";
+import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 import type { ExecuteToolOutcome, QueryChainInput } from "./agent.types.js";
 import {
@@ -28,25 +29,47 @@ export const agentToolDefinitions = [
   updateMemoryToolDefinition,
 ] as const;
 
+export type AgentToolErrorResult = {
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+};
+
+function toToolErrorResult(err: AppError): AgentToolErrorResult {
+  return {
+    error: {
+      code: err.code,
+      message: err.message,
+      ...(err.details !== undefined ? { details: err.details } : {}),
+    },
+  };
+}
+
 export async function runAgentTool(
   privyUserId: string,
   name: string,
   input: Record<string, unknown>,
   options?: { approved?: boolean },
 ): Promise<unknown> {
-  switch (name) {
-    case QUERY_CHAIN_TOOL_NAME:
-      return runQueryChainTool(privyUserId, input as QueryChainInput);
-    case EXECUTE_TRANSACTION_TOOL_NAME:
-      return runExecuteTransactionToolWithApproval(
-        privyUserId,
-        input as ExecuteTransactionInput,
-        options?.approved === true,
-      );
-    case UPDATE_MEMORY_TOOL_NAME:
-      return runUpdateMemoryTool(privyUserId, input as UpdateMemoryInput);
-    default:
-      throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
+  try {
+    switch (name) {
+      case QUERY_CHAIN_TOOL_NAME:
+        return await runQueryChainTool(privyUserId, input as QueryChainInput);
+      case EXECUTE_TRANSACTION_TOOL_NAME:
+        return await runExecuteTransactionToolWithApproval(
+          privyUserId,
+          input as ExecuteTransactionInput,
+          options?.approved === true,
+        );
+      case UPDATE_MEMORY_TOOL_NAME:
+        return await runUpdateMemoryTool(privyUserId, input as UpdateMemoryInput);
+      default:
+        throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
+    }
+  } catch (err) {
+    return toToolErrorResult(mapAgentToolError(err));
   }
 }
 
@@ -55,7 +78,7 @@ export async function runExecuteTransactionToolWithApproval(
   input: ExecuteTransactionInput,
   approved = false,
 ): Promise<ExecuteToolOutcome> {
-  if (!approved && transferRequiresApproval(input)) {
+  if (!approved && (await transferRequiresApproval(privyUserId, input))) {
     return {
       status: "approval_required",
       pending: createPendingTransaction(privyUserId, input),

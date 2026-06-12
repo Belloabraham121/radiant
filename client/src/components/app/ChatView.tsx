@@ -209,16 +209,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
         </p>
       ) : null}
 
-      {pendingTx ? (
-        <TransactionApprovalModal
-          pending={pendingTx}
-          busy={approving}
-          onApprove={() => void approvePending()}
-          onCancel={dismissPending}
-        />
-      ) : null}
-
-      <form onSubmit={send} className="px-6 py-4">
+      <form onSubmit={send} className="relative z-10 px-6 py-4">
         <div
           className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
         >
@@ -244,6 +235,15 @@ export function ChatView({ sessionId }: ChatViewProps) {
           Radiant signs transactions with your wallet. Big moves always ask first.
         </p>
       </form>
+
+      {pendingTx ? (
+        <TransactionApprovalModal
+          pending={pendingTx}
+          busy={approving}
+          onApprove={() => void approvePending()}
+          onCancel={dismissPending}
+        />
+      ) : null}
     </div>
   );
 }

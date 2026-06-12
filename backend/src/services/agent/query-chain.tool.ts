@@ -57,11 +57,16 @@ export const queryChainToolDefinition = {
           "swap_quote",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, or pool market data.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, or swap_quote.",
       },
       params: {
         type: "object",
-        description: "Optional query params. EVM: { evm_chain_id }.",
+        description:
+          "Query params. swap_quote: { pool_key?, amount, side: sell|buy } — " +
+          "sell = spend base for quote (e.g. SUI→USDC); buy = spend quote for base. " +
+          "Fees default to input token; set pay_with_deep: true only if wallet holds DEEP. " +
+          "May also pass input_coin/from + output_coin/to instead of side. " +
+          "EVM balances: { evm_chain_id }.",
         additionalProperties: true,
       },
     },

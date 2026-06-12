@@ -3,6 +3,10 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { getOpenAiConfig } from "../../../config/agent.js";
 import { AppError } from "../../../errors/app-error.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
+import {
+  shouldNudgeSwapExecute,
+  SWAP_EXECUTE_NUDGE,
+} from "../swap-approval-flow.js";
 import { agentToolDefinitions, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { toOpenAiTools } from "./openai-tools.js";
@@ -50,7 +54,10 @@ export const openaiRuntime: AgentRuntime = {
     const messages: ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: buildSystemPrompt({ memoryBlock: input.memoryBlock }),
+        content: buildSystemPrompt({
+          memoryBlock: input.memoryBlock,
+          agentPermissions: input.agentPermissions,
+        }),
       },
       ...input.messages.map((message) => ({
         role: message.role,
@@ -61,6 +68,8 @@ export const openaiRuntime: AgentRuntime = {
     const tool_calls: AgentTurnResult["tool_calls"] = [];
     let pending_transaction: AgentTurnResult["pending_transaction"] = null;
     let reply = "";
+    const lastUserMessage =
+      [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
 
     for (let step = 0; step < maxToolSteps; step += 1) {
       let completion;
@@ -83,6 +92,14 @@ export const openaiRuntime: AgentRuntime = {
 
       const toolCallList = choice.tool_calls ?? [];
       if (toolCallList.length === 0) {
+        if (shouldNudgeSwapExecute(tool_calls, lastUserMessage)) {
+          messages.push({
+            role: "user",
+            content: SWAP_EXECUTE_NUDGE,
+          });
+          continue;
+        }
+
         reply = choice.content?.trim() || "Done.";
         break;
       }
@@ -104,7 +121,11 @@ export const openaiRuntime: AgentRuntime = {
 
         if (toolCall.function.name === "execute_transaction") {
           const outcome = result as ExecuteToolOutcome;
-          if (outcome.status === "approval_required") {
+          if (
+            typeof outcome === "object" &&
+            outcome !== null &&
+            outcome.status === "approval_required"
+          ) {
             pending_transaction = outcome.pending;
           }
         }
@@ -118,7 +139,7 @@ export const openaiRuntime: AgentRuntime = {
 
       if (pending_transaction) {
         reply =
-          "This transfer needs your approval before I can broadcast it. Review the amount and confirm in the dialog.";
+          "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
         break;
       }
     }

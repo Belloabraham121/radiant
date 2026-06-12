@@ -10,44 +10,11 @@ import { ConnectedAccountsSection } from "@/components/app/ConnectedAccountsSect
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { InYourWalletSection } from "@/components/profile/InYourWalletSection";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
+import { AgentPermissionsSection } from "@/components/app/AgentPermissionsSection";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { CREDENTIALS } from "@/lib/app-data";
 
 gsap.registerPlugin(useGSAP);
-
-function Toggle({
-  label,
-  detail,
-  defaultOn,
-}: {
-  label: string;
-  detail: string;
-  defaultOn?: boolean;
-}) {
-  const [on, setOn] = useState(defaultOn ?? false);
-  return (
-    <button
-      onClick={() => setOn(!on)}
-      className="flex w-full items-center justify-between gap-4 rounded-2xl border-2 border-[var(--hero-ink)] bg-white px-5 py-4 text-left shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
-    >
-      <span>
-        <span className="block text-sm font-bold">{label}</span>
-        <span className="block text-xs font-medium text-[var(--hero-ink)]/50">{detail}</span>
-      </span>
-      <span
-        className={`relative h-7 w-12 shrink-0 rounded-full border-2 border-[var(--hero-ink)] transition-colors ${
-          on ? "bg-[var(--hero-mint)]" : "bg-[var(--hero-ink)]/10"
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 size-5 rounded-full border-2 border-[var(--hero-ink)] bg-white transition-all ${
-            on ? "left-[22px]" : "left-0.5"
-          }`}
-        />
-      </span>
-    </button>
-  );
-}
 
 function CredentialCard({ credential }: { credential: (typeof CREDENTIALS)[number] }) {
   const [revealed, setRevealed] = useState(false);
@@ -217,30 +184,7 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      {/* agent permissions */}
-      <section data-settings-block className="mt-10 pb-10">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-[var(--hero-ink)]/40">
-          Agent permissions
-        </h2>
-        <div className="flex flex-col gap-3">
-          <Toggle
-            label="Auto-approve under 25 SUI"
-            detail="Small moves happen instantly. Anything bigger asks you first."
-            defaultOn
-          />
-          <Toggle
-            label="Create accounts for me"
-            detail="Let the agent sign up to apps and store the logins in the vault."
-            defaultOn
-          />
-          <Toggle
-            label="Talk to other agents"
-            detail="Allow your agent to call apps listed by other people's agents."
-            defaultOn
-          />
-          <Toggle label="Daily digest" detail="A morning summary of everything it did overnight." />
-        </div>
-      </section>
+      <AgentPermissionsSection />
     </div>
   );
 }

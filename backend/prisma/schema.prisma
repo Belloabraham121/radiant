@@ -21,6 +21,10 @@ model User {
   display_name  String?
   avatar_seed   String
   avatar_style  String   @default("lorelei")
+  /// When false, every swap and transfer requires in-app approval.
+  agent_auto_approve_enabled Boolean @default(true)
+  /// Max SUI notional for auto-approved swaps/transfers (display units).
+  agent_auto_approve_max_sui Float    @default(25)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

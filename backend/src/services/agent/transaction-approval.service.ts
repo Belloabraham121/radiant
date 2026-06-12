@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { getAutoApproveMaxAtomic, getAutoApproveMaxDisplay } from "../../config/agent.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
 import {
   estimateSwapNotionalSui,
@@ -9,6 +8,12 @@ import {
 import type { ExecuteTransactionInput, ChainId } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import { runExecuteTransactionTool } from "./execute-transaction.tool.js";
+import {
+  getAgentPermissions,
+  resolveAutoApproveMaxAtomic,
+  resolveAutoApproveMaxDisplay,
+  type AgentPermissions,
+} from "./agent-permissions.service.js";
 
 const TRANSFER_ACTIONS = new Set([
   "transfer_native",
@@ -19,6 +24,18 @@ const TRANSFER_ACTIONS = new Set([
 ]);
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
+
+const MUTATING_EXECUTE_ACTIONS = new Set([
+  ...TRANSFER_ACTIONS,
+  ...DEEPBOOK_WRITE_ACTIONS,
+  "swap",
+  "deepbook_swap",
+  "execute_bytes",
+]);
+
+function isMutatingExecuteAction(action: string): boolean {
+  return isDeepBookSwapAction(action) || MUTATING_EXECUTE_ACTIONS.has(action);
+}
 
 type PendingRecord = {
   privyUserId: string;
@@ -67,9 +84,16 @@ function formatAmountDisplay(chainId: ChainId, amountAtomic: bigint): string {
   }
 }
 
-export function swapRequiresApproval(input: ExecuteTransactionInput): boolean {
+export function swapRequiresApprovalWithPermissions(
+  permissions: AgentPermissions,
+  input: ExecuteTransactionInput,
+): boolean {
   if (!isDeepBookSwapAction(input.action) || input.chain_id !== "sui") {
     return false;
+  }
+
+  if (!permissions.auto_approve_enabled) {
+    return true;
   }
 
   try {
@@ -88,23 +112,34 @@ export function swapRequiresApproval(input: ExecuteTransactionInput): boolean {
     }
 
     const notionalSui = estimateSwapNotionalSui(inputCoin, parsed.amount, suiPerInput);
-    return notionalSui > getAutoApproveMaxDisplay("sui");
+    return notionalSui > resolveAutoApproveMaxDisplay(permissions, "sui");
   } catch {
     return true;
   }
 }
 
-export function transferRequiresApproval(input: ExecuteTransactionInput): boolean {
+export function transferRequiresApprovalWithPermissions(
+  permissions: AgentPermissions,
+  input: ExecuteTransactionInput,
+): boolean {
+  if (!permissions.auto_approve_enabled && isMutatingExecuteAction(input.action)) {
+    return true;
+  }
+
   if (DEEPBOOK_WRITE_ACTIONS.has(input.action)) {
     return true;
   }
 
   if (isDeepBookSwapAction(input.action)) {
-    return swapRequiresApproval(input);
+    return swapRequiresApprovalWithPermissions(permissions, input);
   }
 
   if (!TRANSFER_ACTIONS.has(input.action)) {
     return false;
+  }
+
+  if (!permissions.auto_approve_enabled) {
+    return true;
   }
 
   const amount = parseAmountAtomic(input.params);
@@ -112,7 +147,15 @@ export function transferRequiresApproval(input: ExecuteTransactionInput): boolea
     return true;
   }
 
-  return amount > getAutoApproveMaxAtomic(input.chain_id);
+  return amount > resolveAutoApproveMaxAtomic(permissions, input.chain_id);
+}
+
+export async function transferRequiresApproval(
+  privyUserId: string,
+  input: ExecuteTransactionInput,
+): Promise<boolean> {
+  const permissions = await getAgentPermissions(privyUserId);
+  return transferRequiresApprovalWithPermissions(permissions, input);
 }
 
 export function createPendingTransaction(
@@ -207,20 +250,6 @@ export async function approvePendingTransaction(
   pendingById.delete(transactionId);
   const result = await runExecuteTransactionTool(privyUserId, record.input);
   return { pending: record.pending, result };
-}
-
-export function approvalThresholdLabel(chainId: ChainId): string {
-  const max = getAutoApproveMaxDisplay(chainId);
-  switch (chainId) {
-    case "sui":
-      return `${max} SUI`;
-    case "ethereum":
-      return `${max} ETH`;
-    case "solana":
-      return `${max} SOL`;
-    default:
-      return String(max);
-  }
 }
 
 /** Test hook — clear in-memory pending transactions. */

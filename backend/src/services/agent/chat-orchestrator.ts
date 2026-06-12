@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { getAgentProvider, getOpenAiConfig } from "../../config/agent.js";
+import { getAgentPermissions } from "./agent-permissions.service.js";
 import { deriveSessionTitle, resolveOrCreateSession } from "../conversation/conversation.service.js";
 import { appendMessage, listMessagesBySessionId } from "../conversation/message.repository.js";
 import { touchSession } from "../conversation/session.repository.js";
@@ -34,6 +35,7 @@ export async function runChatTurn(
 
   const memory = await loadAgentMemory(privyUserId);
   const memoryBlock = formatMemoryBlock(memory);
+  const agentPermissions = await getAgentPermissions(privyUserId);
 
   const runtime = options.forceRuntime ?? getAgentRuntime();
   const result = await runtime.runTurn({
@@ -41,6 +43,7 @@ export async function runChatTurn(
     sessionId: session.id,
     messages: contextMessages,
     memoryBlock,
+    agentPermissions,
   });
 
   const toolCallsJson: Prisma.InputJsonValue | undefined =

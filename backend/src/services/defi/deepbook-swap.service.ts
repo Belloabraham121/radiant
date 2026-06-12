@@ -17,6 +17,7 @@ import type { SwapQuote, SwapSide } from "./types.js";
 import type { TxResult } from "../chains/types.js";
 
 const DEFAULT_SLIPPAGE_BPS = 100;
+const DEEP_SCALAR = 1_000_000;
 const SWAP_ACTIONS = new Set(["swap", "deepbook_swap"]);
 
 export type DeepBookSwapParams = {
@@ -102,6 +103,50 @@ function parseSlippageBps(params: Record<string, unknown>): number {
   return DEFAULT_SLIPPAGE_BPS;
 }
 
+function coinParam(params: Record<string, unknown>, ...keys: string[]): string | null {
+  for (const key of keys) {
+    const value = params[key];
+    if (typeof value === "string" && value.length > 0) {
+      return value.trim().toUpperCase();
+    }
+  }
+  return null;
+}
+
+/** Infer sell/buy from coin direction when the agent omits `side`. */
+export function inferSwapSide(
+  params: Record<string, unknown>,
+  pool: PoolCoins,
+): SwapSide | null {
+  const from = coinParam(params, "input_coin", "from_coin", "from");
+  const to = coinParam(params, "output_coin", "to_coin", "to");
+
+  if (from === pool.base_coin && (!to || to === pool.quote_coin)) return "sell";
+  if (from === pool.quote_coin && (!to || to === pool.base_coin)) return "buy";
+  if (to === pool.quote_coin && (!from || from === pool.base_coin)) return "sell";
+  if (to === pool.base_coin && (!from || from === pool.quote_coin)) return "buy";
+  if (from === pool.base_coin) return "sell";
+  if (from === pool.quote_coin) return "buy";
+  return null;
+}
+
+function resolveSwapSide(
+  params: Record<string, unknown>,
+  pool: PoolCoins,
+): SwapSide {
+  const raw = params.side;
+  if (raw === "buy" || raw === "sell") return raw;
+
+  const inferred = inferSwapSide(params, pool);
+  if (inferred) return inferred;
+
+  throw new AppError(
+    400,
+    "VALIDATION_ERROR",
+    'params.side must be "buy" or "sell", or pass input_coin/from and output_coin/to (e.g. SUI → USDC is side "sell")',
+  );
+}
+
 export function parseDeepBookSwapParams(params: Record<string, unknown>): DeepBookSwapParams {
   const { defaultPool } = getDeepBookEnv();
   const poolKey =
@@ -109,20 +154,14 @@ export function parseDeepBookSwapParams(params: Record<string, unknown>): DeepBo
       ? params.pool_key
       : defaultPool;
 
-  const side = params.side;
-  if (side !== "buy" && side !== "sell") {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      'params.side must be "buy" (spend quote for base) or "sell" (spend base for quote)',
-    );
-  }
+  const pool = assertPoolKey(poolKey);
+  const side = resolveSwapSide(params, pool);
 
   const parsed: DeepBookSwapParams = {
-    pool_key: assertPoolKey(poolKey).pool_key,
+    pool_key: pool.pool_key,
     amount: parsePositiveAmount(params),
     side,
-    pay_with_deep: params.pay_with_deep !== false,
+    pay_with_deep: params.pay_with_deep === true,
     slippage_bps: parseSlippageBps(params),
   };
 
@@ -181,6 +220,52 @@ export function estimateSwapNotionalSui(
   return amountDisplay;
 }
 
+async function readWalletDeepBalanceDisplay(walletAddress: string): Promise<number> {
+  const { coins } = getDeepBookEnv();
+  const deep = coins.DEEP;
+  if (!deep) return 0;
+
+  const client = getSuiClient();
+  const { balance } = await client.getBalance({
+    owner: walletAddress,
+    coinType: deep.type,
+  });
+  return Number(balance.balance) / DEEP_SCALAR;
+}
+
+/** Use input-token fees when DEEP balance is too low for the quoted fee. */
+async function resolveSwapParamsForExecute(
+  privyUserId: string,
+  params: Record<string, unknown>,
+  parsed: DeepBookSwapParams,
+  pool: PoolCoins,
+): Promise<{ params: Record<string, unknown>; parsed: DeepBookSwapParams }> {
+  if (!parsed.pay_with_deep) {
+    return { params, parsed };
+  }
+
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const quote = await fetchSdkQuote(wallet.address, parsed, pool);
+  const deepBalance = await readWalletDeepBalanceDisplay(wallet.address);
+
+  if (deepBalance + 1e-9 >= quote.feeDeep) {
+    return { params, parsed };
+  }
+
+  const fallbackParams = { ...params, pay_with_deep: false };
+  return {
+    params: fallbackParams,
+    parsed: parseDeepBookSwapParams(fallbackParams),
+  };
+}
+
+function mapBuildError(err: unknown): never {
+  if (err instanceof Error && err.message.includes("Insufficient balance")) {
+    throw new AppError(400, "INSUFFICIENT_BALANCE", err.message);
+  }
+  throw err;
+}
+
 async function resolveSuiAgentWallet(privyUserId: string) {
   const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
   if (!wallet) {
@@ -209,7 +294,12 @@ async function buildAndExecuteSwapTransaction(
   const extended = getSuiDeepBookClient({ address: agentWallet.address });
   build(tx, extended, agentWallet.address);
 
-  const transactionBytes = await tx.build({ client: getSuiClient() });
+  let transactionBytes: Uint8Array;
+  try {
+    transactionBytes = await tx.build({ client: getSuiClient() });
+  } catch (err) {
+    mapBuildError(err);
+  }
   const serializedSignature = await signTxBytes({
     privyWalletId: agentWallet.privy_wallet_id,
     suiAddress: agentWallet.address,
@@ -308,8 +398,6 @@ export async function getDeepBookSwapQuote(
   const pool = assertPoolKey(parsed.pool_key);
   const wallet = await resolveSuiAgentWallet(privyUserId);
 
-  await validateSwapSize(privyUserId, parsed, pool);
-
   const { input, output } = swapCoins(parsed.side, pool);
   const sdkQuote = await fetchSdkQuote(wallet.address, parsed, pool);
 
@@ -357,7 +445,7 @@ function addSwapToTransaction(
   const deepAmount = parsed.pay_with_deep ? feeDeep : 0;
 
   const [baseResult, quoteResult, deepResult] = tx.add(
-    client.deepbook.swapExactQuantity({
+    client.deepbook.deepBook.swapExactQuantity({
       poolKey: parsed.pool_key,
       amount: parsed.amount,
       deepAmount,
@@ -379,11 +467,19 @@ export async function executeDeepBookSwap(
   privyUserId: string,
   params: Record<string, unknown>,
 ): Promise<DeepBookSwapTxResult> {
-  const parsed = parseDeepBookSwapParams(params);
-  const pool = assertPoolKey(parsed.pool_key);
+  const initial = parseDeepBookSwapParams(params);
+  const pool = assertPoolKey(initial.pool_key);
+  const { params: execParams, parsed } = await resolveSwapParamsForExecute(
+    privyUserId,
+    params,
+    initial,
+    pool,
+  );
   const { input, output } = swapCoins(parsed.side, pool);
 
-  const quote = await getDeepBookSwapQuote(privyUserId, params);
+  await validateSwapSize(privyUserId, parsed, pool);
+
+  const quote = await getDeepBookSwapQuote(privyUserId, execParams);
   const minOut = quote.min_out_display;
 
   const result = await buildAndExecuteSwapTransaction(privyUserId, (tx, client, address) => {

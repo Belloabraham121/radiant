@@ -3,7 +3,7 @@ import type { PendingTransaction, ToolCallRecord } from "./agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
 import { runAgentTool } from "./tools.js";
-import { approvalThresholdLabel } from "./transaction-approval.service.js";
+import { getAgentPermissions, approvalThresholdLabel } from "./agent-permissions.service.js";
 import type { ExecuteToolOutcome } from "./agent.types.js";
 import type { BalanceResult } from "../chains/types.js";
 
@@ -42,10 +42,17 @@ function formatBalanceReply(balance: BalanceResult): string {
   return `Your ${balance.native_symbol} agent wallet (${balance.address.slice(0, 10)}…) holds ${balance.balance_display.toFixed(4)} ${balance.native_symbol}.`;
 }
 
-function formatExecuteReply(outcome: ExecuteToolOutcome): string {
+async function formatExecuteReply(
+  privyUserId: string,
+  outcome: ExecuteToolOutcome,
+): Promise<string> {
   if (outcome.status === "approval_required") {
+    const permissions = await getAgentPermissions(privyUserId);
+    if (!permissions.auto_approve_enabled) {
+      return "This transaction needs your approval. Review the details and approve to continue.";
+    }
     return (
-      `That transfer is above your auto-approve limit (${approvalThresholdLabel(outcome.pending.chain_id)}). ` +
+      `That transfer is above your auto-approve limit (${approvalThresholdLabel(outcome.pending.chain_id, permissions)}). ` +
       "Review the details and approve to continue."
     );
   }
@@ -92,7 +99,7 @@ export async function runStubAgent(
       if (outcome.status === "approval_required") {
         pending_transaction = outcome.pending;
       }
-      reply = formatExecuteReply(outcome);
+      reply = await formatExecuteReply(privyUserId, outcome);
     } else {
       reply =
         "I can check your agent wallet balance or prepare transfers on your enabled chains. " +

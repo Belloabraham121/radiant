@@ -3,14 +3,16 @@ import { afterEach, describe, it } from "node:test";
 import { AppError } from "../../../src/errors/app-error.js";
 import {
   estimateSwapNotionalSui,
+  inferSwapSide,
   parseDeepBookSwapParams,
   resetDeepBookSwapServiceForTests,
 } from "../../../src/services/defi/deepbook-swap.service.js";
+import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import {
   clearPendingTransactionsForTests,
   createPendingTransaction,
-  swapRequiresApproval,
-  transferRequiresApproval,
+  swapRequiresApprovalWithPermissions,
+  transferRequiresApprovalWithPermissions,
 } from "../../../src/services/agent/transaction-approval.service.js";
 
 describe("deepbook-swap.service", () => {
@@ -31,6 +33,35 @@ describe("deepbook-swap.service", () => {
     assert.equal(parsed.side, "sell");
     assert.equal(parsed.pay_with_deep, true);
     assert.equal(parsed.slippage_bps, 100);
+  });
+
+  it("infers sell side from SUI to USDC coins", () => {
+    const side = inferSwapSide(
+      { input_coin: "SUI", output_coin: "USDC" },
+      { pool_key: "SUI_USDC", base_coin: "SUI", quote_coin: "USDC" },
+    );
+    assert.equal(side, "sell");
+  });
+
+  it("parseDeepBookSwapParams infers side when coins are provided", () => {
+    const parsed = parseDeepBookSwapParams({
+      pool_key: "SUI_USDC",
+      amount: 1,
+      input_coin: "SUI",
+      output_coin: "USDC",
+    });
+    assert.equal(parsed.side, "sell");
+    assert.equal(parsed.amount, 1);
+    assert.equal(parsed.pay_with_deep, false);
+  });
+
+  it("defaults pay_with_deep to false unless explicitly true", () => {
+    const parsed = parseDeepBookSwapParams({
+      pool_key: "SUI_USDC",
+      amount: 1,
+      side: "sell",
+    });
+    assert.equal(parsed.pay_with_deep, false);
   });
 
   it("parseDeepBookSwapParams rejects invalid side", () => {
@@ -57,7 +88,7 @@ describe("swap approval", () => {
 
   it("auto-approves small SUI sells at or below threshold", () => {
     assert.equal(
-      swapRequiresApproval({
+      swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "swap",
         params: { pool_key: "SUI_USDC", amount: 10, side: "sell" },
@@ -68,7 +99,7 @@ describe("swap approval", () => {
 
   it("requires approval for large SUI sells", () => {
     assert.equal(
-      swapRequiresApproval({
+      swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "deepbook_swap",
         params: { pool_key: "SUI_USDC", amount: 30, side: "sell" },
@@ -77,9 +108,23 @@ describe("swap approval", () => {
     );
   });
 
+  it("requires approval for every swap when auto-approve is disabled", () => {
+    assert.equal(
+      swapRequiresApprovalWithPermissions(
+        { auto_approve_enabled: false, auto_approve_max_sui: 100 },
+        {
+          chain_id: "sui",
+          action: "swap",
+          params: { pool_key: "SUI_USDC", amount: 1, side: "sell" },
+        },
+      ),
+      true,
+    );
+  });
+
   it("transferRequiresApproval delegates swap actions", () => {
     assert.equal(
-      transferRequiresApproval({
+      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "swap",
         params: { pool_key: "SUI_USDC", amount: 30, side: "sell" },

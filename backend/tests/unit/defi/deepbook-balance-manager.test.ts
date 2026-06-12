@@ -11,7 +11,8 @@ import {
   createBalanceManager,
   findBalanceManagerByPrivyUserId,
 } from "../../../src/services/defi/deepbook-balance-manager.repository.js";
-import { transferRequiresApproval } from "../../../src/services/agent/transaction-approval.service.js";
+import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
+import { transferRequiresApprovalWithPermissions } from "../../../src/services/agent/transaction-approval.service.js";
 import { clearPendingTransactionsForTests } from "../../../src/services/agent/transaction-approval.service.js";
 
 const privyUserId = "did:privy:deepbook-bm-test";
@@ -87,7 +88,7 @@ describe("deepbook-balance-manager.service", () => {
 
   it("requires approval for deepbook deposit and withdraw actions", () => {
     assert.equal(
-      transferRequiresApproval({
+      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "deepbook_deposit",
         params: { coin_key: "SUI", amount_display: 1 },
@@ -95,7 +96,7 @@ describe("deepbook-balance-manager.service", () => {
       true,
     );
     assert.equal(
-      transferRequiresApproval({
+      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "deepbook_withdraw",
         params: { coin_key: "USDC", amount_display: 10 },
