@@ -16,6 +16,12 @@ import {
   shouldNudgeWithdrawExecute,
 } from "../withdraw-approval-flow.js";
 import {
+  isCompoundMarketAndSwapRequest,
+  POOL_INFO_BEFORE_SWAP_NUDGE,
+  shouldFinalizeCompoundReply,
+  shouldNudgePoolInfoBeforeSwap,
+} from "../compound-request-flow.js";
+import {
   shouldNudgeSwapExecute,
   SWAP_EXECUTE_NUDGE,
 } from "../swap-approval-flow.js";
@@ -112,6 +118,14 @@ export const openaiRuntime: AgentRuntime = {
 
       const toolCallList = choice.tool_calls ?? [];
       if (toolCallList.length === 0) {
+        if (shouldNudgePoolInfoBeforeSwap(tool_calls, lastUserMessage)) {
+          messages.push({
+            role: "user",
+            content: POOL_INFO_BEFORE_SWAP_NUDGE,
+          });
+          continue;
+        }
+
         if (shouldNudgeSwapExecute(tool_calls, lastUserMessage)) {
           messages.push({
             role: "user",
@@ -205,7 +219,13 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       if (executeToolError) {
-        if (executeToolError.error.code === "VALIDATION_ERROR") {
+        const compoundReply = shouldFinalizeCompoundReply(
+          tool_calls,
+          lastUserMessage,
+          executeToolError,
+        );
+
+        if (executeToolError.error.code === "VALIDATION_ERROR" && !compoundReply) {
           // Allow the model to retry with corrected params in the next step.
           continue;
         }
@@ -218,6 +238,8 @@ export const openaiRuntime: AgentRuntime = {
             toolName: EXECUTE_TRANSACTION_TOOL_NAME,
             toolResult: executeToolError,
             transactionContext: transactionContextFromInput(lastExecuteInput),
+            compoundRequest:
+              compoundReply || isCompoundMarketAndSwapRequest(lastUserMessage),
           });
         } catch (err) {
           throw mapOpenAiError(err);

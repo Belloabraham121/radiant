@@ -34,8 +34,20 @@ export function buildErrorExplanationInstructions(input: {
   error: AgentToolErrorPayload;
   transactionContext?: TransactionErrorContext;
   userContext?: string;
+  compoundRequest?: boolean;
 }): string {
   const parts: string[] = [];
+
+  if (input.compoundRequest) {
+    parts.push(
+      "The user's message asked MULTIPLE things (e.g. market price AND a conditional swap). " +
+        "Your reply MUST cover both in order: " +
+        "(1) Answer every informational question first — use deepbook_pool_info, ticker, or swap_quote data from earlier tool results in this turn. " +
+        "Include the price and whether it looks reasonable if they asked. " +
+        "(2) Then explain what happened with execute_transaction (submitted, needs approval, or why it failed — e.g. below min_size/lot_size). " +
+        "Never skip part (1) because part (2) failed.",
+    );
+  }
 
   if (input.userContext) {
     parts.push(input.userContext);
@@ -97,7 +109,14 @@ export function buildErrorExplanationInstructions(input: {
       }
       break;
     case "VALIDATION_ERROR":
-      parts.push("Explain what parameter was missing or invalid and how to fix the request.");
+      if (input.compoundRequest) {
+        parts.push(
+          "The swap could not run because of DeepBook size rules (min_size, lot_size) or invalid params. " +
+            "Mention the pool minimum/lot from pool_info if available, then suggest a larger amount.",
+        );
+      } else {
+        parts.push("Explain what parameter was missing or invalid and how to fix the request.");
+      }
       break;
     default:
       parts.push("Explain the failure in plain language for the specific action they attempted.");
@@ -121,12 +140,14 @@ export async function explainTransactionError(input: {
   toolResult: AgentToolErrorResult;
   transactionContext?: TransactionErrorContext;
   userContext?: string;
+  compoundRequest?: boolean;
 }): Promise<string> {
   const instruction = buildErrorExplanationInstructions({
     toolName: input.toolName,
     error: input.toolResult.error,
     transactionContext: input.transactionContext,
     userContext: input.userContext,
+    compoundRequest: input.compoundRequest,
   });
 
   const completion = await input.client.chat.completions.create({

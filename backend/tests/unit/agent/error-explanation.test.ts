@@ -24,20 +24,22 @@ describe("error-explanation", () => {
     assert.doesNotMatch(instructions, /Try a smaller swap/i);
   });
 
-  it("routes swap insufficient balance to wallet-focused AI instructions", () => {
+  it("adds compound-reply instructions for price+swap failures", () => {
     const instructions = buildErrorExplanationInstructions({
       toolName: "execute_transaction",
       error: {
-        code: "INSUFFICIENT_BALANCE",
-        message: "You do not have enough of the required token.",
+        code: "VALIDATION_ERROR",
+        message: "Amount is too small after conversion",
       },
+      compoundRequest: true,
       transactionContext: {
-        action: "deepbook_swap",
-        amount_display: "10000 SUI → ~7496 USDC",
+        action: "swap",
+        amount_display: "0.1 SUI → USDC",
       },
     });
 
-    assert.match(instructions, /swap from the agent wallet/i);
-    assert.doesNotMatch(instructions, /DeepBook balance manager funds, not the user's main wallet/i);
+    assert.match(instructions, /MULTIPLE things/i);
+    assert.match(instructions, /Answer every informational question first/i);
+    assert.match(instructions, /min_size|lot_size/i);
   });
 });
