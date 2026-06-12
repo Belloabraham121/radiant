@@ -355,11 +355,11 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `execute_transaction` tool — `{ chain_id, action, params }`; resolve wallet from session + registry | [Backend] |
-| [ ] | `query_chain` tool — read-only via `ChainAdapter` (balance, object, pool, …) | [Backend] |
-| [ ] | User approval modal for txs above threshold | [Client] |
-| [ ] | Remove `wallet` / `wallet_address` from `api-ref.md` request examples | [Backend] |
-| [ ] | `POST /api/v1/chat` — Claude + tools (stub OK first) | [Backend] |
+| [x] | `execute_transaction` tool — `{ chain_id, action, params }`; resolve wallet from session + registry | [Backend] |
+| [x] | `query_chain` tool — read-only balance via `ChainAdapter` | [Backend] |
+| [x] | User approval modal for txs above threshold | [Client] |
+| [x] | `api-ref.md` chat examples — no `wallet` / `wallet_address` in bodies | [Backend] |
+| [x] | `POST /api/v1/chat` — stub agent + optional Claude + tools | [Backend] |
 
 ---
 
@@ -379,18 +379,18 @@ HTTP / agent tools (chain-agnostic)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `client/src/app/refresh/page.tsx` — `getAccessToken()` + redirect | [Client] |
-| [ ] | Next.js middleware: `privy-session` without `privy-token` → `/refresh` | [Client] |
-| [ ] | Skip redirect on `privy_oauth_*` query params | [Client] |
+| [x] | `client/src/app/refresh/page.tsx` — `getAccessToken()` + redirect | [Client] |
+| [x] | Next.js middleware: `privy-session` without `privy-token` → `/refresh` | [Client] |
+| [x] | Skip redirect on `privy_oauth_*` query params | [Client] |
 
 ### 6.3 Deploy checklist
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `npm run db:deploy` on production Postgres | [Backend] |
-| [ ] | `CORS_ORIGIN` = production frontend URL | [Backend] |
-| [ ] | No secrets in logs; `PRIVY_AUTHORIZATION_PRIVATE_KEY` server-only | [Backend] |
-| [ ] | `npx tsc --noEmit` + tests pass | [Backend] |
+| [x] | `docs/deploy-checklist.md` — `npm run db:deploy` on production Postgres | [Backend] |
+| [x] | `CORS_ORIGIN` = production frontend URL (documented in checklist + `.env.example`) | [Backend] |
+| [x] | No secrets in logs; `PRIVY_AUTHORIZATION_PRIVATE_KEY` server-only (documented) | [Backend] |
+| [x] | `npm run check` — `tsc --noEmit` + tests | [Backend] |
 
 ---
 

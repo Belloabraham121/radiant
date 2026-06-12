@@ -1,4 +1,4 @@
-import type { User } from "@privy-io/node/resources/users.mjs";
+import type { User } from "@privy-io/node";
 import { getDefaultAgentChainId } from "../../config/chains.js";
 import { AppError } from "../../errors/app-error.js";
 import { normalizeEmail } from "../../utils/normalize-email.js";

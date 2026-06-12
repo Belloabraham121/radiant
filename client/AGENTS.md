@@ -98,6 +98,7 @@ Only **public** IDs and URLs: `NEXT_PUBLIC_PRIVY_APP_ID`, `NEXT_PUBLIC_API_URL`,
 
 - Login UI: `AuthCard` + `useLoginWithOAuth` / `useLoginWithEmail`. OAuth return is handled on `/auth` by the Privy SDK (query params `privy_oauth_code`, `privy_oauth_state`, `privy_oauth_provider`).
 - After Privy login: one `fetchAuthMe()` to sync the backend user row, then redirect to `/app`.
+- Cookie refresh (production SSR): middleware on `/app/*` redirects to `/refresh` when `privy-session` exists but `privy-token` is missing; `SessionRefresh` calls `getAccessToken()` then redirects to `redirect_uri` or `/auth`.
 - Wallet onboarding: `AgentWalletProvider` runs **once per `user.id`** — do not re-trigger on every Privy `user` object reference change.
 
 ---
@@ -181,6 +182,7 @@ Before adding `useEffect` + async:
 - Default UI chain: `NEXT_PUBLIC_DEFAULT_AGENT_CHAIN`. Balances/deposits for EVM use `NEXT_PUBLIC_EVM_DEFAULT_CHAIN_ID`.
 - Personal-wallet deposits (`lib/personal-wallet.ts`): Sui → dapp-kit · EVM → injected EIP-1193 · Solana → `window.solana` + `@solana/web3.js`.
 - Shared identity: `ConnectedAccountsSection` uses `useLinkAccount`; login merge errors via `lib/auth-errors.ts` (`ACCOUNT_MERGE_REQUIRED`, `account_transfer_required`).
+- Agent chat: `postChat` → `POST /api/v1/chat` (no wallet in body). Large transfers return `pending_transaction` → `TransactionApprovalModal`.
 - Personal wallet: never used for agent automation; only user-initiated deposits in `AgentWalletSection`.
 
 ---

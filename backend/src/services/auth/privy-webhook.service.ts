@@ -1,4 +1,4 @@
-import type { User } from "@privy-io/node/resources/users.mjs";
+import type { User } from "@privy-io/node";
 import { logger } from "../../shared/logger.js";
 import { handleTransferredAccount, syncUserEmailFromPrivyUser } from "./user.service.js";
 

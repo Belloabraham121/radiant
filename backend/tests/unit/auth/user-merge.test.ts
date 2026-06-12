@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import type { User } from "@privy-io/node/resources/users.mjs";
+import type { User } from "@privy-io/node";
 import { prisma } from "../../../src/infrastructure/postgres/client.js";
 import {
   handleTransferredAccount,

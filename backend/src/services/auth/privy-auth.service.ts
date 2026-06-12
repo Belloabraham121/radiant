@@ -1,4 +1,4 @@
-import type { User } from "@privy-io/node/resources/users.mjs";
+import type { User } from "@privy-io/node";
 import type { Request } from "express";
 import { getAuthCookieNames } from "../../config/env.js";
 import { AppError } from "../../errors/app-error.js";

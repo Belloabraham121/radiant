@@ -12,7 +12,7 @@ Backend API and environment checklist. Implementation lives under `src/`.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `POST` | `/api/v1/chat` | Agent conversation (Claude + tools) |
+| `POST` | `/api/v1/chat` | Agent conversation (Claude or stub) with `query_chain` + `execute_transaction` tools |
 | `POST` | `/api/v1/build` | Preview app build without deploying |
 | `POST` | `/api/v1/deploy` | Full deploy pipeline (E2B + Walrus + registry) |
 | `GET` | `/api/v1/apps` | Public marketplace listings |
@@ -38,6 +38,44 @@ Auth happens on the **client** (Privy SDK). The backend only **verifies** the Ht
 | `GET` | `/api/v1/wallets/balances` | Agent wallet balances (from session) |
 
 There is no `POST /auth/register` or `POST /auth/login` — Privy handles both. See [docs/privy-implementation-plan.md](./docs/privy-implementation-plan.md).
+
+### Agent chat
+
+Wallet addresses are **never** sent in the request body — the backend resolves the agent wallet from the authenticated session (`privy-token` cookie).
+
+**`POST /api/v1/chat`** — requires cookie.
+
+```json
+// Request
+{
+  "message": "What's my SUI balance?",
+  "session_id": "optional-uuid"
+}
+
+// Response
+{
+  "success": true,
+  "data": {
+    "reply": "Your SUI agent wallet holds 12.5000 SUI.",
+    "session_id": "abc-123",
+    "mode": "stub",
+    "tool_calls": [{ "name": "query_chain", "result": { } }],
+    "pending_transaction": null
+  }
+}
+```
+
+Large transfers return `pending_transaction` instead of broadcasting immediately. Approve with:
+
+```json
+{
+  "message": "Approve transaction",
+  "session_id": "abc-123",
+  "approve_transaction_id": "uuid-from-pending_transaction.id"
+}
+```
+
+Auto-approve thresholds (env): `AGENT_AUTO_APPROVE_MAX_SUI` (default 25), `AGENT_AUTO_APPROVE_MAX_ETH`, `AGENT_AUTO_APPROVE_MAX_SOL`.
 
 ## WebSocket
 

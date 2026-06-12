@@ -1,4 +1,6 @@
-import type { LinkedAccount, User } from "@privy-io/node/resources/users.mjs";
+import type { User } from "@privy-io/node";
+
+type LinkedAccount = User["linked_accounts"][number];
 import { normalizeEmail } from "../../utils/normalize-email.js";
 import type { LinkedAccountLabel } from "./auth.types.js";
 
