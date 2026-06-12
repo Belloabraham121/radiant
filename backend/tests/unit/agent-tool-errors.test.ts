@@ -7,6 +7,14 @@ import {
 } from "../../src/utils/agent-tool-errors.js";
 
 describe("agent-tool-errors", () => {
+  it("mapAgentToolError maps InsufficientCoinBalance to INSUFFICIENT_BALANCE", () => {
+    const mapped = mapAgentToolError(
+      new Error("Transaction resolution failed: InsufficientCoinBalance in command 0"),
+    );
+    assert.equal(mapped.code, "INSUFFICIENT_BALANCE");
+    assert.match(mapped.message, /enough/i);
+  });
+
   it("mapAgentToolError maps insufficient balance to AppError", () => {
     const mapped = mapAgentToolError(new Error("Insufficient balance for SUI coin"));
     assert.equal(mapped.code, "INSUFFICIENT_BALANCE");

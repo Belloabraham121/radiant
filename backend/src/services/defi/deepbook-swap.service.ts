@@ -262,8 +262,12 @@ async function resolveSwapParamsForExecute(
 }
 
 function mapBuildError(err: unknown): never {
-  if (err instanceof Error && err.message.includes("Insufficient balance")) {
-    throw new AppError(400, "INSUFFICIENT_BALANCE", err.message);
+  const message = err instanceof Error ? err.message : String(err);
+  if (/insufficient\s*balance|insufficientcoinbalance|not enough/i.test(message)) {
+    throw new AppError(400, "INSUFFICIENT_BALANCE", message);
+  }
+  if (err instanceof AppError) {
+    throw err;
   }
   throw err;
 }
@@ -530,8 +534,21 @@ export async function buildDeepBookSwapTransactionBytes(
     quote.fee_deep ?? 0,
   );
 
-  const bytes = await tx.build({ client: getSuiClient() });
+  let bytes: Uint8Array;
+  try {
+    bytes = await tx.build({ client: getSuiClient() });
+  } catch (err) {
+    mapBuildError(err);
+  }
   return { bytes, quote };
+}
+
+/** Dry-run swap build before queueing approval — surfaces insufficient balance early. */
+export async function preflightDeepBookSwap(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<void> {
+  await buildDeepBookSwapTransactionBytes(privyUserId, params);
 }
 
 /** Test hooks */

@@ -23,19 +23,26 @@ export function isAgentToolErrorResult(result: unknown): result is AgentToolErro
   );
 }
 
-function fallbackErrorReply(error: AgentToolErrorPayload): string {
+export function fallbackErrorReply(error: AgentToolErrorPayload): string {
   switch (error.code) {
     case "INSUFFICIENT_BALANCE":
       return (
-        "That transaction could not go through because your agent wallet does not have enough of the " +
-        "required token. Try funding the wallet or using a smaller amount."
+        "That swap could not go through because your agent wallet does not have enough SUI " +
+        "(or gas) for the amount you asked for. Try a smaller swap or add funds to your agent wallet first."
       );
     case "SLIPPAGE_EXCEEDED":
       return "The swap could not complete because the price moved too much. Try a smaller amount or retry shortly.";
     case "TRANSACTION_FAILED":
-      return `The transaction failed on chain: ${error.message}`;
+    case "TRANSACTION_ERROR":
+      return (
+        "That transaction could not be completed on chain. " +
+        "If you were swapping, check that your wallet has enough of the input token and a little SUI for gas."
+      );
     default:
-      return error.message;
+      return (
+        "Something went wrong while preparing that transaction. " +
+        "Try a smaller amount, check your wallet balance, or ask me to look up your balance first."
+      );
   }
 }
 

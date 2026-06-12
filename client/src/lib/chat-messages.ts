@@ -29,6 +29,13 @@ export function formatSessionTime(updatedAt: string): string {
 
 export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
   const receipts: Receipt[] = [];
+  const executeFailed = toolCalls.some(
+    (call) =>
+      call.name === "execute_transaction" &&
+      typeof call.result === "object" &&
+      call.result !== null &&
+      "error" in call.result,
+  );
 
   for (const call of toolCalls) {
     if (call.name === "query_chain") {
@@ -54,6 +61,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       }
 
       if (
+        !executeFailed &&
         result.input_coin &&
         result.output_coin &&
         result.input_amount_display != null &&
@@ -113,10 +121,6 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       };
 
       if (raw.error?.message) {
-        receipts.push({
-          label: "Transaction failed",
-          detail: raw.error.code?.replace(/_/g, " ").toLowerCase(),
-        });
         continue;
       }
 

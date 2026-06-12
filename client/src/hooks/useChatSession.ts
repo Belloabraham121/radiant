@@ -23,6 +23,7 @@ function initialChatSessionState(sessionId?: string) {
       title: "New chat",
       loading: false,
       skipFetch: true,
+      pending_transaction: null as PendingTransaction | null,
     };
   }
 
@@ -33,6 +34,7 @@ function initialChatSessionState(sessionId?: string) {
       title: cached.title,
       loading: false,
       skipFetch: true,
+      pending_transaction: cached.pending_transaction ?? null,
     };
   }
 
@@ -41,6 +43,7 @@ function initialChatSessionState(sessionId?: string) {
     title: "New chat",
     loading: true,
     skipFetch: false,
+    pending_transaction: null as PendingTransaction | null,
   };
 }
 
@@ -56,7 +59,9 @@ export function useChatSession(sessionId?: string) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
-  const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(null);
+  const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(
+    boot.pending_transaction,
+  );
   const [approving, setApproving] = useState(false);
 
   useEffect(() => {
@@ -135,6 +140,7 @@ export function useChatSession(sessionId?: string) {
             cacheChatSession(data.session_id, {
               messages: nextMessages,
               title: nextTitle,
+              pending_transaction: data.pending_transaction,
             });
           }
 
@@ -143,9 +149,7 @@ export function useChatSession(sessionId?: string) {
 
         if (!sessionId && data.session_id) {
           router.replace(`/app/chat/${data.session_id}`);
-        }
-
-        if (data.pending_transaction) {
+        } else if (data.pending_transaction) {
           setPendingTx(data.pending_transaction);
         }
 

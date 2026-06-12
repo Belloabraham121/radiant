@@ -23,8 +23,9 @@ import { agentToolDefinitions, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { toOpenAiTools } from "./openai-tools.js";
 import {
+  ERROR_EXPLANATION_NUDGE,
+  fallbackErrorReply,
   isAgentToolErrorResult,
-  synthesizeErrorExplanationReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { summarizeToolResult } from "./summarize-tool-result.js";
@@ -203,13 +204,29 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
-        reply = await synthesizeErrorExplanationReply({
-          toolName: EXECUTE_TRANSACTION_TOOL_NAME,
-          toolResult: executeToolError,
-          messages: input.messages,
-          memoryBlock: input.memoryBlock,
-          agentPermissions: input.agentPermissions,
+        messages.push({
+          role: "user",
+          content:
+            "The execute_transaction tool failed — see the tool result above (including any swap quote). " +
+            `${ERROR_EXPLANATION_NUDGE} ` +
+            "Reply directly to me. Do not call query_chain or execute_transaction again for this request.",
         });
+
+        let explanation;
+        try {
+          explanation = await client.chat.completions.create({
+            model,
+            messages,
+            tool_choice: "none",
+            max_tokens: 512,
+          });
+        } catch (err) {
+          throw mapOpenAiError(err);
+        }
+
+        reply =
+          explanation.choices[0]?.message?.content?.trim() ??
+          fallbackErrorReply(executeToolError.error);
         break;
       }
     }

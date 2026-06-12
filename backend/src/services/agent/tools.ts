@@ -23,6 +23,10 @@ import {
   transferRequiresApproval,
 } from "./transaction-approval.service.js";
 import { validateExecuteTransactionInput } from "./validate-execute-transaction.js";
+import {
+  isDeepBookSwapAction,
+  preflightDeepBookSwap,
+} from "../defi/deepbook-swap.service.js";
 
 export const agentToolDefinitions = [
   executeTransactionToolDefinition,
@@ -81,11 +85,17 @@ export async function runExecuteTransactionToolWithApproval(
 ): Promise<ExecuteToolOutcome> {
   validateExecuteTransactionInput(input);
 
-  if (!approved && (await transferRequiresApproval(privyUserId, input))) {
-    return {
-      status: "approval_required",
-      pending: await createPendingTransaction(privyUserId, input),
-    };
+  if (!approved) {
+    const needsApproval = await transferRequiresApproval(privyUserId, input);
+    if (needsApproval) {
+      if (isDeepBookSwapAction(input.action)) {
+        await preflightDeepBookSwap(privyUserId, input.params);
+      }
+      return {
+        status: "approval_required",
+        pending: await createPendingTransaction(privyUserId, input),
+      };
+    }
   }
 
   const result = await runExecuteTransactionTool(privyUserId, input);

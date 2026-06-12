@@ -18,7 +18,7 @@ export function mapAgentToolError(err: unknown): AppError {
 
   const message = errorMessage(err);
 
-  if (/insufficient balance/i.test(message)) {
+  if (/insufficient\s*balance|insufficientcoinbalance|not enough\s+\w+/i.test(message)) {
     return new AppError(
       400,
       "INSUFFICIENT_BALANCE",
@@ -79,6 +79,7 @@ function guidanceForErrorCode(code: string): string {
       return "Explain the wallet lacks enough of the required token. Suggest funding the agent wallet or using a smaller amount.";
     case "SLIPPAGE_EXCEEDED":
       return "Explain the swap could not complete due to price movement. Suggest a smaller amount or higher slippage.";
+    case "TRANSACTION_ERROR":
     case "TRANSACTION_FAILED":
       return "Explain the transaction failed on chain in plain language.";
     case "INVALID_PUBLIC_KEY":
