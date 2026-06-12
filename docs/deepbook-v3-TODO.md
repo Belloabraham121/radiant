@@ -136,12 +136,12 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Add `@mysten/deepbook-v3` to `backend/package.json` |
-| [ ] | `src/config/deepbook.ts` — env, default pools/coins, indexer base URL |
-| [ ] | `services/defi/types.ts` — `DeFiProviderId`, `SwapQuote`, `PoolSummary`, `OrderSummary`, `StakeSummary` |
-| [ ] | `services/defi/providers/sui-deepbook.provider.ts` — lazy `DeepBookClient` factory per `(address, balanceManagers)` |
-| [ ] | `services/defi/swap-registry.ts` — register `sui-deepbook`; stub for future providers |
-| [ ] | Unit tests: config parsing, provider init with mock SuiClient |
+| [x] | Add `@mysten/deepbook-v3` to `backend/package.json` |
+| [x] | `src/config/deepbook.ts` — env, default pools/coins, indexer base URL |
+| [x] | `services/defi/types.ts` — `DeFiProviderId`, `SwapQuote`, `PoolSummary`, `OrderSummary`, `StakeSummary` |
+| [x] | `services/defi/providers/sui-deepbook.provider.ts` — lazy `DeepBookClient` factory per `(address, balanceManagers)` |
+| [x] | `services/defi/swap-registry.ts` — register `sui-deepbook`; stub for future providers |
+| [x] | Unit tests: config parsing, provider init with mock SuiClient |
 
 ### Client
 
@@ -473,4 +473,4 @@ A Foundation → B Balance manager → C Pools/indexer reads → D Swap
 
 ---
 
-*Last updated: 2026-06-11*
+*Last updated: 2026-06-12*

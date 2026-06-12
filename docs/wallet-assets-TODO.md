@@ -273,7 +273,6 @@ Reuse DeepBook indexer asset scalars (see [deepbook-v3-TODO.md](./deepbook-v3-TO
 | Variable | Example | Purpose |
 | -------- | ------- | ------- |
 | `DEEPBOOK_INDEXER_URL` | `https://deepbook-indexer.mainnet.mystenlabs.com` | Token catalog `/assets` |
-| `WALLET_ASSET_CACHE_TTL_SEC` | `60` | Redis TTL |
 | `WALLET_POPULAR_SYMBOLS` | `SUI,USDC,DEEP,WAL,USDT` | Display order |
 
 ---
@@ -312,4 +311,4 @@ Token catalog (indexer) → Phase A (Sui API) → Phase C (UI)
 
 ---
 
-*Last updated: 2026-06-11*
+*Last updated: 2026-06-12*

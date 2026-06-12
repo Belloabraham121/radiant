@@ -422,7 +422,7 @@ Phase 0 (infra + dashboard)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Phase A — SDK, `services/defi/`, config | [Backend] |
+| [x] | Phase A — SDK, `services/defi/`, config | [Backend] |
 | [ ] | Phase B — Balance manager (Prisma + ensure + deposit/withdraw) | [Backend] |
 | [ ] | Phase C — Pools + indexer client (reads) | [Backend] |
 | [ ] | Phase D — Swap (quote + execute + approval) | [Both] |
