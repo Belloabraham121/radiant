@@ -11,6 +11,10 @@ export type AuthMeAgentWallet = {
 export type AuthMeData = {
   privy_user_id: string;
   email: string | null;
+  display_name: string | null;
+  avatar_seed: string;
+  avatar_style: string;
+  member_since: string;
   linked_accounts: Array<"google" | "github" | "email">;
   agent_wallet: AuthMeAgentWallet | null;
   agent_wallets: AuthMeAgentWallet[];

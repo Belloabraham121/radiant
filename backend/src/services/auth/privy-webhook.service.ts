@@ -1,6 +1,6 @@
 import type { User } from "@privy-io/node";
 import { logger } from "../../shared/logger.js";
-import { handleTransferredAccount, syncUserEmailFromPrivyUser } from "./user.service.js";
+import { handleTransferredAccount, syncUserFromPrivyUser } from "./user.service.js";
 
 type PrivyWebhookEvent = {
   type: string;
@@ -33,7 +33,7 @@ export async function handlePrivyWebhookEvent(event: unknown): Promise<void> {
         logger.warn("Privy webhook missing user payload", { type: payload.type });
         return;
       }
-      await syncUserEmailFromPrivyUser(payload.user);
+      await syncUserFromPrivyUser(payload.user);
       return;
     }
     case "user.transferred_account": {

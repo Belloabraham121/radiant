@@ -11,9 +11,10 @@ import {
   Settings,
   Sparkles,
 } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { CHATS, USER } from "@/lib/app-data";
+import { UserAvatar } from "@/components/profile/UserAvatar";
+import { CHATS } from "@/lib/app-data";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
 import { formatChainAddress, getChainMeta } from "@/lib/chain-meta";
 import { useSidebar } from "./SidebarContext";
@@ -27,11 +28,8 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const { open, setOpen } = useSidebar();
-  const { user } = usePrivy();
+  const { seed, displayName } = useUserProfile();
   const { primaryWallet, defaultChainId, status } = useAgentWallet();
-  const displayName =
-    user?.email?.address ?? user?.google?.email ?? user?.github?.username ?? USER.name;
-  const displayInitial = displayName.charAt(0).toUpperCase();
   const walletLabel =
     primaryWallet?.address != null
       ? `${getChainMeta(defaultChainId).nativeSymbol} ${formatChainAddress(defaultChainId, primaryWallet.address)}`
@@ -127,9 +125,7 @@ export function Sidebar() {
         </div>
 
         <div className="flex items-center gap-3 border-t-2 border-[var(--hero-ink)] px-5 py-4">
-          <span className="flex size-10 items-center justify-center rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)] font-heading text-base font-extrabold text-white">
-            {displayInitial}
-          </span>
+          <UserAvatar seed={seed} alt={displayName} size={40} rounded="full" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold">{displayName}</p>
             <p className="truncate font-mono text-[11px] font-semibold text-[var(--hero-ink)]/45">

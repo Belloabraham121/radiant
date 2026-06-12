@@ -1,5 +1,21 @@
+import { randomUUID } from "node:crypto";
 import type { AgentWallet, Prisma, User } from "@prisma/client";
 import { prisma } from "../../infrastructure/postgres/client.js";
+import { DEFAULT_AVATAR_STYLE } from "./profile.constants.js";
+
+export function newAvatarSeed(): string {
+  return randomUUID();
+}
+
+export function defaultUserProfileFields(): Pick<
+  Prisma.UserCreateInput,
+  "avatar_seed" | "avatar_style"
+> {
+  return {
+    avatar_seed: newAvatarSeed(),
+    avatar_style: DEFAULT_AVATAR_STYLE,
+  };
+}
 
 export type UserWithWallets = User & { agent_wallets: AgentWallet[] };
 
@@ -66,6 +82,7 @@ export async function mergeOrphanUserIntoSurvivor(
         data: {
           privy_user_id: toPrivyUserId,
           email: survivorEmail,
+          ...defaultUserProfileFields(),
         },
         include: { agent_wallets: true },
       }));

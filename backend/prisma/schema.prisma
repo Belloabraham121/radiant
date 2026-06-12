@@ -11,6 +11,9 @@ model User {
   id            BigInt   @id @default(autoincrement())
   privy_user_id String   @unique
   email         String?  @unique
+  display_name  String?
+  avatar_seed   String
+  avatar_style  String   @default("lorelei")
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

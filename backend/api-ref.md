@@ -31,13 +31,32 @@ Auth happens on the **client** (Privy SDK). The backend only **verifies** the Ht
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `GET` | `/api/v1/auth/me` | Current user + agent wallet (cookie required). Upserts local `User` row on first call. |
+| `GET` | `/api/v1/auth/me` | Current user, profile (`avatar_seed`, `display_name`), agent wallets (cookie required). Upserts local `User` on first call. |
 | `POST` | `/api/v1/auth/register-wallet` | **First-time only** — persist embedded Sui wallet after client creates it |
 | `POST` | `/api/v1/auth/logout` | End session |
 | `POST` | `/api/v1/webhooks/privy` | Privy webhooks (Svix signature). Handles `user.linked_account`, `user.transferred_account`. |
 | `GET` | `/api/v1/wallets/balances` | Agent wallet balances (from session) |
 
 There is no `POST /auth/register` or `POST /auth/login` — Privy handles both. See [docs/privy-implementation-plan.md](./docs/privy-implementation-plan.md).
+
+**`GET /api/v1/auth/me`** response includes profile fields for Dicebear avatars (client renders from `avatar_seed` + `avatar_style`; image is not stored):
+
+```json
+{
+  "success": true,
+  "data": {
+    "privy_user_id": "did:privy:...",
+    "email": "user@example.com",
+    "display_name": "Ada Lovelace",
+    "avatar_seed": "550e8400-e29b-41d4-a716-446655440000",
+    "avatar_style": "lorelei",
+    "member_since": "2026-06-12T02:06:53.000Z",
+    "linked_accounts": ["google", "github"],
+    "agent_wallet": { },
+    "agent_wallets": []
+  }
+}
+```
 
 ### Agent chat
 

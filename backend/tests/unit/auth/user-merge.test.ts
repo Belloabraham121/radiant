@@ -4,8 +4,9 @@ import type { User } from "@privy-io/node";
 import { prisma } from "../../../src/infrastructure/postgres/client.js";
 import {
   handleTransferredAccount,
-  syncUserEmailFromPrivyUser,
+  syncUserFromPrivyUser,
 } from "../../../src/services/auth/user.service.js";
+import { defaultUserProfileFields } from "../../../src/services/auth/user.repository.js";
 
 function privyUser(
   id: string,
@@ -63,6 +64,7 @@ describe("shared identity user merge", () => {
       data: {
         privy_user_id: survivorId,
         email: sharedEmail,
+        ...defaultUserProfileFields(),
         agent_wallets: {
           create: {
             chain_type: "sui",
@@ -79,6 +81,7 @@ describe("shared identity user merge", () => {
       data: {
         privy_user_id: orphanId,
         email: "orphan@radiant.dev",
+        ...defaultUserProfileFields(),
         agent_wallets: {
           create: {
             chain_type: "ethereum",
@@ -121,24 +124,26 @@ describe("shared identity user merge", () => {
     assert.equal(orphanWalletStillExists.user_id, survivor.id);
   });
 
-  it("syncUserEmailFromPrivyUser updates normalized email", async () => {
+  it("syncUserFromPrivyUser updates normalized email and display name", async () => {
     const syncUserId = "did:privy:sync-email-test";
     await prisma.user.deleteMany({ where: { privy_user_id: syncUserId } });
     await prisma.user.create({
       data: {
         privy_user_id: syncUserId,
         email: "old@radiant.dev",
+        ...defaultUserProfileFields(),
       },
     });
 
-    await syncUserEmailFromPrivyUser(
-      privyUser(syncUserId, "NEW@Radiant.Dev", "email"),
+    await syncUserFromPrivyUser(
+      privyUser(syncUserId, "NEW@Radiant.Dev", "google_oauth"),
     );
 
     const updated = await prisma.user.findUnique({
       where: { privy_user_id: syncUserId },
     });
     assert.equal(updated?.email, "new@radiant.dev");
+    assert.equal(updated?.display_name, "Dev");
 
     await prisma.user.deleteMany({ where: { privy_user_id: syncUserId } });
   });
