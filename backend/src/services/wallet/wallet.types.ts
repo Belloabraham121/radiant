@@ -101,6 +101,28 @@ export const walletBalancesQuerySchema = z.object({
   evm_chain_id: z.coerce.number().int().positive().optional(),
 });
 
+function parseBooleanQuery(value: unknown, defaultValue: boolean): boolean {
+  if (value === undefined) return defaultValue;
+  if (typeof value === "string") {
+    if (value === "true" || value === "1") return true;
+    if (value === "false" || value === "0") return false;
+  }
+  return defaultValue;
+}
+
+export const walletAssetsQuerySchema = z.object({
+  chain: chainIdSchema.optional().default("sui"),
+  evm_chain_id: z.coerce.number().int().positive().optional(),
+  include_zero: z
+    .union([z.boolean(), z.enum(["true", "false", "1", "0"])])
+    .optional()
+    .transform((value) => parseBooleanQuery(value, true)),
+  include_usd: z
+    .union([z.boolean(), z.enum(["true", "false", "1", "0"])])
+    .optional()
+    .transform((value) => parseBooleanQuery(value, true)),
+});
+
 export const signAndSendBodySchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("transfer_sui"),

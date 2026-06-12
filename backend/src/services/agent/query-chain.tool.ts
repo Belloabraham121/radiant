@@ -1,5 +1,6 @@
 import { AppError } from "../../errors/app-error.js";
 import { getAdapter } from "../chains/registry.js";
+import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import {
@@ -25,8 +26,9 @@ export const queryChainToolDefinition = {
       },
       query: {
         type: "string",
-        enum: ["balance", "native_balance"],
-        description: "Read-only query type. Currently supports native balance only.",
+        enum: ["balance", "native_balance", "token_balances"],
+        description:
+          "Read-only query type: native balance or multi-token wallet holdings (Sui: SUI, USDC, DEEP, …).",
       },
       params: {
         type: "object",
@@ -65,6 +67,12 @@ export async function runQueryChainTool(
     case "balance":
     case "native_balance":
       return adapter.getBalance(wallet.address, context);
+    case "token_balances":
+      return getWalletAssetsForPrivyUser(privyUserId, {
+        chain_id: parsed.chain_id,
+        include_zero: parsed.params.include_zero,
+        include_usd: parsed.params.include_usd,
+      });
     default:
       throw new AppError(400, "UNSUPPORTED_QUERY", `Unsupported query: ${parsed.query}`);
   }

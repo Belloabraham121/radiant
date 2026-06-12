@@ -38,7 +38,8 @@ Auth happens on the **client** (Privy SDK). The backend only **verifies** the Ht
 | `POST` | `/api/v1/auth/register-wallet` | **First-time only** — persist embedded Sui wallet after client creates it |
 | `POST` | `/api/v1/auth/logout` | End session |
 | `POST` | `/api/v1/webhooks/privy` | Privy webhooks (Svix signature). Handles `user.linked_account`, `user.transferred_account`. |
-| `GET` | `/api/v1/wallets/balances` | Agent wallet balances (from session) |
+| `GET` | `/api/v1/wallets/balances` | Agent wallet native balance (from session) |
+| `GET` | `/api/v1/wallets/assets` | Multi-token holdings (Sui: SUI, USDC, DEEP, …). Query: `chain`, `include_zero`, `include_usd` |
 
 There is no `POST /auth/register` or `POST /auth/login` — Privy handles both. See [docs/privy-implementation-plan.md](./docs/privy-implementation-plan.md).
 

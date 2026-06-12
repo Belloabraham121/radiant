@@ -7,6 +7,7 @@ import { requestLoggerMiddleware } from "./api/middleware/request-logger.js";
 import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
 import { authMeRouter } from "./api/routes/v1/auth/me.js";
 import { authRegisterWalletRouter } from "./api/routes/v1/auth/register-wallet.js";
+import { walletAssetsRouter } from "./api/routes/v1/wallets/assets.js";
 import { walletBalancesRouter } from "./api/routes/v1/wallets/balances.js";
 import { walletSignAndSendRouter } from "./api/routes/v1/wallets/sign-and-send.js";
 import { healthRouter } from "./api/routes/health.js";
@@ -34,6 +35,7 @@ export function createApp() {
   app.use(authRegisterWalletRouter);
   app.use(authLogoutRouter);
   app.use(walletBalancesRouter);
+  app.use(walletAssetsRouter);
   app.use(walletSignAndSendRouter);
   app.use(chatRouter);
   app.use(chatSessionsRouter);

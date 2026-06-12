@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { chainIdSchema } from "../chains/types.js";
 import type { BalanceResult, ChainId, TxResult } from "../chains/types.js";
+import type { WalletAssetsData } from "../wallet/wallet-assets.types.js";
 
 export const chatRequestSchema = z.object({
   message: z.string().min(1).max(8000),
@@ -35,10 +36,12 @@ export type ChatResponse = {
 
 export const queryChainInputSchema = z.object({
   chain_id: chainIdSchema,
-  query: z.enum(["balance", "native_balance"]),
+  query: z.enum(["balance", "native_balance", "token_balances"]),
   params: z
     .object({
       evm_chain_id: z.number().int().positive().optional(),
+      include_zero: z.boolean().optional(),
+      include_usd: z.boolean().optional(),
     })
     .passthrough()
     .optional()
@@ -47,7 +50,7 @@ export const queryChainInputSchema = z.object({
 
 export type QueryChainInput = z.infer<typeof queryChainInputSchema>;
 
-export type QueryChainResult = BalanceResult;
+export type QueryChainResult = BalanceResult | WalletAssetsData;
 
 export type ExecuteToolOutcome =
   | { status: "executed"; result: TxResult }

@@ -416,6 +416,44 @@ Phase 0 (infra + dashboard)
 
 ---
 
+## Phase 9 — DeepBook V3 (DeFi)
+
+> Full checklist: [docs/deepbook-v3-TODO.md](../../docs/deepbook-v3-TODO.md). Composable `services/defi/` + `@mysten/deepbook-v3` + public indexer.
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [ ] | Phase A — SDK, `services/defi/`, config | [Backend] |
+| [ ] | Phase B — Balance manager (Prisma + ensure + deposit/withdraw) | [Backend] |
+| [ ] | Phase C — Pools + indexer client (reads) | [Backend] |
+| [ ] | Phase D — Swap (quote + execute + approval) | [Both] |
+| [ ] | Phase E — Orders (place/cancel + open orders) | [Both] |
+| [ ] | Phase F — Flash loans (permission-gated, always approve) | [Both] |
+| [ ] | Phase G — DEEP staking | [Both] |
+| [ ] | Phase H — Governance (propose/vote) | [Both] |
+| [ ] | Phase I — Indexer time-series (OHLCV, volume, trades) | [Backend] |
+| [ ] | Phase J — Agent permissions (settings → DB → approval engine) | [Both] |
+
+**Depends on:** Phase 3 (Sui agent wallet + signing), Phase 5 (`query_chain` / `execute_transaction`).
+
+---
+
+## Phase 10 — Wallet assets (“In your wallet”)
+
+> Full checklist: [docs/wallet-assets-TODO.md](../../docs/wallet-assets-TODO.md). Profile holdings view + multi-token detection (Sui RPC + DeepBook catalog; Privy API for EVM/SOL).
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [x] | Token catalog from DeepBook indexer `/assets` | [Backend] |
+| [x] | `GET /api/v1/wallets/assets` — Sui multi-coin balances | [Backend] |
+| [ ] | Privy `wallets().balance.get` for EVM/Solana named assets | [Backend] |
+| [x] | `query_chain` → `token_balances` | [Backend] |
+| [ ] | `InYourWalletSection` on profile / settings | [Client] |
+| [ ] | Agent pre-swap balance checks | [Backend] |
+
+**Depends on:** Phase 3 (agent wallet + `privy_wallet_id`). Shares indexer client with Phase 9.
+
+---
+
 ## Quick reference: who builds what
 
 | Concern | Backend | Client | Dashboard |
