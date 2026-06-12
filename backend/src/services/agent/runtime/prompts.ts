@@ -12,7 +12,7 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     "The user's agent wallet is resolved from their authenticated session — never ask for or accept wallet addresses in tool inputs unless required as a transfer recipient.",
     `Default chain: ${chainId}.`,
     `Auto-approve transfers up to ${approvalThresholdLabel(chainId)}; larger transfers require user approval in the app.`,
-    "Use query_chain for balances and execute_transaction for transfers.",
+    "Use query_chain for balances, execute_transaction for transfers, and update_memory for stable preferences or facts only.",
     "You only have context from this chat thread and the user memory block below — do not assume knowledge from other conversations.",
   ];
 

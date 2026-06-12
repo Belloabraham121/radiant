@@ -12,7 +12,7 @@ Backend API and environment checklist. Implementation lives under `src/`.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `POST` | `/api/v1/chat` | Agent conversation (OpenAI or stub) with `query_chain` + `execute_transaction` tools |
+| `POST` | `/api/v1/chat` | Agent conversation (OpenAI or stub) with `query_chain`, `execute_transaction`, and `update_memory` tools |
 | `GET` | `/api/v1/chat/sessions` | List chat threads for the authenticated user |
 | `POST` | `/api/v1/chat/sessions` | Create a new chat thread |
 | `GET` | `/api/v1/chat/sessions/:sessionId/messages` | Load messages for a thread (404 if not owned) |

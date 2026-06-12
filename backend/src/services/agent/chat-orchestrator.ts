@@ -3,6 +3,7 @@ import { getAgentProvider, getOpenAiConfig } from "../../config/agent.js";
 import { deriveSessionTitle, resolveOrCreateSession } from "../conversation/conversation.service.js";
 import { appendMessage, listMessagesBySessionId } from "../conversation/message.repository.js";
 import { touchSession } from "../conversation/session.repository.js";
+import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.service.js";
 import type { ChatRequest, ChatResponse } from "./agent.types.js";
 import { buildAgentContextMessages } from "./context-window.js";
 import { getAgentRuntime } from "./runtime/index.js";
@@ -31,12 +32,15 @@ export async function runChatTurn(
   const history = await listMessagesBySessionId(session.id);
   const contextMessages = buildAgentContextMessages(history);
 
+  const memory = await loadAgentMemory(privyUserId);
+  const memoryBlock = formatMemoryBlock(memory);
+
   const runtime = options.forceRuntime ?? getAgentRuntime();
   const result = await runtime.runTurn({
     privyUserId,
     sessionId: session.id,
     messages: contextMessages,
-    memoryBlock: "",
+    memoryBlock,
   });
 
   const toolCallsJson: Prisma.InputJsonValue | undefined =

@@ -26,6 +26,14 @@ model User {
 
   agent_wallets  AgentWallet[]
   chat_sessions  ChatSession[]
+  agent_memory   AgentMemory?
+}
+
+model AgentMemory {
+  user_id    BigInt   @id
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  data       Json     @default("{}")
+  updated_at DateTime @updatedAt
 }
 
 model ChatSession {

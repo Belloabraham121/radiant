@@ -12,6 +12,12 @@ import {
   runQueryChainTool,
 } from "./query-chain.tool.js";
 import {
+  UPDATE_MEMORY_TOOL_NAME,
+  updateMemoryToolDefinition,
+  runUpdateMemoryTool,
+} from "./update-memory.tool.js";
+import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
+import {
   createPendingTransaction,
   transferRequiresApproval,
 } from "./transaction-approval.service.js";
@@ -19,6 +25,7 @@ import {
 export const agentToolDefinitions = [
   executeTransactionToolDefinition,
   queryChainToolDefinition,
+  updateMemoryToolDefinition,
 ] as const;
 
 export async function runAgentTool(
@@ -36,6 +43,8 @@ export async function runAgentTool(
         input as ExecuteTransactionInput,
         options?.approved === true,
       );
+    case UPDATE_MEMORY_TOOL_NAME:
+      return runUpdateMemoryTool(privyUserId, input as UpdateMemoryInput);
     default:
       throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
   }

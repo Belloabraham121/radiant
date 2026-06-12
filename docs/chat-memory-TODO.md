@@ -472,11 +472,11 @@ On OpenAI failure in production: optional fallback to stub with logged warning (
 
 | Status | Task                                                                   | Owner     |
 | ------ | ---------------------------------------------------------------------- | --------- |
-| [ ]    | Prisma: `AgentMemory` table (or `User.agent_memory` JSONB) + migration | [Backend] |
-| [ ]    | `services/memory/agent-memory.service.ts` — load, merge, default empty | [Backend] |
-| [ ]    | `update_memory` tool + wire in `tools.ts`                              | [Backend] |
-| [ ]    | Inject memory block into system prompt in orchestrator                 | [Backend] |
-| [ ]    | Unit test: `update_memory` merges facts without wiping thread          | [Backend] |
+| [x]    | Prisma: `AgentMemory` table (or `User.agent_memory` JSONB) + migration | [Backend] |
+| [x]    | `services/memory/agent-memory.service.ts` — load, merge, default empty | [Backend] |
+| [x]    | `update_memory` tool + wire in `tools.ts`                              | [Backend] |
+| [x]    | Inject memory block into system prompt in orchestrator                 | [Backend] |
+| [x]    | Unit test: `update_memory` merges facts without wiping thread          | [Backend] |
 
 ### Phase E — Docs & cleanup
 
