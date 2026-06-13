@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 
 export type ChatToolCall = {
   name: string;
+  query?: string;
   result: unknown;
 };
 

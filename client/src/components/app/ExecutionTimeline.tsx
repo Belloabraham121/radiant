@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Circle, Loader2, Minus, X } from "lucide-react";
+import { Check, Circle, ExternalLink, Loader2, Minus, X } from "lucide-react";
 import type { ExecutionStep } from "@/lib/chat-execution-steps";
 import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
@@ -47,11 +47,9 @@ function StepIcon({ status }: { status: ExecutionStep["status"] }) {
 
 export function ExecutionTimeline({
   steps,
-  onViewActivity,
   live = false,
 }: {
   steps: ExecutionStep[];
-  onViewActivity: (transactionId: string) => void;
   live?: boolean;
 }) {
   return (
@@ -61,10 +59,9 @@ export function ExecutionTimeline({
       </p>
       <ol className="flex flex-col gap-0">
         {steps.map((step, index) => {
-          const explorerUrl =
-            step.digest && step.chainId
-              ? chainExplorerTxUrl(step.chainId, step.digest)
-              : null;
+          const explorerUrl = step.digest
+            ? chainExplorerTxUrl(step.chainId ?? "sui", step.digest)
+            : null;
           const isLast = index === steps.length - 1;
           const isActive = live && step.status === "running";
 
@@ -94,27 +91,19 @@ export function ExecutionTimeline({
                     {step.detail}
                   </p>
                 ) : null}
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  {explorerUrl ? (
+                {explorerUrl ? (
+                  <div className="mt-1">
                     <a
                       href={explorerUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[10px] font-bold text-[var(--hero-blue)] hover:underline"
+                      className="inline-flex items-center gap-0.5 text-[10px] font-bold text-[var(--hero-blue)] hover:underline"
                     >
-                      Explorer
+                      View on Sui Explorer
+                      <ExternalLink className="size-2.5" />
                     </a>
-                  ) : null}
-                  {step.agentTransactionId ? (
-                    <button
-                      type="button"
-                      onClick={() => onViewActivity(step.agentTransactionId!)}
-                      className="text-[10px] font-bold text-[var(--hero-violet)] hover:underline"
-                    >
-                      View activity
-                    </button>
-                  ) : null}
-                </div>
+                  </div>
+                ) : null}
               </div>
             </li>
           );

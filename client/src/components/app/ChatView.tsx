@@ -6,7 +6,6 @@ import { ArrowUp, Check, Copy, ExternalLink, Sparkles } from "lucide-react";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
-import { AgentTransactionDetailDialog } from "@/components/app/AgentTransactionDetailDialog";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { useChatSession } from "@/hooks/useChatSession";
@@ -15,16 +14,10 @@ import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
 
-function ReceiptPill({
-  receipt,
-  onViewActivity,
-}: {
-  receipt: Receipt;
-  onViewActivity: (transactionId: string) => void;
-}) {
+function ReceiptPill({ receipt }: { receipt: Receipt }) {
   const explorerUrl =
-    receipt.digest && receipt.chainId
-      ? chainExplorerTxUrl(receipt.chainId, receipt.digest)
+    receipt.digest
+      ? chainExplorerTxUrl(receipt.chainId ?? "sui", receipt.digest)
       : null;
 
   return (
@@ -46,18 +39,9 @@ function ReceiptPill({
           rel="noopener noreferrer"
           className="inline-flex items-center gap-0.5 font-bold text-[var(--hero-blue)] hover:underline"
         >
-          Explorer
+          View on Sui Explorer
           <ExternalLink className="size-3" />
         </a>
-      ) : null}
-      {receipt.agentTransactionId ? (
-        <button
-          type="button"
-          onClick={() => onViewActivity(receipt.agentTransactionId!)}
-          className="font-bold text-[var(--hero-violet)] hover:underline"
-        >
-          View activity
-        </button>
       ) : null}
     </span>
   );
@@ -103,13 +87,7 @@ function MessageCopyButton({
   );
 }
 
-function Bubble({
-  message,
-  onViewActivity,
-}: {
-  message: ChatMessage;
-  onViewActivity: (transactionId: string) => void;
-}) {
+function Bubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   return (
     <div
@@ -145,7 +123,6 @@ function Bubble({
         {message.executionSteps && message.executionSteps.length > 0 ? (
           <ExecutionTimeline
             steps={message.executionSteps}
-            onViewActivity={onViewActivity}
             live={message.streaming === true}
           />
         ) : null}
@@ -156,7 +133,6 @@ function Bubble({
               <ReceiptPill
                 key={`${message.id}-receipt-${index}`}
                 receipt={receipt}
-                onViewActivity={onViewActivity}
               />
             ))}
           </div>
@@ -193,15 +169,6 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const animatedMessageIdsRef = useRef(new Set<string>());
   const initialBatchDoneRef = useRef(false);
   const [input, setInput] = useState("");
-  const [activityTransactionId, setActivityTransactionId] = useState<
-    string | null
-  >(null);
-  const [activityDetailOpen, setActivityDetailOpen] = useState(false);
-
-  const openActivityDetail = (transactionId: string) => {
-    setActivityTransactionId(transactionId);
-    setActivityDetailOpen(true);
-  };
 
   const {
     messages,
@@ -350,11 +317,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
             ) : null}
 
             {messages.map((message) => (
-              <Bubble
-                key={message.id}
-                message={message}
-                onViewActivity={openActivityDetail}
-              />
+              <Bubble key={message.id} message={message} />
             ))}
 
             {typing && !streaming && (
@@ -435,12 +398,6 @@ export function ChatView({ sessionId }: ChatViewProps) {
           </p>
         </form>
       </div>
-
-      <AgentTransactionDetailDialog
-        transactionId={activityTransactionId}
-        open={activityDetailOpen}
-        onOpenChange={setActivityDetailOpen}
-      />
     </div>
   );
 }

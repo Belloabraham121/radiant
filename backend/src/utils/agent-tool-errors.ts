@@ -1,4 +1,6 @@
+import { ZodError } from "zod";
 import { AppError } from "../errors/app-error.js";
+import { formatZodValidationError } from "./format-zod-validation.js";
 
 const BASE58_ALPHABET =
   /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/;
@@ -14,6 +16,12 @@ function errorMessage(err: unknown): string {
 export function mapAgentToolError(err: unknown): AppError {
   if (err instanceof AppError) {
     return err;
+  }
+
+  if (err instanceof ZodError) {
+    return new AppError(400, "VALIDATION_ERROR", formatZodValidationError(err), {
+      issues: err.issues,
+    });
   }
 
   const message = errorMessage(err);

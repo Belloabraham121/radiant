@@ -89,6 +89,8 @@ export type PendingClarification = {
 
 export type ToolCallRecord = {
   name: string;
+  /** Present for query_chain — which read-only query was invoked. */
+  query?: string;
   result: unknown;
 };
 
@@ -111,7 +113,7 @@ export type ChatResponse = {
   message_id: string;
 };
 
-export const queryChainInputSchema = z.object({
+const queryChainInputObjectSchema = z.object({
   chain_id: chainIdSchema,
   query: z.enum([
     "balance",
@@ -173,6 +175,26 @@ export const queryChainInputSchema = z.object({
     .optional()
     .default({}),
 });
+
+export const queryChainInputSchema = z.preprocess((input) => {
+  if (typeof input !== "object" || input === null) {
+    return input;
+  }
+  const record = input as Record<string, unknown>;
+  const params =
+    typeof record.params === "object" && record.params !== null
+      ? { ...(record.params as Record<string, unknown>) }
+      : {};
+
+  if (record.query === "flash_loan_quote") {
+    if (params.borrow_amount == null && typeof params.amount === "number" && params.amount > 0) {
+      params.borrow_amount = params.amount;
+    }
+    delete params.amount;
+  }
+
+  return { ...record, params };
+}, queryChainInputObjectSchema);
 
 export type QueryChainInput = z.infer<typeof queryChainInputSchema>;
 

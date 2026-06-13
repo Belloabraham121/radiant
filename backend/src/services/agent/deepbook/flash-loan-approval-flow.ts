@@ -89,7 +89,7 @@ export function isFlashLoanRepayNotFeasibleError(message: string): boolean {
 }
 
 export function isFlashLoanParamValidationError(message: string): boolean {
-  return /params\.steps|steps\[\d+\]|swap_chain_repay|borrow_amount|deepbook_flash_loan|must be a positive number|Step \d+ must spend|Final swap must output/i.test(
+  return /params\.(steps|amount|borrow_amount)|steps\[\d+\]|swap_chain_repay|borrow_amount|deepbook_flash_loan|must be a positive number|Step \d+ must spend|Final swap must output/i.test(
     message,
   );
 }

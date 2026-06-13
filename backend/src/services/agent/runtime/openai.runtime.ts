@@ -420,7 +420,13 @@ export const openaiRuntime: AgentRuntime = {
         const result = await runAgentTool(input.privyUserId, toolCall.function.name, args, {
           sessionId: input.sessionId,
         });
-        tool_calls.push({ name: toolCall.function.name, result });
+        tool_calls.push({
+          name: toolCall.function.name,
+          ...(toolCall.function.name === QUERY_CHAIN_TOOL_NAME && typeof args.query === "string"
+            ? { query: args.query }
+            : {}),
+          result,
+        });
 
         if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
           emitExecuteProgressFromResult(result);

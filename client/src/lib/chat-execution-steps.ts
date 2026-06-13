@@ -1,5 +1,6 @@
 import type { ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
+import { sanitizeToolErrorMessage } from "@/lib/sanitize-tool-error";
 
 export type ExecutionStepStatus =
   | "pending"
@@ -57,6 +58,7 @@ export type StreamExecutionStepPayload = {
 };
 
 export function mapStreamStepToExecutionStep(step: StreamExecutionStepPayload): ExecutionStep {
+  const chainId = (step.chain_id ?? (step.digest ? "sui" : undefined)) as AgentChainId | undefined;
   return {
     id: step.id,
     status: step.status,
@@ -64,7 +66,7 @@ export function mapStreamStepToExecutionStep(step: StreamExecutionStepPayload): 
     detail: step.detail,
     ...(step.agent_transaction_id ? { agentTransactionId: step.agent_transaction_id } : {}),
     ...(step.digest ? { digest: step.digest } : {}),
-    ...(step.chain_id ? { chainId: step.chain_id as AgentChainId } : {}),
+    ...(chainId ? { chainId } : {}),
   };
 }
 
@@ -106,7 +108,7 @@ export function sortExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
 }
 
 export function isFlashLoanParamValidationError(message: string): boolean {
-  return /params\.steps|steps\[\d+\]|swap_chain_repay|borrow_amount|deepbook_flash_loan|must be a positive number|Step \d+ must spend|Final swap must output/i.test(
+  return /params\.(steps|amount|borrow_amount)|steps\[\d+\]|swap_chain_repay|borrow_amount|deepbook_flash_loan|must be a positive number|Step \d+ must spend|Final swap must output/i.test(
     message,
   );
 }
@@ -121,6 +123,11 @@ export function normalizeExecutionSteps(steps: ExecutionStep[]): ExecutionStep[]
 
   if (isFlashLoanFlow(next)) {
     next = next.filter((step) => step.id !== "swap-quote");
+  }
+
+  const quoteFailed = next.some((step) => step.id === "quote" && step.status === "failed");
+  if (quoteFailed) {
+    next = next.filter((step) => !step.id.startsWith("query-failed"));
   }
 
   const quote = next.find((step) => step.id === "quote");
@@ -256,10 +263,16 @@ function buildFlashLoanExecutionSteps(
 
       const agentTransactionId =
         outcome.agent_transaction_id ?? outcome.pending?.id;
-      const chainId = outcome.result?.chain_id ?? outcome.pending?.chain_id;
+      const chainId =
+        outcome.result?.chain_id ?? outcome.pending?.chain_id ?? ("sui" as AgentChainId);
+      const flashLoan = (
+        executeCall.result as {
+          result?: { deepbook?: { flash_loan?: { borrow_amount?: number; coin_key?: string } } };
+        }
+      )?.result?.deepbook?.flash_loan;
       const meta = {
         ...(agentTransactionId ? { agentTransactionId } : {}),
-        ...(chainId ? { chainId } : {}),
+        chainId,
       };
 
       if (outcome.status === "approval_required") {
@@ -271,12 +284,16 @@ function buildFlashLoanExecutionSteps(
           ...meta,
         });
       } else if (outcome.status === "executed" && outcome.result?.digest) {
+        const digest = outcome.result.digest;
         steps.push({
           id: "execute",
           status: "ok",
           label: "Execute bundle",
-          detail: `Broadcast · ${outcome.result.digest.slice(0, 10)}…`,
-          digest: outcome.result.digest,
+          detail:
+            flashLoan?.borrow_amount != null && flashLoan.coin_key
+              ? `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key} · ${digest.slice(0, 10)}…`
+              : `Broadcast · ${digest.slice(0, 10)}…`,
+          digest,
           ...meta,
         });
       }
@@ -415,10 +432,12 @@ function buildFailedToolExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep
 
   for (const call of toolCalls) {
     if (call.name === "query_chain" && isToolError(call.result)) {
-      const message = call.result.error.message ?? "Query failed";
+      const message = sanitizeToolErrorMessage(call.result.error.message);
       const stepMatch = message.match(/Step (\d+)/i);
+      const isFlashLoanQuery =
+        call.query === "flash_loan_quote" || isFlashLoanRelatedError(message);
 
-      if (isFlashLoanRelatedError(message)) {
+      if (isFlashLoanQuery) {
         if (stepMatch) {
           steps.push({
             id: `swap-${stepMatch[1]}`,
@@ -445,7 +464,7 @@ function buildFailedToolExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep
     }
 
     if (call.name === "execute_transaction" && isToolError(call.result)) {
-      const message = call.result.error.message ?? "Transaction failed";
+      const message = sanitizeToolErrorMessage(call.result.error.message);
       if (isFlashLoanParamValidationError(message)) {
         steps.push({
           id: "quote",
