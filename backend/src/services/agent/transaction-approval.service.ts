@@ -12,8 +12,11 @@ import {
   isDeepBookPlaceOrderAction,
   parseDeepBookCancelAllOrdersParams,
   parseDeepBookCancelOrderParams,
+  parseDeepBookCancelOrdersParams,
   parseDeepBookLimitOrderParams,
   parseDeepBookMarketOrderParams,
+  parseDeepBookModifyOrderParams,
+  parseDeepBookWithdrawSettledParams,
 } from "../defi/deepbook-orders.service.js";
 import type { ExecuteTransactionInput, ChainId } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
@@ -46,6 +49,10 @@ const TRANSFER_ACTIONS = new Set([
 ]);
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
+const DEEPBOOK_SETTLED_ACTIONS = new Set([
+  "deepbook_withdraw_settled_amounts",
+  "deepbook_withdraw_settled_amounts_permissionless",
+]);
 const DEEPBOOK_PROVISION_ACTIONS = new Set(["deepbook_provision_manager"]);
 
 const MUTATING_EXECUTE_ACTIONS = new Set([
@@ -57,7 +64,11 @@ const MUTATING_EXECUTE_ACTIONS = new Set([
   "deepbook_place_limit_order",
   "deepbook_place_market_order",
   "deepbook_cancel_order",
+  "deepbook_cancel_orders",
   "deepbook_cancel_all_orders",
+  "deepbook_modify_order",
+  "deepbook_withdraw_settled_amounts",
+  "deepbook_withdraw_settled_amounts_permissionless",
   "execute_bytes",
 ]);
 
@@ -180,7 +191,15 @@ export function transferRequiresApprovalWithPermissions(
     return true;
   }
 
-  if (DEEPBOOK_WRITE_ACTIONS.has(input.action) || DEEPBOOK_PROVISION_ACTIONS.has(input.action)) {
+  if (
+    DEEPBOOK_WRITE_ACTIONS.has(input.action) ||
+    DEEPBOOK_PROVISION_ACTIONS.has(input.action) ||
+    DEEPBOOK_SETTLED_ACTIONS.has(input.action)
+  ) {
+    return true;
+  }
+
+  if (input.action === "deepbook_modify_order") {
     return true;
   }
 
@@ -321,6 +340,42 @@ export async function createPendingTransaction(
     } catch {
       amountDisplay = "Cancel all orders";
       summary = "Cancel all DeepBook orders";
+    }
+  } else if (input.action === "deepbook_cancel_orders") {
+    try {
+      const parsed = parseDeepBookCancelOrdersParams(input.params);
+      amountDisplay = `Cancel ${parsed.order_ids.length} orders (${parsed.pool_key})`;
+      summary = `Cancel ${parsed.order_ids.length} DeepBook orders`;
+    } catch {
+      amountDisplay = "Cancel multiple orders";
+      summary = "Cancel DeepBook orders";
+    }
+  } else if (input.action === "deepbook_modify_order") {
+    try {
+      const parsed = parseDeepBookModifyOrderParams(input.params);
+      amountDisplay = `Modify order ${parsed.order_id.slice(0, 12)}… → qty ${parsed.quantity}`;
+      summary = `Modify DeepBook order (${parsed.pool_key})`;
+    } catch {
+      amountDisplay = "Modify order";
+      summary = "Modify DeepBook order";
+    }
+  } else if (input.action === "deepbook_withdraw_settled_amounts") {
+    try {
+      const parsed = parseDeepBookWithdrawSettledParams(input.params);
+      amountDisplay = `Claim settled proceeds (${parsed.pool_key})`;
+      summary = "Withdraw settled amounts from DeepBook";
+    } catch {
+      amountDisplay = "Claim settled proceeds";
+      summary = "Withdraw settled amounts";
+    }
+  } else if (input.action === "deepbook_withdraw_settled_amounts_permissionless") {
+    try {
+      const parsed = parseDeepBookWithdrawSettledParams(input.params);
+      amountDisplay = `Claim settled proceeds — permissionless (${parsed.pool_key})`;
+      summary = "Withdraw settled amounts (permissionless)";
+    } catch {
+      amountDisplay = "Claim settled proceeds";
+      summary = "Withdraw settled amounts (permissionless)";
     }
   }
 

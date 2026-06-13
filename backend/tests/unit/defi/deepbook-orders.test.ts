@@ -13,8 +13,11 @@ import {
   isDeepBookOrderAction,
   parseDeepBookCancelAllOrdersParams,
   parseDeepBookCancelOrderParams,
+  parseDeepBookCancelOrdersParams,
   parseDeepBookLimitOrderParams,
   parseDeepBookMarketOrderParams,
+  parseDeepBookModifyOrderParams,
+  parseDeepBookWithdrawSettledParams,
   resetDeepBookOrdersServiceForTests,
 } from "../../../src/services/defi/deepbook-orders.service.js";
 import {
@@ -80,9 +83,46 @@ describe("deepbook-orders.service", () => {
     assert.equal(parsed.pool_key, "SUI_USDC");
   });
 
+  it("parseDeepBookCancelOrdersParams accepts order id list", () => {
+    const parsed = parseDeepBookCancelOrdersParams({
+      pool_key: "SUI_USDC",
+      order_ids: ["101", 202],
+    });
+    assert.deepEqual(parsed.order_ids, ["101", "202"]);
+  });
+
+  it("parseDeepBookCancelOrdersParams rejects empty list", () => {
+    assert.throws(
+      () => parseDeepBookCancelOrdersParams({ pool_key: "SUI_USDC", order_ids: [] }),
+      (err: unknown) => err instanceof AppError && err.code === "VALIDATION_ERROR",
+    );
+  });
+
+  it("parseDeepBookModifyOrderParams requires order_id and quantity", () => {
+    assert.throws(
+      () => parseDeepBookModifyOrderParams({ pool_key: "SUI_USDC", quantity: 1 }),
+      (err: unknown) => err instanceof AppError && err.code === "VALIDATION_ERROR",
+    );
+    const parsed = parseDeepBookModifyOrderParams({
+      pool_key: "SUI_USDC",
+      order_id: "abc",
+      quantity: 2.5,
+    });
+    assert.equal(parsed.order_id, "abc");
+    assert.equal(parsed.quantity, 2.5);
+  });
+
+  it("parseDeepBookWithdrawSettledParams defaults pool", () => {
+    const parsed = parseDeepBookWithdrawSettledParams({});
+    assert.equal(parsed.pool_key, "SUI_USDC");
+  });
+
   it("isDeepBookOrderAction recognizes order actions", () => {
     assert.equal(isDeepBookOrderAction("deepbook_place_limit_order"), true);
     assert.equal(isDeepBookOrderAction("deepbook_cancel_order"), true);
+    assert.equal(isDeepBookOrderAction("deepbook_cancel_orders"), true);
+    assert.equal(isDeepBookOrderAction("deepbook_modify_order"), true);
+    assert.equal(isDeepBookOrderAction("deepbook_withdraw_settled_amounts"), true);
     assert.equal(isDeepBookOrderAction("swap"), false);
   });
 
@@ -138,6 +178,60 @@ describe("deepbook-orders.service", () => {
     assert.equal(needs, true);
   });
 
+  it("batch cancel and modify always require approval", () => {
+    const permissions = {
+      ...defaultAgentPermissions(),
+      auto_approve_enabled: true,
+      auto_approve_max_sui: 25,
+    };
+    assert.equal(
+      transferRequiresApprovalWithPermissions(permissions, {
+        chain_id: "sui",
+        action: "deepbook_cancel_orders",
+        params: { pool_key: "SUI_USDC", order_ids: ["1", "2"] },
+      }),
+      true,
+    );
+    assert.equal(
+      transferRequiresApprovalWithPermissions(permissions, {
+        chain_id: "sui",
+        action: "deepbook_modify_order",
+        params: { pool_key: "SUI_USDC", order_id: "1", quantity: 2 },
+      }),
+      true,
+    );
+  });
+
+  it("withdraw settled always requires approval", () => {
+    const permissions = {
+      ...defaultAgentPermissions(),
+      auto_approve_enabled: true,
+      auto_approve_max_sui: 25,
+    };
+    assert.equal(
+      transferRequiresApprovalWithPermissions(permissions, {
+        chain_id: "sui",
+        action: "deepbook_withdraw_settled_amounts",
+        params: { pool_key: "SUI_USDC" },
+      }),
+      true,
+    );
+  });
+
+  it("createPendingTransaction formats modify order summary", async () => {
+    const pending = await createPendingTransaction("privy-test", {
+      chain_id: "sui",
+      action: "deepbook_modify_order",
+      params: {
+        pool_key: "SUI_USDC",
+        order_id: "order-123",
+        quantity: 4,
+      },
+    });
+    assert.match(pending.summary, /modify/i);
+    assert.match(pending.amount_display, /qty 4/);
+  });
+
   it("createPendingTransaction formats limit order summary", async () => {
     const pending = await createPendingTransaction("privy-test", {
       chain_id: "sui",
@@ -167,5 +261,10 @@ describe("unsupported-capabilities after orders", () => {
   it("still flags flash loans", () => {
     assert.equal(detectUnsupportedCapability("I want a flash loan on DeepBook")?.id, "flash_loan");
     assert.match(buildUnsupportedCapabilityNudge({ id: "flash_loan", label: "flash loans", pattern: /flash/i }), /orders/i);
+  });
+
+  it("does not flag modify or claim settled requests", () => {
+    assert.equal(detectUnsupportedCapability("Modify order 123 to quantity 5 on SUI_USDC"), null);
+    assert.equal(detectUnsupportedCapability("Claim my settled proceeds from DeepBook"), null);
   });
 });

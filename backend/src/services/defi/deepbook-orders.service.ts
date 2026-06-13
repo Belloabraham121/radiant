@@ -26,11 +26,25 @@ import type { TxResult } from "../chains/types.js";
 const LIMIT_ORDER_ACTION = "deepbook_place_limit_order";
 const MARKET_ORDER_ACTION = "deepbook_place_market_order";
 const CANCEL_ORDER_ACTION = "deepbook_cancel_order";
+const CANCEL_ORDERS_ACTION = "deepbook_cancel_orders";
 const CANCEL_ALL_ACTION = "deepbook_cancel_all_orders";
+const MODIFY_ORDER_ACTION = "deepbook_modify_order";
+const WITHDRAW_SETTLED_ACTION = "deepbook_withdraw_settled_amounts";
+const WITHDRAW_SETTLED_PERM_ACTION = "deepbook_withdraw_settled_amounts_permissionless";
 
 const PLACE_ORDER_ACTIONS = new Set([LIMIT_ORDER_ACTION, MARKET_ORDER_ACTION]);
-const CANCEL_ORDER_ACTIONS = new Set([CANCEL_ORDER_ACTION, CANCEL_ALL_ACTION]);
-const ORDER_ACTIONS = new Set([...PLACE_ORDER_ACTIONS, ...CANCEL_ORDER_ACTIONS]);
+const CANCEL_ORDER_ACTIONS = new Set([
+  CANCEL_ORDER_ACTION,
+  CANCEL_ORDERS_ACTION,
+  CANCEL_ALL_ACTION,
+]);
+const SETTLED_ACTIONS = new Set([WITHDRAW_SETTLED_ACTION, WITHDRAW_SETTLED_PERM_ACTION]);
+const ORDER_ACTIONS = new Set([
+  ...PLACE_ORDER_ACTIONS,
+  ...CANCEL_ORDER_ACTIONS,
+  MODIFY_ORDER_ACTION,
+  ...SETTLED_ACTIONS,
+]);
 
 export type DeepBookLimitOrderParams = {
   pool_key: string;
@@ -56,6 +70,21 @@ export type DeepBookCancelOrderParams = {
 };
 
 export type DeepBookCancelAllOrdersParams = {
+  pool_key: string;
+};
+
+export type DeepBookCancelOrdersParams = {
+  pool_key: string;
+  order_ids: string[];
+};
+
+export type DeepBookModifyOrderParams = {
+  pool_key: string;
+  order_id: string;
+  quantity: number;
+};
+
+export type DeepBookWithdrawSettledParams = {
   pool_key: string;
 };
 
@@ -204,6 +233,14 @@ export function isDeepBookCancelOrderAction(action: string): boolean {
   return CANCEL_ORDER_ACTIONS.has(action);
 }
 
+export function isDeepBookSettledWithdrawAction(action: string): boolean {
+  return SETTLED_ACTIONS.has(action);
+}
+
+export function isDeepBookModifyOrderAction(action: string): boolean {
+  return action === MODIFY_ORDER_ACTION;
+}
+
 export function parseDeepBookLimitOrderParams(
   params: Record<string, unknown>,
 ): DeepBookLimitOrderParams {
@@ -246,6 +283,56 @@ export function parseDeepBookCancelOrderParams(
 export function parseDeepBookCancelAllOrdersParams(
   params: Record<string, unknown>,
 ): DeepBookCancelAllOrdersParams {
+  return { pool_key: assertPoolKey(parsePoolKeyParam(params)).pool_key };
+}
+
+function parseOrderIdList(params: Record<string, unknown>): string[] {
+  const raw = params.order_ids ?? params.orderIds;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "params.order_ids must be a non-empty array of order IDs",
+    );
+  }
+  const orderIds = raw
+    .map((id) => (typeof id === "string" || typeof id === "number" ? String(id).trim() : ""))
+    .filter((id) => id.length > 0);
+  if (orderIds.length === 0) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "params.order_ids must contain at least one valid order ID",
+    );
+  }
+  return orderIds;
+}
+
+export function parseDeepBookCancelOrdersParams(
+  params: Record<string, unknown>,
+): DeepBookCancelOrdersParams {
+  const pool = assertPoolKey(parsePoolKeyParam(params));
+  return { pool_key: pool.pool_key, order_ids: parseOrderIdList(params) };
+}
+
+export function parseDeepBookModifyOrderParams(
+  params: Record<string, unknown>,
+): DeepBookModifyOrderParams {
+  const pool = assertPoolKey(parsePoolKeyParam(params));
+  const orderId = params.order_id ?? params.orderId;
+  if (typeof orderId !== "string" || orderId.trim().length === 0) {
+    throw new AppError(400, "VALIDATION_ERROR", "params.order_id is required");
+  }
+  return {
+    pool_key: pool.pool_key,
+    order_id: orderId.trim(),
+    quantity: parseQuantity(params),
+  };
+}
+
+export function parseDeepBookWithdrawSettledParams(
+  params: Record<string, unknown>,
+): DeepBookWithdrawSettledParams {
   return { pool_key: assertPoolKey(parsePoolKeyParam(params)).pool_key };
 }
 
@@ -361,6 +448,31 @@ async function validateLimitOrderSize(
       "VALIDATION_ERROR",
       "Limit order params failed on-chain validation (price, quantity, tick/lot, or expiration)",
     );
+  }
+}
+
+async function validateModifyOrderSize(
+  privyUserId: string,
+  parsed: DeepBookModifyOrderParams,
+  pool: PoolCoins,
+): Promise<void> {
+  const info = await getDeepBookPoolInfo(parsed.pool_key, privyUserId);
+  if (info.on_chain) {
+    const { min_size, lot_size } = info.on_chain;
+    if (parsed.quantity < min_size) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        `Modified quantity ${parsed.quantity} ${pool.base_coin} is below pool min_size ${min_size}`,
+      );
+    }
+    if (lot_size > 0 && !isMultipleOfStep(parsed.quantity, lot_size)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        `Modified quantity must be a multiple of lot_size ${lot_size} ${pool.base_coin}`,
+      );
+    }
   }
 }
 
@@ -646,6 +758,126 @@ export async function executeDeepBookCancelAllOrders(
   };
 }
 
+export async function executeDeepBookCancelOrders(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<DeepBookOrderTxResult> {
+  const parsed = parseDeepBookCancelOrdersParams(params);
+
+  const result = await buildAndExecuteOrderTransaction(privyUserId, (tx, client, manager) => {
+    tx.add(
+      client.deepbook.deepBook.cancelOrders(
+        parsed.pool_key,
+        manager.manager_key,
+        parsed.order_ids,
+      ),
+    );
+  });
+
+  return {
+    ...result,
+    pool_key: parsed.pool_key,
+    action: CANCEL_ORDERS_ACTION,
+    cancelled_count: parsed.order_ids.length,
+  };
+}
+
+export async function executeDeepBookModifyOrder(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<DeepBookOrderTxResult> {
+  const parsed = parseDeepBookModifyOrderParams(params);
+  const pool = assertPoolKey(parsed.pool_key);
+  await validateModifyOrderSize(privyUserId, parsed, pool);
+
+  const result = await buildAndExecuteOrderTransaction(privyUserId, (tx, client, manager) => {
+    tx.add(
+      client.deepbook.deepBook.modifyOrder(
+        parsed.pool_key,
+        manager.manager_key,
+        parsed.order_id,
+        parsed.quantity,
+      ),
+    );
+  });
+
+  return {
+    ...result,
+    pool_key: parsed.pool_key,
+    action: MODIFY_ORDER_ACTION,
+    order_id: parsed.order_id,
+    quantity: parsed.quantity,
+  };
+}
+
+export async function executeDeepBookWithdrawSettledAmounts(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<DeepBookOrderTxResult> {
+  const parsed = parseDeepBookWithdrawSettledParams(params);
+
+  const result = await buildAndExecuteOrderTransaction(privyUserId, (tx, client, manager) => {
+    tx.add(
+      client.deepbook.deepBook.withdrawSettledAmounts(parsed.pool_key, manager.manager_key),
+    );
+  });
+
+  return {
+    ...result,
+    pool_key: parsed.pool_key,
+    action: WITHDRAW_SETTLED_ACTION,
+  };
+}
+
+export async function executeDeepBookWithdrawSettledAmountsPermissionless(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<DeepBookOrderTxResult> {
+  const parsed = parseDeepBookWithdrawSettledParams(params);
+
+  const result = await buildAndExecuteOrderTransaction(privyUserId, (tx, client, manager) => {
+    tx.add(
+      client.deepbook.deepBook.withdrawSettledAmountsPermissionless(
+        parsed.pool_key,
+        manager.manager_key,
+      ),
+    );
+  });
+
+  return {
+    ...result,
+    pool_key: parsed.pool_key,
+    action: WITHDRAW_SETTLED_PERM_ACTION,
+  };
+}
+
+export async function executeDeepBookOrderAction(
+  action: string,
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<DeepBookOrderTxResult> {
+  switch (action) {
+    case LIMIT_ORDER_ACTION:
+      return executeDeepBookPlaceLimitOrder(privyUserId, params);
+    case MARKET_ORDER_ACTION:
+      return executeDeepBookPlaceMarketOrder(privyUserId, params);
+    case CANCEL_ORDER_ACTION:
+      return executeDeepBookCancelOrder(privyUserId, params);
+    case CANCEL_ORDERS_ACTION:
+      return executeDeepBookCancelOrders(privyUserId, params);
+    case CANCEL_ALL_ACTION:
+      return executeDeepBookCancelAllOrders(privyUserId, params);
+    case MODIFY_ORDER_ACTION:
+      return executeDeepBookModifyOrder(privyUserId, params);
+    case WITHDRAW_SETTLED_ACTION:
+      return executeDeepBookWithdrawSettledAmounts(privyUserId, params);
+    case WITHDRAW_SETTLED_PERM_ACTION:
+      return executeDeepBookWithdrawSettledAmountsPermissionless(privyUserId, params);
+    default:
+      throw new AppError(400, "UNSUPPORTED_ACTION", `Unsupported DeepBook order action: ${action}`);
+  }
+}
+
 /** Dry-run order PTB build before queueing approval. */
 export async function preflightDeepBookPlaceLimitOrder(
   privyUserId: string,
@@ -665,6 +897,32 @@ export async function preflightDeepBookPlaceMarketOrder(
   const pool = assertPoolKey(parsed.pool_key);
   await validateMarketOrderSize(privyUserId, parsed, pool);
   await buildDeepBookMarketOrderTransactionBytes(privyUserId, params);
+}
+
+export async function preflightDeepBookModifyOrder(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<void> {
+  const parsed = parseDeepBookModifyOrderParams(params);
+  const pool = assertPoolKey(parsed.pool_key);
+  await validateModifyOrderSize(privyUserId, parsed, pool);
+  await buildDeepBookModifyOrderTransactionBytes(privyUserId, params);
+}
+
+export async function preflightDeepBookWithdrawSettled(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<void> {
+  parseDeepBookWithdrawSettledParams(params);
+  await buildDeepBookWithdrawSettledTransactionBytes(privyUserId, params);
+}
+
+export async function preflightDeepBookWithdrawSettledPermissionless(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<void> {
+  parseDeepBookWithdrawSettledParams(params);
+  await buildDeepBookWithdrawSettledPermissionlessTransactionBytes(privyUserId, params);
 }
 
 export async function buildDeepBookLimitOrderTransactionBytes(
@@ -718,6 +976,80 @@ export async function buildDeepBookMarketOrderTransactionBytes(
       isBid: parsed.is_bid,
       payWithDeep: parsed.pay_with_deep,
     }),
+  );
+
+  try {
+    return await tx.build({ client: getSuiClient() });
+  } catch (err) {
+    mapBuildError(err);
+  }
+}
+
+export async function buildDeepBookModifyOrderTransactionBytes(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<Uint8Array> {
+  const parsed = parseDeepBookModifyOrderParams(params);
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const manager = await ensureBalanceManager(privyUserId);
+
+  const tx = new Transaction();
+  tx.setSender(wallet.address);
+  const extended = getSuiDeepBookClient(toClientContext(wallet.address, manager));
+  tx.add(
+    extended.deepbook.deepBook.modifyOrder(
+      parsed.pool_key,
+      manager.manager_key,
+      parsed.order_id,
+      parsed.quantity,
+    ),
+  );
+
+  try {
+    return await tx.build({ client: getSuiClient() });
+  } catch (err) {
+    mapBuildError(err);
+  }
+}
+
+export async function buildDeepBookWithdrawSettledTransactionBytes(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<Uint8Array> {
+  const parsed = parseDeepBookWithdrawSettledParams(params);
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const manager = await ensureBalanceManager(privyUserId);
+
+  const tx = new Transaction();
+  tx.setSender(wallet.address);
+  const extended = getSuiDeepBookClient(toClientContext(wallet.address, manager));
+  tx.add(
+    extended.deepbook.deepBook.withdrawSettledAmounts(parsed.pool_key, manager.manager_key),
+  );
+
+  try {
+    return await tx.build({ client: getSuiClient() });
+  } catch (err) {
+    mapBuildError(err);
+  }
+}
+
+export async function buildDeepBookWithdrawSettledPermissionlessTransactionBytes(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<Uint8Array> {
+  const parsed = parseDeepBookWithdrawSettledParams(params);
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const manager = await ensureBalanceManager(privyUserId);
+
+  const tx = new Transaction();
+  tx.setSender(wallet.address);
+  const extended = getSuiDeepBookClient(toClientContext(wallet.address, manager));
+  tx.add(
+    extended.deepbook.deepBook.withdrawSettledAmountsPermissionless(
+      parsed.pool_key,
+      manager.manager_key,
+    ),
   );
 
   try {

@@ -24,7 +24,7 @@ export const UNSUPPORTED_CAPABILITIES: UnsupportedCapability[] = [
 ];
 
 export const SUPPORTED_DEEPBOOK_SUMMARY =
-  "swaps, limit/market orders, cancel orders, open orders, balance manager setup, deposits, withdrawals, wallet and manager balances, pool listings, ticker/pool info, and swap quotes";
+  "swaps, limit/market orders, cancel/modify orders, claim settled proceeds, open orders, balance manager setup, deposits, withdrawals, wallet and manager balances, pool listings, ticker/pool info, and swap quotes";
 
 export function detectUnsupportedCapability(message: string): UnsupportedCapability | null {
   for (const capability of UNSUPPORTED_CAPABILITIES) {

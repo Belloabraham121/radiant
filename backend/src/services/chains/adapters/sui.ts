@@ -27,10 +27,7 @@ import {
   isDeepBookSwapAction,
 } from "../../defi/deepbook-swap.service.js";
 import {
-  executeDeepBookCancelAllOrders,
-  executeDeepBookCancelOrder,
-  executeDeepBookPlaceLimitOrder,
-  executeDeepBookPlaceMarketOrder,
+  executeDeepBookOrderAction,
   isDeepBookOrderAction,
 } from "../../defi/deepbook-orders.service.js";
 
@@ -275,14 +272,7 @@ export const suiAdapter: ChainAdapter = {
     }
 
     if (isDeepBookOrderAction(action)) {
-      const result =
-        action === "deepbook_place_limit_order"
-          ? await executeDeepBookPlaceLimitOrder(privyUserId, params)
-          : action === "deepbook_place_market_order"
-            ? await executeDeepBookPlaceMarketOrder(privyUserId, params)
-            : action === "deepbook_cancel_order"
-              ? await executeDeepBookCancelOrder(privyUserId, params)
-              : await executeDeepBookCancelAllOrders(privyUserId, params);
+      const result = await executeDeepBookOrderAction(action, privyUserId, params);
 
       return {
         chain_id: "sui",

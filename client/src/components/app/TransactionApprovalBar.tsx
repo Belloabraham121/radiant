@@ -24,7 +24,12 @@ export function TransactionApprovalBar({
   const isMarketOrder = pending.action === "deepbook_place_market_order";
   const isCancelOrder =
     pending.action === "deepbook_cancel_order" ||
+    pending.action === "deepbook_cancel_orders" ||
     pending.action === "deepbook_cancel_all_orders";
+  const isModifyOrder = pending.action === "deepbook_modify_order";
+  const isSettledWithdraw =
+    pending.action === "deepbook_withdraw_settled_amounts" ||
+    pending.action === "deepbook_withdraw_settled_amounts_permissionless";
   const isOrder = isLimitOrder || isMarketOrder;
 
   return (
@@ -48,9 +53,13 @@ export function TransactionApprovalBar({
                 ? "Approve order"
                 : isCancelOrder
                   ? "Approve cancel"
-                  : isProvision
-                    ? "Approve setup"
-                    : "Approve transaction"}
+                  : isModifyOrder
+                    ? "Approve modify"
+                    : isSettledWithdraw
+                      ? "Approve claim"
+                      : isProvision
+                        ? "Approve setup"
+                        : "Approve transaction"}
           </p>
           <p className="mt-0.5 text-xs font-medium text-[var(--hero-ink)]/50">
             {isSwap
@@ -61,7 +70,11 @@ export function TransactionApprovalBar({
                   ? "Review the order size and side, then approve to place on DeepBook."
                   : isCancelOrder
                     ? "Review the cancellation, then approve to update your open orders."
-                    : isProvision
+                    : isModifyOrder
+                      ? "Review the new order size, then approve to modify on DeepBook. Price cannot be changed — cancel and replace to change price."
+                      : isSettledWithdraw
+                        ? "Review the pool, then approve to move settled proceeds into your balance manager."
+                        : isProvision
                       ? "Creates your DeepBook balance manager on chain. No token deposit — only network gas."
                       : isDeposit
                         ? "Review the amount, then approve to sign and send."

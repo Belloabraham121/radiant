@@ -98,9 +98,23 @@ export function buildTransactionErrorUserContext(
       );
       break;
     case "deepbook_cancel_order":
+    case "deepbook_cancel_orders":
     case "deepbook_cancel_all_orders":
       parts.push(
         "The user requested cancelling DeepBook orders.",
+        ctx.summary ? ctx.summary : "",
+      );
+      break;
+    case "deepbook_modify_order":
+      parts.push(
+        "The user requested modifying a DeepBook order (size only — price cannot be changed via this action).",
+        ctx.amount_display ? `Change: ${ctx.amount_display}.` : "",
+      );
+      break;
+    case "deepbook_withdraw_settled_amounts":
+    case "deepbook_withdraw_settled_amounts_permissionless":
+      parts.push(
+        "The user requested claiming settled proceeds from filled DeepBook orders into their balance manager.",
         ctx.summary ? ctx.summary : "",
       );
       break;

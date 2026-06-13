@@ -180,10 +180,24 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           });
         } else if (
           action === "deepbook_cancel_order" ||
+          action === "deepbook_cancel_orders" ||
           action === "deepbook_cancel_all_orders"
         ) {
           receipts.push({
             label: "Cancel approval required",
+            detail: outcome.pending.amount_display,
+          });
+        } else if (action === "deepbook_modify_order") {
+          receipts.push({
+            label: "Modify approval required",
+            detail: outcome.pending.amount_display,
+          });
+        } else if (
+          action === "deepbook_withdraw_settled_amounts" ||
+          action === "deepbook_withdraw_settled_amounts_permissionless"
+        ) {
+          receipts.push({
+            label: "Claim proceeds approval required",
             detail: outcome.pending.amount_display,
           });
         }
@@ -200,6 +214,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const isSwap = swap?.input_coin && swap.output_coin;
         const isOrder = order?.action?.includes("place");
         const isCancel = order?.action?.includes("cancel");
+        const isModify = order?.action?.includes("modify");
+        const isSettledWithdraw = order?.action?.includes("withdraw_settled");
         const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
         const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer && !isOrder && !isCancel;
@@ -211,7 +227,11 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               ? "Order placed"
               : isCancel
                 ? "Order cancelled"
-                : isProvision
+                : isModify
+                  ? "Order modified"
+                  : isSettledWithdraw
+                    ? "Settled proceeds claimed"
+                    : isProvision
                   ? alreadyProvisioned
                     ? "Balance manager ready"
                     : "Balance manager created"
@@ -224,7 +244,13 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               ? `${order.is_bid ? "buy" : "sell"} ${order.quantity ?? ""}${order.price != null ? ` @ ${order.price}` : ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
               : isCancel && order
                 ? `${order.cancelled_count ?? 1} order(s) · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-                : isProvision
+                : isModify && order
+                  ? `qty ${order.quantity ?? ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                  : isSettledWithdraw
+                    ? digest.length > 12
+                      ? `${digest.slice(0, 10)}…`
+                      : digest
+                    : isProvision
                   ? managerObjectId.length > 12
                     ? `${managerObjectId.slice(0, 10)}…`
                     : managerObjectId

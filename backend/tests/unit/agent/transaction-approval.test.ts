@@ -110,6 +110,17 @@ describe("transaction approval", () => {
     assert.match(pending.amount_display, /Network fee only/i);
   });
 
+  it("provision manager always requires approval when auto-approve is on", () => {
+    assert.equal(
+      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+        chain_id: "sui",
+        action: "deepbook_provision_manager",
+        params: {},
+      }),
+      true,
+    );
+  });
+
   it("rejects deposit pending without amount", async () => {
     clearPendingTransactionsForTests();
     await assert.rejects(

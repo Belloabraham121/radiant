@@ -7,8 +7,11 @@ import {
 import {
   parseDeepBookCancelAllOrdersParams,
   parseDeepBookCancelOrderParams,
+  parseDeepBookCancelOrdersParams,
   parseDeepBookLimitOrderParams,
   parseDeepBookMarketOrderParams,
+  parseDeepBookModifyOrderParams,
+  parseDeepBookWithdrawSettledParams,
 } from "../defi/deepbook-orders.service.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 
@@ -59,5 +62,24 @@ export function validateExecuteTransactionInput(input: ExecuteTransactionInput):
 
   if (input.action === "deepbook_cancel_all_orders") {
     parseDeepBookCancelAllOrdersParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_cancel_orders") {
+    parseDeepBookCancelOrdersParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_modify_order") {
+    parseDeepBookModifyOrderParams(input.params);
+    return;
+  }
+
+  if (
+    input.action === "deepbook_withdraw_settled_amounts" ||
+    input.action === "deepbook_withdraw_settled_amounts_permissionless"
+  ) {
+    parseDeepBookWithdrawSettledParams(input.params);
+    return;
   }
 }

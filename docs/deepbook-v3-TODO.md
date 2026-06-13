@@ -239,7 +239,7 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [x] | `execute_transaction` actions: `deepbook_place_limit_order`, `deepbook_place_market_order`, `deepbook_cancel_order`, `deepbook_cancel_all_orders` |
+| [x] | `execute_transaction` actions: `deepbook_place_limit_order`, `deepbook_place_market_order`, `deepbook_cancel_order`, `deepbook_cancel_orders`, `deepbook_cancel_all_orders`, `deepbook_modify_order`, `deepbook_withdraw_settled_amounts`, `deepbook_withdraw_settled_amounts_permissionless` |
 | [x] | Params: `pool_key`, `client_order_id`, `price`, `quantity`, `is_bid`, `pay_with_deep` |
 | [x] | Extend `query_chain`: `deepbook_open_orders` (SDK `accountOpenOrders` + order details) |
 | [x] | Indexer reads: `/orders/:pool/:balance_manager_id`, `/order_updates/:pool` for history |
@@ -251,7 +251,7 @@ One row per user (MVP: single manager per agent wallet).
 | Status | Task |
 | ------ | ---- |
 | [x] | Approval modal variant for limit orders (price, size, side, time-in-force if added) |
-| [x] | Chat receipt for place/cancel with order id |
+| [x] | Chat receipt for place/cancel/modify/claim with order id |
 | [ ] | Optional: “Open orders” panel under agent wallet (list from API) |
 
 ---
@@ -411,7 +411,11 @@ One row per user (MVP: single manager per agent wallet).
 | `deepbook_place_limit_order` | |
 | `deepbook_place_market_order` | |
 | `deepbook_cancel_order` | `order_id` |
+| `deepbook_cancel_orders` | `order_ids[]` |
 | `deepbook_cancel_all_orders` | `pool_key` |
+| `deepbook_modify_order` | `order_id`, `quantity` (size only) |
+| `deepbook_withdraw_settled_amounts` | `pool_key` |
+| `deepbook_withdraw_settled_amounts_permissionless` | `pool_key` |
 | `deepbook_flash_loan` | Permission + always approve |
 | `deepbook_stake` | DEEP into pool |
 | `deepbook_unstake` | |

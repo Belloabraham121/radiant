@@ -31,6 +31,9 @@ import {
   isDeepBookPlaceOrderAction,
   preflightDeepBookPlaceLimitOrder,
   preflightDeepBookPlaceMarketOrder,
+  preflightDeepBookModifyOrder,
+  preflightDeepBookWithdrawSettled,
+  preflightDeepBookWithdrawSettledPermissionless,
 } from "../defi/deepbook-orders.service.js";
 import { preflightDeepBookWithdraw } from "../defi/deepbook-balance-manager.service.js";
 
@@ -129,6 +132,15 @@ export async function runExecuteTransactionToolWithApproval(
       }
       if (input.action === "deepbook_place_market_order") {
         await preflightDeepBookPlaceMarketOrder(privyUserId, input.params);
+      }
+      if (input.action === "deepbook_modify_order") {
+        await preflightDeepBookModifyOrder(privyUserId, input.params);
+      }
+      if (input.action === "deepbook_withdraw_settled_amounts") {
+        await preflightDeepBookWithdrawSettled(privyUserId, input.params);
+      }
+      if (input.action === "deepbook_withdraw_settled_amounts_permissionless") {
+        await preflightDeepBookWithdrawSettledPermissionless(privyUserId, input.params);
       }
       if (input.action === "deepbook_withdraw") {
         await preflightDeepBookWithdraw(privyUserId, input.params);
