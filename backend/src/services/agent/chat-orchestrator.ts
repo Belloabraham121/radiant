@@ -25,6 +25,7 @@ import {
 } from "./workflow/workflow-runner.js";
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
+import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
@@ -130,8 +131,16 @@ export async function runChatTurn(
       }),
   );
 
+  const toolCallsForMessage = await recordInfeasibleFlashLoanQuotesFromToolCalls(
+    privyUserId,
+    session.id,
+    result.tool_calls,
+  );
+
   const toolCallsJson: Prisma.InputJsonValue | undefined =
-    result.tool_calls.length > 0 ? (result.tool_calls as Prisma.InputJsonValue) : undefined;
+    toolCallsForMessage.length > 0
+      ? (toolCallsForMessage as Prisma.InputJsonValue)
+      : undefined;
 
   const assistantMessage = await appendMessage(
     session.id,
@@ -140,7 +149,7 @@ export async function runChatTurn(
     toolCallsJson,
   );
 
-  await linkToolCallTransactionsToMessage(result.tool_calls, assistantMessage.id);
+  await linkToolCallTransactionsToMessage(toolCallsForMessage, assistantMessage.id);
 
   const sessionTitle =
     isFirstUserMessage && session.title === "New chat"
@@ -156,7 +165,7 @@ export async function runChatTurn(
     reply: result.reply,
     session_id: session.id,
     mode: options.forceRuntime?.id ?? runtime.id,
-    tool_calls: result.tool_calls,
+    tool_calls: toolCallsForMessage,
     pending_transaction: result.pending_transaction,
     pending_clarification: null,
     message_id: assistantMessage.id,

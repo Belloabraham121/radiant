@@ -39,6 +39,7 @@ type FlashLoanQuoteResult = {
   repay_feasible: boolean;
   estimated_surplus: number | null;
   steps: FlashLoanStepQuote[];
+  agent_transaction_id?: string;
 };
 
 type ToolErrorResult = {
@@ -281,11 +282,15 @@ function buildFlashLoanExecutionSteps(
       }
     }
   } else if (!quote.repay_feasible) {
+    const meta = quote.agent_transaction_id
+      ? { agentTransactionId: quote.agent_transaction_id, chainId: "sui" as AgentChainId }
+      : {};
     steps.push({
       id: "execute",
       status: "skipped",
       label: "Execute bundle",
       detail: "Blocked — swap outputs would not cover the borrow for atomic repay",
+      ...meta,
     });
   }
 

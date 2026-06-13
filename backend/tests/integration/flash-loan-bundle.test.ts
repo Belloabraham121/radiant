@@ -10,6 +10,10 @@ import {
   updateAgentPermissions,
 } from "../../src/services/agent/agent-permissions.service.js";
 import { recordPendingApproval } from "../../src/services/agent-transaction/agent-transaction.service.js";
+import {
+  FLASH_LOAN_REPAY_NOT_FEASIBLE_CODE,
+  recordInfeasibleFlashLoanQuotesFromToolCalls,
+} from "../../src/services/agent-transaction/record-flash-loan-quote.js";
 import { parseDeepBookFlashLoanParams } from "../../src/services/defi/deepbook/deepbook-flash-loan.types.js";
 import {
   buildFlashLoanPtb,
@@ -118,6 +122,71 @@ describe("flash loan bundle integration", () => {
     });
 
     assert.equal(row.category, "flash_loan");
+  });
+
+  it("records infeasible swap_chain_repay quote as blocked flash_loan ledger row", async () => {
+    const infeasibleQuote = {
+      strategy: "swap_chain_repay" as const,
+      pool_key: "SUI_USDC",
+      borrow_amount: 10000,
+      asset: "quote" as const,
+      coin_key: "USDC",
+      repay_asset: "USDC",
+      repay_amount: 10000,
+      repay_feasible: false,
+      repay_source: "swap_output" as const,
+      estimated_surplus: -20.49459,
+      requires_manual_approval: false,
+      steps: [
+        {
+          pool_key: "SUI_USDC",
+          side: "buy" as const,
+          in_amount: 10000,
+          out_est: 13004.9,
+          min_out: 9979.39,
+          fee_deep: 0,
+          input_coin: "USDC",
+          output_coin: "SUI",
+        },
+        {
+          pool_key: "SUI_USDC",
+          side: "sell" as const,
+          in_amount: 13004.9,
+          out_est: 9979.50541,
+          min_out: 9879.7103559,
+          fee_deep: 0,
+          input_coin: "SUI",
+          output_coin: "USDC",
+        },
+      ],
+      warnings: [],
+    };
+
+    const session = await prisma.chatSession.create({
+      data: {
+        user: { connect: { privy_user_id: privyUserId } },
+        title: "Flash loan blocked test",
+      },
+    });
+
+    const augmented = await recordInfeasibleFlashLoanQuotesFromToolCalls(
+      privyUserId,
+      session.id,
+      [{ name: "query_chain", result: infeasibleQuote }],
+    );
+
+    const quoteResult = augmented[0]?.result as { agent_transaction_id?: string };
+    assert.ok(quoteResult.agent_transaction_id);
+
+    const row = await prisma.agentTransaction.findUnique({
+      where: { id: quoteResult.agent_transaction_id },
+    });
+    assert.ok(row);
+    assert.equal(row.category, "flash_loan");
+    assert.equal(row.status, "failure");
+    assert.equal(row.error_code, FLASH_LOAN_REPAY_NOT_FEASIBLE_CODE);
+    assert.match(row.title, /Flash loan bundle blocked/);
+    assert.equal(row.digest, null);
   });
 
   it("rejects same-pool base borrow and trade", () => {

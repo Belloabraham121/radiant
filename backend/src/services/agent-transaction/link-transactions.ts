@@ -1,5 +1,7 @@
 import type { ToolCallRecord, ExecuteToolOutcome } from "../agent/agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../agent/execute-transaction.tool.js";
+import { QUERY_CHAIN_TOOL_NAME } from "../agent/query-chain.tool.js";
+import { isFlashLoanQuoteResult } from "../agent/deepbook/flash-loan-approval-flow.js";
 import { attachMessageId } from "./agent-transaction.service.js";
 
 function isExecuteOutcome(result: unknown): result is ExecuteToolOutcome {
@@ -12,11 +14,26 @@ function isExecuteOutcome(result: unknown): result is ExecuteToolOutcome {
   );
 }
 
+function readAgentTransactionIdFromQuoteResult(result: unknown): string | null {
+  if (!isFlashLoanQuoteResult(result)) {
+    return null;
+  }
+  const id = (result as { agent_transaction_id?: string }).agent_transaction_id;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
 /** Collect ledger row ids from execute_transaction tool results in a turn. */
 export function collectAgentTransactionIdsFromToolCalls(toolCalls: ToolCallRecord[]): string[] {
   const ids = new Set<string>();
 
   for (const call of toolCalls) {
+    if (call.name === QUERY_CHAIN_TOOL_NAME) {
+      const quoteId = readAgentTransactionIdFromQuoteResult(call.result);
+      if (quoteId) {
+        ids.add(quoteId);
+      }
+    }
+
     if (call.name !== EXECUTE_TRANSACTION_TOOL_NAME || !isExecuteOutcome(call.result)) {
       continue;
     }

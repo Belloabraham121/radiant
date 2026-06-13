@@ -22,6 +22,94 @@ type AgentTransactionDetailDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
+function readFlashLoanQuoteFromResult(
+  result: Record<string, unknown> | null,
+): {
+  steps: Array<{
+    side: string;
+    in_amount: number;
+    out_est: number;
+    min_out: number;
+    input_coin: string;
+    output_coin: string;
+    pool_key: string;
+  }>;
+  repay_amount: number;
+  repay_asset: string;
+  borrow_amount: number;
+  coin_key: string;
+  estimated_surplus: number | null;
+} | null {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+  const quote = result.flash_loan_quote;
+  if (!quote || typeof quote !== "object") {
+    return null;
+  }
+  const q = quote as {
+    steps?: Array<{
+      side: string;
+      in_amount: number;
+      out_est: number;
+      min_out: number;
+      input_coin: string;
+      output_coin: string;
+      pool_key: string;
+    }>;
+    repay_amount?: number;
+    repay_asset?: string;
+    borrow_amount?: number;
+    coin_key?: string;
+    estimated_surplus?: number | null;
+  };
+  if (!Array.isArray(q.steps) || q.steps.length === 0) {
+    return null;
+  }
+  return {
+    steps: q.steps,
+    repay_amount: q.repay_amount ?? 0,
+    repay_asset: q.repay_asset ?? "",
+    borrow_amount: q.borrow_amount ?? 0,
+    coin_key: q.coin_key ?? "",
+    estimated_surplus: q.estimated_surplus ?? null,
+  };
+}
+
+function FlashLoanQuoteBreakdown({
+  quote,
+}: {
+  quote: NonNullable<ReturnType<typeof readFlashLoanQuoteFromResult>>;
+}) {
+  const lastStep = quote.steps[quote.steps.length - 1];
+  return (
+    <div className="rounded-2xl border-2 border-[var(--hero-ink)]/15 bg-white px-4 py-3">
+      <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/45">
+        Flash loan route
+      </p>
+      <ol className="mt-3 space-y-2">
+        <li className="text-sm font-medium text-[var(--hero-ink)]/70">
+          Borrow {quote.borrow_amount} {quote.coin_key}
+        </li>
+        {quote.steps.map((step, index) => (
+          <li key={`${step.pool_key}-${index}`} className="text-sm font-medium text-[var(--hero-ink)]/70">
+            Swap {index + 1}: {step.side} {step.in_amount} {step.input_coin} → ~{step.out_est}{" "}
+            {step.output_coin} on {step.pool_key} (min out ~{step.min_out})
+          </li>
+        ))}
+        <li className="text-sm font-medium text-[var(--hero-ink)]/70">
+          Repay {quote.repay_amount} {quote.repay_asset}
+          {quote.estimated_surplus != null && quote.estimated_surplus < 0
+            ? ` — shortfall ~${Math.abs(quote.estimated_surplus)} ${quote.coin_key}`
+            : lastStep
+              ? ` — last min out ~${lastStep.min_out} ${lastStep.output_coin}`
+              : ""}
+        </li>
+      </ol>
+    </div>
+  );
+}
+
 function formatTimestamp(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString();
@@ -37,6 +125,7 @@ export function AgentTransactionDetailDialog({
   const explorerUrl =
     detail?.explorer_url ??
     (detail?.digest ? chainExplorerTxUrl(detail.chain_id, detail.digest) : null);
+  const flashLoanQuote = detail ? readFlashLoanQuoteFromResult(detail.result) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,9 +156,11 @@ export function AgentTransactionDetailDialog({
                 <span
                   className={`rounded-full border-2 px-2.5 py-0.5 text-[10px] font-bold uppercase ${transactionStatusChipClass(detail.status)}`}
                 >
-                  {formatTransactionStatus(detail.status)}
+                  {formatTransactionStatus(detail.status, detail.error_code)}
                 </span>
               </div>
+
+              {flashLoanQuote ? <FlashLoanQuoteBreakdown quote={flashLoanQuote} /> : null}
 
               <dl className="grid grid-cols-2 gap-3 text-xs">
                 <div>

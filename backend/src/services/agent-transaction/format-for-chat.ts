@@ -55,6 +55,8 @@ function formatTransactionBlock(
 
   if (item.digest) {
     lines.push(`   Digest: ${item.digest}`);
+  } else if (item.status === "failure") {
+    lines.push("   Digest: (not broadcast — blocked before on-chain execution)");
   }
 
   return lines.join("\n");

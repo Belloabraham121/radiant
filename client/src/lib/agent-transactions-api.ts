@@ -98,7 +98,10 @@ export async function listSessionAgentTransactions(
   );
 }
 
-export function formatTransactionStatus(status: AgentTransactionStatus): string {
+export function formatTransactionStatus(
+  status: AgentTransactionStatus,
+  errorCode?: string | null,
+): string {
   switch (status) {
     case "pending_approval":
       return "Awaiting approval";
@@ -111,7 +114,7 @@ export function formatTransactionStatus(status: AgentTransactionStatus): string 
     case "success":
       return "Success";
     case "failure":
-      return "Failed";
+      return errorCode === "REPAY_NOT_FEASIBLE" ? "Blocked" : "Failed";
     default:
       return status;
   }
