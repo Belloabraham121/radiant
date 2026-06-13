@@ -346,8 +346,8 @@ Auto-approved execute (no bar): insert directly as success | failure
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `/app/activity` — paginated table with filters (category, status) | [Client] |
-| [ ] | Sidebar nav entry | [Client] |
+| [x] | `/app/activity` — paginated table with filters (category, status) | [Client] |
+| [x] | Sidebar nav entry | [Client] |
 
 ---
 
@@ -355,9 +355,9 @@ Auto-approved execute (no bar): insert directly as success | failure
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | System prompt: agent can mention "your activity" / recent txs when user asks what the agent did | [Backend] |
+| [x] | System prompt: agent can mention "your activity" / recent txs when user asks what the agent did | [Backend] |
 | [ ] | Optional `query_chain` → `agent_transactions` read for agent (list recent 10) — **defer** unless user asks agent to summarize history | [Backend] |
-| [ ] | Failed tx rows: ensure `error_message` is safe for UI (no stack traces) | [Backend] |
+| [x] | Failed tx rows: ensure `error_message` is safe for UI (no stack traces) | [Backend] |
 
 ---
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  Activity,
   ChevronsLeft,
   FolderKanban,
   MessageSquare,
@@ -23,6 +24,7 @@ import { useSidebar } from "./SidebarContext";
 
 const NAV = [
   { href: "/app", label: "Chats", Icon: MessageSquare },
+  { href: "/app/activity", label: "Activity", Icon: Activity },
   { href: "/app/projects", label: "Projects", Icon: FolderKanban },
   { href: "/app/settings", label: "Settings", Icon: Settings },
 ];

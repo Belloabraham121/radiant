@@ -8,6 +8,7 @@ import { findSessionForUser } from "../conversation/session.repository.js";
 import { buildTransactionDisplay, enrichDisplayFromResult } from "./build-display.js";
 import { categorizeAgentTransactionAction } from "./categorize-action.js";
 import { buildExplorerTxUrl } from "./explorer-url.js";
+import { sanitizeErrorMessageForUi } from "./sanitize-error-message.js";
 import {
   createAgentTransaction,
   claimAgentTransactionStatus,
@@ -268,7 +269,7 @@ export async function markCompleted(
   const row = await updateAgentTransactionById(transactionId, {
     status: "failure",
     error_code: completion.error.code,
-    error_message: completion.error.message,
+    error_message: sanitizeErrorMessageForUi(completion.error.message),
     completed_at: now,
   });
   return row ? toListItem(row) : null;
