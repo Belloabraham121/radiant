@@ -22,9 +22,14 @@ Profile-only identity surface for Radiant users. **Not** agent wallets, vault, p
 ### Out of scope (Settings elsewhere)
 
 - Link / unlink accounts (`ConnectedAccountsSection`)
-- Agent wallets, deposits, balances
+- Agent wallet provisioning, deposit dialogs (`AgentWalletSection`)
 - Agent vault & permission toggles
 - Logout button (can sit below profile card in Settings, not inside the card)
+
+### In scope (wallet holdings — new)
+
+- **“In your wallet”** collapsible section below profile card — see [wallet-assets-TODO.md](./wallet-assets-TODO.md)
+- Shows multi-token holdings (SUI, USDC, DEEP, popular DeepBook assets), not native-only
 
 ---
 

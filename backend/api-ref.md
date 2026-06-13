@@ -12,7 +12,10 @@ Backend API and environment checklist. Implementation lives under `src/`.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
-| `POST` | `/api/v1/chat` | Agent conversation (Claude or stub) with `query_chain` + `execute_transaction` tools |
+| `POST` | `/api/v1/chat` | Agent conversation (OpenAI or stub) with `query_chain`, `execute_transaction`, and `update_memory` tools |
+| `GET` | `/api/v1/chat/sessions` | List chat threads for the authenticated user |
+| `POST` | `/api/v1/chat/sessions` | Create a new chat thread |
+| `GET` | `/api/v1/chat/sessions/:sessionId/messages` | Load messages for a thread (404 if not owned) |
 | `POST` | `/api/v1/build` | Preview app build without deploying |
 | `POST` | `/api/v1/deploy` | Full deploy pipeline (E2B + Walrus + registry) |
 | `GET` | `/api/v1/apps` | Public marketplace listings |
@@ -35,7 +38,8 @@ Auth happens on the **client** (Privy SDK). The backend only **verifies** the Ht
 | `POST` | `/api/v1/auth/register-wallet` | **First-time only** — persist embedded Sui wallet after client creates it |
 | `POST` | `/api/v1/auth/logout` | End session |
 | `POST` | `/api/v1/webhooks/privy` | Privy webhooks (Svix signature). Handles `user.linked_account`, `user.transferred_account`. |
-| `GET` | `/api/v1/wallets/balances` | Agent wallet balances (from session) |
+| `GET` | `/api/v1/wallets/balances` | Agent wallet native balance (from session) |
+| `GET` | `/api/v1/wallets/assets` | Multi-token holdings. Sui via RPC; EVM/Solana via Privy. Query: `chain`, `evm_chain_id`, `include_zero`, `include_usd` |
 
 There is no `POST /auth/register` or `POST /auth/login` — Privy handles both. See [docs/privy-implementation-plan.md](./docs/privy-implementation-plan.md).
 
@@ -79,10 +83,13 @@ Wallet addresses are **never** sent in the request body — the backend resolves
     "session_id": "abc-123",
     "mode": "stub",
     "tool_calls": [{ "name": "query_chain", "result": { } }],
-    "pending_transaction": null
+    "pending_transaction": null,
+    "message_id": "uuid-of-persisted-assistant-message"
   }
 }
 ```
+
+`session_id` is optional on first message (a new thread is created). On follow-up messages, pass the returned `session_id` so the agent loads full thread context from Postgres.
 
 Large transfers return `pending_transaction` instead of broadcasting immediately. Approve with:
 
@@ -107,7 +114,7 @@ Auto-approve thresholds (env): `AGENT_AUTO_APPROVE_MAX_SUI` (default 25), `AGENT
 See `.env.example`. Required for production:
 
 - `PRIVY_APP_ID`, `PRIVY_APP_SECRET`
-- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY` (or `AGENT_PROVIDER=stub` for local dev without OpenAI)
 - `DATABASE_URL`, `REDIS_URL`
 - `SUI_RPC_URL`, `WALRUS_*`, `RADIANT_REGISTRY_PACKAGE_ID`
 - `CORS_ORIGIN`

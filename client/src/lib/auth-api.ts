@@ -1,3 +1,4 @@
+import type { AgentPermissions } from "./agent-permissions-api";
 import { apiFetch, ApiError } from "./api";
 
 export type AuthMeAgentWallet = {
@@ -18,6 +19,7 @@ export type AuthMeData = {
   linked_accounts: Array<"google" | "github" | "email">;
   agent_wallet: AuthMeAgentWallet | null;
   agent_wallets: AuthMeAgentWallet[];
+  agent_permissions: AgentPermissions;
 };
 
 /** @deprecated Use `ApiError` from `@/lib/api`. */

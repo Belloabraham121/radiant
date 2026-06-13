@@ -19,30 +19,30 @@ export function useUserProfile() {
 
   useEffect(() => {
     if (!ready || !authenticated) {
-      setMe(null);
-      setProfileLoading(false);
       return;
     }
 
     let cancelled = false;
-    setProfileLoading(true);
 
-    void fetchAuthMe()
-      .then((data) => {
+    async function loadProfile() {
+      setProfileLoading(true);
+      try {
+        const data = await fetchAuthMe();
         if (!cancelled) {
           setMe(data);
         }
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setMe(null);
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setProfileLoading(false);
         }
-      });
+      }
+    }
+
+    void loadProfile();
 
     return () => {
       cancelled = true;
@@ -50,20 +50,21 @@ export function useUserProfile() {
   }, [authenticated, ready, user?.id]);
 
   return useMemo(() => {
+    const profileMe = ready && authenticated ? me : null;
     const loginBadges: LoginBadge[] =
-      me?.linked_accounts?.length ? me.linked_accounts : resolveLoginBadges(user);
+      profileMe?.linked_accounts?.length ? profileMe.linked_accounts : resolveLoginBadges(user);
 
     return {
       ready,
       authenticated,
       user,
-      profileLoading: authenticated && profileLoading,
-      seed: resolveAvatarSeed(me?.avatar_seed, user),
-      avatarStyle: me?.avatar_style ?? "lorelei",
-      displayName: resolveDisplayName(user, me?.display_name),
-      email: me?.email ?? resolveEmail(user),
+      profileLoading: ready && authenticated && profileLoading,
+      seed: resolveAvatarSeed(profileMe?.avatar_seed, user),
+      avatarStyle: profileMe?.avatar_style ?? "lorelei",
+      displayName: resolveDisplayName(user, profileMe?.display_name),
+      email: profileMe?.email ?? resolveEmail(user),
       loginBadges,
-      memberSince: formatMemberSince(me?.member_since),
+      memberSince: formatMemberSince(profileMe?.member_since),
     };
   }, [authenticated, me, profileLoading, ready, user]);
 }

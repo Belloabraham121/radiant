@@ -37,12 +37,40 @@ export function getAutoApproveMaxAtomic(chainId: ChainId): bigint {
   }
 }
 
-export function getAnthropicConfig() {
-  const apiKey = process.env.ANTHROPIC_API_KEY?.trim() || "";
+export type AgentProvider = "openai" | "stub";
+
+function parsePositiveInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+export function getOpenAiConfig() {
+  const apiKey = process.env.OPENAI_API_KEY?.trim() || "";
   return {
     apiKey,
     enabled: apiKey.length > 0,
-    model: process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-20250514",
+    model: process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini",
+    maxToolSteps: parsePositiveInt("OPENAI_MAX_TOOL_STEPS", 6),
+    fallbackStub: process.env.AGENT_FALLBACK_STUB === "true",
     defaultChainId: getDefaultAgentChainId(),
   };
+}
+
+export function getAgentContextConfig() {
+  return {
+    maxMessages: parsePositiveInt("AGENT_MAX_CONTEXT_MESSAGES", 50),
+    maxChars: parsePositiveInt("AGENT_MAX_CONTEXT_CHARS", 8000),
+  };
+}
+
+/** Select production OpenAI runtime or local stub (default when no API key). */
+export function getAgentProvider(): AgentProvider {
+  const explicit = process.env.AGENT_PROVIDER?.trim().toLowerCase();
+  if (explicit === "stub") return "stub";
+  if (explicit === "openai") {
+    return getOpenAiConfig().apiKey ? "openai" : "stub";
+  }
+  return getOpenAiConfig().apiKey ? "openai" : "stub";
 }

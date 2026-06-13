@@ -7,6 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ChatMessageRole {
+  user
+  assistant
+  system
+  tool
+}
+
 model User {
   id            BigInt   @id @default(autoincrement())
   privy_user_id String   @unique
@@ -14,10 +21,61 @@ model User {
   display_name  String?
   avatar_seed   String
   avatar_style  String   @default("lorelei")
+  /// When false, every swap and transfer requires in-app approval.
+  agent_auto_approve_enabled Boolean @default(true)
+  /// Max SUI notional for auto-approved swaps/transfers (display units).
+  agent_auto_approve_max_sui Float    @default(25)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  agent_wallets AgentWallet[]
+  agent_wallets            AgentWallet[]
+  chat_sessions            ChatSession[]
+  agent_memory             AgentMemory?
+  deepbook_balance_manager DeepBookBalanceManager?
+}
+
+model AgentMemory {
+  user_id    BigInt   @id
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  data       Json     @default("{}")
+  updated_at DateTime @updatedAt
+}
+
+model ChatSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    BigInt
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  title      String   @default("New chat")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  @@index([user_id, updated_at(sort: Desc)])
+}
+
+model ChatMessage {
+  id         String          @id @default(uuid()) @db.Uuid
+  session_id String          @db.Uuid
+  session    ChatSession     @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  role       ChatMessageRole
+  content    String
+  tool_calls Json?
+  created_at DateTime        @default(now())
+
+  @@index([session_id, created_at(sort: Asc)])
+}
+
+model DeepBookBalanceManager {
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           BigInt   @unique
+  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chain_id          String   @default("sui")
+  manager_object_id String
+  manager_key       String
+  trade_cap_id      String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
 }
 
 model AgentWallet {

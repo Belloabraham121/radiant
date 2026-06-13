@@ -5,13 +5,18 @@ import { correlationIdMiddleware } from "./api/middleware/correlation-id.js";
 import { errorHandlerMiddleware } from "./api/middleware/error-handler.js";
 import { requestLoggerMiddleware } from "./api/middleware/request-logger.js";
 import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
+import { agentPermissionsRouter } from "./api/routes/v1/agent/permissions.js";
 import { authMeRouter } from "./api/routes/v1/auth/me.js";
 import { authRegisterWalletRouter } from "./api/routes/v1/auth/register-wallet.js";
+import { walletAssetsRouter } from "./api/routes/v1/wallets/assets.js";
 import { walletBalancesRouter } from "./api/routes/v1/wallets/balances.js";
 import { walletSignAndSendRouter } from "./api/routes/v1/wallets/sign-and-send.js";
 import { healthRouter } from "./api/routes/health.js";
 import { chatRouter } from "./api/routes/v1/chat/chat.js";
+import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
+import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.js";
+import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
 import { createCorsOptions } from "./config/cors.js";
 
 /** Express app without DB connect or workers (for tests and main entry). */
@@ -30,11 +35,16 @@ export function createApp() {
   app.use(requestLoggerMiddleware);
   app.use(healthRouter);
   app.use(authMeRouter);
+  app.use(agentPermissionsRouter);
   app.use(authRegisterWalletRouter);
   app.use(authLogoutRouter);
   app.use(walletBalancesRouter);
+  app.use(walletAssetsRouter);
   app.use(walletSignAndSendRouter);
   app.use(chatRouter);
+  app.use(chatSessionsRouter);
+  app.use(defiPoolsRouter);
+  app.use(defiBalanceManagerRouter);
   app.use(errorHandlerMiddleware);
 
   return app;

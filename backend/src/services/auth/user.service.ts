@@ -7,6 +7,7 @@ import type { ChainId } from "../chains/types.js";
 import type { AuthMeAgentWallet, AuthMeData } from "./auth.types.js";
 import { extractEmailFromPrivyUser, extractLinkedAccountLabels } from "./extract-privy-email.js";
 import { extractDisplayNameFromPrivyUser } from "./extract-privy-profile.js";
+import { agentPermissionsFromUser } from "../agent/agent-permissions.service.js";
 import { DEFAULT_AVATAR_STYLE } from "./profile.constants.js";
 import {
   createUser,
@@ -204,5 +205,6 @@ export function toAuthMeData(
     linked_accounts: extractLinkedAccountLabels(privyUser),
     agent_wallet: primaryWallet,
     agent_wallets,
+    agent_permissions: agentPermissionsFromUser(user),
   };
 }

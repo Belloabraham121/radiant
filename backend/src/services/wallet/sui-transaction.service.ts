@@ -72,3 +72,45 @@ export async function executeSignedSuiTransaction(input: {
     effects_status: effectsStatus,
   };
 }
+
+type ChangedObject = {
+  objectId: string;
+  idOperation?: string;
+};
+
+type TransactionWithEffects = {
+  effects?: { changedObjects?: ChangedObject[] };
+  objectTypes?: Record<string, string>;
+};
+
+/** Resolve a newly created shared object id from a successful transaction digest. */
+export async function findCreatedObjectIdAfterTransaction(
+  digest: string,
+  typeIncludes: string,
+): Promise<string | null> {
+  const client = getSuiClient();
+  const result = await client.waitForTransaction({
+    digest,
+    include: { effects: true, objectTypes: true },
+  });
+
+  if (result.$kind === "FailedTransaction") {
+    return null;
+  }
+
+  const tx = result.Transaction as TransactionWithEffects | undefined;
+  if (!tx?.effects?.changedObjects) {
+    return null;
+  }
+
+  const objectTypes = tx.objectTypes ?? {};
+  for (const changed of tx.effects.changedObjects) {
+    if (changed.idOperation !== "Created") continue;
+    const objectType = objectTypes[changed.objectId];
+    if (objectType?.includes(typeIncludes)) {
+      return changed.objectId;
+    }
+  }
+
+  return null;
+}

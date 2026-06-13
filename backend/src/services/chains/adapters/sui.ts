@@ -17,6 +17,19 @@ import type {
   TxResult,
 } from "../types.js";
 import { toSuiBalanceResult } from "./sui-balance.js";
+import {
+  executeDeepBookDeposit,
+  executeDeepBookWithdraw,
+  executeDeepBookProvisionManager,
+} from "../../defi/deepbook-balance-manager.service.js";
+import {
+  executeDeepBookSwap,
+  isDeepBookSwapAction,
+} from "../../defi/deepbook-swap.service.js";
+import {
+  executeDeepBookOrderAction,
+  isDeepBookOrderAction,
+} from "../../defi/deepbook-orders.service.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;
@@ -191,6 +204,97 @@ export const suiAdapter: ChainAdapter = {
     action: string,
     params: Record<string, unknown>,
   ): Promise<TxResult> {
+    if (action === "deepbook_provision_manager") {
+      const result = await executeDeepBookProvisionManager(privyUserId);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          manager_object_id: result.manager_object_id,
+          already_provisioned: result.already_provisioned,
+        },
+      };
+    }
+
+    if (action === "deepbook_deposit") {
+      const result = await executeDeepBookDeposit(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          coin_key: result.coin_key,
+          amount_display: result.amount_display,
+          manager_object_id: result.manager_object_id,
+        },
+      };
+    }
+
+    if (action === "deepbook_withdraw") {
+      const result = await executeDeepBookWithdraw(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          coin_key: result.coin_key,
+          amount_display: result.amount_display,
+          manager_object_id: result.manager_object_id,
+        },
+      };
+    }
+
+    if (isDeepBookSwapAction(action)) {
+      const result = await executeDeepBookSwap(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          swap: {
+            pool_key: result.pool_key,
+            side: result.side,
+            input_coin: result.input_coin,
+            output_coin: result.output_coin,
+            in_amount_display: result.in_amount_display,
+            out_amount_display: result.out_amount_display,
+            fee_deep: result.fee_deep,
+            price: result.price,
+            pay_with_deep: result.pay_with_deep,
+          },
+        },
+      };
+    }
+
+    if (isDeepBookOrderAction(action)) {
+      const result = await executeDeepBookOrderAction(action, privyUserId, params);
+
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          order: {
+            pool_key: result.pool_key,
+            action: result.action,
+            order_id: result.order_id,
+            client_order_id: result.client_order_id,
+            price: result.price,
+            quantity: result.quantity,
+            is_bid: result.is_bid,
+            pay_with_deep: result.pay_with_deep,
+            cancelled_count: result.cancelled_count,
+          },
+        },
+      };
+    }
+
     const suiAction = toSuiExecuteAction(action, params);
     const result = await executeSuiTransaction(privyUserId, suiAction);
     return toTxResult(result);

@@ -65,7 +65,9 @@ export function AuthCard() {
   const [otpCode, setOtpCode] = useState("");
   const [emailStep, setEmailStep] = useState<EmailStep>("idle");
   const [mergeRequired, setMergeRequired] = useState(false);
-  const [oauthReturn, setOauthReturn] = useState(false);
+  const [oauthReturn] = useState(() =>
+    typeof window !== "undefined" ? isPrivyOAuthReturn() : false,
+  );
   const [oauthProvider, setOauthProvider] = useState<"google" | "github" | null>(null);
   const oauthProviderRef = useRef<"google" | "github" | null>(null);
   const handledAuthRef = useRef(false);
@@ -112,10 +114,6 @@ export function AuthCard() {
     state: oauthState,
   } = useLoginWithOAuth(loginCallbacks);
   const { sendCode, loginWithCode, state: otpState } = useLoginWithEmail(loginCallbacks);
-
-  useEffect(() => {
-    setOauthReturn(isPrivyOAuthReturn());
-  }, []);
 
   useGSAP(
     () => {
@@ -179,14 +177,16 @@ export function AuthCard() {
     }
   };
 
-  useEffect(() => {
-    if (oauthState.status !== "error" || !oauthProvider) {
-      return;
-    }
-    const message = formatPrivyOAuthError(oauthState.error, oauthProvider);
-    setMergeRequired(isAccountMergeOrTransferError(oauthState.error));
-    setError(message);
-  }, [oauthState, oauthProvider]);
+  const oauthErrorMessage =
+    oauthState.status === "error" && oauthProvider
+      ? formatPrivyOAuthError(oauthState.error, oauthProvider)
+      : null;
+  const oauthMergeRequired =
+    oauthState.status === "error" && oauthProvider
+      ? isAccountMergeOrTransferError(oauthState.error)
+      : false;
+  const displayError = error ?? oauthErrorMessage;
+  const showMergeRequired = mergeRequired || oauthMergeRequired;
 
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,7 +214,7 @@ export function AuthCard() {
   const emailVerifying =
     otpState.status === "sending-code" || otpState.status === "submitting-code";
   const oauthCompleting =
-    oauthReturn || (oauthState.status === "loading" && !error);
+    oauthReturn || (oauthState.status === "loading" && !displayError);
   const busy = oauthLoading || syncing || emailVerifying || oauthCompleting;
   const authLoading = !ready;
 
@@ -295,13 +295,13 @@ export function AuthCard() {
           </p>
         ) : null}
 
-        {error ? (
+        {displayError ? (
           <div
             role="alert"
             className="mb-4 rounded-2xl border-2 border-[var(--hero-coral)] bg-[var(--hero-coral)]/10 px-4 py-3 text-sm font-semibold text-[var(--hero-ink)]"
           >
-            <p>{error}</p>
-            {mergeRequired ? (
+            <p>{displayError}</p>
+            {showMergeRequired ? (
               <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/70">
                 Tip: sign in with the login method you used first, open Settings → Connected
                 accounts, and link the other provider. Enable{" "}

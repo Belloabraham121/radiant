@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AgentPermissions } from "../agent/agent-permissions.types.js";
 import type { ChainId } from "../chains/types.js";
 
 export type AuthenticatedSession = {
@@ -28,6 +29,7 @@ export type AuthMeData = {
   /** Primary wallet on the default agent chain (legacy field). */
   agent_wallet: AuthMeAgentWallet | null;
   agent_wallets: AuthMeAgentWallet[];
+  agent_permissions: AgentPermissions;
 };
 
 export const logoutBodySchema = z.object({}).optional();

@@ -32,6 +32,34 @@ export type TxResult = {
   address: string;
   effects_status: "success" | "failure" | "unknown";
   evm_chain_id?: number;
+  deepbook?: {
+    coin_key?: string;
+    amount_display?: number;
+    manager_object_id?: string;
+    already_provisioned?: boolean;
+    swap?: {
+      pool_key: string;
+      side: "buy" | "sell";
+      input_coin: string;
+      output_coin: string;
+      in_amount_display: number;
+      out_amount_display: number;
+      fee_deep: number | null;
+      price: number | null;
+      pay_with_deep?: boolean;
+    };
+    order?: {
+      pool_key: string;
+      action: string;
+      order_id?: string;
+      client_order_id?: number;
+      price?: number;
+      quantity?: number;
+      is_bid?: boolean;
+      pay_with_deep?: boolean;
+      cancelled_count?: number;
+    };
+  };
 };
 
 export type ExecuteTransactionInput = {

@@ -1,0 +1,233 @@
+import type { Prisma } from "@prisma/client";
+import { getAgentProvider, getOpenAiConfig } from "../../config/agent.js";
+import { getAgentPermissions } from "./agent-permissions.service.js";
+import { deriveSessionTitle, resolveOrCreateSession } from "../conversation/conversation.service.js";
+import { appendMessage, listMessagesBySessionId } from "../conversation/message.repository.js";
+import { touchSession } from "../conversation/session.repository.js";
+import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.service.js";
+import type { ChatRequest, ChatResponse } from "./agent.types.js";
+import { buildAgentContextMessages } from "./context-window.js";
+import { getAgentRuntime } from "./runtime/index.js";
+import type { AgentRuntime } from "./runtime/types.js";
+import type { TransactionErrorContext } from "./transaction-error-context.js";
+import { synthesizeErrorExplanationReply } from "./runtime/error-explanation.js";
+import { stubRuntime } from "./runtime/stub.runtime.js";
+import type { AgentToolErrorResult } from "./tools.js";
+import {
+  isClarificationContinuationRequest,
+  tryStartWorkflowFromMessage,
+} from "./workflow/workflow-coordinator.js";
+import {
+  isApprovalContinuationMessage,
+  persistWorkflowChatResponse,
+} from "./workflow/workflow-runner.js";
+import { tryExecuteSingleSwapFromMessage } from "./single-swap-flow.js";
+
+type RunChatTurnOptions = {
+  forceRuntime?: AgentRuntime;
+};
+
+export async function runChatTurn(
+  privyUserId: string,
+  request: ChatRequest,
+  options: RunChatTurnOptions = {},
+): Promise<ChatResponse> {
+  const { session } = await resolveOrCreateSession(
+    privyUserId,
+    request.session_id,
+  );
+
+  const priorMessages = await listMessagesBySessionId(session.id);
+  const isFirstUserMessage = priorMessages.length === 0;
+
+  await appendMessage(session.id, "user", request.message);
+
+  const memory = await loadAgentMemory(privyUserId);
+  const memoryBlock = formatMemoryBlock(memory);
+  const agentPermissions = await getAgentPermissions(privyUserId);
+
+  if (!isApprovalContinuationMessage(request.message) && !isClarificationContinuationRequest(request)) {
+    const workflowOutcome = await tryStartWorkflowFromMessage(
+      privyUserId,
+      session.id,
+      request.message,
+      { memoryBlock, agentPermissions },
+    );
+
+    if (workflowOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, workflowOutcome);
+    }
+
+    const singleSwapOutcome = await tryExecuteSingleSwapFromMessage(
+      privyUserId,
+      request.message,
+    );
+
+    if (singleSwapOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, {
+        ...singleSwapOutcome,
+        pending_clarification: null,
+        workflowCompleted: true,
+      });
+    }
+  }
+
+  const history = await listMessagesBySessionId(session.id);
+  const contextMessages = buildAgentContextMessages(history);
+
+  const runtime = options.forceRuntime ?? getAgentRuntime();
+  const result = await runtime.runTurn({
+    privyUserId,
+    sessionId: session.id,
+    messages: contextMessages,
+    memoryBlock,
+    agentPermissions,
+  });
+
+  const toolCallsJson: Prisma.InputJsonValue | undefined =
+    result.tool_calls.length > 0 ? (result.tool_calls as Prisma.InputJsonValue) : undefined;
+
+  const assistantMessage = await appendMessage(
+    session.id,
+    "assistant",
+    result.reply,
+    toolCallsJson,
+  );
+
+  const sessionTitle =
+    isFirstUserMessage && session.title === "New chat"
+      ? deriveSessionTitle(request.message)
+      : session.title;
+
+  await touchSession(session.id, {
+    title: sessionTitle,
+    updated_at: new Date(),
+  });
+
+  return {
+    reply: result.reply,
+    session_id: session.id,
+    mode: options.forceRuntime?.id ?? runtime.id,
+    tool_calls: result.tool_calls,
+    pending_transaction: result.pending_transaction,
+    pending_clarification: null,
+    message_id: assistantMessage.id,
+  };
+}
+
+/** Persist a failed tool outcome and let the agent explain it in plain language. */
+export async function persistToolFailureTurn(
+  privyUserId: string,
+  request: ChatRequest,
+  input: {
+    toolName: string;
+    toolResult: AgentToolErrorResult;
+    userContext: string;
+    transactionContext?: TransactionErrorContext;
+  },
+): Promise<ChatResponse> {
+  const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
+
+  await appendMessage(session.id, "user", request.message);
+
+  const history = await listMessagesBySessionId(session.id);
+  const contextMessages = buildAgentContextMessages(history);
+  const memoryBlock = formatMemoryBlock(await loadAgentMemory(privyUserId));
+  const agentPermissions = await getAgentPermissions(privyUserId);
+
+  const reply = await synthesizeErrorExplanationReply({
+    toolName: input.toolName,
+    toolResult: input.toolResult,
+    messages: contextMessages,
+    memoryBlock,
+    agentPermissions,
+    userContext: input.userContext,
+    transactionContext: input.transactionContext,
+  });
+
+  const toolCalls = [{ name: input.toolName, result: input.toolResult }];
+  const assistantMessage = await appendMessage(
+    session.id,
+    "assistant",
+    reply,
+    toolCalls as Prisma.InputJsonValue,
+  );
+
+  await touchSession(session.id, { updated_at: new Date() });
+
+  return {
+    reply,
+    session_id: session.id,
+    mode: getAgentProvider(),
+    tool_calls: toolCalls,
+    pending_transaction: null,
+    pending_clarification: null,
+    message_id: assistantMessage.id,
+  };
+}
+
+/** Persist an approval outcome into the session transcript when possible. */
+export async function persistApprovalTurn(
+  privyUserId: string,
+  request: ChatRequest,
+  reply: string,
+  toolCalls: ChatResponse["tool_calls"],
+): Promise<ChatResponse> {
+  const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
+
+  await appendMessage(session.id, "user", request.message);
+
+  const assistantMessage = await appendMessage(
+    session.id,
+    "assistant",
+    reply,
+    toolCalls.length > 0 ? (toolCalls as Prisma.InputJsonValue) : undefined,
+  );
+
+  await touchSession(session.id, { updated_at: new Date() });
+
+  return {
+    reply,
+    session_id: session.id,
+    mode: getAgentProvider(),
+    tool_calls: toolCalls,
+    pending_transaction: null,
+    pending_clarification: null,
+    message_id: assistantMessage.id,
+  };
+}
+
+export async function runChatTurnWithFallback(
+  privyUserId: string,
+  request: ChatRequest,
+): Promise<ChatResponse> {
+  try {
+    return await runChatTurn(privyUserId, request);
+  } catch (err) {
+    if (getAgentProvider() === "openai" && getOpenAiConfig().fallbackStub) {
+      console.warn("OpenAI agent failed; falling back to stub runtime.", err);
+      return runChatTurn(privyUserId, request, { forceRuntime: stubRuntime });
+    }
+    throw err;
+  }
+}

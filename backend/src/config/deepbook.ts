@@ -1,0 +1,90 @@
+import {
+  mainnetCoins,
+  mainnetPools,
+  testnetCoins,
+  testnetPools,
+  type CoinMap,
+  type PoolMap,
+} from "@mysten/deepbook-v3";
+import { optional } from "./optional-env.js";
+
+const DEFAULT_INDEXER_MAINNET = "https://deepbook-indexer.mainnet.mystenlabs.com";
+const DEFAULT_INDEXER_TESTNET = "https://deepbook-indexer.testnet.mystenlabs.com";
+
+const DEFAULT_POPULAR_SYMBOLS = ["SUI", "USDC", "DEEP", "WAL", "USDT"] as const;
+const DEFAULT_POOL_MAINNET = "SUI_USDC";
+const DEFAULT_POOL_TESTNET = "SUI_DBUSDC";
+export const DEFAULT_BALANCE_MANAGER_KEY = "RADIANT_BM_1";
+
+export type DeepBookNetwork = "mainnet" | "testnet";
+
+export type DeepBookEnv = {
+  env: DeepBookNetwork;
+  indexerUrl: string;
+  popularSymbols: readonly string[];
+  catalogRefreshMs: number;
+  defaultPool: string;
+  defaultManagerKey: string;
+  coins: CoinMap;
+  pools: PoolMap;
+};
+
+let cached: DeepBookEnv | undefined;
+
+function resolveIndexerUrl(env: "mainnet" | "testnet"): string {
+  const override = process.env.DEEPBOOK_INDEXER_URL;
+  if (override && override.length > 0) {
+    return override.replace(/\/$/, "");
+  }
+  return env === "testnet" ? DEFAULT_INDEXER_TESTNET : DEFAULT_INDEXER_MAINNET;
+}
+
+function resolveDeepBookNetwork(): DeepBookNetwork {
+  const raw = optional("DEEPBOOK_ENV", "").toLowerCase();
+  if (raw === "testnet") return "testnet";
+  const rpc = optional("SUI_RPC_URL", "");
+  if (rpc.includes("testnet")) return "testnet";
+  return "mainnet";
+}
+
+function resolveDefaultPool(env: DeepBookNetwork): string {
+  const override = optional("DEEPBOOK_DEFAULT_POOL", "");
+  if (override.length > 0) return override;
+  return env === "testnet" ? DEFAULT_POOL_TESTNET : DEFAULT_POOL_MAINNET;
+}
+
+function resolveCoinsAndPools(env: DeepBookNetwork): { coins: CoinMap; pools: PoolMap } {
+  if (env === "testnet") {
+    return { coins: testnetCoins, pools: testnetPools };
+  }
+  return { coins: mainnetCoins, pools: mainnetPools };
+}
+
+export function getDeepBookEnv(): DeepBookEnv {
+  if (!cached) {
+    const env = resolveDeepBookNetwork();
+    const popularRaw = optional("WALLET_POPULAR_SYMBOLS", "");
+    const popularSymbols =
+      popularRaw.length > 0
+        ? popularRaw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)
+        : [...DEFAULT_POPULAR_SYMBOLS];
+    const { coins, pools } = resolveCoinsAndPools(env);
+
+    cached = {
+      env,
+      indexerUrl: resolveIndexerUrl(env),
+      popularSymbols,
+      catalogRefreshMs: Number(optional("DEEPBOOK_CATALOG_REFRESH_MS", String(60 * 60 * 1000))),
+      defaultPool: resolveDefaultPool(env),
+      defaultManagerKey: DEFAULT_BALANCE_MANAGER_KEY,
+      coins,
+      pools,
+    };
+  }
+  return cached;
+}
+
+/** Test hook — reset cached env. */
+export function resetDeepBookEnvForTests(): void {
+  cached = undefined;
+}

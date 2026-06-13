@@ -1,16 +1,14 @@
-import { randomUUID } from "node:crypto";
 import { getDefaultAgentChainId } from "../../config/chains.js";
-import { getAnthropicConfig } from "../../config/agent.js";
-import type { ChatResponse, ToolCallRecord } from "./agent.types.js";
+import type { PendingTransaction, ToolCallRecord } from "./agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
 import { runAgentTool } from "./tools.js";
-import { approvalThresholdLabel } from "./transaction-approval.service.js";
+import { getAgentPermissions, approvalThresholdLabel } from "./agent-permissions.service.js";
 import type { ExecuteToolOutcome } from "./agent.types.js";
 import type { BalanceResult } from "../chains/types.js";
 
 function defaultChainId() {
-  return getAnthropicConfig().defaultChainId ?? getDefaultAgentChainId();
+  return getDefaultAgentChainId();
 }
 
 function parseTransferIntent(message: string): {
@@ -44,10 +42,17 @@ function formatBalanceReply(balance: BalanceResult): string {
   return `Your ${balance.native_symbol} agent wallet (${balance.address.slice(0, 10)}…) holds ${balance.balance_display.toFixed(4)} ${balance.native_symbol}.`;
 }
 
-function formatExecuteReply(outcome: ExecuteToolOutcome): string {
+async function formatExecuteReply(
+  privyUserId: string,
+  outcome: ExecuteToolOutcome,
+): Promise<string> {
   if (outcome.status === "approval_required") {
+    const permissions = await getAgentPermissions(privyUserId);
+    if (!permissions.auto_approve_enabled) {
+      return "This transaction needs your approval. Review the details and approve to continue.";
+    }
     return (
-      `That transfer is above your auto-approve limit (${approvalThresholdLabel(outcome.pending.chain_id)}). ` +
+      `That transfer is above your auto-approve limit (${approvalThresholdLabel(outcome.pending.chain_id, permissions)}). ` +
       "Review the details and approve to continue."
     );
   }
@@ -55,14 +60,20 @@ function formatExecuteReply(outcome: ExecuteToolOutcome): string {
   return `Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
 }
 
+export type StubAgentResult = {
+  reply: string;
+  tool_calls: ToolCallRecord[];
+  pending_transaction: PendingTransaction | null;
+};
+
 export async function runStubAgent(
   privyUserId: string,
   message: string,
-  sessionId?: string,
-): Promise<ChatResponse> {
+  _sessionId?: string,
+): Promise<StubAgentResult> {
   const chainId = defaultChainId();
   const tool_calls: ToolCallRecord[] = [];
-  let pending_transaction: ChatResponse["pending_transaction"] = null;
+  let pending_transaction: PendingTransaction | null = null;
   let reply: string;
 
   if (isBalanceIntent(message)) {
@@ -88,7 +99,7 @@ export async function runStubAgent(
       if (outcome.status === "approval_required") {
         pending_transaction = outcome.pending;
       }
-      reply = formatExecuteReply(outcome);
+      reply = await formatExecuteReply(privyUserId, outcome);
     } else {
       reply =
         "I can check your agent wallet balance or prepare transfers on your enabled chains. " +
@@ -98,8 +109,6 @@ export async function runStubAgent(
 
   return {
     reply,
-    session_id: sessionId ?? randomUUID(),
-    mode: "stub",
     tool_calls,
     pending_transaction,
   };
