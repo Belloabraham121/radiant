@@ -74,7 +74,7 @@ export function ArtifactPanel({
 
         {tab === "code" ? (
           <div className="flex h-full min-h-0">
-            <div className="w-40 shrink-0 border-r-2 border-[var(--hero-ink)]/10 bg-[var(--hero-bg)]/40">
+            <div className="w-52 shrink-0 border-r-2 border-[var(--hero-ink)]/10 bg-[var(--hero-bg)]/40 overflow-y-auto">
               <ArtifactFileTree
                 files={payload.files}
                 activePath={activePath}
