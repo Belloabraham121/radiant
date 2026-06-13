@@ -543,9 +543,9 @@ export class E2bSandboxProvider implements SandboxProvider {
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Path allowlist validator | Reject writes outside `/workspace/src`, `/workspace/public` |
-| [ ] | Extension allowlist | `.tsx`, `.ts`, `.css`, `.json`, `.html`, `.svg` |
-| [ ] | Total bytes guard | `DEPLOY_MAX_ARTIFACT_BYTES=524288` |
+| [x] | Path allowlist validator | `sandbox-paths.ts` — `/workspace/src/`, `/workspace/public/` writes; `/workspace/move/` for Move publish |
+| [x] | Extension allowlist | `.tsx`, `.ts`, `.css`, `.json`, `.html`, `.svg` (+ Move: `.move`, `.toml`, `.json`) |
+| [x] | Total bytes guard | `DEPLOY_MAX_ARTIFACT_BYTES=524288`, `DEPLOY_MAX_DIST_BYTES`, `DEPLOY_MAX_MOVE_BYTES` |
 
 ### Step 6 — Volumes (optional, private beta)
 
@@ -733,8 +733,8 @@ model DeployJob {
 | [ ] | Create project if no `project_id` | Link to `session_id` |
 | [ ] | Upsert files; bump `artifact_revision` | |
 | [ ] | Return `ArtifactPayload` for client panel | |
-| [ ] | Enforce 512 KB / 50 files | |
-| [ ] | Whitelist paths under `src/`, `public/` | |
+| [ ] | Enforce 512 KB / 50 files | Uses `validateArtifactBatch()` in `sandbox-paths.ts` |
+| [ ] | Whitelist paths under `src/`, `public/` | Uses `normalizeSandboxPath()` — **validator ready** |
 
 ### `deploy_app`
 
@@ -942,6 +942,9 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | `DEPLOY_E2B_MIN_CREDITS_USD` | no | `5` | Set in prod | Block E2B when credits low |
 | `DEPLOY_MAX_ARTIFACT_FILES` | no | `50` | `50` | |
 | `DEPLOY_MAX_ARTIFACT_BYTES` | no | `524288` | `524288` | 512 KB source cap |
+| `DEPLOY_MAX_DIST_BYTES` | no | `20971520` | `20971520` | 20 MB Vite `dist/` cap |
+| `DEPLOY_MAX_MOVE_BYTES` | no | `1048576` | `1048576` | 1 MB Move sources |
+| `DEPLOY_MAX_MOVE_FILES` | no | `20` | `20` | Move source file count |
 | `WALRUS_PUBLISHER_URL` | yes (deploy) | — | Required for any deploy | |
 | `WALRUS_API_URL` | yes | — | Required | |
 | `SUI_RPC_URL` | yes | — | mainnet URL in prod | Move publish |
@@ -969,8 +972,8 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | [ ] | `ArtifactPanel` shell | Open on payload | [Client] |
 | [ ] | `ArtifactPreview` srcdoc | **No E2B** | [Client] |
 | [ ] | Wire `useChatSession` | Set artifact on response | [Client] |
-| [ ] | Unit: path allowlist | Reject `../` | [Backend] |
-| [ ] | Unit: byte limit | 512 KB enforced | [Backend] |
+| [x] | Unit: path allowlist | `tests/unit/sandbox/sandbox-paths.test.ts` |
+| [x] | Unit: byte limit | `sandbox-paths.test.ts` |
 | [ ] | Integration: generate_app persists | | [Backend] |
 
 ### Phase 2 — Build preview API (**$0 E2B**)

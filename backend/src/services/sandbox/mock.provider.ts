@@ -1,5 +1,5 @@
 import { AppError } from "../../errors/app-error.js";
-import { normalizeSandboxPath, normalizeSandboxReadPath, validateArtifactBatch } from "./sandbox-paths.js";
+import { normalizeSandboxReadPath, validateArtifactBatch } from "./sandbox-paths.js";
 import type {
   SandboxCreateContext,
   SandboxFileWrite,
@@ -24,9 +24,9 @@ export class MockSandboxProvider implements SandboxProvider {
 
   async writeFiles(handleId: string, files: SandboxFileWrite[]): Promise<void> {
     const handle = this.getHandle(handleId);
-    validateArtifactBatch(files);
+    const normalized = validateArtifactBatch(files);
 
-    for (const file of files) {
+    for (const file of normalized) {
       handle.files.set(file.path, Buffer.from(file.content, "utf8"));
     }
   }

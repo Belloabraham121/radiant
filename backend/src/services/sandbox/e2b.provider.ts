@@ -116,9 +116,9 @@ export class E2bSandboxProvider implements SandboxProvider {
 
   async writeFiles(handleId: string, files: SandboxFileWrite[]): Promise<void> {
     const sandbox = this.getSandbox(handleId);
-    validateArtifactBatch(files);
+    const normalized = validateArtifactBatch(files);
 
-    const entries = files.map((file) => ({
+    const entries = normalized.map((file) => ({
       path: file.path,
       data: file.content,
     }));

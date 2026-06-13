@@ -8,6 +8,9 @@ export type SandboxConfig = {
   buildCommandTimeoutMs: number;
   maxArtifactBytes: number;
   maxArtifactFiles: number;
+  maxDistBytes: number;
+  maxMoveBytes: number;
+  maxMoveFiles: number;
 };
 
 let cached: SandboxConfig | undefined;
@@ -40,6 +43,9 @@ export function getSandboxConfig(): SandboxConfig {
     ),
     maxArtifactBytes: parsePositiveInt(optional("DEPLOY_MAX_ARTIFACT_BYTES", "524288"), 524_288),
     maxArtifactFiles: parsePositiveInt(optional("DEPLOY_MAX_ARTIFACT_FILES", "50"), 50),
+    maxDistBytes: parsePositiveInt(optional("DEPLOY_MAX_DIST_BYTES", "20971520"), 20_971_520),
+    maxMoveBytes: parsePositiveInt(optional("DEPLOY_MAX_MOVE_BYTES", "1048576"), 1_048_576),
+    maxMoveFiles: parsePositiveInt(optional("DEPLOY_MAX_MOVE_FILES", "20"), 20),
   };
 
   return cached;
