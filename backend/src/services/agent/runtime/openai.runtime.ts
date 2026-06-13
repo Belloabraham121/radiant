@@ -28,23 +28,17 @@ import {
   SWAP_QUOTE_AND_EXECUTE_NUDGE,
 } from "../swap-approval-flow.js";
 import {
-  shouldNudgeFlashLoanExecuteAfterQuote,
-  shouldNudgeFlashLoanMissingAmount,
-  shouldNudgeFlashLoanProceed,
-  shouldNudgeFlashLoanToolRetry,
-  buildFlashLoanExecuteNudgeFromQuote,
-  buildFlashLoanProceedNudge,
-  extractFlashLoanIntent,
-  extractFlashLoanIntentFromThread,
   findLatestFlashLoanQuote,
-  findLastFlashLoanToolError,
   formatFlashLoanQuoteReply,
-  FLASH_LOAN_EXECUTE_AFTER_QUOTE_NUDGE,
-  FLASH_LOAN_MISSING_AMOUNT_NUDGE,
-  FLASH_LOAN_TOOL_RETRY_NUDGE,
   isFlashLoanRepayNotFeasibleError,
   shouldFinalizeFlashLoanQuoteReply,
 } from "../flash-loan-approval-flow.js";
+import {
+  findLastToolError,
+  hasSuccessfulQueryResults,
+  REPLY_AFTER_TOOLS_NUDGE,
+  shouldNudgeReplyAfterTools,
+} from "../turn-reply-flow.js";
 import {
   buildUnsupportedCapabilityNudge,
   detectUnsupportedCapability,
@@ -57,6 +51,7 @@ import type { ExecuteTransactionInput } from "../../chains/types.js";
 import {
   explainTransactionError,
   isAgentToolErrorResult,
+  synthesizeTurnReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { transactionContextFromInput } from "../transaction-error-context.js";
@@ -212,40 +207,10 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
-        if (shouldNudgeFlashLoanToolRetry(tool_calls, lastUserMessage, input.messages)) {
+        if (shouldNudgeReplyAfterTools(tool_calls)) {
           messages.push({
             role: "user",
-            content: FLASH_LOAN_TOOL_RETRY_NUDGE,
-          });
-          continue;
-        }
-
-        if (shouldNudgeFlashLoanMissingAmount(tool_calls, lastUserMessage, input.messages)) {
-          messages.push({
-            role: "user",
-            content: FLASH_LOAN_MISSING_AMOUNT_NUDGE,
-          });
-          continue;
-        }
-
-        if (shouldNudgeFlashLoanProceed(tool_calls, lastUserMessage, input.messages)) {
-          const intent =
-            extractFlashLoanIntent(lastUserMessage) ??
-            extractFlashLoanIntentFromThread(input.messages);
-          messages.push({
-            role: "user",
-            content: buildFlashLoanProceedNudge(lastUserMessage, input.messages, intent),
-          });
-          continue;
-        }
-
-        if (shouldNudgeFlashLoanExecuteAfterQuote(tool_calls, lastUserMessage, input.messages)) {
-          const quote = findLatestFlashLoanQuote(tool_calls)!;
-          messages.push({
-            role: "user",
-            content: quote.repay_feasible
-              ? buildFlashLoanExecuteNudgeFromQuote(quote)
-              : FLASH_LOAN_EXECUTE_AFTER_QUOTE_NUDGE,
+            content: REPLY_AFTER_TOOLS_NUDGE,
           });
           continue;
         }
@@ -360,7 +325,7 @@ export const openaiRuntime: AgentRuntime = {
       if (quote) {
         reply = formatFlashLoanQuoteReply(quote);
       } else {
-        const lastToolError = findLastFlashLoanToolError(tool_calls);
+        const lastToolError = findLastToolError(tool_calls);
         if (lastToolError) {
           try {
             reply = await explainTransactionError({
@@ -371,6 +336,12 @@ export const openaiRuntime: AgentRuntime = {
               toolResult: lastToolError.result,
               transactionContext: transactionContextFromInput(lastExecuteInput),
             });
+          } catch (err) {
+            throw mapOpenAiError(err);
+          }
+        } else if (hasSuccessfulQueryResults(tool_calls)) {
+          try {
+            reply = await synthesizeTurnReply({ client, model, messages });
           } catch (err) {
             throw mapOpenAiError(err);
           }
