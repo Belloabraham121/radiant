@@ -3,7 +3,9 @@ import type {
   AgentTransactionStatus,
 } from "./agent-transaction.types.js";
 
-export function formatAgentTransactionStatus(status: AgentTransactionStatus): string {
+export function formatAgentTransactionStatus(
+  status: AgentTransactionStatus,
+): string {
   switch (status) {
     case "pending_approval":
       return "Awaiting approval";
@@ -40,7 +42,10 @@ export function formatAgentTransactionDate(iso: string): string {
   }).format(date);
 }
 
-function formatTransactionBlock(item: AgentTransactionListItem, index: number): string {
+function formatTransactionBlock(
+  item: AgentTransactionListItem,
+  index: number,
+): string {
   const lines = [
     `${index + 1}. ${item.title}`,
     `   Date: ${formatAgentTransactionDate(item.created_at)}`,
@@ -56,7 +61,9 @@ function formatTransactionBlock(item: AgentTransactionListItem, index: number): 
 }
 
 /** Pre-formatted ledger lines for the agent to quote when listing transaction history. */
-export function formatAgentTransactionsForChat(items: AgentTransactionListItem[]): string {
+export function formatAgentTransactionsForChat(
+  items: AgentTransactionListItem[],
+): string {
   if (items.length === 0) {
     return "No agent transactions found.";
   }
@@ -66,7 +73,9 @@ export function formatAgentTransactionsForChat(items: AgentTransactionListItem[]
       ? "Most recent agent transaction:"
       : `Here are your ${items.length} most recent agent transactions:`;
 
-  return [header, "", ...items.map((item, index) => formatTransactionBlock(item, index))].join(
-    "\n",
-  );
+  return [
+    header,
+    "",
+    ...items.map((item, index) => formatTransactionBlock(item, index)),
+  ].join("\n");
 }

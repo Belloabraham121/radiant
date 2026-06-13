@@ -28,10 +28,15 @@ function ReceiptPill({
 
   return (
     <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold">
-      <Check className="size-3.5 shrink-0 text-[var(--hero-mint)]" strokeWidth={3} />
+      <Check
+        className="size-3.5 shrink-0 text-[var(--hero-mint)]"
+        strokeWidth={3}
+      />
       <span>{receipt.label}</span>
       {receipt.detail ? (
-        <span className="font-mono font-semibold text-[var(--hero-ink)]/45">{receipt.detail}</span>
+        <span className="font-mono font-semibold text-[var(--hero-ink)]/45">
+          {receipt.detail}
+        </span>
       ) : null}
       {explorerUrl ? (
         <a
@@ -57,7 +62,13 @@ function ReceiptPill({
   );
 }
 
-function MessageCopyButton({ text, isUser }: { text: string; isUser: boolean }) {
+function MessageCopyButton({
+  text,
+  isUser,
+}: {
+  text: string;
+  isUser: boolean;
+}) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -146,7 +157,9 @@ function Bubble({
 
 function ChatHydratingIndicator() {
   return (
-    <p className={`${CHAT_COL} text-center text-xs font-semibold text-[var(--hero-ink)]/40`}>
+    <p
+      className={`${CHAT_COL} text-center text-xs font-semibold text-[var(--hero-ink)]/40`}
+    >
       Loading conversation…
     </p>
   );
@@ -163,7 +176,9 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const animatedMessageIdsRef = useRef(new Set<string>());
   const initialBatchDoneRef = useRef(false);
   const [input, setInput] = useState("");
-  const [activityTransactionId, setActivityTransactionId] = useState<string | null>(null);
+  const [activityTransactionId, setActivityTransactionId] = useState<
+    string | null
+  >(null);
   const [activityDetailOpen, setActivityDetailOpen] = useState(false);
 
   const openActivityDetail = (transactionId: string) => {
@@ -207,7 +222,11 @@ export function ChatView({ sessionId }: ChatViewProps) {
   }, [sessionId]);
 
   useEffect(() => {
-    if (hydrating || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (
+      hydrating ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
 
     const scope = ref.current;
     if (!scope) return;
@@ -225,7 +244,9 @@ export function ChatView({ sessionId }: ChatViewProps) {
     const newTargets: Element[] = [];
     for (const message of messages) {
       if (animatedMessageIdsRef.current.has(message.id)) continue;
-      const element = scope.querySelector(`[data-message-id="${CSS.escape(message.id)}"]`);
+      const element = scope.querySelector(
+        `[data-message-id="${CSS.escape(message.id)}"]`,
+      );
       if (!element) continue;
       animatedMessageIdsRef.current.add(message.id);
       newTargets.push(element);
@@ -273,7 +294,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
             {title}
           </h1>
         </div>
-        <span className="flex shrink-0 items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold text-[var(--hero-mint)]">
+        <span className="flex shrink-0 items-center gap-2 rounded-full border-2  bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold text-[var(--hero-mint)]">
           <span className="size-2 rounded-full bg-current" />
           agent online
         </span>
@@ -281,27 +302,41 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         {loadError ? (
-          <div className={`${CHAT_COL} flex h-full items-center justify-center`}>
+          <div
+            className={`${CHAT_COL} flex h-full items-center justify-center`}
+          >
             <p className="text-center text-sm font-semibold text-[var(--hero-coral)]">
               {loadError}
             </p>
           </div>
         ) : (
           <div className={`${CHAT_COL} space-y-6`}>
-            {hydrating && messages.length === 0 ? <ChatHydratingIndicator /> : null}
+            {hydrating && messages.length === 0 ? (
+              <ChatHydratingIndicator />
+            ) : null}
 
             {messages.length === 0 && !typing && !hydrating ? (
               <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
-                <Sparkles className="size-8 text-[var(--hero-amber)]" strokeWidth={2.5} />
-                <p className="font-heading text-lg font-extrabold">Start a conversation</p>
+                <Sparkles
+                  className="size-8 text-[var(--hero-amber)]"
+                  strokeWidth={2.5}
+                />
+                <p className="font-heading text-lg font-extrabold">
+                  Start a conversation
+                </p>
                 <p className="max-w-sm text-sm font-medium text-[var(--hero-ink)]/50">
-                  Ask about your balance, send tokens, or tell your agent what you want to build.
+                  Ask about your balance, send tokens, or tell your agent what
+                  you want to build.
                 </p>
               </div>
             ) : null}
 
             {messages.map((message) => (
-              <Bubble key={message.id} message={message} onViewActivity={openActivityDetail} />
+              <Bubble
+                key={message.id}
+                message={message}
+                onViewActivity={openActivityDetail}
+              />
             ))}
 
             {typing && (
@@ -376,7 +411,8 @@ export function ChatView({ sessionId }: ChatViewProps) {
           <p
             className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
           >
-            Radiant signs transactions with your wallet. Big moves always ask first.
+            Radiant signs transactions with your wallet. Big moves always ask
+            first.
           </p>
         </form>
       </div>
