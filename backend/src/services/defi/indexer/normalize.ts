@@ -4,6 +4,7 @@ import type {
   IndexerPoolRecord,
   IndexerSummaryRecord,
   IndexerTickerRecord,
+  IndexerTradeRecord,
 } from "./indexer.types.js";
 import type { PoolSummary } from "../types.js";
 
@@ -124,4 +125,60 @@ export function findPoolByKey(
 
 export function summaryKeyToPoolKey(key: string): string {
   return key.toUpperCase();
+}
+
+export type NormalizedTrade = {
+  trade_id: string;
+  pool_key: string;
+  price: number;
+  side: "buy" | "sell";
+  base_volume: number;
+  quote_volume: number;
+  timestamp_ms: number;
+  digest: string;
+};
+
+export type NormalizedOhlcvCandle = {
+  timestamp_ms: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  base_volume: number;
+};
+
+export function normalizeTradeRecord(
+  poolKey: string,
+  trade: IndexerTradeRecord,
+): NormalizedTrade {
+  return {
+    trade_id: trade.trade_id,
+    pool_key: poolKey,
+    price: trade.price,
+    side: trade.taker_is_bid ? "buy" : "sell",
+    base_volume: trade.base_volume,
+    quote_volume: trade.quote_volume,
+    timestamp_ms: trade.timestamp,
+    digest: trade.digest,
+  };
+}
+
+export function normalizeOhlcvCandle(
+  candle: [number, number, number, number, number, number],
+): NormalizedOhlcvCandle {
+  const [timestamp_ms, open, high, low, close, base_volume] = candle;
+  return { timestamp_ms, open, high, low, close, base_volume };
+}
+
+export function normalizeHistoricalVolumeAtomic(
+  poolKey: string,
+  atomicVolume: number,
+  pool?: IndexerPoolRecord,
+): { pool_key: string; quote_volume: number; quote_coin: string } {
+  const quoteDecimals = pool?.quote_asset_decimals ?? 6;
+  return {
+    pool_key: poolKey,
+    quote_volume: atomicToDisplay(BigInt(Math.trunc(atomicVolume)), quoteDecimals),
+    quote_coin: pool?.quote_asset_symbol ?? "QUOTE",
+  };
 }

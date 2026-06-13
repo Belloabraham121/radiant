@@ -1,16 +1,23 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { AppError } from "../../../errors/app-error.js";
+import { cachedFetch } from "../../../infrastructure/redis/cache.js";
 import type {
   IndexerAssetsResponse,
+  IndexerHistoricalVolumeResponse,
+  IndexerOhlcvResponse,
   IndexerOrderRecord,
   IndexerOrderUpdateRecord,
   IndexerOrderbookResponse,
   IndexerPoolRecord,
+  IndexerStatusResponse,
   IndexerSummaryResponse,
   IndexerTickerResponse,
+  IndexerTradeRecord,
 } from "./indexer.types.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+const TICKER_CACHE_TTL_SECONDS = 45;
+const ORDERBOOK_L1_CACHE_TTL_SECONDS = 30;
 
 export class IndexerRequestError extends Error {
   readonly status: number;
@@ -59,11 +66,14 @@ export async function fetchIndexerPools(
 export async function fetchIndexerTicker(
   indexerUrl?: string,
 ): Promise<IndexerTickerResponse> {
-  const body = await indexerFetch<IndexerTickerResponse>("/ticker", indexerUrl);
-  if (!body || typeof body !== "object") {
-    throw new AppError(502, "INDEXER_INVALID_RESPONSE", "DeepBook indexer /ticker invalid");
-  }
-  return body;
+  const base = (indexerUrl ?? getDeepBookEnv().indexerUrl).replace(/\/$/, "");
+  return cachedFetch(`deepbook:ticker:${base}`, TICKER_CACHE_TTL_SECONDS, async () => {
+    const body = await indexerFetch<IndexerTickerResponse>("/ticker", indexerUrl);
+    if (!body || typeof body !== "object") {
+      throw new AppError(502, "INDEXER_INVALID_RESPONSE", "DeepBook indexer /ticker invalid");
+    }
+    return body;
+  });
 }
 
 export async function fetchIndexerSummary(
@@ -87,6 +97,25 @@ export async function fetchIndexerAssets(
 }
 
 export async function fetchIndexerOrderbook(
+  poolName: string,
+  options?: { level?: 1 | 2; depth?: number },
+  indexerUrl?: string,
+): Promise<IndexerOrderbookResponse> {
+  const level = options?.level ?? 1;
+  const depth = options?.depth;
+  const base = (indexerUrl ?? getDeepBookEnv().indexerUrl).replace(/\/$/, "");
+  const cacheKey = `deepbook:orderbook:${base}:${poolName.toUpperCase()}:L${level}:${depth ?? "all"}`;
+
+  if (level === 1 && depth === undefined) {
+    return cachedFetch(cacheKey, ORDERBOOK_L1_CACHE_TTL_SECONDS, async () =>
+      fetchIndexerOrderbookUncached(poolName, options, indexerUrl),
+    );
+  }
+
+  return fetchIndexerOrderbookUncached(poolName, options, indexerUrl);
+}
+
+async function fetchIndexerOrderbookUncached(
   poolName: string,
   options?: { level?: 1 | 2; depth?: number },
   indexerUrl?: string,
@@ -181,4 +210,135 @@ export async function fetchIndexerOrderUpdates(
     }
     throw err;
   }
+}
+
+export async function fetchIndexerStatus(
+  indexerUrl?: string,
+): Promise<IndexerStatusResponse> {
+  const body = await indexerFetch<IndexerStatusResponse>("/status", indexerUrl);
+  if (!body || typeof body.status !== "string") {
+    throw new AppError(502, "INDEXER_INVALID_RESPONSE", "DeepBook indexer /status invalid");
+  }
+  return body;
+}
+
+export async function fetchIndexerTrades(
+  poolName: string,
+  options?: { limit?: number; start_time?: number; end_time?: number },
+  indexerUrl?: string,
+): Promise<IndexerTradeRecord[]> {
+  const params = new URLSearchParams();
+  if (options?.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+  if (options?.start_time !== undefined) {
+    params.set("start_time", String(options.start_time));
+  }
+  if (options?.end_time !== undefined) {
+    params.set("end_time", String(options.end_time));
+  }
+
+  const query = params.toString();
+  const path = `/trades/${encodeURIComponent(poolName)}${query.length > 0 ? `?${query}` : ""}`;
+
+  try {
+    const body = await indexerFetch<IndexerTradeRecord[]>(path, indexerUrl);
+    return Array.isArray(body) ? body : [];
+  } catch (err) {
+    if (err instanceof IndexerRequestError && (err.status === 404 || err.status === 400)) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+export async function fetchIndexerHistoricalVolume(
+  poolName: string,
+  indexerUrl?: string,
+): Promise<IndexerHistoricalVolumeResponse> {
+  const path = `/historical_volume/${encodeURIComponent(poolName)}`;
+  const body = await indexerFetch<IndexerHistoricalVolumeResponse>(path, indexerUrl);
+  if (!body || typeof body !== "object") {
+    throw new AppError(502, "INDEXER_INVALID_RESPONSE", "DeepBook indexer historical_volume invalid");
+  }
+  return body;
+}
+
+export async function fetchIndexerAllHistoricalVolume(
+  indexerUrl?: string,
+): Promise<IndexerHistoricalVolumeResponse> {
+  const body = await indexerFetch<IndexerHistoricalVolumeResponse>("/all_historical_volume", indexerUrl);
+  if (!body || typeof body !== "object") {
+    throw new AppError(502, "INDEXER_INVALID_RESPONSE", "DeepBook indexer all_historical_volume invalid");
+  }
+  return body;
+}
+
+export async function fetchIndexerHistoricalVolumeByManager(
+  balanceManagerId: string,
+  indexerUrl?: string,
+): Promise<IndexerHistoricalVolumeResponse> {
+  const path = `/historical_volume_by_balance_manager_id/${encodeURIComponent(balanceManagerId)}`;
+  try {
+    const body = await indexerFetch<IndexerHistoricalVolumeResponse>(path, indexerUrl);
+    return body && typeof body === "object" ? body : {};
+  } catch (err) {
+    if (err instanceof IndexerRequestError && (err.status === 404 || err.status === 400)) {
+      return {};
+    }
+    throw err;
+  }
+}
+
+export async function fetchIndexerHistoricalVolumeByManagerInterval(
+  balanceManagerId: string,
+  options?: { interval?: string; limit?: number },
+  indexerUrl?: string,
+): Promise<IndexerHistoricalVolumeResponse> {
+  const params = new URLSearchParams();
+  if (options?.interval) {
+    params.set("interval", options.interval);
+  }
+  if (options?.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+
+  const query = params.toString();
+  const path =
+    `/historical_volume_by_balance_manager_id_with_interval/${encodeURIComponent(balanceManagerId)}` +
+    (query.length > 0 ? `?${query}` : "");
+
+  try {
+    const body = await indexerFetch<IndexerHistoricalVolumeResponse>(path, indexerUrl);
+    return body && typeof body === "object" ? body : {};
+  } catch (err) {
+    if (err instanceof IndexerRequestError && (err.status === 404 || err.status === 400)) {
+      return {};
+    }
+    throw err;
+  }
+}
+
+export async function fetchIndexerOhlcv(
+  poolName: string,
+  options?: { interval?: string; limit?: number },
+  indexerUrl?: string,
+): Promise<IndexerOhlcvResponse> {
+  const params = new URLSearchParams();
+  if (options?.interval) {
+    params.set("interval", options.interval);
+  }
+  if (options?.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+
+  const query = params.toString();
+  const path = `/ohclv/${encodeURIComponent(poolName)}${query.length > 0 ? `?${query}` : ""}`;
+  const body = await indexerFetch<IndexerOhlcvResponse>(path, indexerUrl);
+
+  if (!body || !Array.isArray(body.candles)) {
+    throw new AppError(502, "INDEXER_INVALID_RESPONSE", "DeepBook indexer ohclv invalid");
+  }
+
+  return body;
 }

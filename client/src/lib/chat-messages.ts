@@ -76,6 +76,11 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           active_stake?: number;
           voted_proposal?: string | null;
         };
+        quote_volume_24h?: number;
+        trades?: Array<{ trade_id: string }>;
+        count?: number;
+        candles?: Array<{ timestamp_ms: number }>;
+        interval?: string;
       };
 
       if (result.error?.message) {
@@ -128,6 +133,27 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         receipts.push({
           label: "Governance",
           detail: `Quorum ${result.quorum} DEEP on ${result.pool_key}`,
+        });
+      }
+
+      if (result.quote_volume_24h != null && result.pool_key) {
+        receipts.push({
+          label: "24h volume",
+          detail: `${result.quote_volume_24h} quote on ${result.pool_key}`,
+        });
+      }
+
+      if (Array.isArray(result.trades) && result.pool_key) {
+        receipts.push({
+          label: "Recent trades",
+          detail: `${result.count ?? result.trades.length} on ${result.pool_key}`,
+        });
+      }
+
+      if (Array.isArray(result.candles) && result.pool_key) {
+        receipts.push({
+          label: "OHLCV",
+          detail: `${result.candles.length} candles (${result.interval ?? "?"}) on ${result.pool_key}`,
         });
       }
 

@@ -44,7 +44,7 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     flashLoanLine,
     governanceLine,
     "Use query_chain for balances, market data, quotes, and history; execute_transaction for on-chain actions; update_memory for stable preferences or facts only.",
-    "DeepBook pool keys use underscores (DEEP_USDC, SUI_USDC, WAL_USDC) — not slashes. For pool or market questions, call query_chain deepbook_pool_info, deepbook_pools, or deepbook_ticker. Do not say a pool is unavailable unless the tool returned POOL_NOT_FOUND.",
+    "DeepBook pool keys use underscores (DEEP_USDC, SUI_USDC, WAL_USDC) — not slashes. For pool or market questions, call query_chain deepbook_pool_info, deepbook_pools, or deepbook_ticker. For volume/trades/candles use deepbook_volume, deepbook_trades, deepbook_ohlcv. Do not say a pool is unavailable unless the tool returned POOL_NOT_FOUND.",
     "To set up a DeepBook balance manager (no token deposit, only network gas), use execute_transaction action deepbook_provision_manager with empty params — never deepbook_deposit without an amount.",
     "DeepBook deposits have no protocol minimum — any positive amount the wallet holds is fine. Never invent a minimum (e.g. do not say 1 SUI is required).",
     'When the user asks to deposit, call execute_transaction in the same turn: action deepbook_deposit, params { coin_key: "SUI", amount_display: <number> }. amount_display must be a positive number.',

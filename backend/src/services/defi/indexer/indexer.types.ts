@@ -77,3 +77,48 @@ export type IndexerOrderUpdateRecord = {
   quantity: number;
   timestamp: number;
 };
+
+export type IndexerTradeRecord = {
+  trade_id: string;
+  price: number;
+  type: string;
+  digest: string;
+  timestamp: number;
+  base_volume: number;
+  quote_volume: number;
+  taker_is_bid: boolean;
+  maker_balance_manager_id: string;
+  taker_balance_manager_id: string;
+  maker_order_id: string;
+  taker_order_id: string;
+  maker_fee: number;
+  taker_fee: number;
+  maker_fee_is_deep: boolean;
+  taker_fee_is_deep: boolean;
+};
+
+export type IndexerOhlcvResponse = {
+  candles: Array<[number, number, number, number, number, number]>;
+};
+
+export type IndexerHistoricalVolumeResponse = Record<string, number>;
+
+export type IndexerPipelineStatus = {
+  pipeline: string;
+  indexed_checkpoint: number;
+  indexed_epoch: number;
+  indexed_timestamp_ms: number;
+  checkpoint_lag: number;
+  time_lag_seconds: number;
+  latest_onchain_checkpoint: number;
+  is_backfill: boolean;
+};
+
+export type IndexerStatusResponse = {
+  status: string;
+  latest_onchain_checkpoint: number;
+  current_time_ms: number;
+  earliest_checkpoint: number;
+  max_lag_pipeline: string;
+  pipelines: IndexerPipelineStatus[];
+};

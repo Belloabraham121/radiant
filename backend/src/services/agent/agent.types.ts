@@ -19,6 +19,11 @@ import type {
   DeepBookStakeRequiredResult,
 } from "../defi/deepbook-stake.service.js";
 import type { DeepBookGovernanceStateResult } from "../defi/deepbook-governance.service.js";
+import type {
+  DeepBookOhlcvResult,
+  DeepBookTradesResult,
+  DeepBookVolumeResult,
+} from "../defi/deepbook-indexer-analytics.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
 import {
   agentTransactionCategorySchema,
@@ -123,6 +128,9 @@ export const queryChainInputSchema = z.object({
     "deepbook_stake_balance",
     "deepbook_stake_required",
     "deepbook_governance_state",
+    "deepbook_trades",
+    "deepbook_volume",
+    "deepbook_ohlcv",
     "agent_transactions",
   ]),
   params: z
@@ -166,6 +174,9 @@ export type QueryChainResult =
   | DeepBookStakeBalanceResult
   | DeepBookStakeRequiredResult
   | DeepBookGovernanceStateResult
+  | DeepBookTradesResult
+  | DeepBookVolumeResult
+  | DeepBookOhlcvResult
   | AgentTransactionsQueryResult;
 
 export type ExecuteToolOutcome =

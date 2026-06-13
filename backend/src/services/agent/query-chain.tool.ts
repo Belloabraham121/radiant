@@ -20,6 +20,12 @@ import {
   getDeepBookStakeRequired,
 } from "../defi/deepbook-stake.service.js";
 import { getDeepBookGovernanceState } from "../defi/deepbook-governance.service.js";
+import {
+  getDeepBookIndexerStatus,
+  getDeepBookOhlcv,
+  getDeepBookTrades,
+  getDeepBookVolume,
+} from "../defi/deepbook-indexer-analytics.service.js";
 import { queryAgentTransactions } from "../agent-transaction/agent-transaction.service.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
@@ -72,10 +78,13 @@ export const queryChainToolDefinition = {
           "deepbook_stake_balance",
           "deepbook_stake_required",
           "deepbook_governance_state",
+          "deepbook_trades",
+          "deepbook_volume",
+          "deepbook_ohlcv",
           "agent_transactions",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, deepbook_stake_balance, deepbook_stake_required, deepbook_governance_state, or agent_transactions (recent on-chain actions initiated by the agent).",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, or agent_transactions.",
       },
       params: {
         type: "object",
@@ -88,6 +97,9 @@ export const queryChainToolDefinition = {
           "deepbook_stake_balance: { pool_key? } — active/inactive DEEP stake for your balance manager on that pool. " +
           "deepbook_stake_required: { pool_key? } — current and next-epoch stake_required and fees for the pool. " +
           "deepbook_governance_state: { pool_key? } — quorum, current/next-epoch trade params, and your stake/vote status for the pool. " +
+          "deepbook_trades: { pool_key?, limit?, start_time?, end_time? } — recent trades from the DeepBook indexer (ms timestamps). " +
+          "deepbook_volume: { pool_key?, start_time?, end_time?, scope?: pool|manager|all_pools, for_manager?: true, interval? } — 24h/all-time pool volume; manager scope uses your balance manager; start/end sums trades in range. " +
+          "deepbook_ohlcv: { pool_key?, interval?: 1h|1d, limit? } — OHLCV candles from indexer (ohclv endpoint). " +
           "May also pass input_coin/from + output_coin/to instead of side for swap_quote. " +
           "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
           "returns recent agent wallet activity with session_id/message_id to link back to chat. " +
@@ -205,6 +217,18 @@ export async function runQueryChainTool(
     case "deepbook_governance_state": {
       assertSuiDeepBookQuery(parsed.chain_id);
       return getDeepBookGovernanceState(privyUserId, parsed.params);
+    }
+    case "deepbook_trades": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return getDeepBookTrades(parsed.params);
+    }
+    case "deepbook_volume": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return getDeepBookVolume(privyUserId, parsed.params);
+    }
+    case "deepbook_ohlcv": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return getDeepBookOhlcv(parsed.params);
     }
     case "agent_transactions": {
       return queryAgentTransactions(privyUserId, {

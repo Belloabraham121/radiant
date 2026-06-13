@@ -5,6 +5,13 @@ export {
   fetchIndexerPools,
   fetchIndexerSummary,
   fetchIndexerTicker,
+  fetchIndexerStatus,
+  fetchIndexerTrades,
+  fetchIndexerHistoricalVolume,
+  fetchIndexerAllHistoricalVolume,
+  fetchIndexerHistoricalVolumeByManager,
+  fetchIndexerHistoricalVolumeByManagerInterval,
+  fetchIndexerOhlcv,
   IndexerRequestError,
 } from "./indexer/deepbook-indexer.client.js";
 

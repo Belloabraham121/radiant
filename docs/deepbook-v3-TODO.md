@@ -334,14 +334,14 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Historical volume: `/historical_volume/:pools`, `/all_historical_volume` |
-| [ ] | Per-user volume: `/historical_volume_by_balance_manager_id` (+ `_with_interval`) |
-| [ ] | Trades: `/trades/:pool` with `start_time`, `end_time`, `limit` |
-| [ ] | OHLCV: `/ohclv/:pool?interval=1h` for charts |
-| [ ] | Health: `/status` — expose lag in admin/metrics |
-| [ ] | Extend `query_chain`: `deepbook_trades`, `deepbook_volume`, `deepbook_ohlcv` |
-| [ ] | `GET /api/v1/defi/pools/:pool/ohlcv` — optional REST for UI |
-| [ ] | Cache hot paths (Redis): ticker, orderbook L1, 30–60s TTL |
+| [x] | Historical volume: `/historical_volume/:pools`, `/all_historical_volume` |
+| [x] | Per-user volume: `/historical_volume_by_balance_manager_id` (+ `_with_interval`) |
+| [x] | Trades: `/trades/:pool` with `start_time`, `end_time`, `limit` |
+| [x] | OHLCV: `/ohclv/:pool?interval=1h` for charts |
+| [x] | Health: `/status` — expose lag in admin/metrics |
+| [x] | Extend `query_chain`: `deepbook_trades`, `deepbook_volume`, `deepbook_ohlcv` |
+| [x] | `GET /api/v1/defi/pools/:pool/ohlcv` — optional REST for UI |
+| [x] | Cache hot paths (Redis): ticker, orderbook L1, 30–60s TTL |
 
 ### Backend (self-hosted indexer — optional)
 
@@ -355,7 +355,7 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Agent answers “volume last 24h on SUI/USDC” via tool (no chart required) |
+| [x] | Agent answers “volume last 24h on SUI/USDC” via tool (no chart required) |
 | [ ] | Optional: mini sparkline / volume stat on explorer (OHLCV endpoint) |
 
 ---
