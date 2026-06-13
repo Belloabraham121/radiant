@@ -8,6 +8,7 @@ import { executeSignedSuiTransaction } from "../wallet/sui-transaction.service.j
 import { signSuiTransactionBytes } from "../wallet/sui-signing.service.js";
 import { getAssetDecimals } from "./asset-scalars.js";
 import { getDeepBookPoolInfo } from "./deepbook-pools.service.js";
+import { isMultipleOfStep } from "./order-constraints.js";
 import { normalizePoolKey } from "./pool-key.js";
 import {
   getDeepBookClient,
@@ -381,15 +382,12 @@ async function validateSwapSize(
       );
     }
 
-    if (baseAmount !== undefined && lot_size > 0) {
-      const remainder = baseAmount % lot_size;
-      if (remainder > 1e-9) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          `Swap amount must be a multiple of lot_size ${lot_size} ${pool.base_coin}`,
-        );
-      }
+    if (baseAmount !== undefined && lot_size > 0 && !isMultipleOfStep(baseAmount, lot_size)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        `Swap amount must be a multiple of lot_size ${lot_size} ${pool.base_coin}`,
+      );
     }
   } catch (err) {
     if (err instanceof AppError) throw err;
@@ -402,6 +400,7 @@ export async function getDeepBookSwapQuote(
 ): Promise<DeepBookSwapQuoteResult> {
   const parsed = parseDeepBookSwapParams(params);
   const pool = assertPoolKey(parsed.pool_key);
+  await validateSwapSize(privyUserId, parsed, pool);
   const wallet = await resolveSuiAgentWallet(privyUserId);
 
   const { input, output } = swapCoins(parsed.side, pool);
@@ -483,8 +482,6 @@ export async function executeDeepBookSwap(
   );
   const { input, output } = swapCoins(parsed.side, pool);
 
-  await validateSwapSize(privyUserId, parsed, pool);
-
   const quote = await getDeepBookSwapQuote(privyUserId, execParams);
   const minOut = quote.min_out_display;
 
@@ -548,6 +545,9 @@ export async function preflightDeepBookSwap(
   privyUserId: string,
   params: Record<string, unknown>,
 ): Promise<void> {
+  const parsed = parseDeepBookSwapParams(params);
+  const pool = assertPoolKey(parsed.pool_key);
+  await validateSwapSize(privyUserId, parsed, pool);
   await buildDeepBookSwapTransactionBytes(privyUserId, params);
 }
 
