@@ -1,6 +1,7 @@
 import type { FlashLoanBundleQuoteResult } from "../defi/deepbook-flash-loan.types.js";
 import type { AgentToolErrorResult } from "./tools.js";
-import type { AgentTurnMessage, ExecuteToolOutcome, ToolCallRecord } from "./agent.types.js";
+import type { ExecuteToolOutcome, ToolCallRecord } from "./agent.types.js";
+import type { AgentTurnMessage } from "./runtime/types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
@@ -141,6 +142,18 @@ export function findLatestFlashLoanQuote(
   return null;
 }
 
+function isFlashLoanPendingOutcome(result: unknown): boolean {
+  if (typeof result !== "object" || result === null || "error" in result) {
+    return false;
+  }
+
+  const outcome = result as ExecuteToolOutcome;
+  return (
+    outcome.status === "approval_required" &&
+    outcome.pending.action === "deepbook_flash_loan"
+  );
+}
+
 function isFlashLoanExecuteOutcome(result: unknown): boolean {
   if (typeof result !== "object" || result === null || "error" in result) {
     return false;
@@ -166,7 +179,7 @@ function hasFlashLoanExecuteAttempt(toolCalls: ToolCallRecord[]): boolean {
       call.name === EXECUTE_TRANSACTION_TOOL_NAME &&
       typeof call.result === "object" &&
       call.result !== null &&
-      ((call.result as ExecuteToolOutcome).pending?.action === "deepbook_flash_loan" ||
+      (isFlashLoanPendingOutcome(call.result) ||
         isFlashLoanExecuteOutcome(call.result) ||
         ("error" in call.result &&
           (call.result as AgentToolErrorResult).error?.code === "FLASH_LOANS_DISABLED")),
@@ -378,4 +391,55 @@ export function buildFlashLoanExecuteNudgeFromQuote(
       ? "The app shows an approval bar — do not ask me to confirm in chat."
       : "Do not execute — explain why repay is not feasible.")
   );
+}
+
+/** Human-readable chat reply from a flash_loan_quote tool result. */
+export function formatFlashLoanQuoteReply(quote: FlashLoanBundleQuoteResult): string {
+  const stepLines = quote.steps.map(
+    (step, index) =>
+      `Step ${index + 1}: ${step.side} ${step.in_amount} ${step.input_coin} → ~${step.out_est} ${step.output_coin} on ${step.pool_key}`,
+  );
+
+  const lines = [
+    `Flash loan quote (${quote.strategy}) — borrow ${quote.borrow_amount} ${quote.coin_key} from ${quote.pool_key}.`,
+    ...stepLines,
+    `Repay feasible at quoted mins: ${quote.repay_feasible ? "yes" : "no"}.`,
+  ];
+
+  if (quote.estimated_surplus != null) {
+    lines.push(`Estimated surplus: ${quote.estimated_surplus} ${quote.coin_key}.`);
+  }
+
+  if (quote.warnings.length > 0) {
+    lines.push(`Warnings: ${quote.warnings.join(" ")}`);
+  }
+
+  if (!quote.repay_feasible) {
+    lines.push(
+      "I can't execute this bundle — swap outputs wouldn't cover the borrow for an atomic repay. " +
+        "Try a smaller amount, a different route, or wait for better prices.",
+    );
+  }
+
+  return lines.join("\n");
+}
+
+export function shouldFinalizeFlashLoanQuoteReply(
+  toolCalls: ToolCallRecord[],
+  hasPending: boolean,
+): FlashLoanBundleQuoteResult | null {
+  if (hasPending) {
+    return null;
+  }
+
+  const quote = findLatestFlashLoanQuote(toolCalls);
+  if (!quote?.repay_feasible) {
+    return quote;
+  }
+
+  return null;
+}
+
+export function isFlashLoanRepayNotFeasibleError(message: string): boolean {
+  return /repay is not feasible|repay_feasible:\s*false/i.test(message);
 }

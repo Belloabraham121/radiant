@@ -79,14 +79,18 @@ function mapBuildError(err: unknown): never {
   throw err;
 }
 
+type FlashLoanBuildMode = "full" | "preflight";
+
 async function buildFlashLoanTransaction(
   privyUserId: string,
   params: Record<string, unknown>,
+  options: { mode?: FlashLoanBuildMode } = {},
 ): Promise<{
   bytes: Uint8Array;
   parsed: DeepBookFlashLoanBundleParams;
   quote: FlashLoanBundleQuoteResult;
 }> {
+  const mode = options.mode ?? "full";
   await assertFlashLoansEnabled(privyUserId);
   const parsed = parseDeepBookFlashLoanParams(params);
   await validateFlashLoanBundle(privyUserId, parsed);
@@ -101,7 +105,10 @@ async function buildFlashLoanTransaction(
 
   let bytes: Uint8Array;
   try {
-    bytes = await tx.build({ client: getSuiClient() });
+    bytes = await tx.build({
+      client: getSuiClient(),
+      ...(mode === "preflight" ? { onlyTransactionKind: true } : {}),
+    });
   } catch (err) {
     mapBuildError(err);
   }
@@ -121,7 +128,7 @@ export async function preflightDeepBookFlashLoan(
   privyUserId: string,
   params: Record<string, unknown>,
 ): Promise<void> {
-  await buildFlashLoanTransaction(privyUserId, params);
+  await buildFlashLoanTransaction(privyUserId, params, { mode: "preflight" });
 }
 
 export async function executeDeepBookFlashLoan(
@@ -140,14 +147,17 @@ export async function executeDeepBookFlashLoan(
     transactionBytes: bytes,
   });
 
-  const result = await executeSignedTx({
+  const signed = await executeSignedTx({
     transactionBytes: bytes,
     serializedSignature,
     suiAddress: agentWallet.address,
   });
 
   return {
-    ...result,
+    chain_id: "sui",
+    digest: signed.digest,
+    address: signed.sui_address,
+    effects_status: signed.effects_status,
     pool_key: parsed.pool_key,
     borrow_amount: parsed.borrow_amount,
     coin_key: parsed.coin_key,

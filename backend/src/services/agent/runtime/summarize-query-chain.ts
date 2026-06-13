@@ -9,6 +9,7 @@ import type {
   DeepBookTickerMap,
 } from "../../defi/deepbook-pools.service.js";
 import type { DeepBookSwapQuoteResult } from "../../defi/deepbook-swap.service.js";
+import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook-flash-loan.types.js";
 import type { DeepBookOpenOrdersResult } from "../../defi/deepbook-orders.service.js";
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
 
@@ -29,6 +30,28 @@ export function summarizeQueryChainResult(result: unknown): string | null {
     const suffix =
       openOrders.orders.length > 8 ? `\n…and ${openOrders.orders.length - 8} more` : "";
     return `Open orders on ${openOrders.pool_key} (${openOrders.orders.length}):\n${lines.join("\n")}${suffix}`;
+  }
+
+  const flashLoanQuote = result as FlashLoanBundleQuoteResult;
+  if (
+    flashLoanQuote.strategy &&
+    typeof flashLoanQuote.repay_feasible === "boolean" &&
+    Array.isArray(flashLoanQuote.steps)
+  ) {
+    const stepSummary = flashLoanQuote.steps
+      .map(
+        (step, index) =>
+          `step ${index + 1} ${step.side} ${step.in_amount}→~${step.out_est} ${step.output_coin}@${step.pool_key}`,
+      )
+      .join("; ");
+    return (
+      `Flash loan quote: borrow ${flashLoanQuote.borrow_amount} ${flashLoanQuote.coin_key} ` +
+      `from ${flashLoanQuote.pool_key} (${flashLoanQuote.strategy}); ` +
+      `${stepSummary || "no swap steps"}; repay_feasible=${flashLoanQuote.repay_feasible}` +
+      (flashLoanQuote.estimated_surplus != null
+        ? `; surplus~${flashLoanQuote.estimated_surplus}`
+        : "")
+    );
   }
 
   const swapQuote = result as DeepBookSwapQuoteResult;

@@ -38,8 +38,11 @@ import {
   extractFlashLoanIntent,
   extractFlashLoanIntentFromMessages,
   findLatestFlashLoanQuote,
+  formatFlashLoanQuoteReply,
   FLASH_LOAN_EXECUTE_AFTER_QUOTE_NUDGE,
   FLASH_LOAN_MISSING_AMOUNT_NUDGE,
+  isFlashLoanRepayNotFeasibleError,
+  shouldFinalizeFlashLoanQuoteReply,
 } from "../flash-loan-approval-flow.js";
 import {
   buildUnsupportedCapabilityNudge,
@@ -307,6 +310,15 @@ export const openaiRuntime: AgentRuntime = {
         break;
       }
 
+      const flashLoanQuoteReply = shouldFinalizeFlashLoanQuoteReply(
+        tool_calls,
+        pending_transaction !== null,
+      );
+      if (flashLoanQuoteReply) {
+        reply = formatFlashLoanQuoteReply(flashLoanQuoteReply);
+        break;
+      }
+
       if (executeToolError) {
         const compoundReply = shouldFinalizeCompoundReply(
           tool_calls,
@@ -315,6 +327,15 @@ export const openaiRuntime: AgentRuntime = {
         );
 
         if (executeToolError.error.code === "VALIDATION_ERROR" && !compoundReply) {
+          const quote = findLatestFlashLoanQuote(tool_calls);
+          if (
+            quote &&
+            (!quote.repay_feasible ||
+              isFlashLoanRepayNotFeasibleError(executeToolError.error.message))
+          ) {
+            reply = formatFlashLoanQuoteReply(quote);
+            break;
+          }
           // Allow the model to retry with corrected params in the next step.
           continue;
         }
@@ -338,7 +359,10 @@ export const openaiRuntime: AgentRuntime = {
     }
 
     if (!reply) {
-      reply = "I processed your request.";
+      const quote = findLatestFlashLoanQuote(tool_calls);
+      reply = quote
+        ? formatFlashLoanQuoteReply(quote)
+        : "I processed your request.";
     }
 
     return { reply, tool_calls, pending_transaction };

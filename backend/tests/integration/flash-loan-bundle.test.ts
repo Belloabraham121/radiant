@@ -30,6 +30,9 @@ describe("flash loan bundle integration", () => {
     await prisma.agentWallet.deleteMany({
       where: { user: { privy_user_id: privyUserId } },
     });
+    await prisma.agentWallet.deleteMany({
+      where: { address: walletAddress },
+    });
     await prisma.user.deleteMany({ where: { privy_user_id: privyUserId } });
 
     const user = await prisma.user.create({

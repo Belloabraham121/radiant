@@ -64,10 +64,20 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
 
   let body: ApiEnvelope<T>;
+  const rawText = await response.text();
   try {
-    body = (await response.json()) as ApiEnvelope<T>;
+    body = JSON.parse(rawText) as ApiEnvelope<T>;
   } catch {
-    throw new ApiError(response.status, "PARSE_ERROR", "Invalid API response");
+    const offlineHint =
+      rawText.length === 0 ||
+      /socket hang up|ECONNREFUSED|Internal Server Error/i.test(rawText);
+    throw new ApiError(
+      response.status,
+      "PARSE_ERROR",
+      offlineHint
+        ? "Could not reach the API server. Make sure the backend is running (npm run dev in backend/)."
+        : "Invalid API response",
+    );
   }
 
   if (!response.ok || !body.success || body.data === null) {
