@@ -2,6 +2,7 @@ import { isDeepBookSwapAction } from "../defi/deepbook-swap.service.js";
 import { isDeepBookCancelOrderAction, isDeepBookPlaceOrderAction } from "../defi/deepbook-orders.service.js";
 import { isDeepBookFlashLoanAction } from "../defi/deepbook-flash-loan.service.js";
 import { isDeepBookStakeAction } from "../defi/deepbook-stake.service.js";
+import { isDeepBookGovernanceAction } from "../defi/deepbook-governance.service.js";
 import { isDeepBookProvisionAction } from "../agent/validate-execute-transaction.js";
 import type { AgentTransactionCategory } from "./agent-transaction.types.js";
 
@@ -54,6 +55,10 @@ export function categorizeAgentTransactionAction(action: string): AgentTransacti
   }
 
   if (isDeepBookStakeAction(action)) {
+    return "other";
+  }
+
+  if (isDeepBookGovernanceAction(action)) {
     return "other";
   }
 

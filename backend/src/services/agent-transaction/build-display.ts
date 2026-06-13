@@ -26,6 +26,11 @@ import {
   parseDeepBookStakeParams,
   parseDeepBookUnstakeParams,
 } from "../defi/deepbook-stake.service.js";
+import {
+  isDeepBookGovernanceAction,
+  parseDeepBookSubmitProposalParams,
+  parseDeepBookVoteParams,
+} from "../defi/deepbook-governance.service.js";
 import type { ExecuteTransactionInput, ChainId, TxResult } from "../chains/types.js";
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
@@ -227,6 +232,24 @@ export async function buildTransactionDisplay(
     } catch {
       amount_display = "Unstake DEEP";
       title = "Unstake DEEP from DeepBook";
+    }
+  } else if (input.action === "deepbook_submit_proposal") {
+    try {
+      const parsed = parseDeepBookSubmitProposalParams(input.params);
+      amount_display = `taker ${parsed.taker_fee} · maker ${parsed.maker_fee} · stake ${parsed.stake_required} DEEP`;
+      title = `Submit governance proposal (${parsed.pool_key})`;
+    } catch {
+      amount_display = "Governance proposal";
+      title = "Submit DeepBook governance proposal";
+    }
+  } else if (input.action === "deepbook_vote") {
+    try {
+      const parsed = parseDeepBookVoteParams(input.params);
+      amount_display = `Vote for ${parsed.proposal_id.slice(0, 12)}…`;
+      title = `Vote on DeepBook proposal (${parsed.pool_key})`;
+    } catch {
+      amount_display = "Governance vote";
+      title = "Vote on DeepBook proposal";
     }
   }
 

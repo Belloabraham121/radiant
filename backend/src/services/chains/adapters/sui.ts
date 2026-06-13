@@ -39,6 +39,11 @@ import {
   executeDeepBookUnstake,
   isDeepBookStakeAction,
 } from "../../defi/deepbook-stake.service.js";
+import {
+  executeDeepBookSubmitProposal,
+  executeDeepBookVote,
+  isDeepBookGovernanceAction,
+} from "../../defi/deepbook-governance.service.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;
@@ -340,6 +345,29 @@ export const suiAdapter: ChainAdapter = {
             pool_key: result.pool_key,
             action: result.action,
             amount_display: result.amount_display ?? null,
+          },
+        },
+      };
+    }
+
+    if (isDeepBookGovernanceAction(action)) {
+      const result =
+        action === "deepbook_submit_proposal"
+          ? await executeDeepBookSubmitProposal(privyUserId, params)
+          : await executeDeepBookVote(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          governance: {
+            pool_key: result.pool_key,
+            action: result.action,
+            proposal_id: result.proposal_id ?? null,
+            taker_fee: result.taker_fee ?? null,
+            maker_fee: result.maker_fee ?? null,
+            stake_required: result.stake_required ?? null,
           },
         },
       };

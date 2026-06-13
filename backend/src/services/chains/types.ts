@@ -73,6 +73,14 @@ export type TxResult = {
       action: "deepbook_stake" | "deepbook_unstake";
       amount_display: number | null;
     };
+    governance?: {
+      pool_key: string;
+      action: "deepbook_submit_proposal" | "deepbook_vote";
+      proposal_id: string | null;
+      taker_fee: number | null;
+      maker_fee: number | null;
+      stake_required: number | null;
+    };
   };
 };
 

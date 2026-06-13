@@ -66,6 +66,16 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         inactive_stake?: number;
         total_stake?: number;
         stake_required?: number;
+        quorum?: number;
+        current_epoch?: {
+          taker_fee?: number;
+          maker_fee?: number;
+          stake_required?: number;
+        };
+        account?: {
+          active_stake?: number;
+          voted_proposal?: string | null;
+        };
       };
 
       if (result.error?.message) {
@@ -111,6 +121,13 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         receipts.push({
           label: "Stake tier",
           detail: `${result.stake_required} DEEP required on ${result.pool_key}`,
+        });
+      }
+
+      if (result.quorum != null && result.pool_key) {
+        receipts.push({
+          label: "Governance",
+          detail: `Quorum ${result.quorum} DEEP on ${result.pool_key}`,
         });
       }
 
@@ -171,6 +188,14 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               pool_key?: string;
               action?: string;
               amount_display?: number | null;
+            };
+            governance?: {
+              pool_key?: string;
+              action?: string;
+              proposal_id?: string | null;
+              taker_fee?: number | null;
+              maker_fee?: number | null;
+              stake_required?: number | null;
             };
           };
         };
@@ -253,6 +278,12 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             detail: outcome.pending.amount_display,
             ...receiptMeta,
           });
+        } else if (action === "deepbook_submit_proposal" || action === "deepbook_vote") {
+          receipts.push({
+            label: action === "deepbook_submit_proposal" ? "Proposal approval required" : "Vote approval required",
+            detail: outcome.pending.amount_display,
+            ...receiptMeta,
+          });
         }
       }
 
@@ -261,6 +292,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const swap = outcome.result.deepbook?.swap;
         const order = outcome.result.deepbook?.order;
         const stake = outcome.result.deepbook?.stake;
+        const governance = outcome.result.deepbook?.governance;
         const coinKey = outcome.result.deepbook?.coin_key;
         const amount = outcome.result.deepbook?.amount_display;
         const managerObjectId = outcome.result.deepbook?.manager_object_id;
@@ -272,6 +304,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const isSettledWithdraw = order?.action?.includes("withdraw_settled");
         const isStake = stake?.action === "deepbook_stake";
         const isUnstake = stake?.action === "deepbook_unstake";
+        const isSubmitProposal = governance?.action === "deepbook_submit_proposal";
+        const isVote = governance?.action === "deepbook_vote";
         const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
         const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer && !isOrder && !isCancel;
@@ -283,6 +317,10 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               ? "DEEP staked"
               : isUnstake
                 ? "DEEP unstaked"
+              : isSubmitProposal
+                ? "Proposal submitted"
+                : isVote
+                  ? "Vote cast"
             : isOrder
               ? "Order placed"
               : isCancel
@@ -304,6 +342,10 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               ? `${stake.amount_display ?? "?"} DEEP on ${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
               : isUnstake && stake
                 ? `${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+              : isSubmitProposal && governance
+                ? `${governance.pool_key ?? "?"} · fees/stake proposed · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                : isVote && governance
+                  ? `${governance.proposal_id?.slice(0, 12) ?? "?"}… on ${governance.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
             : isOrder && order
               ? `${order.is_bid ? "buy" : "sell"} ${order.quantity ?? ""}${order.price != null ? ` @ ${order.price}` : ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
               : isCancel && order

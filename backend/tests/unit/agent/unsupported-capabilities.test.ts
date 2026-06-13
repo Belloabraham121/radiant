@@ -31,7 +31,13 @@ describe("unsupported-capabilities", () => {
     assert.equal(detectUnsupportedCapability("Unstake my DEEP from DeepBook"), null);
   });
 
-  it("nudge forbids fake empty results for unsupported features", () => {
+  it("does not flag supported governance requests", () => {
+    assert.equal(detectUnsupportedCapability("What is the governance state on SUI_USDC?"), null);
+    assert.equal(detectUnsupportedCapability("Vote on proposal 0xabc"), null);
+    assert.equal(detectUnsupportedCapability("Submit a governance proposal for lower fees"), null);
+  });
+
+  it("nudge helper still works when capabilities list is extended later", () => {
     const nudge = buildUnsupportedCapabilityNudge({
       id: "governance",
       label: "governance voting",

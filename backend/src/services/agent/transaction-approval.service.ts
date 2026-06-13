@@ -17,9 +17,10 @@ import {
 } from "../defi/deepbook-flash-loan.service.js";
 import {
   isDeepBookStakeAction,
-  parseDeepBookStakeParams,
-  parseDeepBookUnstakeParams,
 } from "../defi/deepbook-stake.service.js";
+import {
+  isDeepBookGovernanceAction,
+} from "../defi/deepbook-governance.service.js";
 import type { FlashLoanRepaySource } from "../defi/deepbook-flash-loan.types.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
@@ -82,6 +83,8 @@ const MUTATING_EXECUTE_ACTIONS = new Set([
   "deepbook_flash_loan",
   "deepbook_stake",
   "deepbook_unstake",
+  "deepbook_submit_proposal",
+  "deepbook_vote",
   "execute_bytes",
 ]);
 
@@ -91,6 +94,7 @@ function isMutatingExecuteAction(action: string): boolean {
     isDeepBookOrderAction(action) ||
     isDeepBookFlashLoanAction(action) ||
     isDeepBookStakeAction(action) ||
+    isDeepBookGovernanceAction(action) ||
     MUTATING_EXECUTE_ACTIONS.has(action)
   );
 }
@@ -214,6 +218,10 @@ export function transferRequiresApprovalWithPermissions(
   }
 
   if (isDeepBookStakeAction(input.action)) {
+    return true;
+  }
+
+  if (isDeepBookGovernanceAction(input.action)) {
     return true;
   }
 

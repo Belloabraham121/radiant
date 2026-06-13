@@ -31,7 +31,7 @@ export const executeTransactionToolDefinition = {
           "deepbook_place_limit_order, deepbook_place_market_order, deepbook_cancel_order, " +
           "deepbook_cancel_orders, deepbook_cancel_all_orders, deepbook_modify_order, " +
           "deepbook_withdraw_settled_amounts, deepbook_withdraw_settled_amounts_permissionless, " +
-          "deepbook_flash_loan, deepbook_stake, deepbook_unstake.",
+          "deepbook_flash_loan, deepbook_stake, deepbook_unstake, deepbook_submit_proposal, deepbook_vote.",
       },
       params: {
         type: "object",
@@ -52,6 +52,8 @@ export const executeTransactionToolDefinition = {
           "pool_key is borrow pool; asset base|quote is borrowed side (USDC on SUI_USDC = quote). swap_chain_repay: quote first, up to 2 swap steps; first step spends borrowed coin. Requires allow_flash_loans in Settings. " +
           "deepbook_stake: { pool_key?, amount_display } — stake DEEP from balance manager into pool for fee discounts. Deposit DEEP to manager first if needed. " +
           "deepbook_unstake: { pool_key? } — unstake all active DEEP from the pool back to the balance manager. " +
+          "deepbook_submit_proposal: { pool_key?, taker_fee, maker_fee, stake_required } — propose next-epoch trade params; requires Allow governance in Settings and active stake. " +
+          "deepbook_vote: { pool_key?, proposal_id } — vote for a proposal by Sui object ID; requires Allow governance in Settings and active stake. " +
           "execute_bytes: { transaction_bytes } (base64).",
         additionalProperties: true,
       },

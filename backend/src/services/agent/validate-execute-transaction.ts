@@ -22,6 +22,11 @@ import {
   parseDeepBookStakeParams,
   parseDeepBookUnstakeParams,
 } from "../defi/deepbook-stake.service.js";
+import {
+  isDeepBookGovernanceAction,
+  parseDeepBookSubmitProposalParams,
+  parseDeepBookVoteParams,
+} from "../defi/deepbook-governance.service.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 
 export const DEEPBOOK_PROVISION_MANAGER_ACTION = "deepbook_provision_manager" as const;
@@ -104,6 +109,16 @@ export function validateExecuteTransactionInput(input: ExecuteTransactionInput):
 
   if (input.action === "deepbook_unstake") {
     parseDeepBookUnstakeParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_submit_proposal") {
+    parseDeepBookSubmitProposalParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_vote") {
+    parseDeepBookVoteParams(input.params);
     return;
   }
 }

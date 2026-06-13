@@ -312,17 +312,17 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `execute_transaction`: `deepbook_submit_proposal`, `deepbook_vote` |
-| [ ] | Extend `query_chain`: `deepbook_governance_state` — leading proposal, quorum, next-epoch fees |
-| [ ] | Respect `allow_governance` permission |
-| [ ] | Approval for governance txs (lower risk but still on-chain writes) |
+| [x] | `execute_transaction`: `deepbook_submit_proposal`, `deepbook_vote` |
+| [x] | Extend `query_chain`: `deepbook_governance_state` — leading proposal, quorum, next-epoch fees |
+| [x] | Respect `allow_governance` permission |
+| [x] | Approval for governance txs (lower risk but still on-chain writes) |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Settings toggle: “Allow governance actions” |
-| [ ] | Approval modal: proposal params or vote choice |
+| [x] | Settings toggle: “Allow governance actions” |
+| [x] | Approval modal: proposal params or vote choice |
 
 ---
 

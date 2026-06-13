@@ -13,6 +13,7 @@ const DEFAULT_PERMISSIONS: AgentPermissions = {
   auto_approve_max_sui: 25,
   allow_flash_loans: false,
   auto_approve_flash_loans: false,
+  allow_governance: false,
 };
 
 export function useAgentPermissions(authenticated: boolean) {
@@ -97,5 +98,7 @@ export function useAgentPermissions(authenticated: boolean) {
       }),
     setAutoApproveFlashLoans: (enabled: boolean) =>
       savePermissions({ auto_approve_flash_loans: enabled }),
+    setAllowGovernance: (enabled: boolean) =>
+      savePermissions({ allow_governance: enabled }),
   };
 }

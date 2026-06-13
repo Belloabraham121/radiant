@@ -11,6 +11,7 @@ export function defaultAgentPermissions(): AgentPermissions {
     auto_approve_max_sui: getAutoApproveMaxDisplay("sui"),
     allow_flash_loans: false,
     auto_approve_flash_loans: false,
+    allow_governance: false,
   };
 }
 
@@ -19,12 +20,14 @@ export function agentPermissionsFromUser(user: {
   agent_auto_approve_max_sui: number;
   agent_allow_flash_loans?: boolean;
   agent_auto_approve_flash_loans?: boolean;
+  agent_allow_governance?: boolean;
 }): AgentPermissions {
   return {
     auto_approve_enabled: user.agent_auto_approve_enabled,
     auto_approve_max_sui: user.agent_auto_approve_max_sui,
     allow_flash_loans: user.agent_allow_flash_loans ?? false,
     auto_approve_flash_loans: user.agent_auto_approve_flash_loans ?? false,
+    allow_governance: user.agent_allow_governance ?? false,
   };
 }
 
@@ -43,6 +46,17 @@ export async function assertFlashLoansEnabled(privyUserId: string): Promise<void
       403,
       "FLASH_LOANS_DISABLED",
       "Flash loans are disabled for this account. Enable them in Settings → Agent permissions.",
+    );
+  }
+}
+
+export async function assertGovernanceEnabled(privyUserId: string): Promise<void> {
+  const permissions = await getAgentPermissions(privyUserId);
+  if (!permissions.allow_governance) {
+    throw new AppError(
+      403,
+      "GOVERNANCE_DISABLED",
+      "DeepBook governance actions are disabled for this account. Enable Allow governance actions in Settings → Agent permissions.",
     );
   }
 }
@@ -70,6 +84,9 @@ export async function updateAgentPermissions(
         : {}),
       ...(patch.auto_approve_flash_loans !== undefined
         ? { agent_auto_approve_flash_loans: patch.auto_approve_flash_loans }
+        : {}),
+      ...(patch.allow_governance !== undefined
+        ? { agent_allow_governance: patch.allow_governance }
         : {}),
     },
   });

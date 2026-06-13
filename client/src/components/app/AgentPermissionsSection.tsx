@@ -55,6 +55,7 @@ export function AgentPermissionsSection() {
     setAutoApproveMaxSui,
     setAllowFlashLoans,
     setAutoApproveFlashLoans,
+    setAllowGovernance,
   } = useAgentPermissions(authenticated);
   const serverMaxSui = String(permissions.auto_approve_max_sui);
   const [draftMaxSui, setDraftMaxSui] = useState(serverMaxSui);
@@ -163,6 +164,20 @@ export function AgentPermissionsSection() {
             onToggle={() => void setAutoApproveFlashLoans(!permissions.auto_approve_flash_loans)}
           />
         ) : null}
+
+        <PermissionToggle
+          label="Allow governance actions"
+          detail={
+            loading
+              ? "Loading…"
+              : permissions.allow_governance
+                ? "The agent can submit fee proposals and vote on DeepBook pools. Every governance transaction shows an approval dialog."
+                : "Governance stays disabled. The agent cannot submit proposals or vote until you turn this on."
+          }
+          on={permissions.allow_governance}
+          disabled={loading || saving}
+          onToggle={() => void setAllowGovernance(!permissions.allow_governance)}
+        />
       </div>
     </section>
   );

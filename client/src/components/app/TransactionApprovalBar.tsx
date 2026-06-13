@@ -33,6 +33,8 @@ export function TransactionApprovalBar({
   const isFlashLoan = pending.action === "deepbook_flash_loan";
   const isStake = pending.action === "deepbook_stake";
   const isUnstake = pending.action === "deepbook_unstake";
+  const isSubmitProposal = pending.action === "deepbook_submit_proposal";
+  const isVote = pending.action === "deepbook_vote";
   const flashStrategy =
     isFlashLoan && typeof pending.params.strategy === "string"
       ? pending.params.strategy
@@ -65,6 +67,10 @@ export function TransactionApprovalBar({
                   ? "Approve stake"
                   : isUnstake
                     ? "Approve unstake"
+                    : isSubmitProposal
+                      ? "Approve proposal"
+                      : isVote
+                        ? "Approve vote"
                 : isOrder
                 ? "Approve order"
                 : isCancelOrder
@@ -88,6 +94,10 @@ export function TransactionApprovalBar({
                   ? "Stakes DEEP from your DeepBook balance manager into the pool for fee discounts."
                   : isUnstake
                     ? "Returns your active stake from the pool back to your balance manager."
+                    : isSubmitProposal
+                      ? "Submits proposed taker/maker fees and stake requirement for the next epoch. Requires active stake."
+                      : isVote
+                        ? "Casts your stake-weighted vote for the named proposal on this pool."
                 : isLimitOrder
                 ? "Review price and size, then approve to place the limit order on DeepBook."
                 : isMarketOrder
