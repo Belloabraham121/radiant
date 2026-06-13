@@ -23,7 +23,7 @@ function initialChatSessionState(sessionId?: string) {
     return {
       messages: [] as ChatMessage[],
       title: "New chat",
-      loading: false,
+      hydrating: false,
       skipFetch: true,
       pending_transaction: null as PendingTransaction | null,
       pending_clarification: null as PendingClarification | null,
@@ -35,7 +35,7 @@ function initialChatSessionState(sessionId?: string) {
     return {
       messages: cached.messages,
       title: cached.title,
-      loading: false,
+      hydrating: false,
       skipFetch: true,
       pending_transaction: cached.pending_transaction ?? null,
       pending_clarification: cached.pending_clarification ?? null,
@@ -45,7 +45,7 @@ function initialChatSessionState(sessionId?: string) {
   return {
     messages: [] as ChatMessage[],
     title: "New chat",
-    loading: true,
+    hydrating: true,
     skipFetch: false,
     pending_transaction: null as PendingTransaction | null,
     pending_clarification: null as PendingClarification | null,
@@ -60,7 +60,7 @@ export function useChatSession(sessionId?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
   const [title, setTitle] = useState(boot.title);
   const [activeSessionId, setActiveSessionId] = useState(sessionId);
-  const [loading, setLoading] = useState(boot.loading);
+  const [hydrating, setHydrating] = useState(boot.hydrating);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -83,22 +83,27 @@ export function useChatSession(sessionId?: string) {
     let cancelled = false;
 
     async function loadSession() {
-      setLoading(true);
+      setHydrating(true);
       setLoadError(null);
       try {
         const data = await fetchSessionMessages(id);
         if (cancelled) return;
         setTitle(data.session.title);
-        setMessages(apiMessagesToChatMessages(data.messages));
+        setMessages((current) => {
+          if (current.length > 0) {
+            return current;
+          }
+          return apiMessagesToChatMessages(data.messages);
+        });
       } catch (err) {
         if (cancelled) return;
-        setMessages([]);
+        setMessages((current) => (current.length > 0 ? current : []));
         setLoadError(
           err instanceof ApiError ? err.message : "Could not load this conversation.",
         );
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          setHydrating(false);
         }
       }
     }
@@ -164,7 +169,7 @@ export function useChatSession(sessionId?: string) {
           router.replace(`/app/chat/${data.session_id}`);
         }
 
-        void refreshSessions();
+        void refreshSessions({ silent: true });
       } catch (err) {
         const message =
           err instanceof ApiError ? err.message : "Could not reach your agent. Try again.";
@@ -202,7 +207,7 @@ export function useChatSession(sessionId?: string) {
         },
       ]);
 
-      void refreshSessions();
+      void refreshSessions({ silent: true });
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Approval failed. Try again.";
@@ -239,7 +244,7 @@ export function useChatSession(sessionId?: string) {
         },
       ]);
 
-      void refreshSessions();
+      void refreshSessions({ silent: true });
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Could not cancel the transaction. Try again.";
@@ -296,7 +301,7 @@ export function useChatSession(sessionId?: string) {
           },
         ]);
 
-        void refreshSessions();
+        void refreshSessions({ silent: true });
       } catch (err) {
         const message =
           err instanceof ApiError ? err.message : "Could not process your response.";
@@ -311,7 +316,7 @@ export function useChatSession(sessionId?: string) {
   return {
     messages,
     title,
-    loading,
+    hydrating,
     loadError,
     typing,
     chatError,

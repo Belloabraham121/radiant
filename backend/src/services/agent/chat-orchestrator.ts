@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { getAgentProvider, getOpenAiConfig } from "../../config/agent.js";
 import { getAgentPermissions } from "./agent-permissions.service.js";
 import { deriveSessionTitle, resolveOrCreateSession } from "../conversation/conversation.service.js";
-import { appendMessage, listMessagesBySessionId } from "../conversation/message.repository.js";
+import { appendMessage, listRecentMessagesBySessionId } from "../conversation/message.repository.js";
 import { touchSession } from "../conversation/session.repository.js";
 import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.service.js";
 import type { ChatRequest, ChatResponse } from "./agent.types.js";
@@ -38,14 +38,16 @@ export async function runChatTurn(
     request.session_id,
   );
 
-  const priorMessages = await listMessagesBySessionId(session.id);
+  const [priorMessages, memory, agentPermissions] = await Promise.all([
+    listRecentMessagesBySessionId(session.id),
+    loadAgentMemory(privyUserId),
+    getAgentPermissions(privyUserId),
+  ]);
+
   const isFirstUserMessage = priorMessages.length === 0;
+  const memoryBlock = formatMemoryBlock(memory);
 
   await appendMessage(session.id, "user", request.message);
-
-  const memory = await loadAgentMemory(privyUserId);
-  const memoryBlock = formatMemoryBlock(memory);
-  const agentPermissions = await getAgentPermissions(privyUserId);
 
   if (!isApprovalContinuationMessage(request.message) && !isClarificationContinuationRequest(request)) {
     const workflowOutcome = await tryStartWorkflowFromMessage(
@@ -94,8 +96,10 @@ export async function runChatTurn(
     }
   }
 
-  const history = await listMessagesBySessionId(session.id);
-  const contextMessages = buildAgentContextMessages(history);
+  const contextMessages = buildAgentContextMessages([
+    ...priorMessages,
+    { role: "user", content: request.message },
+  ]);
 
   const runtime = options.forceRuntime ?? getAgentRuntime();
   const result = await runtime.runTurn({
@@ -152,12 +156,19 @@ export async function persistToolFailureTurn(
 ): Promise<ChatResponse> {
   const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
 
+  const [priorMessages, memory, agentPermissions] = await Promise.all([
+    listRecentMessagesBySessionId(session.id),
+    loadAgentMemory(privyUserId),
+    getAgentPermissions(privyUserId),
+  ]);
+
   await appendMessage(session.id, "user", request.message);
 
-  const history = await listMessagesBySessionId(session.id);
-  const contextMessages = buildAgentContextMessages(history);
-  const memoryBlock = formatMemoryBlock(await loadAgentMemory(privyUserId));
-  const agentPermissions = await getAgentPermissions(privyUserId);
+  const contextMessages = buildAgentContextMessages([
+    ...priorMessages,
+    { role: "user", content: request.message },
+  ]);
+  const memoryBlock = formatMemoryBlock(memory);
 
   const reply = await synthesizeErrorExplanationReply({
     toolName: input.toolName,

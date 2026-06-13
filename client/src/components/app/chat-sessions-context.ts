@@ -3,11 +3,16 @@
 import { createContext, useContext } from "react";
 import type { ChatSessionListItem } from "@/lib/chat-api";
 
+export type RefreshSessionsOptions = {
+  /** When true, refresh the list without toggling global loading state. */
+  silent?: boolean;
+};
+
 export type ChatSessionsContextValue = {
   sessions: ChatSessionListItem[];
   loading: boolean;
   error: string | null;
-  refreshSessions: () => Promise<void>;
+  refreshSessions: (options?: RefreshSessionsOptions) => Promise<void>;
   createSession: () => Promise<string>;
 };
 

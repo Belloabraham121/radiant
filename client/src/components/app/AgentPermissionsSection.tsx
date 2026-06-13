@@ -1,9 +1,10 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Folder, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useAgentPermissions } from "@/hooks/useAgentPermissions";
+import type { AgentPermissions } from "@/lib/agent-permissions-api";
 
 function PermissionToggle({
   label,
@@ -44,7 +45,27 @@ function PermissionToggle({
   );
 }
 
+function permissionsSummary(permissions: AgentPermissions, loading: boolean): string {
+  if (loading) return "Loading…";
+
+  const parts: string[] = [];
+  parts.push(
+    permissions.auto_approve_enabled
+      ? `Auto-approve up to ${permissions.auto_approve_max_sui} SUI`
+      : "Manual approval for all txs",
+  );
+  if (permissions.allow_flash_loans) {
+    parts.push(
+      permissions.auto_approve_flash_loans ? "Flash loans auto-approved" : "Flash loans on",
+    );
+  }
+  if (permissions.allow_governance) parts.push("Governance on");
+
+  return parts.join(" · ");
+}
+
 export function AgentPermissionsSection() {
+  const [open, setOpen] = useState(false);
   const { authenticated } = usePrivy();
   const {
     permissions,
@@ -68,116 +89,153 @@ export function AgentPermissionsSection() {
 
   return (
     <section data-settings-block className="mt-10 pb-10">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-[var(--hero-ink)]/40">
-          Agent permissions
-        </h2>
-        {saving ? (
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-[var(--hero-ink)]/45">
-            <Loader2 className="size-3.5 animate-spin" />
-            Saving…
+      <div className="rounded-3xl border-2 border-[var(--hero-ink)] bg-white shadow-[5px_5px_0_var(--hero-ink)]">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10">
+              <Folder className="size-5 text-[var(--hero-violet)]" strokeWidth={2.5} />
+            </span>
+            <span className="min-w-0">
+              <span className="flex flex-wrap items-center gap-2">
+                <span className="font-heading text-base font-extrabold tracking-tight">
+                  Agent permissions
+                </span>
+                {saving ? (
+                  <span className="flex items-center gap-1 rounded-full border-2 border-[var(--hero-ink)] bg-white px-2.5 py-0.5 text-[10px] font-bold text-[var(--hero-ink)]/55">
+                    <Loader2 className="size-3 animate-spin" />
+                    Saving…
+                  </span>
+                ) : null}
+              </span>
+              <span className="mt-0.5 block truncate text-xs font-medium text-[var(--hero-ink)]/50">
+                {permissionsSummary(permissions, loading)}
+              </span>
+            </span>
           </span>
-        ) : null}
-      </div>
+          <ChevronDown
+            className={`size-5 shrink-0 text-[var(--hero-ink)]/40 transition-transform ${
+              open ? "rotate-180" : ""
+            }`}
+            strokeWidth={2.5}
+          />
+        </button>
 
-      {error ? (
-        <p role="alert" className="mb-3 text-sm font-semibold text-[var(--hero-coral)]">
-          {error}
-        </p>
-      ) : null}
-
-      <div className="flex flex-col gap-3">
-        <PermissionToggle
-          label="Auto-approve transactions"
-          detail={loading ? "Loading…" : thresholdLabel}
-          on={permissions.auto_approve_enabled}
-          disabled={loading || saving}
-          onToggle={() => void setAutoApproveEnabled(!permissions.auto_approve_enabled)}
-        />
-
-        {permissions.auto_approve_enabled ? (
-          <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/25 bg-[var(--hero-bg)] px-5 py-4">
-            <label
-              htmlFor="auto-approve-max-sui"
-              className="block text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/45"
-            >
-              Auto-approve threshold (SUI)
-            </label>
-            <div className="mt-2 flex items-center gap-3">
-              <span className="text-sm font-semibold text-[var(--hero-ink)]/55">Under</span>
-              <input
-                id="auto-approve-max-sui"
-                type="number"
-                min={0.01}
-                max={1000000}
-                step={0.01}
-                disabled={loading || saving}
-                value={thresholdInputValue}
-                onFocus={() => {
-                  setEditingMaxSui(true);
-                  setDraftMaxSui(serverMaxSui);
-                }}
-                onChange={(event) => setDraftMaxSui(event.target.value)}
-                onBlur={() => {
-                  setEditingMaxSui(false);
-                  const next = Number(draftMaxSui);
-                  if (!Number.isFinite(next) || next <= 0) {
-                    setDraftMaxSui(serverMaxSui);
-                    return;
-                  }
-                  if (next !== permissions.auto_approve_max_sui) {
-                    void setAutoApproveMaxSui(next);
-                  }
-                }}
-                className="w-28 rounded-xl border-2 border-[var(--hero-ink)] bg-white px-3 py-2 font-mono text-sm font-bold shadow-[2px_2px_0_var(--hero-ink)] focus:outline-none disabled:opacity-60"
-              />
-              <span className="text-sm font-semibold text-[var(--hero-ink)]/55">SUI</span>
-            </div>
-            <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/45">
-              Set any amount — e.g. 30, 100. Balance manager setup, deposits, and withdrawals always ask first.
+        {open ? (
+          <div className="border-t-2 border-[var(--hero-ink)]/10 px-5 pb-5 pt-4">
+            <p className="mb-5 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
+              Control how much freedom your agent has — auto-approvals, flash loans, and
+              governance actions all live here.
             </p>
+
+            {error ? (
+              <p role="alert" className="mb-3 text-sm font-semibold text-[var(--hero-coral)]">
+                {error}
+              </p>
+            ) : null}
+
+            <div className="flex flex-col gap-3">
+              <PermissionToggle
+                label="Auto-approve transactions"
+                detail={loading ? "Loading…" : thresholdLabel}
+                on={permissions.auto_approve_enabled}
+                disabled={loading || saving}
+                onToggle={() => void setAutoApproveEnabled(!permissions.auto_approve_enabled)}
+              />
+
+              {permissions.auto_approve_enabled ? (
+                <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/25 bg-[var(--hero-bg)] px-5 py-4">
+                  <label
+                    htmlFor="auto-approve-max-sui"
+                    className="block text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/45"
+                  >
+                    Auto-approve threshold (SUI)
+                  </label>
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-sm font-semibold text-[var(--hero-ink)]/55">Under</span>
+                    <input
+                      id="auto-approve-max-sui"
+                      type="number"
+                      min={0.01}
+                      max={1000000}
+                      step={0.01}
+                      disabled={loading || saving}
+                      value={thresholdInputValue}
+                      onFocus={() => {
+                        setEditingMaxSui(true);
+                        setDraftMaxSui(serverMaxSui);
+                      }}
+                      onChange={(event) => setDraftMaxSui(event.target.value)}
+                      onBlur={() => {
+                        setEditingMaxSui(false);
+                        const next = Number(draftMaxSui);
+                        if (!Number.isFinite(next) || next <= 0) {
+                          setDraftMaxSui(serverMaxSui);
+                          return;
+                        }
+                        if (next !== permissions.auto_approve_max_sui) {
+                          void setAutoApproveMaxSui(next);
+                        }
+                      }}
+                      className="w-28 rounded-xl border-2 border-[var(--hero-ink)] bg-white px-3 py-2 font-mono text-sm font-bold shadow-[2px_2px_0_var(--hero-ink)] focus:outline-none disabled:opacity-60"
+                    />
+                    <span className="text-sm font-semibold text-[var(--hero-ink)]/55">SUI</span>
+                  </div>
+                  <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/45">
+                    Set any amount — e.g. 30, 100. Balance manager setup, deposits, and
+                    withdrawals always ask first.
+                  </p>
+                </div>
+              ) : null}
+
+              <PermissionToggle
+                label="Allow flash loans"
+                detail={
+                  loading
+                    ? "Loading…"
+                    : permissions.allow_flash_loans
+                      ? permissions.auto_approve_flash_loans
+                        ? "Flash loans enabled. Bundled routes that repay from swap output may skip the approval dialog."
+                        : "Advanced DeepBook flash loans are enabled. Every flash loan shows an approval dialog."
+                      : "Flash loans stay disabled. The agent cannot initiate deepbook_flash_loan until you turn this on."
+                }
+                on={permissions.allow_flash_loans}
+                disabled={loading || saving}
+                onToggle={() => void setAllowFlashLoans(!permissions.allow_flash_loans)}
+              />
+
+              {permissions.allow_flash_loans ? (
+                <PermissionToggle
+                  label="Auto-approve flash loans"
+                  detail="Execute flash loan bundles without a confirmation dialog. Atomic loans only spend gas if the transaction fails. Swaps that repay from your wallet still ask for approval."
+                  on={permissions.auto_approve_flash_loans}
+                  disabled={loading || saving}
+                  onToggle={() =>
+                    void setAutoApproveFlashLoans(!permissions.auto_approve_flash_loans)
+                  }
+                />
+              ) : null}
+
+              <PermissionToggle
+                label="Allow governance actions"
+                detail={
+                  loading
+                    ? "Loading…"
+                    : permissions.allow_governance
+                      ? "The agent can submit fee proposals and vote on DeepBook pools. Every governance transaction shows an approval dialog."
+                      : "Governance stays disabled. The agent cannot submit proposals or vote until you turn this on."
+                }
+                on={permissions.allow_governance}
+                disabled={loading || saving}
+                onToggle={() => void setAllowGovernance(!permissions.allow_governance)}
+              />
+            </div>
           </div>
         ) : null}
-
-        <PermissionToggle
-          label="Allow flash loans"
-          detail={
-            loading
-              ? "Loading…"
-              : permissions.allow_flash_loans
-                ? permissions.auto_approve_flash_loans
-                  ? "Flash loans enabled. Bundled routes that repay from swap output may skip the approval dialog."
-                  : "Advanced DeepBook flash loans are enabled. Every flash loan shows an approval dialog."
-                : "Flash loans stay disabled. The agent cannot initiate deepbook_flash_loan until you turn this on."
-          }
-          on={permissions.allow_flash_loans}
-          disabled={loading || saving}
-          onToggle={() => void setAllowFlashLoans(!permissions.allow_flash_loans)}
-        />
-
-        {permissions.allow_flash_loans ? (
-          <PermissionToggle
-            label="Auto-approve flash loans"
-            detail="Execute flash loan bundles without a confirmation dialog. Atomic loans only spend gas if the transaction fails. Swaps that repay from your wallet still ask for approval."
-            on={permissions.auto_approve_flash_loans}
-            disabled={loading || saving}
-            onToggle={() => void setAutoApproveFlashLoans(!permissions.auto_approve_flash_loans)}
-          />
-        ) : null}
-
-        <PermissionToggle
-          label="Allow governance actions"
-          detail={
-            loading
-              ? "Loading…"
-              : permissions.allow_governance
-                ? "The agent can submit fee proposals and vote on DeepBook pools. Every governance transaction shows an approval dialog."
-                : "Governance stays disabled. The agent cannot submit proposals or vote until you turn this on."
-          }
-          on={permissions.allow_governance}
-          disabled={loading || saving}
-          onToggle={() => void setAllowGovernance(!permissions.allow_governance)}
-        />
       </div>
     </section>
   );

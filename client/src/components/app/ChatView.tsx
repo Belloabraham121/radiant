@@ -106,18 +106,11 @@ function Bubble({
   );
 }
 
-function ChatLoadingSkeleton() {
+function ChatHydratingIndicator() {
   return (
-    <div className={`${CHAT_COL} space-y-6 px-6 py-8`}>
-      {[0, 1, 2].map((index) => (
-        <div
-          key={index}
-          className={`flex ${index % 2 === 0 ? "justify-end" : "justify-start"}`}
-        >
-          <div className="h-12 w-2/5 max-w-sm animate-pulse rounded-3xl border-2 border-[var(--hero-ink)]/15 bg-white/60" />
-        </div>
-      ))}
-    </div>
+    <p className={`${CHAT_COL} text-center text-xs font-semibold text-[var(--hero-ink)]/40`}>
+      Loading conversation…
+    </p>
   );
 }
 
@@ -143,7 +136,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const {
     messages,
     title,
-    loading,
+    hydrating,
     loadError,
     typing,
     chatError,
@@ -176,7 +169,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   }, [sessionId]);
 
   useEffect(() => {
-    if (loading || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (hydrating || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const scope = ref.current;
     if (!scope) return;
@@ -209,19 +202,19 @@ export function ChatView({ sessionId }: ChatViewProps) {
       stagger: 0.1,
       ease: "back.out(1.4)",
     });
-  }, [loading, messages]);
+  }, [hydrating, messages]);
 
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container || loading) return;
+    if (!container) return;
     container.scrollTop = container.scrollHeight;
-  }, [loading, sessionId]);
+  }, [sessionId]);
 
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container || loading) return;
+    if (!container) return;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [loading, messages, pendingTx, typing]);
+  }, [hydrating, messages, pendingTx, typing]);
 
   const send = (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,9 +242,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       </header>
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
-        {loading ? (
-          <ChatLoadingSkeleton />
-        ) : loadError ? (
+        {loadError ? (
           <div className={`${CHAT_COL} flex h-full items-center justify-center`}>
             <p className="text-center text-sm font-semibold text-[var(--hero-coral)]">
               {loadError}
@@ -259,7 +250,9 @@ export function ChatView({ sessionId }: ChatViewProps) {
           </div>
         ) : (
           <div className={`${CHAT_COL} space-y-6`}>
-            {messages.length === 0 && !typing && (
+            {hydrating && messages.length === 0 ? <ChatHydratingIndicator /> : null}
+
+            {messages.length === 0 && !typing && !hydrating ? (
               <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
                 <Sparkles className="size-8 text-[var(--hero-amber)]" strokeWidth={2.5} />
                 <p className="font-heading text-lg font-extrabold">Start a conversation</p>
@@ -267,7 +260,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
                   Ask about your balance, send tokens, or tell your agent what you want to build.
                 </p>
               </div>
-            )}
+            ) : null}
 
             {messages.map((message) => (
               <Bubble key={message.id} message={message} onViewActivity={openActivityDetail} />

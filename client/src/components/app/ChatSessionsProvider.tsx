@@ -7,7 +7,7 @@ import {
   fetchChatSessions,
   type ChatSessionListItem,
 } from "@/lib/chat-api";
-import { ChatSessionsContext } from "./chat-sessions-context";
+import { ChatSessionsContext, type RefreshSessionsOptions } from "./chat-sessions-context";
 
 export function ChatSessionsProvider({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
@@ -15,14 +15,16 @@ export function ChatSessionsProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshSessions = useCallback(async () => {
+  const refreshSessions = useCallback(async (options?: RefreshSessionsOptions) => {
     if (!ready || !authenticated) {
       setSessions([]);
       setError(null);
       return;
     }
 
-    setLoading(true);
+    if (!options?.silent) {
+      setLoading(true);
+    }
     try {
       const data = await fetchChatSessions();
       setSessions(data.sessions);
@@ -31,7 +33,9 @@ export function ChatSessionsProvider({ children }: { children: React.ReactNode }
       setSessions([]);
       setError("Could not load your chats.");
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, [authenticated, ready]);
 
@@ -76,7 +80,7 @@ export function ChatSessionsProvider({ children }: { children: React.ReactNode }
 
   const createSession = useCallback(async () => {
     const session = await createChatSession();
-    await refreshSessions();
+    await refreshSessions({ silent: true });
     return session.id;
   }, [refreshSessions]);
 

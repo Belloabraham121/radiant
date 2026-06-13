@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
 import {
   Activity,
   ChevronsLeft,
@@ -35,8 +34,7 @@ export function Sidebar() {
   const { open, setOpen } = useSidebar();
   const { seed, displayName } = useUserProfile();
   const { primaryWallet, defaultChainId, status } = useAgentWallet();
-  const { sessions, loading, error, createSession } = useChatSessions();
-  const [creating, setCreating] = useState(false);
+  const { sessions, loading, error } = useChatSessions();
 
   const walletLabel =
     primaryWallet?.address != null
@@ -49,15 +47,9 @@ export function Sidebar() {
     ? pathname.split("/app/chat/")[1]?.split("/")[0]
     : null;
 
-  const handleNewChat = async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const id = await createSession();
-      router.push(`/app/chat/${id}`);
-    } finally {
-      setCreating(false);
-    }
+  const handleNewChat = () => {
+    router.push("/app");
+    setOpen(false);
   };
 
   if (!open) return null;
@@ -89,12 +81,11 @@ export function Sidebar() {
           </div>
           <button
             type="button"
-            onClick={() => void handleNewChat()}
-            disabled={creating}
-            className="flex w-full items-center justify-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-2 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+            onClick={handleNewChat}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-2 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
           >
             <Plus className="size-3.5" strokeWidth={3} />
-            {creating ? "Creating…" : "New chat"}
+            New chat
           </button>
         </div>
 

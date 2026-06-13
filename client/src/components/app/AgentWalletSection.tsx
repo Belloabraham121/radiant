@@ -32,7 +32,6 @@ import { invalidateWalletAssetsForChain } from "@/lib/wallet-assets-events";
 import { refreshAllWalletData } from "@/lib/refresh-wallet-data";
 import { DeepBookBalancesLine } from "@/components/wallet/DeepBookBalancesLine";
 import { invalidateDeepBookManagerCache } from "@/lib/wallet-session-cache";
-import { AgentActivityPanel } from "@/components/app/AgentActivityPanel";
 import { useProfileWalletData } from "@/hooks/useProfileWalletData";
 import { useWalletAssets } from "@/hooks/useWalletAssets";
 import type { WalletAssetRow } from "@/lib/wallet-assets-api";
@@ -552,8 +551,6 @@ export function AgentWalletSection() {
           ) : null}
         </div>
       </section>
-
-      <AgentActivityPanel />
 
       {suiWallet?.address && (
         <SuiDepositDialog
