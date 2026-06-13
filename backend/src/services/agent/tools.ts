@@ -13,6 +13,11 @@ import {
   runQueryChainTool,
 } from "./query-chain.tool.js";
 import {
+  DEPLOY_APP_TOOL_NAME,
+  deployAppToolDefinition,
+  runDeployAppTool,
+} from "../projects/deploy-app.tool.js";
+import {
   GENERATE_APP_TOOL_NAME,
   generateAppToolDefinition,
   runGenerateAppTool,
@@ -58,6 +63,7 @@ export const agentToolDefinitions = [
   queryChainToolDefinition,
   updateMemoryToolDefinition,
   generateAppToolDefinition,
+  deployAppToolDefinition,
 ] as const;
 
 export type AgentToolErrorResult = {
@@ -118,6 +124,8 @@ async function dispatchAgentTool(
         return await runGenerateAppTool(privyUserId, input, {
           sessionId: options?.sessionId,
         });
+      case DEPLOY_APP_TOOL_NAME:
+        return await runDeployAppTool(privyUserId, input);
       default:
         throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
     }

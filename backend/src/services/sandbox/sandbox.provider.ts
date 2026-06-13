@@ -18,7 +18,7 @@ export type SandboxProviderName = "none" | "e2b" | "docker" | "mock";
 export interface SandboxProvider {
   readonly name: SandboxProviderName;
 
-  create(ctx: SandboxCreateContext): Promise<{ handleId: string }>;
+  create(ctx: SandboxCreateContext): Promise<{ handleId: string; sandboxId?: string }>;
 
   writeFiles(handleId: string, files: SandboxFileWrite[]): Promise<void>;
 

@@ -2,7 +2,7 @@ import { getSandboxConfig } from "../../config/sandbox.js";
 import { E2bSandboxProvider } from "./e2b.provider.js";
 import { MockSandboxProvider } from "./mock.provider.js";
 import { NoneSandboxProvider } from "./none.provider.js";
-import type { SandboxProvider } from "./sandbox.provider.js";
+import type { SandboxProvider, SandboxProviderName } from "./sandbox.provider.js";
 
 let cached: SandboxProvider | undefined;
 
@@ -31,4 +31,18 @@ export function getSandboxProvider(): SandboxProvider {
 
 export function resetSandboxProviderForTests(): void {
   cached = undefined;
+}
+
+/** Resolve a provider by stored job provider name (not global SANDBOX_PROVIDER). */
+export function getSandboxProviderByName(name: SandboxProviderName): SandboxProvider {
+  switch (name) {
+    case "e2b":
+      return new E2bSandboxProvider();
+    case "mock":
+      return new MockSandboxProvider();
+    case "docker":
+      return new MockSandboxProvider();
+    default:
+      return new NoneSandboxProvider();
+  }
 }

@@ -17,9 +17,9 @@ export class MockSandboxProvider implements SandboxProvider {
 
   private readonly handles = new Map<string, MockHandle>();
 
-  async create(ctx: SandboxCreateContext): Promise<{ handleId: string }> {
+  async create(ctx: SandboxCreateContext): Promise<{ handleId: string; sandboxId?: string }> {
     this.handles.set(ctx.jobId, { files: new Map() });
-    return { handleId: ctx.jobId };
+    return { handleId: ctx.jobId, sandboxId: `mock-${ctx.jobId}` };
   }
 
   async writeFiles(handleId: string, files: SandboxFileWrite[]): Promise<void> {
@@ -36,10 +36,14 @@ export class MockSandboxProvider implements SandboxProvider {
     command: string,
     options: { cwd: string; timeoutMs: number; onLine?: (line: string) => void },
   ): Promise<SandboxRunResult> {
-    this.getHandle(handleId);
+    const handle = this.getHandle(handleId);
     const started = Date.now();
 
-    if (command.includes("npm run build")) {
+    if (command.includes("pnpm build") || command.includes("npm run build")) {
+      const html =
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Radiant mock</title></head>" +
+        "<body><h1>Mock build output</h1></body></html>";
+      handle.files.set("/workspace/dist/index.html", Buffer.from(html, "utf8"));
       options.onLine?.("mock build complete");
       return {
         exitCode: 0,

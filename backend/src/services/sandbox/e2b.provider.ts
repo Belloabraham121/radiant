@@ -31,6 +31,7 @@ type E2bCommandResult = {
 
 /** Minimal E2B surface used by deploy pipeline — enables lean mocks in tests. */
 export type E2bSandboxHandle = {
+  sandboxId?: string;
   commands: {
     run: (cmd: string, opts?: E2bCommandRunOptions) => Promise<E2bCommandResult>;
   };
@@ -77,7 +78,7 @@ export class E2bSandboxProvider implements SandboxProvider {
       ((template, opts) => Sandbox.create(template, opts));
   }
 
-  async create(ctx: SandboxCreateContext): Promise<{ handleId: string }> {
+  async create(ctx: SandboxCreateContext): Promise<{ handleId: string; sandboxId?: string }> {
     const { e2bTemplateAlias, sandboxTimeoutMs } = getSandboxConfig();
 
     const sandbox = await this.createSandboxWithRetry(e2bTemplateAlias, {
@@ -111,7 +112,7 @@ export class E2bSandboxProvider implements SandboxProvider {
       );
     }
 
-    return { handleId: ctx.jobId };
+    return { handleId: ctx.jobId, sandboxId: (sandbox as { sandboxId?: string }).sandboxId };
   }
 
   async writeFiles(handleId: string, files: SandboxFileWrite[]): Promise<void> {

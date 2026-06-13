@@ -10,8 +10,8 @@ import type {
 export class NoneSandboxProvider implements SandboxProvider {
   readonly name = "none" as const;
 
-  async create(ctx: SandboxCreateContext): Promise<{ handleId: string }> {
-    return { handleId: ctx.jobId };
+  async create(ctx: SandboxCreateContext): Promise<{ handleId: string; sandboxId?: string }> {
+    return { handleId: ctx.jobId, sandboxId: `none-${ctx.jobId}` };
   }
 
   async writeFiles(_handleId: string, _files: SandboxFileWrite[]): Promise<void> {

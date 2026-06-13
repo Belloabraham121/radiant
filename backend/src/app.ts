@@ -17,6 +17,8 @@ import { chatRouter } from "./api/routes/v1/chat/chat.js";
 import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
 import { e2bWebhookRouter } from "./api/routes/v1/webhooks/e2b.js";
+import { deployRouter } from "./api/routes/v1/deploy/deploy.js";
+import { projectsRouter } from "./api/routes/v1/projects/projects.js";
 import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.js";
 import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
 import { createCorsOptions } from "./config/cors.js";
@@ -53,6 +55,8 @@ export function createApp() {
   app.use(chatSessionsRouter);
   app.use(defiPoolsRouter);
   app.use(defiBalanceManagerRouter);
+  app.use(deployRouter);
+  app.use(projectsRouter);
   app.use(errorHandlerMiddleware);
 
   return app;

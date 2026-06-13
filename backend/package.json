@@ -24,7 +24,8 @@
     "e2b:cleanup:radiant": "tsx scripts/e2b-cleanup-radiant.ts",
     "e2b:cleanup:cron": "tsx scripts/e2b-cleanup-cron.ts",
     "e2b:cleanup:once": "E2B_CLEANUP_ONCE=true tsx scripts/e2b-cleanup-cron.ts",
-    "e2b:webhook:register": "tsx scripts/e2b-register-webhook.ts"
+    "e2b:webhook:register": "tsx scripts/e2b-register-webhook.ts",
+    "worker:deploy": "tsx src/workers/deploy.worker.ts"
   },
   "dependencies": {
     "@mysten/deepbook-v3": "^1.4.1",
@@ -32,6 +33,7 @@
     "@prisma/client": "^6.5.0",
     "@privy-io/node": "^0.7.0",
     "@solana/web3.js": "^1.98.4",
+    "bullmq": "^5.78.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
