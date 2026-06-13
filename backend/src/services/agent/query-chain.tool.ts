@@ -75,7 +75,9 @@ export const queryChainToolDefinition = {
           "Query params. swap_quote: { pool_key?, amount, side: sell|buy } — " +
           "sell = spend base for quote (e.g. SUI→USDC); buy = spend quote for base. " +
           "Fees default to input token; set pay_with_deep: true only if wallet holds DEEP. " +
-          "May also pass input_coin/from + output_coin/to instead of side. " +
+          "flash_loan_quote: { pool_key, borrow_amount, asset: base|quote (or coin_key), strategy: round_trip | swap_chain_repay, steps?: [{ pool_key, side: buy|sell, amount }] } — " +
+          "quote before swap_chain_repay execute; pool_key is borrow pool; asset base|quote is borrowed side (USDC on SUI_USDC = quote). " +
+          "May also pass input_coin/from + output_coin/to instead of side for swap_quote. " +
           "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
           "returns recent agent wallet activity with session_id/message_id to link back to chat. " +
           "EVM balances: { evm_chain_id }.",

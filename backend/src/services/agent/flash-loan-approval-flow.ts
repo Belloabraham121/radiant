@@ -102,17 +102,74 @@ export function extractFlashLoanIntent(message: string): FlashLoanIntent | null 
 export function extractFlashLoanIntentFromMessages(
   messages: AgentTurnMessage[],
 ): FlashLoanIntent | null {
+  return extractFlashLoanIntentFromThread(messages);
+}
+
+/** Borrow amount may appear in your prior assistant reply — scan the full thread. */
+export function extractFlashLoanIntentFromThread(
+  messages: AgentTurnMessage[],
+): FlashLoanIntent | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const message = messages[i];
-    if (message.role !== "user") {
-      continue;
-    }
-    const intent = extractFlashLoanIntent(message.content);
+    const intent = extractFlashLoanIntent(messages[i].content);
     if (intent) {
       return intent;
     }
   }
   return null;
+}
+
+export function threadDiscussesFlashLoans(
+  lastUserMessage: string,
+  messages: AgentTurnMessage[],
+): boolean {
+  const texts = [lastUserMessage, ...messages.map((message) => message.content)];
+  return texts.some((text) => userRequestedFlashLoan(text));
+}
+
+export function threadHasBorrowAmount(
+  messages: AgentTurnMessage[],
+  lastUserMessage: string,
+): boolean {
+  return (
+    extractFlashLoanIntent(lastUserMessage) !== null ||
+    extractFlashLoanIntentFromThread(messages) !== null
+  );
+}
+
+export function findLastAssistantStrategyProposal(
+  messages: AgentTurnMessage[],
+): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== "assistant") {
+      continue;
+    }
+    const content = message.content.trim();
+    if (content.length < 40) {
+      continue;
+    }
+    if (
+      userRequestedFlashLoan(content) ||
+      /\bstrateg(y|ies)\b/i.test(content) ||
+      /\barbitrage\b/i.test(content)
+    ) {
+      return content;
+    }
+  }
+  return null;
+}
+
+export function buildFlashLoanThreadContext(
+  lastUserMessage: string,
+  messages: AgentTurnMessage[],
+): string {
+  const parts = [`Latest user message: "${lastUserMessage.trim()}"`];
+  const proposal = findLastAssistantStrategyProposal(messages);
+  if (proposal) {
+    const excerpt = proposal.length > 900 ? `${proposal.slice(0, 900)}…` : proposal;
+    parts.push(`Your prior proposal in this thread:\n${excerpt}`);
+  }
+  return parts.join("\n\n");
 }
 
 export function isAffirmativeFlashLoanReply(message: string): boolean {
@@ -196,10 +253,7 @@ function flashLoanContextFromMessages(
   lastUserMessage: string,
   messages: AgentTurnMessage[],
 ): boolean {
-  return (
-    userRequestedFlashLoan(lastUserMessage) ||
-    messages.some((message) => message.role === "user" && userRequestedFlashLoan(message.content))
-  );
+  return threadDiscussesFlashLoans(lastUserMessage, messages);
 }
 
 function resolveIntent(
@@ -207,8 +261,8 @@ function resolveIntent(
   messages: AgentTurnMessage[],
 ): FlashLoanIntent | null {
   let intent = extractFlashLoanIntent(lastUserMessage);
-  if (!intent && isAffirmativeFlashLoanReply(lastUserMessage)) {
-    intent = extractFlashLoanIntentFromMessages(messages);
+  if (!intent) {
+    intent = extractFlashLoanIntentFromThread(messages);
   }
   return intent;
 }
@@ -238,7 +292,7 @@ export function summarizeFlashLoanUserRequest(
   );
 }
 
-/** User gave borrow amount — nudge the agent to act; strategy choice stays with the LLM. */
+/** User gave borrow amount (anywhere in thread) — nudge the agent to act; strategy choice stays with the LLM. */
 export function shouldNudgeFlashLoanProceed(
   toolCalls: ToolCallRecord[],
   lastUserMessage: string,
@@ -248,12 +302,11 @@ export function shouldNudgeFlashLoanProceed(
     return false;
   }
 
-  const intent = resolveIntent(lastUserMessage, messages);
-  if (!intent || !flashLoanContextFromMessages(lastUserMessage, messages)) {
+  if (!flashLoanContextFromMessages(lastUserMessage, messages)) {
     return false;
   }
 
-  return true;
+  return threadHasBorrowAmount(messages, lastUserMessage);
 }
 
 /** After flash_loan_quote, call execute with min_out_display from the quote. */
@@ -274,7 +327,7 @@ export function shouldNudgeFlashLoanExecuteAfterQuote(
   return flashLoanContextFromMessages(lastUserMessage, messages);
 }
 
-/** User asked for a flash loan but did not name an amount — ask only for borrow amount/asset, not yes/no confirm. */
+/** User asked for a flash loan but nowhere in the thread is a concrete borrow amount. */
 export function shouldNudgeFlashLoanMissingAmount(
   toolCalls: ToolCallRecord[],
   lastUserMessage: string,
@@ -283,44 +336,96 @@ export function shouldNudgeFlashLoanMissingAmount(
   if (hasFlashLoanExecuteAttempt(toolCalls) || hasFlashLoanQuoteAttempt(toolCalls)) {
     return false;
   }
-  if (extractFlashLoanIntent(lastUserMessage)) {
+
+  if (!flashLoanContextFromMessages(lastUserMessage, messages)) {
     return false;
   }
 
-  const askedFlashLoan = flashLoanContextFromMessages(lastUserMessage, messages);
-  if (!askedFlashLoan) {
-    return false;
-  }
-
-  return extractFlashLoanIntentFromMessages(messages) === null;
+  return !threadHasBorrowAmount(messages, lastUserMessage);
 }
 
 export const FLASH_LOAN_MISSING_AMOUNT_NUDGE =
-  "The user requested a flash loan but did not specify borrow amount and asset. " +
-  "Ask only for borrow_amount and whether they want base or quote (e.g. 10000 USDC). " +
-  "Do not ask yes/no to confirm — the app approval dialog is the confirmation.";
+  "The user wants a flash loan but this thread has no concrete borrow amount yet (check the full conversation including your prior replies). " +
+  "Ask only for borrow_amount and which asset to borrow (e.g. 10000 USDC as quote on a pool). " +
+  "Do not ask yes/no to confirm execution — the app approval dialog is the confirmation when auto-approve is off.";
 
 export const FLASH_LOAN_EXECUTE_AFTER_QUOTE_NUDGE =
   "The flash_loan_quote result is ready. If repay_feasible is true, call execute_transaction deepbook_flash_loan " +
   "with the same borrow params, strategy, and steps as the quote, including each step min_out_display. " +
-  "If repay_feasible was false, explain why and do not execute. The app shows an approval dialog — do not ask me to confirm in chat.";
+  "If repay_feasible was false, explain why and do not execute. Do not ask me to confirm in chat — execute or explain.";
+
+export const FLASH_LOAN_TOOL_RETRY_NUDGE =
+  "The flash loan tool call failed validation. Read the tool error, fix params (pool_key, borrow_amount, asset as base|quote, strategy, steps), " +
+  "and retry flash_loan_quote and/or execute_transaction in this turn. Use the strategy and amounts from your prior proposal if the user asked to execute one. " +
+  "Do not ask me to confirm pool, asset, or amount in chat when they are already in this thread.";
 
 export function buildFlashLoanProceedNudge(
-  intent: FlashLoanIntent,
   lastUserMessage: string,
   messages: AgentTurnMessage[],
+  intent: FlashLoanIntent | null = null,
 ): string {
-  const summary = summarizeFlashLoanUserRequest(lastUserMessage, messages, intent);
+  const threadContext = buildFlashLoanThreadContext(lastUserMessage, messages);
+  const intentHint = intent
+    ? `Borrow hints from the thread: ${intent.borrow_amount} ${intent.coin_key} on ${intent.pool_key} (asset ${intent.asset}) — use only if they match your proposal and the user's selection.`
+    : "Infer pool_key, borrow_amount, and asset (base|quote) from your prior proposal and what the user selected.";
+
   return (
-    `The user requested a flash loan: ${summary}. ` +
-    "You choose the strategy from their natural language — do not use a fixed rule. " +
-    "round_trip: atomic borrow+repay on one pool with no swaps (e.g. simple round trip, borrow and return same asset on same pool). " +
-    "swap_chain_repay: borrow then one or more swaps then repay in one PTB (e.g. cross-pool routes, arb between pools, convert borrowed asset before repay). " +
-    "For swap_chain_repay, call query_chain flash_loan_quote with your chosen pool_key, borrow_amount, asset, strategy, and steps; " +
-    "if repay_feasible is true, call execute_transaction deepbook_flash_loan in the same turn with the same params and min_out_display per quoted step. " +
-    "For round_trip, call execute_transaction deepbook_flash_loan directly with pool_key, borrow_amount, asset, and strategy round_trip. " +
-    "If repay_feasible is false, explain and do not execute. The app approval dialog is the confirmation — do not ask in chat."
+    `Flash loan execution requested.\n${threadContext}\n${intentHint}\n` +
+    "If the user picked a numbered strategy from your list (e.g. 'the second strategy', 'execute it'), run THAT plan now. " +
+    "You choose strategy from context: round_trip = atomic borrow+repay on one pool, no swaps; " +
+    "swap_chain_repay = borrow → swap(s) → repay in one PTB. " +
+    "pool_key is the borrow pool; asset base|quote is which side you borrow (USDC on SUI_USDC = quote). " +
+    "For swap_chain_repay: call query_chain flash_loan_quote, then execute_transaction with the same params and min_out_display per step if repay_feasible. " +
+    "For round_trip: call execute_transaction directly. " +
+    "If repay_feasible is false, explain and do not execute. Never ask in chat to confirm pool, asset, or amount when already stated in this thread."
   );
+}
+
+export function shouldNudgeFlashLoanToolRetry(
+  toolCalls: ToolCallRecord[],
+  lastUserMessage: string,
+  messages: AgentTurnMessage[] = [],
+): boolean {
+  if (!flashLoanContextFromMessages(lastUserMessage, messages)) {
+    return false;
+  }
+
+  for (let i = toolCalls.length - 1; i >= 0; i -= 1) {
+    const call = toolCalls[i];
+    if (call.name !== QUERY_CHAIN_TOOL_NAME && call.name !== EXECUTE_TRANSACTION_TOOL_NAME) {
+      continue;
+    }
+    if (
+      typeof call.result === "object" &&
+      call.result !== null &&
+      "error" in call.result &&
+      (call.result as AgentToolErrorResult).error?.code === "VALIDATION_ERROR"
+    ) {
+      return !hasFlashLoanExecuteAttempt(toolCalls) && !hasFlashLoanQuoteAttempt(toolCalls);
+    }
+  }
+
+  return false;
+}
+
+export function findLastFlashLoanToolError(
+  toolCalls: ToolCallRecord[],
+): { name: string; result: AgentToolErrorResult } | null {
+  for (let i = toolCalls.length - 1; i >= 0; i -= 1) {
+    const call = toolCalls[i];
+    if (call.name !== QUERY_CHAIN_TOOL_NAME && call.name !== EXECUTE_TRANSACTION_TOOL_NAME) {
+      continue;
+    }
+    if (
+      typeof call.result === "object" &&
+      call.result !== null &&
+      "error" in call.result &&
+      typeof (call.result as AgentToolErrorResult).error?.message === "string"
+    ) {
+      return { name: call.name, result: call.result as AgentToolErrorResult };
+    }
+  }
+  return null;
 }
 
 export function buildFlashLoanExecuteNudgeFromQuote(

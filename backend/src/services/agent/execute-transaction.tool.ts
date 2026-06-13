@@ -48,9 +48,8 @@ export const executeTransactionToolDefinition = {
           "deepbook_modify_order: { pool_key?, order_id, quantity } — SDK modifies size only, not price. " +
           "deepbook_withdraw_settled_amounts: { pool_key? }. " +
           "deepbook_withdraw_settled_amounts_permissionless: { pool_key? }. " +
-          "deepbook_flash_loan: { pool_key?, borrow_amount, asset: base|quote or coin_key, strategy?: round_trip | swap_chain_repay, steps?: [{ pool_key, side: buy|sell, amount, min_out_display? }], slippage_bps?, repay_source?: swap_output } — " +
-          "atomic borrow/repay in one PTB; swap_chain_repay supports up to 2 swap steps. Requires allow_flash_loans in Settings. " +
-          "Call query_chain flash_loan_quote first for multi-step routes. " +
+          "deepbook_flash_loan: { pool_key?, borrow_amount, asset: base|quote or coin_key matching pool, strategy?: round_trip | swap_chain_repay, steps?: [{ pool_key, side: buy|sell, amount, min_out_display? }], slippage_bps?, repay_source?: swap_output } — " +
+          "pool_key is borrow pool; asset base|quote is borrowed side (USDC on SUI_USDC = quote). swap_chain_repay: quote first, up to 2 swap steps; first step spends borrowed coin. Requires allow_flash_loans in Settings. " +
           "execute_bytes: { transaction_bytes } (base64).",
         additionalProperties: true,
       },
