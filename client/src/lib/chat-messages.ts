@@ -1,6 +1,12 @@
 import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
-import { chainExplorerTxUrl } from "@/lib/chain-meta";
+import {
+  mapToolCallsToExecutionSteps,
+  shouldSuppressQueryFailureReceipts,
+  type ExecutionStep,
+} from "@/lib/chat-execution-steps";
+
+export type { ExecutionStep };
 
 export type Receipt = {
   label: string;
@@ -16,6 +22,7 @@ export type ChatMessage = {
   role: "user" | "agent";
   text: string;
   receipts?: Receipt[];
+  executionSteps?: ExecutionStep[];
   error?: boolean;
 };
 
@@ -35,6 +42,8 @@ export function formatSessionTime(updatedAt: string): string {
 
 export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
   const receipts: Receipt[] = [];
+  const suppressQueryFailures = shouldSuppressQueryFailureReceipts(toolCalls);
+  const hasExecutionTimeline = mapToolCallsToExecutionSteps(toolCalls) !== undefined;
   const executeFailed = toolCalls.some(
     (call) =>
       call.name === "execute_transaction" &&
@@ -84,10 +93,17 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       };
 
       if (result.error?.message) {
+        if (suppressQueryFailures) {
+          continue;
+        }
         receipts.push({
           label: "Query failed",
-          detail: result.error.code?.replace(/_/g, " ").toLowerCase(),
+          detail: result.error.message,
         });
+        continue;
+      }
+
+      if (hasExecutionTimeline) {
         continue;
       }
 
@@ -229,6 +245,12 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       };
 
       if (raw.error?.message) {
+        if (!hasExecutionTimeline) {
+          receipts.push({
+            label: "Transaction failed",
+            detail: raw.error.message,
+          });
+        }
         continue;
       }
 
@@ -401,6 +423,19 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
   return receipts;
 }
 
+/** Map tool calls to execution timeline and/or receipt pills for live chat responses. */
+export function mapToolCallsToMessageExtras(toolCalls: ChatToolCall[]): {
+  executionSteps?: ExecutionStep[];
+  receipts?: Receipt[];
+} {
+  const executionSteps = mapToolCallsToExecutionSteps(toolCalls);
+  if (executionSteps) {
+    return { executionSteps };
+  }
+  const receipts = mapToolCallsToReceipts(toolCalls);
+  return receipts.length > 0 ? { receipts } : {};
+}
+
 function parseToolCalls(raw: unknown): ChatToolCall[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter(
@@ -418,11 +453,12 @@ export function apiMessageToChatMessage(message: ApiChatMessage): ChatMessage | 
   }
 
   if (message.role === "assistant") {
+    const toolCalls = parseToolCalls(message.tool_calls);
     return {
       id: message.id,
       role: "agent",
       text: message.content,
-      receipts: mapToolCallsToReceipts(parseToolCalls(message.tool_calls)),
+      ...mapToolCallsToMessageExtras(toolCalls),
     };
   }
 

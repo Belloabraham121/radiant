@@ -147,6 +147,22 @@ export const queryChainInputSchema = z.object({
       pay_with_deep: z.boolean().optional(),
       slippage_bps: z.number().int().min(0).max(5000).optional(),
       min_out_display: z.number().positive().optional(),
+      borrow_amount: z.number().positive().optional(),
+      asset: z.enum(["base", "quote"]).optional(),
+      strategy: z.enum(["round_trip", "swap_chain_repay"]).optional(),
+      steps: z
+        .array(
+          z.object({
+            pool_key: z.string().min(1),
+            side: z.enum(["buy", "sell"]),
+            amount: z.number().positive(),
+            pay_with_deep: z.boolean().optional(),
+            min_out_display: z.number().positive().optional(),
+          }),
+        )
+        .optional(),
+      repay_source: z.enum(["swap_output", "wallet", "merged"]).optional(),
+      estimated_surplus: z.number().optional(),
       limit: z.number().int().positive().max(10).optional(),
       status: agentTransactionStatusSchema.optional(),
       category: agentTransactionCategorySchema.optional(),

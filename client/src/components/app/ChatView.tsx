@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ArrowUp, Check, Copy, ExternalLink, Sparkles } from "lucide-react";
+import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { AgentTransactionDetailDialog } from "@/components/app/AgentTransactionDetailDialog";
@@ -134,6 +135,13 @@ function Bubble({
         >
           {isUser ? message.text : <AgentMessageMarkdown text={message.text} />}
         </div>
+
+        {message.executionSteps && message.executionSteps.length > 0 ? (
+          <ExecutionTimeline
+            steps={message.executionSteps}
+            onViewActivity={onViewActivity}
+          />
+        ) : null}
 
         {message.receipts && message.receipts.length > 0 && (
           <div className="flex flex-wrap gap-2">

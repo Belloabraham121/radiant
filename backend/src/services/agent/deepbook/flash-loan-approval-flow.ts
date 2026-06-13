@@ -1,8 +1,20 @@
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import type { ToolCallRecord } from "../agent.types.js";
+import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 
-function isFlashLoanQuoteResult(result: unknown): result is FlashLoanBundleQuoteResult {
+function isToolErrorResult(
+  result: unknown,
+): result is { error: { code?: string; message?: string } } {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "error" in result &&
+    typeof (result as { error?: { message?: string } }).error?.message === "string"
+  );
+}
+
+export function isFlashLoanQuoteResult(result: unknown): result is FlashLoanBundleQuoteResult {
   return (
     typeof result === "object" &&
     result !== null &&
@@ -74,4 +86,51 @@ export function shouldFinalizeFlashLoanQuoteReply(
 
 export function isFlashLoanRepayNotFeasibleError(message: string): boolean {
   return /repay is not feasible|repay_feasible:\s*false/i.test(message);
+}
+
+function findLatestFlashLoanQuoteIndex(toolCalls: ToolCallRecord[]): number {
+  for (let i = toolCalls.length - 1; i >= 0; i -= 1) {
+    const call = toolCalls[i];
+    if (call.name === QUERY_CHAIN_TOOL_NAME && isFlashLoanQuoteResult(call.result)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/** Drop noisy failed query_chain calls after an infeasible flash loan quote. */
+export function filterToolCallsForClientDisplay(
+  toolCalls: ToolCallRecord[],
+): ToolCallRecord[] {
+  const quote = findLatestFlashLoanQuote(toolCalls);
+  if (!quote || quote.repay_feasible) {
+    return toolCalls;
+  }
+
+  const quoteIndex = findLatestFlashLoanQuoteIndex(toolCalls);
+  if (quoteIndex < 0) {
+    return toolCalls;
+  }
+
+  return toolCalls.filter((call, index) => {
+    if (call.name === EXECUTE_TRANSACTION_TOOL_NAME) {
+      return true;
+    }
+    if (call.name !== QUERY_CHAIN_TOOL_NAME) {
+      return true;
+    }
+    if (isFlashLoanQuoteResult(call.result)) {
+      return true;
+    }
+    if (isToolErrorResult(call.result) && index > quoteIndex) {
+      return false;
+    }
+    return true;
+  });
+}
+
+export function isInfeasibleFlashLoanQuoteResult(
+  result: unknown,
+): result is FlashLoanBundleQuoteResult {
+  return isFlashLoanQuoteResult(result) && !result.repay_feasible;
 }

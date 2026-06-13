@@ -12,7 +12,7 @@ import {
 } from "@/lib/chat-api";
 import {
   apiMessagesToChatMessages,
-  mapToolCallsToReceipts,
+  mapToolCallsToMessageExtras,
   type ChatMessage,
 } from "@/lib/chat-messages";
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
@@ -146,7 +146,7 @@ export function useChatSession(sessionId?: string) {
               id: data.message_id,
               role: "agent",
               text: data.reply,
-              receipts: mapToolCallsToReceipts(data.tool_calls),
+              ...mapToolCallsToMessageExtras(data.tool_calls),
             },
           ];
 
@@ -203,7 +203,7 @@ export function useChatSession(sessionId?: string) {
           id: data.message_id,
           role: "agent",
           text: data.reply,
-          receipts: mapToolCallsToReceipts(data.tool_calls),
+          ...mapToolCallsToMessageExtras(data.tool_calls),
         },
       ]);
 
@@ -240,7 +240,7 @@ export function useChatSession(sessionId?: string) {
           id: data.message_id,
           role: "agent",
           text: data.reply,
-          receipts: mapToolCallsToReceipts(data.tool_calls),
+          ...mapToolCallsToMessageExtras(data.tool_calls),
         },
       ]);
 
@@ -297,7 +297,7 @@ export function useChatSession(sessionId?: string) {
             id: data.message_id,
             role: "agent",
             text: data.reply,
-            receipts: mapToolCallsToReceipts(data.tool_calls),
+            ...mapToolCallsToMessageExtras(data.tool_calls),
           },
         ]);
 

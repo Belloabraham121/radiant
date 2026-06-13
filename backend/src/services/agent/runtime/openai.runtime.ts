@@ -29,8 +29,10 @@ import {
 } from "../deepbook/swap-approval-flow.js";
 import {
   findLatestFlashLoanQuote,
+  filterToolCallsForClientDisplay,
   formatFlashLoanQuoteReply,
   isFlashLoanRepayNotFeasibleError,
+  isInfeasibleFlashLoanQuoteResult,
   shouldFinalizeFlashLoanQuoteReply,
 } from "../deepbook/flash-loan-approval-flow.js";
 import {
@@ -56,6 +58,8 @@ import {
   synthesizeTurnReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
+import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import { transactionContextFromInput } from "../deepbook/transaction-error-context.js";
 import { summarizeToolResult } from "./summarize-tool-result.js";
 import type { AgentRuntime, AgentTurnInput, AgentTurnResult } from "./types.js";
@@ -226,6 +230,7 @@ export const openaiRuntime: AgentRuntime = {
       messages.push(choice);
 
       let executeToolError: AgentToolErrorResult | null = null;
+      let infeasibleFlashLoanQuote: FlashLoanBundleQuoteResult | null = null;
 
       for (const toolCall of toolCallList) {
         if (toolCall.type !== "function") continue;
@@ -241,6 +246,13 @@ export const openaiRuntime: AgentRuntime = {
           sessionId: input.sessionId,
         });
         tool_calls.push({ name: toolCall.function.name, result });
+
+        if (
+          toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
+          isInfeasibleFlashLoanQuoteResult(result)
+        ) {
+          infeasibleFlashLoanQuote = result satisfies FlashLoanBundleQuoteResult;
+        }
 
         if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
           lastExecuteInput = args as ExecuteTransactionInput;
@@ -269,6 +281,15 @@ export const openaiRuntime: AgentRuntime = {
           tool_call_id: toolCall.id,
           content: summarizeToolResult(toolCall.function.name, result),
         });
+
+        if (infeasibleFlashLoanQuote && !pending_transaction) {
+          break;
+        }
+      }
+
+      if (infeasibleFlashLoanQuote && !pending_transaction) {
+        reply = formatFlashLoanQuoteReply(infeasibleFlashLoanQuote);
+        break;
       }
 
       if (pending_transaction) {
@@ -355,6 +376,10 @@ export const openaiRuntime: AgentRuntime = {
       }
     }
 
-    return { reply, tool_calls, pending_transaction };
+    return {
+      reply,
+      tool_calls: filterToolCallsForClientDisplay(tool_calls),
+      pending_transaction,
+    };
   },
 };
