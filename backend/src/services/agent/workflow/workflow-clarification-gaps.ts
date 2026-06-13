@@ -1,6 +1,8 @@
 import type { ClarificationAnswer, ClarificationGap, PendingClarification } from "./clarification.types.js";
+import { snapLimitOrderFieldValue } from "./limit-order-clarification.js";
 import type { PlannerAssumption } from "./planner.types.js";
 import { CONFIDENCE_EXECUTE_THRESHOLD } from "./planner.types.js";
+import { isValidPlannerAssumption } from "./planner-assumptions.js";
 import {
   coercePositiveNumber,
   flattenPlannedParams,
@@ -99,22 +101,6 @@ export function collectClarificationGaps(
   options: CollectGapsOptions = {},
 ): ClarificationGap[] {
   const gaps: ClarificationGap[] = [];
-
-  if (
-    options.assumptions &&
-    options.assumptions.length > 0 &&
-    (options.confidence ?? 1) < CONFIDENCE_EXECUTE_THRESHOLD
-  ) {
-    const first = options.assumptions[0];
-    gaps.push({
-      gap_id: `assumption.${first.field}`,
-      interaction_type: "confirm",
-      question: `Did you mean ${first.interpreted} (from "${first.from_phrase}")?`,
-      step_index: 0,
-      kind: "intent",
-    });
-  }
-
   const normalizedPlan = normalizeWorkflowPlan(plan);
 
   for (let index = 0; index < plan.steps.length; index += 1) {
@@ -193,6 +179,21 @@ export function collectClarificationGaps(
     }
   }
 
+  const validAssumptions = (options.assumptions ?? []).filter(isValidPlannerAssumption);
+  if (
+    validAssumptions.length > 0 &&
+    (options.confidence ?? 1) < CONFIDENCE_EXECUTE_THRESHOLD
+  ) {
+    const first = validAssumptions[0];
+    gaps.push({
+      gap_id: `assumption.${first.field}`,
+      interaction_type: "confirm",
+      question: `Did you mean ${first.interpreted} (from "${first.from_phrase}")?`,
+      step_index: 0,
+      kind: "intent",
+    });
+  }
+
   const seen = new Set<string>();
   return gaps.filter((gap) => {
     if (seen.has(gap.gap_id)) {
@@ -214,7 +215,9 @@ export function gapToPending(gap: ClarificationGap, clarificationId: string): Pe
     kind: gap.kind,
     input_kind: gap.input_kind,
     placeholder: gap.placeholder,
+    hint: gap.hint,
     options: gap.options,
+    suggestions: gap.suggestions,
   };
 }
 
@@ -290,6 +293,12 @@ export function applyClarificationAnswer(
       return null;
     }
     if (gap.field) {
+      const raw = answer.selected_option_id;
+      const value =
+        gap.input_kind === "number" ? coercePositiveNumber(raw) : raw.trim().toUpperCase();
+      if (value === undefined || value === "") {
+        return null;
+      }
       const steps = plan.steps.map((s, index) => {
         if (index !== gap.step_index || s.kind !== "execute") {
           return s;
@@ -298,7 +307,7 @@ export function applyClarificationAnswer(
           ...s,
           input: {
             ...s.input,
-            params: { ...s.input.params, [gap.field!]: answer.selected_option_id },
+            params: { ...s.input.params, [gap.field!]: value },
           },
         };
       });
@@ -315,6 +324,34 @@ export function applyClarificationAnswer(
   }
 
   return null;
+}
+
+export async function applyClarificationAnswerWithSnapping(
+  plan: WorkflowPlan,
+  gap: ClarificationGap,
+  answer: ClarificationAnswer,
+): Promise<WorkflowPlan | { skip_step_indices: number[] } | null> {
+  let normalized = answer;
+
+  if (gap.interaction_type === "input" && gap.input_kind === "number" && gap.field) {
+    const num = coercePositiveNumber(answer.value);
+    if (num !== undefined) {
+      const snapped = await snapLimitOrderFieldValue(plan, gap, num);
+      normalized = { ...answer, value: snapped };
+    }
+  }
+
+  if (gap.interaction_type === "single_choice" && gap.field && answer.selected_option_id) {
+    const num = coercePositiveNumber(answer.selected_option_id);
+    if (num !== undefined) {
+      const snapped = await snapLimitOrderFieldValue(plan, gap, num);
+      normalized = { value: snapped };
+      const inputGap: ClarificationGap = { ...gap, interaction_type: "input" };
+      return applyClarificationAnswer(plan, inputGap, normalized);
+    }
+  }
+
+  return applyClarificationAnswer(plan, gap, normalized);
 }
 
 export function formatClarificationUserMessage(answer: ClarificationAnswer): string {

@@ -5,6 +5,7 @@ import { ChevronDown, RefreshCw, Wallet } from "lucide-react";
 import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
 import { useProfileWalletData } from "@/hooks/useProfileWalletData";
 import { useWalletAssets } from "@/hooks/useWalletAssets";
+import { refreshAllWalletData } from "@/lib/refresh-wallet-data";
 import type { AgentChainId } from "@/lib/agent-chains";
 import { getChainMeta, getEvmDefaultChainId } from "@/lib/chain-meta";
 import type { WalletAssetRow } from "@/lib/wallet-assets-api";
@@ -97,7 +98,8 @@ function SkeletonRows() {
 }
 
 export function InYourWalletSection() {
-  const { wallets, enabledChains, defaultChainId, status: walletStatus } = useAgentWallet();
+  const { wallets, enabledChains, defaultChainId, status: walletStatus, refreshBalancesOnly } =
+    useAgentWallet();
   const [expanded, setExpanded] = useState(false);
   const [chainId, setChainId] = useState<AgentChainId>(defaultChainId);
 
@@ -191,7 +193,9 @@ export function InYourWalletSection() {
             <button
               type="button"
               disabled={!hasAddress || loading}
-              onClick={() => void reload()}
+              onClick={() =>
+                void refreshAllWalletData({ refreshBalancesOnly }).then(() => reload())
+              }
               className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />

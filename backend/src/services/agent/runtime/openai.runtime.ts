@@ -23,7 +23,9 @@ import {
 } from "../compound-request-flow.js";
 import {
   shouldNudgeSwapExecute,
+  shouldNudgeSwapQuoteAndExecute,
   SWAP_EXECUTE_NUDGE,
+  SWAP_QUOTE_AND_EXECUTE_NUDGE,
 } from "../swap-approval-flow.js";
 import {
   buildUnsupportedCapabilityNudge,
@@ -152,6 +154,14 @@ export const openaiRuntime: AgentRuntime = {
           messages.push({
             role: "user",
             content: SWAP_EXECUTE_NUDGE,
+          });
+          continue;
+        }
+
+        if (shouldNudgeSwapQuoteAndExecute(tool_calls, lastUserMessage)) {
+          messages.push({
+            role: "user",
+            content: SWAP_QUOTE_AND_EXECUTE_NUDGE,
           });
           continue;
         }

@@ -58,3 +58,31 @@ export function formatChainAddress(chainId: AgentChainId, address: string): stri
   }
   return `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
+
+/** Block explorer URL for the agent wallet address (mainnet defaults). */
+export function chainExplorerAccountUrl(chainId: AgentChainId, address: string): string | null {
+  if (!address) return null;
+  switch (chainId) {
+    case "sui":
+      return `https://suiscan.xyz/mainnet/account/${address}`;
+    case "ethereum": {
+      const chainIdNum = getEvmDefaultChainId();
+      if (chainIdNum === 8453) {
+        return `https://basescan.org/address/${address}`;
+      }
+      return `https://etherscan.io/address/${address}`;
+    }
+    case "solana":
+      return `https://solscan.io/account/${address}`;
+    default:
+      return null;
+  }
+}
+
+export function formatNativeBalance(amount: number, maxFractionDigits = 4): string {
+  if (!Number.isFinite(amount)) return "—";
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxFractionDigits,
+  });
+}

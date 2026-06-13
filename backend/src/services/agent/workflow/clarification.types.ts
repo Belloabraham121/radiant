@@ -13,6 +13,11 @@ export type ClarificationOption = {
   label: string;
 };
 
+export type ClarificationSuggestion = {
+  label: string;
+  value: string | number;
+};
+
 /** One missing or ambiguous slot on the plan — not a hardcoded scenario. */
 export type ClarificationGap = {
   gap_id: string;
@@ -24,7 +29,9 @@ export type ClarificationGap = {
   kind: ClarificationKind;
   input_kind?: "number" | "text";
   placeholder?: string;
+  hint?: string;
   options?: ClarificationOption[];
+  suggestions?: ClarificationSuggestion[];
   skip_step_indices_on_no?: number[];
 };
 
@@ -38,7 +45,9 @@ export type PendingClarification = {
   kind: ClarificationKind;
   input_kind?: "number" | "text";
   placeholder?: string;
+  hint?: string;
   options?: ClarificationOption[];
+  suggestions?: ClarificationSuggestion[];
   plan_preview?: string;
 };
 

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   findLatestSwapQuote,
   shouldNudgeSwapExecute,
+  shouldNudgeSwapQuoteAndExecute,
 } from "../../../src/services/agent/swap-approval-flow.js";
 
 describe("swap-approval-flow", () => {
@@ -33,6 +34,17 @@ describe("swap-approval-flow", () => {
       },
     ];
     assert.equal(shouldNudgeSwapExecute(toolCalls, "swap 1.6 SUI to USDC"), false);
+  });
+
+  it("shouldNudgeSwapQuoteAndExecute when swap requested without quote or execute", () => {
+    assert.equal(shouldNudgeSwapQuoteAndExecute([], "swap 10 DEEP to SUI"), true);
+    assert.equal(
+      shouldNudgeSwapQuoteAndExecute(
+        [{ name: "query_chain", result: { input_amount_display: 10, output_amount_display: 1.2 } }],
+        "swap 10 DEEP to SUI",
+      ),
+      false,
+    );
   });
 
   it("findLatestSwapQuote returns the most recent quote", () => {

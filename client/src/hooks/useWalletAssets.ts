@@ -80,6 +80,7 @@ export function useWalletAssets({
       subscribeWalletAssetsInvalidation((invalidatedChain) => {
         if (invalidatedChain !== chainId) return;
         setHasFetched(false);
+        setData(null);
         void reload();
       }),
     [chainId, reload],

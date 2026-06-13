@@ -74,6 +74,11 @@ export function ClarificationBar({
           <p className="mt-1 text-sm font-medium leading-relaxed text-[var(--hero-ink)]">
             {pending.question}
           </p>
+          {pending.hint ? (
+            <p className="mt-2 text-xs leading-relaxed text-[var(--hero-ink)]/65">
+              {pending.hint}
+            </p>
+          ) : null}
           {pending.plan_preview ? (
             <pre className="mt-3 whitespace-pre-wrap rounded-xl border border-[var(--hero-ink)]/15 bg-white/70 p-3 font-mono text-xs text-[var(--hero-ink)]/70">
               {pending.plan_preview}
@@ -102,7 +107,23 @@ export function ClarificationBar({
           ) : null}
 
           {pending.interaction_type === "input" ? (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div className="mt-4 space-y-3">
+              {pending.suggestions?.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {pending.suggestions.map((suggestion) => (
+                    <button
+                      key={`${suggestion.label}-${suggestion.value}`}
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onRespond({ value: suggestion.value })}
+                      className="rounded-full border-2 border-[var(--hero-ink)] bg-white px-4 py-1.5 text-left text-xs font-semibold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+                    >
+                      {suggestion.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
               <input
                 type={pending.input_kind === "number" ? "number" : "text"}
                 inputMode={pending.input_kind === "number" ? "decimal" : "text"}
@@ -126,6 +147,7 @@ export function ClarificationBar({
               >
                 Submit
               </button>
+              </div>
             </div>
           ) : null}
 

@@ -45,6 +45,24 @@ export function shouldNudgeSwapExecute(
   return findLatestSwapQuote(toolCalls) !== null;
 }
 
+/** User asked for a swap but the model replied in chat without fetching a quote or executing. */
+export function shouldNudgeSwapQuoteAndExecute(
+  toolCalls: ToolCallRecord[],
+  lastUserMessage: string,
+): boolean {
+  if (!userRequestedSwap(lastUserMessage)) {
+    return false;
+  }
+  if (hasExecuteTransactionAttempt(toolCalls)) {
+    return false;
+  }
+  return findLatestSwapQuote(toolCalls) === null;
+}
+
 export const SWAP_EXECUTE_NUDGE =
   "Submit the swap now with execute_transaction using the quote you fetched (include estimated_out_display). " +
   "The app will show an approval dialog when required — do not ask me to confirm in chat.";
+
+export const SWAP_QUOTE_AND_EXECUTE_NUDGE =
+  "The user requested a swap. In this turn call query_chain swap_quote, then execute_transaction action swap " +
+  "with estimated_out_display from the quote. The app shows an approval dialog — never ask me to confirm in chat.";

@@ -65,7 +65,8 @@ export function DeepBookBalancesLine({
           {walletSuiBalance !== null && suiManager ? (
             <p className="text-xs font-medium text-[var(--hero-ink)]/60">
               Wallet {formatBalance(walletSuiBalance)} SUI · Manager{" "}
-              {formatBalance(suiManager.balance_display)} SUI
+              {formatBalance(suiManager.balance_display)} SUI · Total{" "}
+              {formatBalance(walletSuiBalance + suiManager.balance_display)} SUI
             </p>
           ) : null}
           <p className="text-xs font-semibold text-[var(--hero-ink)]/75">

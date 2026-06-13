@@ -21,6 +21,7 @@ import {
   isApprovalContinuationMessage,
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
+import { tryExecuteSingleSwapFromMessage } from "./single-swap-flow.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
@@ -65,6 +66,29 @@ export async function runChatTurn(
       });
 
       return persistWorkflowChatResponse(privyUserId, request, workflowOutcome);
+    }
+
+    const singleSwapOutcome = await tryExecuteSingleSwapFromMessage(
+      privyUserId,
+      request.message,
+    );
+
+    if (singleSwapOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, {
+        ...singleSwapOutcome,
+        pending_clarification: null,
+        workflowCompleted: true,
+      });
     }
   }
 

@@ -14,7 +14,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <SidebarProvider>
             <div className="flex h-screen overflow-hidden bg-[var(--hero-bg)] text-[var(--hero-ink)]">
               <Sidebar />
-              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+              <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+                {children}
+              </main>
             </div>
           </SidebarProvider>
         </AppWalletProvider>

@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchDeepBookManager, type DeepBookManagerUiData } from "@/lib/deepbook-api";
 import {
   readDeepBookManagerCache,
   writeDeepBookManagerCache,
 } from "@/lib/wallet-session-cache";
+import { subscribeWalletAssetsInvalidation } from "@/lib/wallet-assets-events";
+import { invalidateDeepBookManagerCache } from "@/lib/wallet-session-cache";
 
 type UseDeepBookBalancesOptions = {
   enabled?: boolean;
@@ -50,6 +52,14 @@ export function useDeepBookBalances({ enabled = true }: UseDeepBookBalancesOptio
     if (fetchedRef.current) return;
     await reload();
   }, [enabled, reload]);
+
+  useEffect(() => {
+    return subscribeWalletAssetsInvalidation(() => {
+      invalidateDeepBookManagerCache();
+      fetchedRef.current = false;
+      void reload();
+    });
+  }, [reload]);
 
   return { data, loading, error, reload, loadIfNeeded };
 }

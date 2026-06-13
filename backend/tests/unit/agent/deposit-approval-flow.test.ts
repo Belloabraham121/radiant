@@ -14,6 +14,13 @@ describe("deposit-approval-flow", () => {
     });
   });
 
+  it("extractDepositIntent tolerates leading epost typo", () => {
+    assert.deepEqual(
+      extractDepositIntent("eposit 1.2 sui into my deepbook balance manager"),
+      { coin_key: "SUI", amount_display: 1.2 },
+    );
+  });
+
   it("buildDepositExecuteNudge includes amount_display", () => {
     const nudge = buildDepositExecuteNudge({ coin_key: "SUI", amount_display: 1 });
     assert.match(nudge, /amount_display: 1/);

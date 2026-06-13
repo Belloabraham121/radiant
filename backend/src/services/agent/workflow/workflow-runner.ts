@@ -14,10 +14,14 @@ import { runAgentTool, type AgentToolErrorResult } from "../tools.js";
 import { startSessionClarification } from "./clarification.store.js";
 import type { ClarificationAnswer, ClarificationGap, PendingClarification } from "./clarification.types.js";
 import {
-  applyClarificationAnswer,
+  applyClarificationAnswerWithSnapping,
   collectClarificationGaps,
   gapToPending,
 } from "./workflow-clarification-gaps.js";
+import {
+  buildLimitOrderRetryGap,
+  enrichClarificationGaps,
+} from "./limit-order-clarification.js";
 import { skipStepsInPlan } from "./workflow-plan-validator.js";
 import {
   clearSessionWorkflow,
@@ -368,6 +372,28 @@ export async function runWorkflowFromStep(
     }
 
     if (outcome.status === "error") {
+      const retryGap = await buildLimitOrderRetryGap(freshState.plan, index, outcome.error.message);
+      if (retryGap) {
+        const clarificationState = startSessionClarification({
+          sessionId,
+          gap: retryGap,
+          plan: freshState.plan,
+        });
+        updateSessionWorkflow(sessionId, {
+          status: "paused_clarification",
+          pendingClarificationId: clarificationState.id,
+          currentStepIndex: index,
+        });
+        const pending = gapToPending(retryGap, clarificationState.id);
+        return {
+          reply: retryGap.question,
+          tool_calls: allToolCalls,
+          pending_transaction: null,
+          pending_clarification: pending,
+          workflowCompleted: false,
+        };
+      }
+
       updateSessionWorkflow(sessionId, {
         status: "failed",
         failureMessage: outcome.error.message,
@@ -469,7 +495,7 @@ export async function continueWorkflowAfterMidRunClarification(
     return null;
   }
 
-  const applied = applyClarificationAnswer(state.plan, gap, answer);
+  const applied = await applyClarificationAnswerWithSnapping(state.plan, gap, answer);
   if (applied === null) {
     const clarificationState = startSessionClarification({
       sessionId,
@@ -523,7 +549,10 @@ export async function continueWorkflowAfterMidRunClarification(
   }
 
   const normalizedPlan = applied;
-  const gaps = collectClarificationGaps(normalizedPlan);
+  const gaps = await enrichClarificationGaps(
+    normalizedPlan,
+    collectClarificationGaps(normalizedPlan),
+  );
   if (gaps.length > 0) {
     const nextGap = gaps[0];
     const clarificationState = startSessionClarification({

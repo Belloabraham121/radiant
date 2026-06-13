@@ -1,5 +1,6 @@
 import type { PlanSlot } from "./planner.types.js";
 import type { WorkflowPlan } from "./workflow.types.js";
+import { isDeepBookCoinKey, isDeepBookPoolKey } from "../../defi/coin-key.js";
 import { resolvePlanSlot, type WorkflowLedgerEntry } from "./workflow-ledger.js";
 
 export function isPlanSlot(value: unknown): value is PlanSlot {
@@ -140,6 +141,21 @@ export function validateExecuteStepParams(
         ok: false,
         field: "coin_key",
         message: "Deposit step is missing coin_key (e.g. SUI).",
+      };
+    }
+    const coinKey = params.coin_key.trim().toUpperCase();
+    if (isDeepBookPoolKey(coinKey)) {
+      return {
+        ok: false,
+        field: "coin_key",
+        message: `Deposit coin_key "${coinKey}" looks like a pool key — use SUI or USDC, not a pair like SUI_USDC.`,
+      };
+    }
+    if (!isDeepBookCoinKey(coinKey)) {
+      return {
+        ok: false,
+        field: "coin_key",
+        message: `Deposit coin_key "${coinKey}" is not a supported DeepBook coin.`,
       };
     }
     return { ok: true };

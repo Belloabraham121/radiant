@@ -3,6 +3,11 @@ import type { DeepBookClient } from "@mysten/deepbook-v3";
 import { Transaction, type TransactionArgument } from "@mysten/sui/transactions";
 import { DEFAULT_BALANCE_MANAGER_KEY, getDeepBookEnv } from "../../config/deepbook.js";
 import { AppError } from "../../errors/app-error.js";
+import {
+  formatPoolKeyCoinKeyError,
+  isDeepBookCoinKey,
+  isDeepBookPoolKey,
+} from "./coin-key.js";
 import { getSuiClient } from "../../infrastructure/sui/client.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
@@ -89,15 +94,18 @@ function toClientContext(
 
 function assertCoinKey(coinKey: string): string {
   const normalized = coinKey.trim().toUpperCase();
-  const { coins } = getDeepBookEnv();
-  if (!(normalized in coins)) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      `Unknown DeepBook coin key "${coinKey}". Supported keys include ${Object.keys(coins).join(", ")}.`,
-    );
+  if (isDeepBookCoinKey(normalized)) {
+    return normalized;
   }
-  return normalized;
+  if (isDeepBookPoolKey(normalized)) {
+    throw new AppError(400, "VALIDATION_ERROR", formatPoolKeyCoinKeyError(coinKey));
+  }
+  const { coins } = getDeepBookEnv();
+  throw new AppError(
+    400,
+    "VALIDATION_ERROR",
+    `Unknown DeepBook coin key "${coinKey}". Supported keys include ${Object.keys(coins).join(", ")}.`,
+  );
 }
 
 const DEPOSIT_AMOUNT_PARAM_KEYS = [

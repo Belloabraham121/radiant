@@ -3,6 +3,7 @@ import { getAgentProvider, getOpenAiConfig } from "../../../config/agent.js";
 import { AppError } from "../../../errors/app-error.js";
 import { WORKFLOW_PLANNER_SYSTEM_PROMPT } from "./planner-prompt.js";
 import type { PlannerOutput } from "./planner.types.js";
+import { normalizePlannerAssumptions } from "./planner-assumptions.js";
 import {
   looksLikeWorkflowMessage,
   planWorkflowHeuristic,
@@ -24,7 +25,7 @@ function parsePlannerJson(raw: string): PlannerOutput {
   return {
     is_multi_step: Boolean(parsed.is_multi_step),
     steps: parsed.steps,
-    assumptions: parsed.assumptions ?? [],
+    assumptions: normalizePlannerAssumptions(parsed.assumptions),
     confidence: parsed.confidence,
     needs_clarification: Boolean(parsed.needs_clarification),
     clarification: parsed.clarification,

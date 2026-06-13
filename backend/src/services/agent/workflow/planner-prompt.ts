@@ -10,7 +10,7 @@ Rules:
 - Sequential steps: comma-separated lists, "then", "when you're done", "after that" all imply order.
 - Supported actions: deepbook_deposit, deepbook_withdraw, deepbook_provision_manager, swap, transfer_sui, deepbook_place_limit_order, deepbook_place_market_order, deepbook_cancel_order, deepbook_cancel_all_orders, query.
 - withdraw all: params { coin_key, withdraw_all: true }
-- deposit: params { coin_key, amount_display } — use ref for implicit amounts
+- deposit: params { coin_key, amount_display } — coin_key is ONE coin (SUI, USDC), never a pool pair like SUI_USDC
 - swap sell SUI→USDC: params { pool_key, amount, side: "sell", input_coin: "SUI", output_coin: "USDC" }
 - swap buy SUI with USDC: params { pool_key, amount, side: "buy", input_coin: "USDC", output_coin: "SUI" }
 - limit order: params { pool_key, quantity, price, side: "buy"|"sell" } — price is required

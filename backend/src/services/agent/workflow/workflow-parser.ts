@@ -1,4 +1,5 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { resolvePoolKeyForCoinPair } from "../../defi/pool-key.js";
 import { extractDepositIntent } from "../deposit-approval-flow.js";
 import { userAskedMarketPrice } from "../compound-request-flow.js";
 import { userRequestedSwap } from "../swap-approval-flow.js";
@@ -18,6 +19,7 @@ const SEQUENTIAL_MARKER =
   /\b(when\s+(?:you(?:'re| are)\s+)?done|after\s+(?:that|this|you(?:'re| are)\s+done)|then|next|also|once\s+(?:that(?:'s| is)\s+)?done)\b/i;
 
 const COIN = "SUI|USDC|DEEP|WAL|USDT";
+const COIN_SUFFIX = "(?:\\s+tokens?)?";
 const SUI_ADDRESS = /0x[a-fA-F0-9]{64}/;
 
 function normalizePoolKey(raw: string): string {
@@ -163,7 +165,56 @@ function parseLimitOrderSegment(segment: string): WorkflowExecuteStep | null {
     };
   }
 
+  const buyAtQuote = segment.match(
+    new RegExp(
+      `(?:order\\s+to\\s+)?buy\\s+([\\d.,]+)\\s*(${COIN})\\s+at\\s+(?:usdc|usd|USDC)(?:\\b|\\s+on\\b)`,
+      "i",
+    ),
+  );
+  if (buyAtQuote) {
+    const quantity = Number(buyAtQuote[1].replace(/,/g, ""));
+    const pool = segment.match(/(SUI[_\s/]*USDC|DEEP[_\s/]*USDC)/i);
+    return {
+      kind: "execute",
+      label: `Limit buy ${quantity} ${buyAtQuote[2].toUpperCase()}`,
+      input: {
+        chain_id: "sui",
+        action: "deepbook_place_limit_order",
+        params: {
+          pool_key: pool ? normalizePoolKey(pool[0]) : getDeepBookEnv().defaultPool,
+          quantity,
+          side: "buy",
+        },
+      },
+    };
+  }
+
   return null;
+}
+
+function resolveSwapPoolKey(
+  segment: string,
+  from: string,
+  to: string,
+): string {
+  const explicit = segment.match(/(SUI[_\s/]*USDC|DEEP[_\s/]*(?:USDC|SUI)|WAL[_\s/]*USDC)/i);
+  if (explicit) {
+    return normalizePoolKey(explicit[0]);
+  }
+  return resolvePoolKeyForCoinPair(from, to) ?? getDeepBookEnv().defaultPool;
+}
+
+function inferSwapSide(from: string, to: string, poolKey: string): "buy" | "sell" {
+  const { pools } = getDeepBookEnv();
+  const pool = pools[poolKey as keyof typeof pools];
+  if (pool) {
+    const base = pool.baseCoin.toUpperCase();
+    if (from === base) return "sell";
+    if (to === base) return "buy";
+  }
+  if (from === "SUI") return "sell";
+  if (to === "SUI") return "buy";
+  return "sell";
 }
 
 function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
@@ -172,14 +223,17 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
   }
 
   const amountAt = segment.match(
-    new RegExp(`(?:swap|convert|trade|exchange)\\s+([\\d.,]+)\\s*(${COIN})\\s+at\\s+(${COIN})`, "i"),
+    new RegExp(
+      `(?:swap|convert|trade|exchange)\\s+([\\d.,]+)\\s*(${COIN})${COIN_SUFFIX}\\s+at\\s+(${COIN})${COIN_SUFFIX}`,
+      "i",
+    ),
   );
   if (amountAt) {
     const amount = Number(amountAt[1].replace(/,/g, ""));
     const from = amountAt[2].toUpperCase();
     const to = amountAt[3].toUpperCase();
-    const side = from === "SUI" ? "sell" : to === "SUI" ? "buy" : "sell";
-    const pool = segment.match(/(SUI[_\s/]*USDC|DEEP[_\s/]*USDC)/i);
+    const poolKey = resolveSwapPoolKey(segment, from, to);
+    const side = inferSwapSide(from, to, poolKey);
     return {
       kind: "execute",
       label: `Swap ${amount} ${from} → ${to}`,
@@ -187,7 +241,7 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
         chain_id: "sui",
         action: "swap",
         params: {
-          pool_key: pool ? normalizePoolKey(pool[0]) : getDeepBookEnv().defaultPool,
+          pool_key: poolKey,
           amount,
           side,
           input_coin: from,
@@ -198,14 +252,17 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
   }
 
   const amountSide = segment.match(
-    new RegExp(`(?:swap|convert|trade|exchange)\\s+([\\d.,]+)\\s*(${COIN})\\s+(?:to|for|into)\\s+(${COIN})`, "i"),
+    new RegExp(
+      `(?:swap|convert|trade|exchange)\\s+([\\d.,]+)\\s*(${COIN})${COIN_SUFFIX}\\s+(?:to|for|into)\\s+(${COIN})${COIN_SUFFIX}`,
+      "i",
+    ),
   );
   if (amountSide) {
     const amount = Number(amountSide[1].replace(/,/g, ""));
     const from = amountSide[2].toUpperCase();
     const to = amountSide[3].toUpperCase();
-    const side = from === "SUI" ? "sell" : to === "SUI" ? "buy" : "sell";
-    const pool = segment.match(/(SUI[_\s/]*USDC|DEEP[_\s/]*USDC)/i);
+    const poolKey = resolveSwapPoolKey(segment, from, to);
+    const side = inferSwapSide(from, to, poolKey);
     return {
       kind: "execute",
       label: `Swap ${amount} ${from} → ${to}`,
@@ -213,7 +270,7 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
         chain_id: "sui",
         action: "swap",
         params: {
-          pool_key: pool ? normalizePoolKey(pool[0]) : getDeepBookEnv().defaultPool,
+          pool_key: poolKey,
           amount,
           side,
           input_coin: from,
@@ -244,6 +301,30 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
   }
 
   return null;
+}
+
+/** Parse a single-swap message (not multi-step) into an execute step when params are complete. */
+export function parseSingleSwapIntent(message: string): WorkflowExecuteStep | null {
+  const trimmed = message.trim();
+  if (!userRequestedSwap(trimmed)) {
+    return null;
+  }
+
+  const swap = parseSwapSegment(trimmed);
+  if (!swap) {
+    return null;
+  }
+
+  const params = swap.input.params as Record<string, unknown>;
+  if (
+    typeof params.input_coin !== "string" ||
+    typeof params.output_coin !== "string" ||
+    !Number.isFinite(params.amount as number)
+  ) {
+    return null;
+  }
+
+  return swap;
 }
 
 function parseTransferSegment(segment: string): WorkflowExecuteStep | null {

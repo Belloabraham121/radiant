@@ -48,6 +48,11 @@ export type ClarificationOption = {
   label: string;
 };
 
+export type ClarificationSuggestion = {
+  label: string;
+  value: string | number;
+};
+
 export type PendingClarification = {
   id: string;
   gap_id: string;
@@ -58,7 +63,9 @@ export type PendingClarification = {
   kind: "intent" | "amount_ref" | "constraint_skip";
   input_kind?: "number" | "text";
   placeholder?: string;
+  hint?: string;
   options?: ClarificationOption[];
+  suggestions?: ClarificationSuggestion[];
   plan_preview?: string;
 };
 

@@ -71,21 +71,12 @@ export function Sidebar() {
       />
 
       <aside className="fixed inset-y-0 left-0 z-50 flex w-80 flex-col border-r-2 border-[var(--hero-ink)] bg-white md:relative md:z-auto md:shrink-0">
-        <div className="flex items-center justify-between border-b-2 border-[var(--hero-ink)] px-5 py-4">
-          <Link href="/" className="flex items-center gap-2 font-heading text-xl font-extrabold">
-            <Sparkles className="size-5 text-[var(--hero-amber)]" strokeWidth={2.5} />
-            Radiant
-          </Link>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleNewChat()}
-              disabled={creating}
-              className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-1.5 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:opacity-50"
-            >
-              <Plus className="size-3.5" strokeWidth={3} />
-              {creating ? "Creating…" : "New chat"}
-            </button>
+        <div className="flex flex-col gap-3 border-b-2 border-[var(--hero-ink)] px-5 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2 font-heading text-xl font-extrabold">
+              <Sparkles className="size-5 text-[var(--hero-amber)]" strokeWidth={2.5} />
+              Radiant
+            </Link>
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -95,9 +86,18 @@ export function Sidebar() {
               <ChevronsLeft className="size-4" strokeWidth={2.5} />
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => void handleNewChat()}
+            disabled={creating}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-2 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:opacity-50"
+          >
+            <Plus className="size-3.5" strokeWidth={3} />
+            {creating ? "Creating…" : "New chat"}
+          </button>
         </div>
 
-        <nav className="flex gap-1.5 border-b-2 border-[var(--hero-ink)] px-4 py-3">
+        <nav className="flex flex-col gap-1.5 border-b-2 border-[var(--hero-ink)] px-4 py-3">
           {NAV.map(({ href, label, Icon }) => {
             const active =
               href === "/app"
@@ -107,7 +107,7 @@ export function Sidebar() {
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-full border-2 px-2 py-2 text-xs font-bold transition-all ${
+                className={`flex items-center gap-2 rounded-full border-2 px-3 py-2 text-xs font-bold transition-all ${
                   active
                     ? "border-[var(--hero-ink)] bg-[var(--hero-ink)] text-[var(--hero-bg)]"
                     : "border-transparent hover:border-[var(--hero-ink)]"

@@ -14,6 +14,7 @@ import type { ProvisionedDeepBookManager } from "./deepbook-balance-manager.type
 import { getDeepBookPoolInfo } from "./deepbook-pools.service.js";
 import { fetchIndexerOrders } from "./indexer/deepbook-indexer.client.js";
 import { normalizePoolKey } from "./pool-key.js";
+import { isMultipleOfStep } from "./order-constraints.js";
 import {
   getDeepBookClient,
   getSuiDeepBookClient,
@@ -326,8 +327,7 @@ async function validateLimitOrderSize(
       );
     }
     if (lot_size > 0) {
-      const remainder = parsed.quantity % lot_size;
-      if (remainder > 1e-9) {
+      if (!isMultipleOfStep(parsed.quantity, lot_size)) {
         throw new AppError(
           400,
           "VALIDATION_ERROR",
@@ -336,8 +336,7 @@ async function validateLimitOrderSize(
       }
     }
     if (tick_size > 0) {
-      const priceRemainder = parsed.price % tick_size;
-      if (priceRemainder > 1e-9) {
+      if (!isMultipleOfStep(parsed.price, tick_size)) {
         throw new AppError(
           400,
           "VALIDATION_ERROR",

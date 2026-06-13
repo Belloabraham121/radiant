@@ -1,4 +1,5 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { extractDepositIntent } from "../deposit-approval-flow.js";
 import { getDeepBookPoolInfo } from "../../defi/deepbook-pools.service.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import type { QueryChainInput } from "../agent.types.js";
@@ -7,6 +8,7 @@ import {
   collectClarificationGaps,
   type CollectGapsOptions,
 } from "./workflow-clarification-gaps.js";
+import { enrichClarificationGaps } from "./limit-order-clarification.js";
 import {
   CONFIDENCE_EXECUTE_THRESHOLD,
   type PlannerOutput,
@@ -15,6 +17,7 @@ import {
 } from "./planner.types.js";
 import type { WorkflowLedgerEntry } from "./workflow-ledger.js";
 import {
+  coercePositiveNumber,
   flattenPlannedParams,
   normalizeExecuteParams,
   validateExecuteStepParams,
@@ -82,6 +85,41 @@ function plannedToWorkflowStep(
 
 function buildPlanPreview(steps: WorkflowStep[]): string {
   return steps.map((step, index) => `${index + 1}. ${step.label}`).join("\n");
+}
+
+function applyDepositIntentFromMessage(
+  steps: WorkflowStep[],
+  originalMessage: string,
+): WorkflowStep[] {
+  const intent = extractDepositIntent(originalMessage);
+  if (!intent) {
+    return steps;
+  }
+
+  return steps.map((step) => {
+    if (step.kind !== "execute" || step.input.action !== "deepbook_deposit") {
+      return step;
+    }
+
+    const params = step.input.params as Record<string, unknown>;
+    const amount =
+      coercePositiveNumber(params.amount_display) ??
+      coercePositiveNumber(params.amount) ??
+      intent.amount_display;
+
+    return {
+      ...step,
+      label: `Deposit ${amount} ${intent.coin_key}`,
+      input: {
+        ...step.input,
+        params: {
+          ...params,
+          coin_key: intent.coin_key,
+          amount_display: amount,
+        },
+      },
+    };
+  });
 }
 
 async function collectConstraintGaps(
@@ -163,31 +201,36 @@ export async function validatePlannerOutput(
     workflowSteps.push(converted.step);
   }
 
+  const correctedSteps = applyDepositIntentFromMessage(workflowSteps, originalMessage);
+
   const plan: WorkflowPlan = {
     originalMessage,
-    steps: workflowSteps,
+    steps: correctedSteps,
   };
 
   const gapOptions: CollectGapsOptions = {
     assumptions: planner.assumptions,
     confidence: planner.confidence,
-    constraintGaps: await collectConstraintGaps(workflowSteps),
+    constraintGaps: await collectConstraintGaps(correctedSteps),
   };
 
-  if (planner.confidence < CONFIDENCE_EXECUTE_THRESHOLD && planner.assumptions.length === 0) {
+  if (
+    planner.confidence < CONFIDENCE_EXECUTE_THRESHOLD &&
+    planner.assumptions.length === 0
+  ) {
     gapOptions.constraintGaps = [
       ...(gapOptions.constraintGaps ?? []),
       {
         gap_id: "plan.preview",
         interaction_type: "confirm",
-        question: `I'll run ${planner.steps.length} steps:\n${buildPlanPreview(workflowSteps)}\n\nDoes this match what you want?`,
+        question: `I'll run ${planner.steps.length} steps:\n${buildPlanPreview(correctedSteps)}\n\nDoes this match what you want?`,
         step_index: 0,
         kind: "intent",
       },
     ];
   }
 
-  const gaps = collectClarificationGaps(plan, gapOptions);
+  const gaps = await enrichClarificationGaps(plan, collectClarificationGaps(plan, gapOptions));
   if (gaps.length > 0) {
     return {
       status: "clarify",

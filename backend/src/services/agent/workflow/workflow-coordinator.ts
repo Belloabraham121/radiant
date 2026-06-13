@@ -11,10 +11,12 @@ import { planWorkflowMessage } from "./workflow-planner.js";
 import { skipStepsInPlan, validatePlannerOutput } from "./workflow-plan-validator.js";
 import {
   applyClarificationAnswer,
+  applyClarificationAnswerWithSnapping,
   buildPlanPreview,
   collectClarificationGaps,
   gapToPending,
 } from "./workflow-clarification-gaps.js";
+import { enrichClarificationGaps } from "./limit-order-clarification.js";
 import {
   normalizeWorkflowPlan,
   validateWorkflowPlan,
@@ -94,7 +96,7 @@ async function continueWithResolvedPlan(
   },
 ): Promise<WorkflowRunOutcome> {
   const normalized = normalizeWorkflowPlan(plan);
-  const gaps = collectClarificationGaps(normalized);
+  const gaps = await enrichClarificationGaps(normalized, collectClarificationGaps(normalized));
   if (gaps.length > 0) {
     const gap = gaps[0];
     const clarificationState = startSessionClarification({
@@ -109,7 +111,10 @@ async function continueWithResolvedPlan(
 
   const paramCheck = validateWorkflowPlan(normalized);
   if (!paramCheck.ok) {
-    const gapsAfterValidation = collectClarificationGaps(normalized);
+    const gapsAfterValidation = await enrichClarificationGaps(
+      normalized,
+      collectClarificationGaps(normalized),
+    );
     if (gapsAfterValidation.length > 0) {
       const gap = gapsAfterValidation[0];
       const clarificationState = startSessionClarification({
@@ -235,7 +240,7 @@ export async function continueWorkflowAfterClarification(
 
   clearSessionClarification(sessionId);
 
-  const applied = applyClarificationAnswer(state.plan, state.gap, answer);
+  const applied = await applyClarificationAnswerWithSnapping(state.plan, state.gap, answer);
   if (applied === null) {
     const clarificationState = startSessionClarification({
       sessionId,

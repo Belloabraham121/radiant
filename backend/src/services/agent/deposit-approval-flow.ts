@@ -10,6 +10,7 @@ export type DeepBookDepositIntent = {
 const DEPOSIT_COIN_PATTERN = "sui|usdc|deep|wal|usdt";
 
 export function extractDepositIntent(message: string): DeepBookDepositIntent | null {
+  const normalized = message.replace(/^\s*eposit\b/i, "deposit");
   const patterns = [
     new RegExp(`deposit\\s+([\\d.,]+)\\s*(${DEPOSIT_COIN_PATTERN})\\b`, "i"),
     new RegExp(
@@ -20,7 +21,7 @@ export function extractDepositIntent(message: string): DeepBookDepositIntent | n
   ];
 
   for (const pattern of patterns) {
-    const match = message.match(pattern);
+    const match = normalized.match(pattern);
     if (!match) {
       continue;
     }

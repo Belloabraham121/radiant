@@ -33,6 +33,17 @@ function splitMessageSegments(message: string): string[] {
     return commaParts;
   }
 
+  const andParts = trimmed
+    .split(
+      /\s+and\s+(?=(?:order|buy|sell|swap|deposit|withdraw|transfer|send|cancel|place)\b)/i,
+    )
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (andParts.length >= 2) {
+    return andParts;
+  }
+
   return [trimmed];
 }
 
