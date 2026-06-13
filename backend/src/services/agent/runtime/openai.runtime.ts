@@ -38,6 +38,8 @@ import {
   hasSuccessfulQueryResults,
   REPLY_AFTER_TOOLS_NUDGE,
   shouldNudgeReplyAfterTools,
+  hasAgentTransactionsQuery,
+  AGENT_TRANSACTIONS_REPLY_NUDGE,
 } from "../turn-reply-flow.js";
 import {
   buildUnsupportedCapabilityNudge,
@@ -210,7 +212,9 @@ export const openaiRuntime: AgentRuntime = {
         if (shouldNudgeReplyAfterTools(tool_calls)) {
           messages.push({
             role: "user",
-            content: REPLY_AFTER_TOOLS_NUDGE,
+            content: hasAgentTransactionsQuery(tool_calls)
+              ? `${REPLY_AFTER_TOOLS_NUDGE}\n\n${AGENT_TRANSACTIONS_REPLY_NUDGE}`
+              : REPLY_AFTER_TOOLS_NUDGE,
           });
           continue;
         }

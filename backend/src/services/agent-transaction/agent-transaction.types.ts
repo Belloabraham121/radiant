@@ -133,6 +133,8 @@ export type AgentTransactionsQueryResult = {
   items: Array<AgentTransactionListItem | AgentTransactionDetail>;
   total: number;
   limit: number;
+  /** Pre-formatted lines with date, amount, status, and digest — quote in chat replies. */
+  summary: string;
 };
 
 export type QueryAgentTransactionsInput = {

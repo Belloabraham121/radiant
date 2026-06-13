@@ -12,10 +12,25 @@ import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import type { DeepBookOpenOrdersResult } from "../../defi/deepbook/deepbook-orders.service.js";
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
+import type { AgentTransactionsQueryResult } from "../../agent-transaction/agent-transaction.types.js";
+
+function isAgentTransactionsResult(result: unknown): result is AgentTransactionsQueryResult {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    Array.isArray((result as AgentTransactionsQueryResult).items) &&
+    typeof (result as AgentTransactionsQueryResult).summary === "string" &&
+    typeof (result as AgentTransactionsQueryResult).total === "number"
+  );
+}
 
 export function summarizeQueryChainResult(result: unknown): string | null {
   if (typeof result !== "object" || result === null) {
     return null;
+  }
+
+  if (isAgentTransactionsResult(result)) {
+    return result.summary;
   }
 
   const openOrders = result as DeepBookOpenOrdersResult;

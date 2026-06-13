@@ -102,7 +102,7 @@ export const queryChainToolDefinition = {
           "deepbook_ohlcv: { pool_key?, interval?: 1h|1d, limit? } — OHLCV candles from indexer (ohclv endpoint). " +
           "May also pass input_coin/from + output_coin/to instead of side for swap_quote. " +
           "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
-          "returns recent agent wallet activity with session_id/message_id to link back to chat. " +
+          "returns recent agent wallet activity; response includes summary (date, amount, status, digest) to quote in chat. " +
           "EVM balances: { evm_chain_id }.",
         additionalProperties: true,
       },

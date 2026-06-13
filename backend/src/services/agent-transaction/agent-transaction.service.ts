@@ -6,6 +6,7 @@ import type { PendingTransaction } from "../agent/agent.types.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import { findSessionForUser } from "../conversation/session.repository.js";
 import { buildTransactionDisplay, enrichDisplayFromResult } from "./deepbook/build-display.js";
+import { formatAgentTransactionsForChat } from "./format-for-chat.js";
 import { categorizeAgentTransactionAction } from "./deepbook/categorize-action.js";
 import { buildExplorerTxUrl } from "./explorer-url.js";
 import { sanitizeErrorMessageForUi } from "./sanitize-error-message.js";
@@ -330,7 +331,12 @@ export async function queryAgentTransactions(
 ): Promise<AgentTransactionsQueryResult> {
   if (input.transactionId) {
     const detail = await getTransaction(privyUserId, input.transactionId);
-    return { items: [detail], total: 1, limit: 1 };
+    return {
+      items: [detail],
+      total: 1,
+      limit: 1,
+      summary: formatAgentTransactionsForChat([detail]),
+    };
   }
 
   const limit = Math.min(
@@ -351,6 +357,7 @@ export async function queryAgentTransactions(
     items: result.items,
     total: result.total,
     limit: result.limit,
+    summary: formatAgentTransactionsForChat(result.items),
   };
 }
 

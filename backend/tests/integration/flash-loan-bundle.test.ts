@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { AppError } from "../../src/errors/app-error.js";
 import { prisma } from "../../src/infrastructure/postgres/client.js";
-import { getSuiClient } from "../../src/infrastructure/sui/client.js";
+import { getSuiClient, resetSuiClientForTests } from "../../src/infrastructure/sui/client.js";
 import { defaultUserProfileFields } from "../../src/services/auth/user.repository.js";
 import {
   getAgentPermissions,
@@ -16,7 +16,11 @@ import {
   validateFlashLoanBundle,
 } from "../../src/services/defi/deepbook/deepbook-flash-loan-bundle.js";
 import { getFlashLoanBundleQuote } from "../../src/services/defi/deepbook/deepbook-flash-loan-quote.js";
-import { getSuiDeepBookClient } from "../../src/services/defi/deepbook/providers/sui-deepbook.provider.js";
+import { setRedisClientForTests } from "../../src/infrastructure/redis/client.js";
+import {
+  getSuiDeepBookClient,
+  resetSuiDeepBookClientsForTests,
+} from "../../src/services/defi/deepbook/providers/sui-deepbook.provider.js";
 
 const privyUserId = "did:privy:flash-loan-integration";
 const walletAddress =
@@ -67,6 +71,11 @@ describe("flash loan bundle integration", () => {
       where: { user: { privy_user_id: privyUserId } },
     });
     await prisma.user.deleteMany({ where: { privy_user_id: privyUserId } });
+
+    resetSuiDeepBookClientsForTests();
+    resetSuiClientForTests();
+    setRedisClientForTests(null);
+    await prisma.$disconnect();
   });
 
   it("updateAgentPermissions persists auto_approve_flash_loans", async () => {

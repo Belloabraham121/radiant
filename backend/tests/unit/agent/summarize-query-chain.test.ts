@@ -53,4 +53,34 @@ describe("summarizeQueryChainResult", () => {
     assert.match(summary!, /DEEP_USDC/);
     assert.match(summary!, /Last price: 0.11/);
   });
+
+  it("returns agent_transactions summary for the model", () => {
+    const summary = summarizeQueryChainResult({
+      items: [
+        {
+          id: "00000000-0000-4000-8000-000000000001",
+          status: "success",
+          category: "swap",
+          chain_id: "sui",
+          title: "Swap on DeepBook (SUI_USDC)",
+          amount_display: "0.5 SUI → ~1.2 USDC",
+          digest: "9GjRb8giW9T2V5JorAeMnpXu66KzzA6m5HeBkqf5EVrm",
+          effects_status: "success",
+          session_id: null,
+          message_id: null,
+          created_at: "2026-06-13T00:48:00.000Z",
+          completed_at: "2026-06-13T00:48:05.000Z",
+        },
+      ],
+      total: 1,
+      limit: 10,
+      summary:
+        "Most recent agent transaction:\n\n1. Swap on DeepBook (SUI_USDC)\n   Date: June 13, 2026 at 12:48 AM UTC\n   Amount: 0.5 SUI → ~1.2 USDC\n   Status: Success\n   Digest: 9GjRb8giW9T2V5JorAeMnpXu66KzzA6m5HeBkqf5EVrm",
+    });
+
+    assert.ok(summary);
+    assert.match(summary!, /Status: Success/);
+    assert.match(summary!, /0\.5 SUI → ~1\.2 USDC/);
+    assert.doesNotMatch(summary!, /Insert Date/i);
+  });
 });

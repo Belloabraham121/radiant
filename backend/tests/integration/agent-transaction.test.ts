@@ -153,6 +153,8 @@ describe("agent-transaction.service", () => {
     assert.equal(detail.limit, 1);
     assert.equal(detail.items[0]?.id, firstId);
     assert.ok("params" in (detail.items[0] ?? {}));
+    assert.ok(typeof detail.summary === "string");
+    assert.match(detail.summary, /Status:/);
   });
 
   it("runQueryChainTool returns agent_transactions for the authenticated user", async () => {
@@ -166,5 +168,9 @@ describe("agent-transaction.service", () => {
     assert.equal(result.limit, 5);
     assert.ok(result.items.length >= 1);
     assert.equal(result.items[0]?.category, "swap");
+    assert.ok(typeof result.summary === "string");
+    assert.match(result.summary, /Status:/);
+    assert.match(result.summary, /Amount:/);
+    assert.match(result.summary, /Date:/);
   });
 });

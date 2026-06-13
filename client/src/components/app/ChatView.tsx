@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowUp, Check, ExternalLink, Sparkles } from "lucide-react";
+import { ArrowUp, Check, Copy, ExternalLink, Sparkles } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { AgentTransactionDetailDialog } from "@/components/app/AgentTransactionDetailDialog";
@@ -57,6 +57,40 @@ function ReceiptPill({
   );
 }
 
+function MessageCopyButton({ text, isUser }: { text: string; isUser: boolean }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      aria-label={isUser ? "Copy prompt" : "Copy response"}
+      title={isUser ? "Copy prompt" : "Copy response"}
+      className={`rounded-lg border-2 p-1 transition-all hover:-translate-y-0.5 ${
+        copied
+          ? "border-[var(--hero-mint)] bg-[var(--hero-mint)]/15 text-[var(--hero-mint)]"
+          : "border-[var(--hero-ink)]/15 text-[var(--hero-ink)]/35 hover:border-[var(--hero-ink)]/30 hover:text-[var(--hero-ink)]/60"
+      }`}
+    >
+      {copied ? (
+        <Check className="size-3.5" strokeWidth={2.5} />
+      ) : (
+        <Copy className="size-3.5" strokeWidth={2.5} />
+      )}
+    </button>
+  );
+}
+
 function Bubble({
   message,
   onViewActivity,
@@ -101,6 +135,10 @@ function Bubble({
             ))}
           </div>
         )}
+
+        <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+          <MessageCopyButton text={message.text} isUser={isUser} />
+        </div>
       </div>
     </div>
   );

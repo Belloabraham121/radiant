@@ -11,6 +11,10 @@ export const REPLY_AFTER_TOOLS_NUDGE =
   "Execution requests should use execute_transaction when ready. " +
   "Only call more tools if existing results are insufficient.";
 
+export const AGENT_TRANSACTIONS_REPLY_NUDGE =
+  "The agent_transactions tool result above includes date, amount, status, and digest for each row. " +
+  "Copy those exact values into your reply. Never use placeholders like [Insert Date], [Insert Amount], or [Insert Status].";
+
 export function isSuccessfulToolResult(result: unknown): boolean {
   return typeof result === "object" && result !== null && !("error" in result);
 }
@@ -19,6 +23,21 @@ export function hasSuccessfulQueryResults(toolCalls: ToolCallRecord[]): boolean 
   return toolCalls.some(
     (call) => call.name === QUERY_CHAIN_TOOL_NAME && isSuccessfulToolResult(call.result),
   );
+}
+
+export function hasAgentTransactionsQuery(toolCalls: ToolCallRecord[]): boolean {
+  return toolCalls.some((call) => {
+    if (call.name !== QUERY_CHAIN_TOOL_NAME || !isSuccessfulToolResult(call.result)) {
+      return false;
+    }
+    const result = call.result;
+    return (
+      typeof result === "object" &&
+      result !== null &&
+      Array.isArray((result as { items?: unknown }).items) &&
+      typeof (result as { summary?: unknown }).summary === "string"
+    );
+  });
 }
 
 function hasPendingOrExecutedTransaction(toolCalls: ToolCallRecord[]): boolean {
