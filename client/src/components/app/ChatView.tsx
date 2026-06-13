@@ -2,17 +2,68 @@
 
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowUp, Check, Sparkles } from "lucide-react";
+import { ArrowUp, Check, ExternalLink, Sparkles } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
+import { AgentTransactionDetailDialog } from "@/components/app/AgentTransactionDetailDialog";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { useChatSession } from "@/hooks/useChatSession";
-import type { ChatMessage } from "@/lib/chat-messages";
+import type { ChatMessage, Receipt } from "@/lib/chat-messages";
+import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
 
-function Bubble({ message }: { message: ChatMessage }) {
+function ReceiptPill({
+  receipt,
+  onViewActivity,
+}: {
+  receipt: Receipt;
+  onViewActivity: (transactionId: string) => void;
+}) {
+  const explorerUrl =
+    receipt.digest && receipt.chainId
+      ? chainExplorerTxUrl(receipt.chainId, receipt.digest)
+      : null;
+
+  return (
+    <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold">
+      <Check className="size-3.5 shrink-0 text-[var(--hero-mint)]" strokeWidth={3} />
+      <span>{receipt.label}</span>
+      {receipt.detail ? (
+        <span className="font-mono font-semibold text-[var(--hero-ink)]/45">{receipt.detail}</span>
+      ) : null}
+      {explorerUrl ? (
+        <a
+          href={explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-0.5 font-bold text-[var(--hero-blue)] hover:underline"
+        >
+          Explorer
+          <ExternalLink className="size-3" />
+        </a>
+      ) : null}
+      {receipt.agentTransactionId ? (
+        <button
+          type="button"
+          onClick={() => onViewActivity(receipt.agentTransactionId!)}
+          className="font-bold text-[var(--hero-violet)] hover:underline"
+        >
+          View activity
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
+function Bubble({
+  message,
+  onViewActivity,
+}: {
+  message: ChatMessage;
+  onViewActivity: (transactionId: string) => void;
+}) {
   const isUser = message.role === "user";
   return (
     <div
@@ -42,21 +93,11 @@ function Bubble({ message }: { message: ChatMessage }) {
         {message.receipts && message.receipts.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {message.receipts.map((receipt, index) => (
-              <span
+              <ReceiptPill
                 key={`${message.id}-receipt-${index}`}
-                className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold"
-              >
-                <Check
-                  className="size-3.5 text-[var(--hero-mint)]"
-                  strokeWidth={3}
-                />
-                {receipt.label}
-                {receipt.detail && (
-                  <span className="font-mono font-semibold text-[var(--hero-ink)]/45">
-                    {receipt.detail}
-                  </span>
-                )}
-              </span>
+                receipt={receipt}
+                onViewActivity={onViewActivity}
+              />
             ))}
           </div>
         )}
@@ -91,6 +132,13 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const animatedMessageIdsRef = useRef(new Set<string>());
   const initialBatchDoneRef = useRef(false);
   const [input, setInput] = useState("");
+  const [activityTransactionId, setActivityTransactionId] = useState<string | null>(null);
+  const [activityDetailOpen, setActivityDetailOpen] = useState(false);
+
+  const openActivityDetail = (transactionId: string) => {
+    setActivityTransactionId(transactionId);
+    setActivityDetailOpen(true);
+  };
 
   const {
     messages,
@@ -222,7 +270,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
             )}
 
             {messages.map((message) => (
-              <Bubble key={message.id} message={message} />
+              <Bubble key={message.id} message={message} onViewActivity={openActivityDetail} />
             ))}
 
             {typing && (
@@ -301,6 +349,12 @@ export function ChatView({ sessionId }: ChatViewProps) {
           </p>
         </form>
       </div>
+
+      <AgentTransactionDetailDialog
+        transactionId={activityTransactionId}
+        open={activityDetailOpen}
+        onOpenChange={setActivityDetailOpen}
+      />
     </div>
   );
 }

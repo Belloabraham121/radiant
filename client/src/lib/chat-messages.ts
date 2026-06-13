@@ -1,8 +1,14 @@
 import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
+import type { AgentChainId } from "@/lib/agent-chains";
+import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 export type Receipt = {
   label: string;
   detail?: string;
+  agentTransactionId?: string;
+  digest?: string;
+  chainId?: AgentChainId;
+  sessionId?: string;
 };
 
 export type ChatMessage = {
@@ -118,7 +124,9 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       const raw = call.result as {
         error?: { code?: string; message?: string };
         status?: string;
+        agent_transaction_id?: string;
         result?: {
+          chain_id?: AgentChainId;
           digest?: string;
           deepbook?: {
             manager_object_id?: string;
@@ -143,7 +151,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             };
           };
         };
-        pending?: { action?: string; amount_display?: string };
+        pending?: { id?: string; chain_id?: AgentChainId; action?: string; amount_display?: string };
       };
 
       if (raw.error?.message) {
@@ -151,6 +159,15 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       }
 
       const outcome = raw;
+      const agentTransactionId =
+        outcome.agent_transaction_id ?? outcome.pending?.id;
+      const chainId =
+        outcome.result?.chain_id ?? outcome.pending?.chain_id;
+
+      const receiptMeta = {
+        ...(agentTransactionId ? { agentTransactionId } : {}),
+        ...(chainId ? { chainId } : {}),
+      };
 
       if (outcome.status === "approval_required" && outcome.pending) {
         const action = outcome.pending.action ?? "";
@@ -158,17 +175,20 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           receipts.push({
             label: "Setup approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (action === "deepbook_deposit" || action === "deepbook_withdraw") {
           const verb = action === "deepbook_deposit" ? "Deposit" : "Withdraw";
           receipts.push({
             label: `${verb} approval required`,
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (action === "swap" || action === "deepbook_swap") {
           receipts.push({
             label: "Swap approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (
           action === "deepbook_place_limit_order" ||
@@ -177,6 +197,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           receipts.push({
             label: "Order approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (
           action === "deepbook_cancel_order" ||
@@ -186,11 +207,13 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           receipts.push({
             label: "Cancel approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (action === "deepbook_modify_order") {
           receipts.push({
             label: "Modify approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (
           action === "deepbook_withdraw_settled_amounts" ||
@@ -199,6 +222,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           receipts.push({
             label: "Claim proceeds approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         }
       }
@@ -259,6 +283,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
                     : digest.length > 12
                       ? `${digest.slice(0, 10)}…`
                       : digest,
+          ...receiptMeta,
+          digest,
         });
       }
     }

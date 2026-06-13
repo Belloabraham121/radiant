@@ -17,6 +17,7 @@ import { invalidateWalletAssetsForChain } from "@/lib/wallet-assets-events";
 import { refreshAllWalletData } from "@/lib/refresh-wallet-data";
 import { DeepBookBalancesLine } from "@/components/wallet/DeepBookBalancesLine";
 import { invalidateDeepBookManagerCache } from "@/lib/wallet-session-cache";
+import { AgentActivityPanel } from "@/components/app/AgentActivityPanel";
 
 function AgentWalletChainCard({
   wallet,
@@ -274,6 +275,8 @@ export function AgentWalletSection() {
           ))}
         </div>
       </section>
+
+      <AgentActivityPanel />
 
       {suiWallet?.address && (
         <SuiDepositDialog

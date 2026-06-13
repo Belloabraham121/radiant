@@ -294,24 +294,24 @@ Auto-approved execute (no bar): insert directly as success | failure
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | On `approval_required` outcome, include `agent_transaction_id` in tool result JSON | [Backend] |
-| [ ] | On `executed` outcome, include `agent_transaction_id` | [Backend] |
-| [ ] | Type update in `agent.types.ts` / client `chat-api.ts` | [Both] |
+| [x] | On `approval_required` outcome, include `agent_transaction_id` in tool result JSON | [Backend] |
+| [x] | On `executed` outcome, include `agent_transaction_id` | [Backend] |
+| [x] | Type update in `agent.types.ts` / client `chat-api.ts` | [Both] |
 
 ### D.2 Message backfill
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | After `createMessage` for assistant turn, update related `AgentTransaction.message_id` | [Backend] |
-| [ ] | Handle multiple executes in one turn (workflow) — link all rows from that turn to same `message_id` | [Backend] |
+| [x] | After `createMessage` for assistant turn, update related `AgentTransaction.message_id` | [Backend] |
+| [x] | Handle multiple executes in one turn (workflow) — link all rows from that turn to same `message_id` | [Backend] |
 
 ### D.3 Client chat receipts
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `chat-messages.ts` — read `agent_transaction_id` from tool results | [Client] |
-| [ ] | Receipt row: explorer link when digest present | [Client] |
-| [ ] | Receipt row: "View activity" link → `/app/activity/:id` or drawer | [Client] |
+| [x] | `chat-messages.ts` — read `agent_transaction_id` from tool results | [Client] |
+| [x] | Receipt row: explorer link when digest present | [Client] |
+| [x] | Receipt row: "View activity" link → `/app/activity/:id` or drawer | [Client] |
 
 ---
 
@@ -321,26 +321,26 @@ Auto-approved execute (no bar): insert directly as success | failure
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `client/src/lib/agent-transactions-api.ts` — `listAgentTransactions`, `getAgentTransaction` | [Client] |
-| [ ] | Types mirror backend list/detail DTOs | [Client] |
+| [x] | `client/src/lib/agent-transactions-api.ts` — `listAgentTransactions`, `getAgentTransaction` | [Client] |
+| [x] | Types mirror backend list/detail DTOs | [Client] |
 
 ### E.2 Agent wallet — Recent activity
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `AgentWalletSection` or new `AgentActivityPanel` — fetch last 5–10 txs | [Client] |
-| [ ] | Row: status chip, title, amount_display, relative time | [Client] |
-| [ ] | Row actions: explorer (if digest), "Open chat" (if session_id) | [Client] |
-| [ ] | Empty state: "No agent transactions yet" | [Client] |
-| [ ] | Loading + error states | [Client] |
+| [x] | `AgentWalletSection` or new `AgentActivityPanel` — fetch last 5–10 txs | [Client] |
+| [x] | Row: status chip, title, amount_display, relative time | [Client] |
+| [x] | Row actions: explorer (if digest), "Open chat" (if session_id) | [Client] |
+| [x] | Empty state: "No agent transactions yet" | [Client] |
+| [x] | Loading + error states | [Client] |
 
 ### E.3 Activity detail (lightweight)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Modal or slide-over: full summary, status timeline, params snapshot (collapsed), result JSON (collapsed) | [Client] |
-| [ ] | Primary CTA: Open chat → navigate to `session_id` with hash/message scroll | [Client] |
-| [ ] | Secondary CTA: View on explorer | [Client] |
+| [x] | Modal or slide-over: full summary, status timeline, params snapshot (collapsed), result JSON (collapsed) | [Client] |
+| [x] | Primary CTA: Open chat → navigate to `session_id` with hash/message scroll | [Client] |
+| [x] | Secondary CTA: View on explorer | [Client] |
 
 ### E.4 Optional full activity page (v1.1)
 
