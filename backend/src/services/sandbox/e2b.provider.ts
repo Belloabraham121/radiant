@@ -1,0 +1,177 @@
+import { RateLimitError, Sandbox, type Sandbox as E2bSandbox } from "e2b";
+import { AppError } from "../../errors/app-error.js";
+import { getSandboxConfig } from "../../config/sandbox.js";
+import {
+  normalizeSandboxReadPath,
+  validateArtifactBatch,
+} from "./sandbox-paths.js";
+import type {
+  SandboxCreateContext,
+  SandboxFileWrite,
+  SandboxProvider,
+  SandboxRunResult,
+} from "./sandbox.provider.js";
+
+const SCAFFOLD_COPY_TIMEOUT_MS = 120_000;
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+const RATE_LIMIT_BACKOFF_MS = 1_000;
+
+type E2bSandboxCreateOptions = NonNullable<Parameters<typeof Sandbox.create>[1]>;
+
+export type E2bSandboxFactory = (
+  template: string,
+  options?: E2bSandboxCreateOptions,
+) => Promise<E2bSandbox>;
+
+export type E2bSandboxProviderOptions = {
+  createSandbox?: E2bSandboxFactory;
+};
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function emitLines(chunk: string, onLine?: (line: string) => void): void {
+  if (!onLine || chunk.length === 0) return;
+  const parts = chunk.split(/\r?\n/);
+  for (const line of parts) {
+    if (line.length > 0) onLine(line);
+  }
+}
+
+export class E2bSandboxProvider implements SandboxProvider {
+  readonly name = "e2b" as const;
+
+  private readonly createSandbox: E2bSandboxFactory;
+  private readonly sandboxes = new Map<string, E2bSandbox>();
+
+  constructor(options: E2bSandboxProviderOptions = {}) {
+    this.createSandbox =
+      options.createSandbox ??
+      ((template, opts) => Sandbox.create(template, opts));
+  }
+
+  async create(ctx: SandboxCreateContext): Promise<{ handleId: string }> {
+    const { e2bTemplateAlias, sandboxTimeoutMs } = getSandboxConfig();
+
+    const sandbox = await this.createSandboxWithRetry(e2bTemplateAlias, {
+      timeoutMs: sandboxTimeoutMs,
+      metadata: {
+        projectId: ctx.projectId,
+        jobId: ctx.jobId,
+        userId: ctx.userId,
+        app: "radiant",
+      },
+      lifecycle: {
+        onTimeout: "kill",
+        autoResume: false,
+      },
+    });
+
+    this.sandboxes.set(ctx.jobId, sandbox);
+
+    const copy = await sandbox.commands.run("cp -a /opt/radiant-scaffold/. /workspace/", {
+      cwd: "/",
+      timeoutMs: SCAFFOLD_COPY_TIMEOUT_MS,
+    });
+
+    if (copy.exitCode !== 0) {
+      await this.kill(ctx.jobId);
+      throw new AppError(
+        500,
+        "SANDBOX_SETUP_FAILED",
+        "Failed to copy scaffold into /workspace",
+        { stderr: copy.stderr },
+      );
+    }
+
+    return { handleId: ctx.jobId };
+  }
+
+  async writeFiles(handleId: string, files: SandboxFileWrite[]): Promise<void> {
+    const sandbox = this.getSandbox(handleId);
+    validateArtifactBatch(files);
+
+    const entries = files.map((file) => ({
+      path: file.path,
+      data: file.content,
+    }));
+
+    await sandbox.files.write(entries);
+  }
+
+  async run(
+    handleId: string,
+    command: string,
+    options: { cwd: string; timeoutMs: number; onLine?: (line: string) => void },
+  ): Promise<SandboxRunResult> {
+    const sandbox = this.getSandbox(handleId);
+    const started = Date.now();
+
+    const result = await sandbox.commands.run(command, {
+      cwd: options.cwd,
+      timeoutMs: options.timeoutMs,
+      onStdout: (data) => emitLines(data, options.onLine),
+      onStderr: (data) => emitLines(data, options.onLine),
+    });
+
+    return {
+      exitCode: result.exitCode,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      durationMs: Date.now() - started,
+    };
+  }
+
+  async readFile(handleId: string, path: string): Promise<Buffer> {
+    const sandbox = this.getSandbox(handleId);
+    const normalized = normalizeSandboxReadPath(path);
+    const bytes = await sandbox.files.read(normalized, { format: "bytes" });
+    return Buffer.from(bytes);
+  }
+
+  async listDir(handleId: string, path: string): Promise<string[]> {
+    const sandbox = this.getSandbox(handleId);
+    const normalized = normalizeSandboxReadPath(path);
+    const entries = await sandbox.files.list(normalized, { depth: 8 });
+    return entries.map((entry) => entry.path).sort();
+  }
+
+  async kill(handleId: string): Promise<void> {
+    const sandbox = this.sandboxes.get(handleId);
+    if (!sandbox) return;
+
+    try {
+      await sandbox.kill();
+    } finally {
+      this.sandboxes.delete(handleId);
+    }
+  }
+
+  private getSandbox(handleId: string): E2bSandbox {
+    const sandbox = this.sandboxes.get(handleId);
+    if (!sandbox) {
+      throw new AppError(404, "SANDBOX_NOT_FOUND", `E2B sandbox handle not found: ${handleId}`);
+    }
+    return sandbox;
+  }
+
+  private async createSandboxWithRetry(
+    template: string,
+    options: E2bSandboxCreateOptions,
+  ): Promise<E2bSandbox> {
+    for (let attempt = 1; attempt <= RATE_LIMIT_MAX_ATTEMPTS; attempt++) {
+      try {
+        return await this.createSandbox(template, options);
+      } catch (error) {
+        if (error instanceof RateLimitError && attempt < RATE_LIMIT_MAX_ATTEMPTS) {
+          await sleep(RATE_LIMIT_BACKOFF_MS * attempt);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new AppError(429, "RATE_LIMITED", "E2B sandbox creation rate limited");
+  }
+}

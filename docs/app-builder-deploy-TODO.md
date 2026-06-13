@@ -17,6 +17,18 @@ Claude-style **artifacts in chat**, **published projects** (shareable Walrus lin
 
 **Tracked in:** [backend/docs/TODO.md — Phase 11](../backend/docs/TODO.md)
 
+### Doc convention — production vs test implementations
+
+Whenever you implement something that is **in-memory**, **mocked**, **stubbed**, or **process-local only** (not safe or not intended for production), add a block in **this doc** under [Production picker — what to use where](#production-picker--what-to-use-where) (or link a child section). Include:
+
+1. **What it is** (file / class / env flag)
+2. **Use in production?** Yes / No / Partial
+3. **When to pick it** (local dev, CI, staging, prod path)
+4. **What breaks if you pick wrong** (billing, fake deploys, memory, security)
+5. **Correct production alternative**
+
+This keeps env choices obvious without re-reading the codebase.
+
 ---
 
 ## ⚠️ E2B Hobby (free) plan — read this first
@@ -296,14 +308,82 @@ export interface SandboxProvider {
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Define interface + types | [Backend] |
-| [ ] | `MockSandboxProvider` for unit tests | [Backend] |
-| [ ] | `NoneSandboxProvider` (no-op create/kill) | [Backend] |
-| [ ] | Factory `getSandboxProvider()` from env | [Backend] |
+| [x] | Define interface + types | [Backend] |
+| [x] | `MockSandboxProvider` for unit tests | [Backend] |
+| [x] | `NoneSandboxProvider` (no-op create/kill) | [Backend] |
+| [x] | Factory `getSandboxProvider()` from env | [Backend] |
 
 ---
 
-## E2B setup — step-by-step (Hobby plan)
+## Production picker — what to use where
+
+Use this section when choosing env vars, providers, or any implementation that keeps state **in the Node process** instead of on E2B / Postgres / Walrus.
+
+### `SANDBOX_PROVIDER` — pick one per environment
+
+| Value | Production? | What actually runs | Pick when | Do **not** pick when |
+| ----- | ----------- | ------------------ | --------- | -------------------- |
+| **`none`** | ✅ **Yes** (default prod path for fixed templates) | No remote sandbox. `NoneSandboxProvider` — create/kill are no-ops; pipeline copies **pre-built** `templates/{name}/dist/` from disk and uploads to Walrus. | Escrow, swap, prediction template deploys (Phase 3). Early prod before custom codegen ships. | User chose **custom** template and agent generated real `src/` that must be compiled with Vite. |
+| **`e2b`** | ✅ **Yes** (custom codegen only) | Real E2B cloud sandbox (`radiant-build:v1`). Vite build runs remotely; `dist/` read back for Walrus. **Costs credits per second** while sandbox is running. | `template === 'custom'` deploy jobs only. Staging smoke tests (budgeted). | Fixed templates (wastes credits). Chat preview / artifact iframe (use client `srcdoc`). CI on every PR. |
+| **`mock`** | ❌ **Never production** | `MockSandboxProvider` — **fully in-memory** fake sandbox (`Map<jobId, Map<path, Buffer>>`). Does not run Node/Vite; `npm run build` returns fake success. | **Unit tests**, **GitHub Actions CI**, local dev when you are not testing E2B. | Any environment where users expect a real `*.walrus.site` from custom code. |
+| **`docker`** | ⚠️ **Not ready** (placeholder) | Currently aliases to **`mock`** until Phase 6 self-hosted worker exists. | Nothing in prod yet. | Production until `DockerSandboxProvider` is implemented. |
+
+**Recommended production matrix**
+
+| Environment | `SANDBOX_PROVIDER` | Notes |
+| ----------- | ------------------ | ----- |
+| **Production (ship fixed templates first)** | `none` | $0 E2B; Walrus from repo `dist/` |
+| **Production (custom apps enabled)** | `none` for fixed + `e2b` only when job is custom* | *Ideally pipeline selects provider per job, not one global env — until then, `e2b` if all deploys are custom |
+| **Staging** | `none` or `e2b` | Manual E2B smoke with credit budget |
+| **CI / PR checks** | `mock` | No E2B credits |
+| **Local dev** | `mock` or `none` | `e2b` only when testing template/build |
+
+### In-memory implementations already in the codebase
+
+| Component | File | In-memory? | Production-safe? | Explanation |
+| --------- | ---- | ---------- | ---------------- | ----------- |
+| **Mock sandbox (files + handles)** | `backend/src/services/sandbox/mock.provider.ts` | ✅ Yes — `Map` of job handles and file `Buffer`s in Node heap | ❌ **Test/CI only** | Simulates write/run/read without cloud. Artifacts sit in process memory; no real build output. **Misconfiguring `SANDBOX_PROVIDER=mock` in prod = fake deploys.** |
+| **E2B handle registry** | `backend/src/services/sandbox/e2b.provider.ts` (`sandboxes` Map) | ⚠️ **Partial** — Map stores **SDK client references**, not file contents | ✅ **Yes** (with rules) | Remote sandbox lives on E2B; Map only maps `jobId → Sandbox` so the same worker can call `run`/`kill`. Files are on E2B disk. **Not a substitute for E2B** — just bookkeeping. Requires `kill()` in pipeline `finally`; orphaned entries still bill on E2B until timeout. |
+| **None provider** | `backend/src/services/sandbox/none.provider.ts` | No sandbox state | ✅ **Yes** for template-only deploy | Correct prod choice when Walrus upload uses repo `dist/`, not sandbox build. |
+| **Provider singleton** | `backend/src/services/sandbox/sandbox.factory.ts` (`cached` provider) | One provider instance per Node process | ✅ **Yes** | Normal for single-process API + worker. Each BullMQ worker process has its own Map; jobs must create→build→kill on the **same worker** (standard queue pattern). |
+| **Artifact preview (client)** | `ArtifactPreview` iframe `srcdoc` (Phase 1) | Browser memory | ✅ **Yes** | Preview is client-side; **never** spin E2B for preview. |
+| **Client mock data** | `app-data.ts`, `explorer-data.ts` | Static mocks | ❌ **Remove before prod UI** | Replace with API in Phase 1–3; not backend sandbox but same rule — mocks are not production data. |
+
+### E2B-related env — production checklist
+
+| Variable | Production value | Wrong value / risk |
+| -------- | ---------------- | -------------------- |
+| `SANDBOX_PROVIDER` | `none` (fixed templates) or `e2b` (custom only) | `mock` → fake builds; `docker` → still mock today |
+| `E2B_API_KEY` | Set on server; never in client | Missing → E2B deploy fails; leaked → account abuse |
+| `E2B_TEMPLATE_ALIAS` | `radiant-build:v1` | Wrong alias → sandbox create fails |
+| `DEPLOY_MAX_CONCURRENT` | **`2`** on Hobby | `20` → credit burn + rate limits |
+| `DEPLOY_SANDBOX_TIMEOUT_MS` | `600000` (10 min max) | Too high → idle billing after failures |
+| `DEPLOY_E2B_MIN_CREDITS_USD` | e.g. `5` — block E2B when broke | Omit → deploy attempts drain last credits |
+
+### Future implementations — add a row here when you ship in-memory code
+
+| Component | File | Production? | Notes |
+| --------- | ---- | ----------- | ----- |
+| `DockerSandboxProvider` | `docker.provider.ts` (Phase 6) | ✅ Target prod alternative to E2B at scale | Replace `mock` fallback for `SANDBOX_PROVIDER=docker` |
+| Deploy job log buffer | pipeline (planned) | ✅ Stream to Postgres/redis, not grow unbounded in-memory | Cap log lines per job |
+| BullMQ in-process worker | `deploy.worker.ts` (planned) | ✅ One job per worker; don't share handles across workers | |
+
+### Quick decision tree
+
+```text
+User deploy request
+  ├─ template is escrow | swap | prediction?
+  │     → SANDBOX_PROVIDER=none, pre-built dist/, Walrus from backend ($0 E2B)
+  ├─ template is custom (agent-generated src)?
+  │     → SANDBOX_PROVIDER=e2b, remote Vite build, kill sandbox before Walrus upload
+  ├─ running tests or CI?
+  │     → SANDBOX_PROVIDER=mock (in-memory; no credits)
+  └─ only previewing code in chat?
+        → no sandbox at all (client iframe / srcdoc)
+```
+
+---
+
 
 ### Step 0 — Account
 
@@ -397,6 +477,8 @@ export const template = Template()
 
 ### Step 4 — `E2bSandboxProvider` implementation
 
+> **Production vs test:** See [Production picker — what to use where](#production-picker--what-to-use-where). Summary: `MockSandboxProvider` = in-memory, CI only; `E2bSandboxProvider.sandboxes` Map = handle registry (prod OK); prod custom deploys use `SANDBOX_PROVIDER=e2b`; fixed templates use `none`.
+
 ```typescript
 // Pseudocode — backend/src/services/sandbox/e2b.provider.ts
 import { Sandbox } from "e2b";
@@ -441,13 +523,13 @@ export class E2bSandboxProvider implements SandboxProvider {
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Implement full provider | All interface methods |
-| [ ] | `writeFiles` batch | Parallel writes with path validation (no `..`) |
-| [ ] | `run` streams to `DeployJob.logs` | Append via repository |
-| [ ] | `readFile` / tarball dist | For Walrus upload |
-| [ ] | **`kill` in `finally`** in pipeline | Non-negotiable on Hobby |
-| [ ] | Handle `RateLimitError` | Queue backoff 1s (creation rate 1/sec) |
-| [ ] | Unit test with mock | No real E2B in CI by default |
+| [x] | Implement full provider | `e2b.provider.ts` — create, write, run, read, list, kill |
+| [x] | `writeFiles` batch | Parallel `files.write` + path validation (no `..`) |
+| [ ] | `run` streams to `DeployJob.logs` | Append via repository (pipeline Step 4) |
+| [x] | `readFile` / list dist | `readFile` + `listDir` for Walrus upload |
+| [ ] | **`kill` in `finally`** in pipeline | Non-negotiable on Hobby (deploy pipeline) |
+| [x] | Handle `RateLimitError` | 1s backoff, up to 5 attempts on create |
+| [x] | Unit test with mock | `tests/unit/sandbox/` — no real E2B in CI |
 
 ### Step 5 — Filesystem paths (strict)
 
@@ -845,24 +927,26 @@ const worker = new Worker("radiant:deploy", processDeployJob, {
 
 ## Environment variables (complete)
 
-| Variable | Required | Default | Notes |
-| -------- | -------- | ------- | ----- |
-| `SANDBOX_PROVIDER` | yes | `none` | `none` \| `e2b` \| `docker` \| `mock` |
-| `E2B_API_KEY` | if e2b | — | Server only |
-| `E2B_TEMPLATE_ALIAS` | if e2b | `radiant-build:v1` | |
-| `E2B_TEAM_ID` | no | — | CLI/builds |
-| `DEPLOY_SANDBOX_TIMEOUT_MS` | no | `600000` | 10 min max |
-| `DEPLOY_BUILD_COMMAND_TIMEOUT_MS` | no | `300000` | pnpm build |
-| `DEPLOY_MAX_CONCURRENT` | no | **`2`** | **Hobby: use 2, not 20** |
-| `DEPLOY_MAX_PER_USER_PER_HOUR` | no | `5` | Credit protection |
-| `DEPLOY_E2B_MIN_CREDITS_USD` | no | `5` | Block E2B below this |
-| `DEPLOY_MAX_ARTIFACT_FILES` | no | `50` | |
-| `DEPLOY_MAX_ARTIFACT_BYTES` | no | `524288` | 512 KB |
-| `WALRUS_PUBLISHER_URL` | yes (deploy) | — | |
-| `WALRUS_API_URL` | yes | — | |
-| `SUI_RPC_URL` | yes | — | Move publish |
-| `RADIANT_REGISTRY_PACKAGE_ID` | Phase 5 | — | |
-| `REDIS_URL` | yes | `redis://localhost:6380` | BullMQ |
+See [Production picker — what to use where](#production-picker--what-to-use-where) for **`SANDBOX_PROVIDER`** and in-memory/mock guidance.
+
+| Variable | Required | Default | Production pick | Notes |
+| -------- | -------- | ------- | ----------------- | ----- |
+| `SANDBOX_PROVIDER` | yes | `none` | **`none`** (fixed templates) or **`e2b`** (custom only). **Never `mock`.** | `none` \| `e2b` \| `docker` \| `mock`. `docker` → mock until Phase 6. |
+| `E2B_API_KEY` | if `e2b` | — | Required when provider is `e2b` | Server only; never client |
+| `E2B_TEMPLATE_ALIAS` | if `e2b` | `radiant-build:v1` | `radiant-build:v1` | |
+| `E2B_TEAM_ID` | no | — | Optional | CLI/template builds |
+| `DEPLOY_SANDBOX_TIMEOUT_MS` | no | `600000` | `600000` | 10 min max; don't raise without reason |
+| `DEPLOY_BUILD_COMMAND_TIMEOUT_MS` | no | `300000` | `300000` | Vite build inside sandbox |
+| `DEPLOY_MAX_CONCURRENT` | no | **`2`** | **`2` on Hobby** | **Hobby: use 2, not 20** |
+| `DEPLOY_MAX_PER_USER_PER_HOUR` | no | `5` | `5` or lower | Credit protection |
+| `DEPLOY_E2B_MIN_CREDITS_USD` | no | `5` | Set in prod | Block E2B when credits low |
+| `DEPLOY_MAX_ARTIFACT_FILES` | no | `50` | `50` | |
+| `DEPLOY_MAX_ARTIFACT_BYTES` | no | `524288` | `524288` | 512 KB source cap |
+| `WALRUS_PUBLISHER_URL` | yes (deploy) | — | Required for any deploy | |
+| `WALRUS_API_URL` | yes | — | Required | |
+| `SUI_RPC_URL` | yes | — | mainnet URL in prod | Move publish |
+| `RADIANT_REGISTRY_PACKAGE_ID` | Phase 5 | — | When explorer listing ships | |
+| `REDIS_URL` | yes | `redis://localhost:6380` | Production Redis | BullMQ |
 
 ---
 
@@ -988,7 +1072,7 @@ const worker = new Worker("radiant:deploy", processDeployJob, {
 | Full custom deploy E2B | manual staging | **Yes — budget** |
 | Explorer public filter | integration | No |
 
-**CI rule:** Never run real E2B in GitHub Actions on every PR — use `SANDBOX_PROVIDER=mock`.
+**CI rule:** Never run real E2B in GitHub Actions on every PR — use `SANDBOX_PROVIDER=mock` (in-memory; see [Production picker](#production-picker--what-to-use-where)).
 
 ---
 
@@ -1034,7 +1118,8 @@ Phase 1 (artifacts, $0)
 | `DEPLOY_MAX_CONCURRENT=2` | Use 20 concurrent on Hobby |
 | Fixed templates → `SANDBOX_PROVIDER=none` | Run E2B for escrow/swap templates |
 | Monitor credit balance | Unlimited manual E2B testing |
-| Mock provider in CI | Real E2B in every PR |
+| Mock provider in CI (`SANDBOX_PROVIDER=mock`) | Real E2B in every PR |
+| Read [Production picker](#production-picker--what-to-use-where) before env changes | Ship `mock` or in-memory code without documenting it |
 
 ---
 
