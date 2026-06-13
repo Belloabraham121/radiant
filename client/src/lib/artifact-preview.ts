@@ -4,8 +4,20 @@ function escapeStyleClose(css: string): string {
   return css.replace(/<\/style/gi, "<\\/style");
 }
 
+function normalizeArtifactPath(path: string): string {
+  return path.replace(/^\/+/, "").replace(/^\/workspace\//, "");
+}
+
+function buildFileMap(files: ArtifactFile[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const file of files) {
+    map.set(normalizeArtifactPath(file.path), file.content);
+  }
+  return map;
+}
+
 function pickAppSource(files: ArtifactFile[]): string {
-  const byPath = new Map(files.map((file) => [file.path.replace(/^\/+/, ""), file.content]));
+  const byPath = buildFileMap(files);
   return byPath.get("src/App.tsx") ?? byPath.get("src/App.jsx") ?? "";
 }
 
@@ -16,9 +28,24 @@ function collectCss(files: ArtifactFile[]): string {
     .join("\n");
 }
 
+/** Remove CSS imports — styles are injected into the preview <style> block from artifact files. */
+function stripCssImports(source: string): string {
+  return source
+    .replace(/^\s*import\s+(?:type\s+)?(?:[\w*{}\s,]+\s+from\s+)?["'][^"']*\.css["']\s*;?\s*$/gm, "")
+    .replace(/import\s+(?:type\s+)?(?:[\w*{}\s,]+\s+from\s+)?["'][^"']*\.css["']\s*;?/g, "");
+}
+
+/**
+ * Chat preview runs in a browser iframe (not E2B/mock). Strip imports the runtime cannot resolve.
+ */
+export function prepareAppSourceForPreview(source: string): string {
+  return stripCssImports(source);
+}
+
 /** Client-side preview HTML — no E2B. Uses CDN React + Babel in iframe srcdoc. */
 export function buildArtifactPreviewSrcdoc(files: ArtifactFile[]): string {
-  const appSource = pickAppSource(files);
+  const rawAppSource = pickAppSource(files);
+  const appSource = prepareAppSourceForPreview(rawAppSource);
   const css = escapeStyleClose(collectCss(files));
   const payload = JSON.stringify({ app: appSource });
 
@@ -78,8 +105,11 @@ ${css}
     };
     return function previewRequire(name) {
       if (registry[name]) return registry[name];
+      if (name.endsWith(".css") || name.endsWith(".scss")) {
+        return {};
+      }
       throw new Error(
-        "Preview cannot load module: " + name + " (chat preview supports React only — avoid lucide and other npm imports)",
+        "Preview cannot load module: " + name + " (chat preview supports React only — put styles in src/*.css or inline styles; no lucide/npm imports)",
       );
     };
   }

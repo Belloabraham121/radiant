@@ -23,7 +23,7 @@ export function ArtifactCodeView({
       <div className="border-b-2 border-[var(--hero-ink)]/10 px-3 py-2 text-xs font-bold text-[var(--hero-ink)]/50">
         {file.path}
         <span className="ml-2 font-semibold normal-case text-[var(--hero-ink)]/35">
-          read-only — ask the agent to edit
+          read-only preview — edit via chat (&quot;change the button color&quot;)
         </span>
       </div>
       <pre
