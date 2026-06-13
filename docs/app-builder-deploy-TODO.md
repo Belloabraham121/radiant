@@ -561,9 +561,9 @@ E2B Volumes persist across sandbox lifetimes. **Private beta** — email support
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Script `backend/scripts/e2b-cleanup.sh` | `e2b sandbox kill --all --state=running` |
-| [ ] | Cron in dev / staging | Every 15 min |
-| [ ] | On deploy worker boot | Kill stale sandboxes with `metadata.app=radiant` |
+| [x] | Script `backend/scripts/e2b-cleanup.sh` | `e2b sandbox kill --all --state=running` |
+| [ ] | Cron in dev / staging | Every 15 min — use `npm run e2b:cleanup` or `e2b:cleanup:radiant` |
+| [x] | On deploy worker boot | `killStaleRadiantSandboxesOnBoot()` when `DEPLOY_KILL_STALE_SANDBOXES_ON_BOOT=true` |
 | [ ] | Lifecycle webhook endpoint | Log killed events; reconcile `DeployJob` |
 
 ---
@@ -877,30 +877,30 @@ const worker = new Worker("radiant:deploy", processDeployJob, {
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | State: `projectId`, `files`, `activePath`, `revision`, `panelOpen` | |
-| [ ] | `openArtifact(payload)` from chat response | |
-| [ ] | `closePanel()` | |
-| [ ] | Persist open state per session in memory only | No localStorage |
+| [x] | State: `projectId`, `files`, `activePath`, `revision`, `panelOpen` | |
+| [x] | `openArtifact(payload)` from chat response | |
+| [x] | `closePanel()` | |
+| [x] | Persist open state per session in memory only | No localStorage |
 
 ### `ArtifactPanel.tsx`
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Split layout: chat 55% / panel 45% on `lg+` | |
-| [ ] | Mobile: panel full-width sheet below chat | |
-| [ ] | Tabs: **Preview** \| **Code** \| **Deploy** | |
-| [ ] | Close button | |
-| [ ] | Match Radiant design tokens (`var(--hero-*)`) | |
+| [x] | Split layout: chat 55% / panel 45% on `lg+` | |
+| [x] | Mobile: panel full-width sheet below chat | |
+| [x] | Tabs: **Preview** \| **Code** \| **Deploy** | Deploy tab placeholder until Phase 3 |
+| [x] | Close button | |
+| [x] | Match Radiant design tokens (`var(--hero-*)`) | |
 
 ### `ArtifactPreview.tsx` — **zero E2B cost**
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Build preview HTML from `index.html` + inlined CSS/JS | |
-| [ ] | Render in `<iframe sandbox="allow-scripts" srcDoc={...}>` | |
-| [ ] | **Do not** call E2B for preview on Hobby | Critical |
-| [ ] | Refresh on `artifact_revision` change | |
-| [ ] | Error boundary for bad JSX | Show friendly message |
+| [x] | Build preview HTML from `index.html` + inlined CSS/JS | CDN React + Babel in iframe |
+| [x] | Render in `<iframe sandbox="allow-scripts" srcDoc={...}>` | |
+| [x] | **Do not** call E2B for preview on Hobby | Critical |
+| [x] | Refresh on `artifact_revision` change | |
+| [x] | Error boundary for bad JSX | Show friendly message in iframe |
 
 ### `DeployProgress.tsx`
 
@@ -961,20 +961,20 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 
 | Status | Task | Implementation detail | Owner |
 | ------ | ---- | --------------------- | ----- |
-| [ ] | Prisma migration | Models above | [Backend] |
-| [ ] | `project.repository.ts` | CRUD, list by user | [Backend] |
-| [ ] | `artifact.repository.ts` | upsert files, get by revision | [Backend] |
-| [ ] | `generate_app` service | Size limits, path allowlist | [Backend] |
-| [ ] | OpenAI tool definition | | [Backend] |
-| [ ] | `ArtifactPayload` type in chat response | `{ project_id, name, files[], revision }` | [Backend] |
-| [ ] | System prompt lines | When to call generate_app | [Backend] |
-| [ ] | `ArtifactContext` + provider | | [Client] |
-| [ ] | `ArtifactPanel` shell | Open on payload | [Client] |
-| [ ] | `ArtifactPreview` srcdoc | **No E2B** | [Client] |
-| [ ] | Wire `useChatSession` | Set artifact on response | [Client] |
+| [x] | Prisma migration | Models above | [Backend] |
+| [x] | `project.repository.ts` | CRUD, list by user | [Backend] |
+| [x] | `artifact.repository.ts` | upsert files, get by revision | [Backend] |
+| [x] | `generate_app` service | Size limits, path allowlist | [Backend] |
+| [x] | OpenAI tool definition | | [Backend] |
+| [x] | `ArtifactPayload` type in chat response | `{ project_id, name, files[], revision }` | [Backend] |
+| [x] | System prompt lines | When to call generate_app | [Backend] |
+| [x] | `ArtifactContext` + provider | | [Client] |
+| [x] | `ArtifactPanel` shell | Open on payload | [Client] |
+| [x] | `ArtifactPreview` srcdoc | **No E2B** | [Client] |
+| [x] | Wire `useChatSession` | Set artifact on response | [Client] |
 | [x] | Unit: path allowlist | `tests/unit/sandbox/sandbox-paths.test.ts` |
 | [x] | Unit: byte limit | `sandbox-paths.test.ts` |
-| [ ] | Integration: generate_app persists | | [Backend] |
+| [x] | Integration: generate_app persists | `tests/integration/generate-app.test.ts` | [Backend] |
 
 ### Phase 2 — Build preview API (**$0 E2B**)
 

@@ -12,6 +12,7 @@ import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { getAgentRuntime } from "../runtime/index.js";
 import { runAgentTool, type AgentToolErrorResult } from "../tools.js";
 import { linkToolCallTransactionsToMessage } from "../../agent-transaction/link-transactions.js";
+import { extractArtifactFromToolCalls } from "../../projects/extract-artifact.js";
 import { startSessionClarification } from "./clarification.store.js";
 import type { ClarificationAnswer, ClarificationGap, PendingClarification } from "./clarification.types.js";
 import {
@@ -744,5 +745,6 @@ export async function persistWorkflowChatResponse(
     pending_transaction: outcome.pending_transaction,
     pending_clarification: outcome.pending_clarification,
     message_id: assistantMessage.id,
+    artifact: extractArtifactFromToolCalls(outcome.tool_calls),
   };
 }

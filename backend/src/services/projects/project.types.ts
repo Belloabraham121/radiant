@@ -1,0 +1,35 @@
+import { z } from "zod";
+
+export const artifactFileInputSchema = z.object({
+  path: z.string().min(1),
+  content: z.string(),
+});
+
+export const generateAppInputSchema = z.object({
+  project_id: z.string().uuid().nullable().optional(),
+  name: z.string().min(1).max(120),
+  tagline: z.string().max(280).optional(),
+  template: z.enum(["custom", "escrow", "swap", "prediction"]).default("custom"),
+  files: z.array(artifactFileInputSchema).min(1),
+});
+
+export type GenerateAppInput = z.infer<typeof generateAppInputSchema>;
+
+export type ArtifactPayload = {
+  project_id: string;
+  name: string;
+  tagline: string;
+  template: string;
+  revision: number;
+  files: Array<{ path: string; content: string }>;
+};
+
+export type GenerateAppResult = {
+  project_id: string;
+  name: string;
+  tagline: string;
+  template: string;
+  revision: number;
+  files: Array<{ path: string; content: string }>;
+  artifact: ArtifactPayload;
+};

@@ -8,6 +8,8 @@ import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
+import { ArtifactPanel } from "@/components/app/ArtifactPanel";
+import { useArtifactSession } from "@/components/app/ArtifactContext";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage, Receipt } from "@/lib/chat-messages";
 import { chainExplorerTxUrl } from "@/lib/chain-meta";
@@ -173,6 +175,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const {
     messages,
     title,
+    activeSessionId,
     hydrating,
     loadError,
     typing,
@@ -189,6 +192,18 @@ export function ChatView({ sessionId }: ChatViewProps) {
     respondClarification,
     dismissClarification,
   } = useChatSession(sessionId);
+
+  const artifactKey = sessionId ?? activeSessionId ?? "new";
+  const {
+    panelOpen,
+    payload: artifactPayload,
+    activePath,
+    setActivePath,
+    closePanel,
+  } = useArtifactSession(artifactKey);
+
+  const chatColumnClass =
+    panelOpen && artifactPayload ? "mx-auto w-full max-w-none px-0" : CHAT_COL;
 
   useEffect(() => {
     animatedMessageIdsRef.current.clear();
@@ -269,9 +284,13 @@ export function ChatView({ sessionId }: ChatViewProps) {
   };
 
   return (
-    <div ref={ref} className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0">
+      <div
+        ref={ref}
+        className={`flex min-h-0 min-w-0 flex-col ${panelOpen && artifactPayload ? "flex-1 lg:w-[55%]" : "flex-1"}`}
+      >
       <header
-        className={`${CHAT_COL} flex items-center justify-between gap-3 px-6 py-4`}
+        className={`${chatColumnClass} flex items-center justify-between gap-3 px-6 py-4`}
       >
         <div className="flex min-w-0 items-center gap-3">
           <SidebarToggle />
@@ -288,14 +307,14 @@ export function ChatView({ sessionId }: ChatViewProps) {
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         {loadError ? (
           <div
-            className={`${CHAT_COL} flex h-full items-center justify-center`}
+            className={`${chatColumnClass} flex h-full items-center justify-center`}
           >
             <p className="text-center text-sm font-semibold text-[var(--hero-coral)]">
               {loadError}
             </p>
           </div>
         ) : (
-          <div className={`${CHAT_COL} space-y-6`}>
+          <div className={`${chatColumnClass} space-y-6`}>
             {hydrating && messages.length === 0 ? (
               <ChatHydratingIndicator />
             ) : null}
@@ -337,7 +356,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       {chatError ? (
         <p
           role="alert"
-          className={`${CHAT_COL} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
+          className={`${chatColumnClass} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
         >
           {chatError}
         </p>
@@ -346,7 +365,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       <div className="shrink-0 px-6 pb-4">
         {pendingClarification ? (
           <ClarificationBar
-            className={`${CHAT_COL} mb-3`}
+            className={`${chatColumnClass} mb-3`}
             pending={pendingClarification}
             busy={respondingClarification}
             onRespond={(answer) => void respondClarification(answer)}
@@ -355,7 +374,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
         {pendingTx ? (
           <TransactionApprovalBar
-            className={`${CHAT_COL} mb-3`}
+            className={`${chatColumnClass} mb-3`}
             pending={pendingTx}
             busy={approving || rejecting}
             onApprove={() => void approvePending()}
@@ -365,7 +384,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
         <form onSubmit={send}>
           <div
-            className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
+            className={`${chatColumnClass} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
           >
             <input
               value={input}
@@ -391,13 +410,24 @@ export function ChatView({ sessionId }: ChatViewProps) {
             </button>
           </div>
           <p
-            className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
+            className={`${chatColumnClass} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
           >
             Radiant signs transactions with your wallet. Big moves always ask
             first.
           </p>
         </form>
       </div>
+      </div>
+
+      {panelOpen && artifactPayload ? (
+        <ArtifactPanel
+          className="fixed inset-x-0 bottom-0 z-40 h-[52vh] lg:relative lg:z-0 lg:h-full lg:w-[45%] lg:shrink-0"
+          payload={artifactPayload}
+          activePath={activePath}
+          onActivePathChange={setActivePath}
+          onClose={closePanel}
+        />
+      ) : null}
     </div>
   );
 }

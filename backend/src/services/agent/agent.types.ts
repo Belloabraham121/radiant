@@ -25,6 +25,7 @@ import type {
   DeepBookVolumeResult,
 } from "../defi/deepbook/deepbook-indexer-analytics.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
+import type { ArtifactPayload } from "../projects/project.types.js";
 import {
   agentTransactionCategorySchema,
   agentTransactionStatusSchema,
@@ -111,6 +112,8 @@ export type ChatResponse = {
   pending_transaction: PendingTransaction | null;
   pending_clarification: PendingClarification | null;
   message_id: string;
+  /** Set when generate_app succeeds — opens artifact panel on client (Phase 1). */
+  artifact: ArtifactPayload | null;
 };
 
 const queryChainInputObjectSchema = z.object({

@@ -26,6 +26,7 @@ import {
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
 import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
+import { extractArtifactFromToolCalls } from "../projects/extract-artifact.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
@@ -169,6 +170,7 @@ export async function runChatTurn(
     pending_transaction: result.pending_transaction,
     pending_clarification: null,
     message_id: assistantMessage.id,
+    artifact: extractArtifactFromToolCalls(toolCallsForMessage),
   };
 }
 
@@ -229,6 +231,7 @@ export async function persistToolFailureTurn(
     pending_transaction: null,
     pending_clarification: null,
     message_id: assistantMessage.id,
+    artifact: extractArtifactFromToolCalls(toolCalls),
   };
 }
 
@@ -262,6 +265,7 @@ export async function persistApprovalTurn(
     pending_transaction: null,
     pending_clarification: null,
     message_id: assistantMessage.id,
+    artifact: extractArtifactFromToolCalls(toolCalls),
   };
 }
 

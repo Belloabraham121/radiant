@@ -1,4 +1,5 @@
 import { apiFetch } from "@/lib/api";
+import type { ArtifactPayload } from "@/lib/artifact-types";
 
 export type ChatToolCall = {
   name: string;
@@ -62,6 +63,7 @@ export type ChatResponse = {
   pending_transaction: PendingTransaction | null;
   pending_clarification: PendingClarification | null;
   message_id: string;
+  artifact: ArtifactPayload | null;
 };
 
 export type ChatRequest = {

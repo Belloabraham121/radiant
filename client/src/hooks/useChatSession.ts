@@ -23,6 +23,7 @@ import {
 import { postChatStream } from "@/lib/chat-stream";
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
+import { useArtifactContext } from "@/components/app/ArtifactContext";
 
 function initialChatSessionState(sessionId?: string) {
   if (!sessionId) {
@@ -61,6 +62,7 @@ function initialChatSessionState(sessionId?: string) {
 export function useChatSession(sessionId?: string) {
   const router = useRouter();
   const { refreshSessions } = useChatSessions();
+  const { openArtifact } = useArtifactContext();
   const [boot] = useState(() => initialChatSessionState(sessionId));
 
   const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
@@ -221,6 +223,10 @@ export function useChatSession(sessionId?: string) {
         setPendingTx(data.pending_transaction ?? null);
         setPendingClarification(data.pending_clarification ?? null);
 
+        if (data.artifact) {
+          openArtifact(data.session_id, data.artifact);
+        }
+
         if (!sessionId && data.session_id) {
           router.replace(`/app/chat/${data.session_id}`);
         }
@@ -237,7 +243,7 @@ export function useChatSession(sessionId?: string) {
         setStreaming(false);
       }
     },
-    [activeSessionId, refreshSessions, router, sessionId, streaming, title, typing],
+    [activeSessionId, openArtifact, refreshSessions, router, sessionId, streaming, title, typing],
   );
 
   const approvePending = useCallback(async () => {
@@ -266,6 +272,10 @@ export function useChatSession(sessionId?: string) {
         },
       ]);
 
+      if (data.artifact) {
+        openArtifact(data.session_id, data.artifact);
+      }
+
       void refreshSessions({ silent: true });
     } catch (err) {
       const message =
@@ -274,7 +284,7 @@ export function useChatSession(sessionId?: string) {
     } finally {
       setApproving(false);
     }
-  }, [activeSessionId, approving, pendingTx, refreshSessions]);
+  }, [activeSessionId, approving, openArtifact, pendingTx, refreshSessions]);
 
   const rejectPending = useCallback(async () => {
     if (!pendingTx || rejecting || approving) return;
@@ -303,6 +313,10 @@ export function useChatSession(sessionId?: string) {
         },
       ]);
 
+      if (data.artifact) {
+        openArtifact(data.session_id, data.artifact);
+      }
+
       void refreshSessions({ silent: true });
     } catch (err) {
       const message =
@@ -311,7 +325,7 @@ export function useChatSession(sessionId?: string) {
     } finally {
       setRejecting(false);
     }
-  }, [activeSessionId, approving, pendingTx, refreshSessions, rejecting]);
+  }, [activeSessionId, approving, openArtifact, pendingTx, refreshSessions, rejecting]);
 
   const respondClarification = useCallback(
     async (answer: ClarificationAnswer) => {
@@ -360,6 +374,10 @@ export function useChatSession(sessionId?: string) {
           },
         ]);
 
+        if (data.artifact) {
+          openArtifact(data.session_id, data.artifact);
+        }
+
         void refreshSessions({ silent: true });
       } catch (err) {
         const message =
@@ -369,12 +387,13 @@ export function useChatSession(sessionId?: string) {
         setRespondingClarification(false);
       }
     },
-    [activeSessionId, pendingClarification, refreshSessions, respondingClarification],
+    [activeSessionId, openArtifact, pendingClarification, refreshSessions, respondingClarification],
   );
 
   return {
     messages,
     title,
+    activeSessionId,
     hydrating,
     loadError,
     typing,

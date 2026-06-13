@@ -13,11 +13,16 @@ import {
   runQueryChainTool,
 } from "./query-chain.tool.js";
 import {
+  GENERATE_APP_TOOL_NAME,
+  generateAppToolDefinition,
+  runGenerateAppTool,
+} from "../projects/generate-app.tool.js";
+import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
+import {
   UPDATE_MEMORY_TOOL_NAME,
   updateMemoryToolDefinition,
   runUpdateMemoryTool,
 } from "./update-memory.tool.js";
-import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
 import {
   createPendingTransaction,
   transferRequiresApproval,
@@ -52,6 +57,7 @@ export const agentToolDefinitions = [
   executeTransactionToolDefinition,
   queryChainToolDefinition,
   updateMemoryToolDefinition,
+  generateAppToolDefinition,
 ] as const;
 
 export type AgentToolErrorResult = {
@@ -108,6 +114,10 @@ async function dispatchAgentTool(
         );
       case UPDATE_MEMORY_TOOL_NAME:
         return await runUpdateMemoryTool(privyUserId, input as UpdateMemoryInput);
+      case GENERATE_APP_TOOL_NAME:
+        return await runGenerateAppTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+        });
       default:
         throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
     }
