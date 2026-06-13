@@ -1,0 +1,4 @@
+scaffold/node_modules
+scaffold/dist
+.git
+*.log

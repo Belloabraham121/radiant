@@ -309,21 +309,21 @@ export interface SandboxProvider {
 
 | Status | Task | Command / detail |
 | ------ | ---- | ---------------- |
-| [ ] | Create account at [e2b.dev](https://e2b.dev) | Hobby tier |
-| [ ] | Note **$100 credit balance** in dashboard | Billing tab |
-| [ ] | Create API key | Server-only; never in client |
-| [ ] | Add to `backend/.env` | `E2B_API_KEY=e2b_...` |
+| [x] | Create account at [e2b.dev](https://e2b.dev) | Hobby tier |
+| [x] | Note **$100 credit balance** in dashboard | Billing tab |
+| [x] | Create API key | Server-only; never in client |
+| [x] | Add to `backend/.env` | `E2B_API_KEY=e2b_...` |
 | [ ] | Optional team id | `E2B_TEAM_ID` for CLI |
 
 ### Step 1 — CLI & SDK
 
 | Status | Task | Command / detail |
 | ------ | ---- | ---------------- |
-| [ ] | Install CLI | `npm i -g @e2b/cli` |
-| [ ] | Login | `e2b auth login` |
-| [ ] | Verify | `e2b sandbox list --limit 5` |
-| [ ] | Add SDK | `cd backend && npm i e2b` |
-| [ ] | Pin SDK version in `package.json` | Match docs examples |
+| [x] | Install CLI | `npm i -g @e2b/cli` |
+| [x] | Login | `e2b auth login` |
+| [x] | Verify | `e2b sandbox list --limit 5` → "No sandboxes found" |
+| [x] | Add SDK | `cd backend && npm i e2b` |
+| [x] | Pin SDK version in `package.json` | `e2b@^2.29.1` |
 
 ### Step 2 — Scaffold (disk budget)
 
@@ -339,13 +339,13 @@ export interface SandboxProvider {
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Create minimal Vite React TS app | `npm create vite@latest` then strip |
-| [ ] | Add Tailwind v4 (match Radiant client tokens loosely) | `tailwind.config.ts` |
-| [ ] | **No** Next.js in scaffold | Static export only |
-| [ ] | `pnpm install` locally; commit lockfile | |
-| [ ] | Measure `node_modules` size | Must be <400 MB |
-| [ ] | Add `.dockerignore` / template ignore | Exclude `.git`, `dist` |
-| [ ] | Default `src/App.tsx` placeholder | Agent overwrites this |
+| [x] | Create minimal Vite React TS app | `backend/docker/e2b/scaffold/` (Vite 7 + React 19 + TS) |
+| [x] | Add Tailwind v4 (match Radiant client tokens loosely) | `@tailwindcss/vite` + CSS vars in `index.css` (no separate config) |
+| [x] | **No** Next.js in scaffold | Static export only |
+| [x] | `npm install` locally; commit lockfile | `package-lock.json` (npm; pnpm blocked by parent workspace) |
+| [x] | Measure `node_modules` size | **84 MB** (verified 2026-06-13; well under 400 MB) |
+| [x] | Add `.dockerignore` / template ignore | `backend/docker/e2b/.dockerignore` excludes `node_modules`, `dist`, `.git` |
+| [x] | Default `src/App.tsx` placeholder | Radiant-themed placeholder; agent overwrites |
 
 **Scaffold `package.json` scripts:**
 
