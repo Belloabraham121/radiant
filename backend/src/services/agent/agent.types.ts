@@ -19,6 +19,7 @@ export const chatRequestSchema = z
     message: z.string().max(8000).optional().default(""),
     session_id: z.string().uuid().optional(),
     approve_transaction_id: z.string().uuid().optional(),
+    reject_transaction_id: z.string().uuid().optional(),
     clarification_id: z.string().uuid().optional(),
     /** @deprecated use clarification_confirm */
     clarification_response: z.enum(["yes", "no"]).optional(),
@@ -31,8 +32,9 @@ export const chatRequestSchema = z
     (body) =>
       Boolean(body.message?.trim()) ||
       Boolean(body.approve_transaction_id) ||
+      Boolean(body.reject_transaction_id) ||
       Boolean(body.clarification_id),
-    { message: "message, approve_transaction_id, or clarification_id is required" },
+    { message: "message, approve_transaction_id, reject_transaction_id, or clarification_id is required" },
   );
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
@@ -141,5 +143,5 @@ export type QueryChainResult =
   | DeepBookOpenOrdersResult;
 
 export type ExecuteToolOutcome =
-  | { status: "executed"; result: TxResult }
-  | { status: "approval_required"; pending: PendingTransaction };
+  | { status: "executed"; result: TxResult; agent_transaction_id?: string }
+  | { status: "approval_required"; pending: PendingTransaction; agent_transaction_id?: string };

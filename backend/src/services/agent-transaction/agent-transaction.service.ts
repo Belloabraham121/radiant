@@ -1,16 +1,21 @@
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { parseChainId } from "../chains/registry.js";
-import type { ChainId, TxResult } from "../chains/types.js";
+import type { ChainId, ExecuteTransactionInput, TxResult } from "../chains/types.js";
+import type { PendingTransaction } from "../agent/agent.types.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import { buildTransactionDisplay, enrichDisplayFromResult } from "./build-display.js";
 import { categorizeAgentTransactionAction } from "./categorize-action.js";
 import { buildExplorerTxUrl } from "./explorer-url.js";
 import {
   createAgentTransaction,
+  claimAgentTransactionStatus,
+  deletePendingApprovalsForTests,
+  expirePendingApprovalsOlderThan,
   findAgentTransactionById,
   findAgentTransactionByIdForUser,
   findAgentTransactionsBySessionForUser,
+  findPendingApprovalByIdForPrivyUser,
   listAgentTransactionsForUser,
   updateAgentTransactionById,
 } from "./agent-transaction.repository.js";
@@ -29,6 +34,7 @@ import type {
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+export const PENDING_APPROVAL_TTL_MS = 15 * 60 * 1000;
 
 async function requireUserId(privyUserId: string): Promise<bigint> {
   const user = await findUserByPrivyId(privyUserId);
@@ -81,6 +87,82 @@ function toDetail(row: AgentTransactionRecord): AgentTransactionDetail {
     submitted_at: row.submitted_at?.toISOString() ?? null,
     explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest) : null,
   };
+}
+
+export function pendingTransactionFromRecord(row: AgentTransactionRecord): PendingTransaction {
+  return {
+    id: row.id,
+    chain_id: parseChainId(row.chain_id),
+    action: row.action,
+    params: row.params as Record<string, unknown>,
+    amount_display: row.amount_display,
+    summary: row.title,
+  };
+}
+
+export function executeInputFromRecord(row: AgentTransactionRecord): ExecuteTransactionInput {
+  return {
+    chain_id: parseChainId(row.chain_id),
+    action: row.action,
+    params: row.params as Record<string, unknown>,
+  };
+}
+
+export async function loadPendingApprovalForUser(
+  privyUserId: string,
+  transactionId: string,
+): Promise<AgentTransactionRecord | null> {
+  const row = await findPendingApprovalByIdForPrivyUser(transactionId, privyUserId);
+  if (!row) {
+    return null;
+  }
+
+  const cutoff = new Date(Date.now() - PENDING_APPROVAL_TTL_MS);
+  if (row.created_at < cutoff) {
+    await markExpired(transactionId);
+    return null;
+  }
+
+  return row;
+}
+
+export async function claimPendingApprovalForUser(
+  privyUserId: string,
+  transactionId: string,
+): Promise<AgentTransactionRecord | null> {
+  const row = await loadPendingApprovalForUser(privyUserId, transactionId);
+  if (!row) {
+    return null;
+  }
+
+  return claimAgentTransactionStatus(row.id, row.user_id, "pending_approval", {
+    status: "submitted",
+    submitted_at: new Date(),
+  });
+}
+
+export async function claimPendingRejectionForUser(
+  privyUserId: string,
+  transactionId: string,
+): Promise<AgentTransactionRecord | null> {
+  const row = await loadPendingApprovalForUser(privyUserId, transactionId);
+  if (!row) {
+    return null;
+  }
+
+  return claimAgentTransactionStatus(row.id, row.user_id, "pending_approval", {
+    status: "rejected",
+    completed_at: new Date(),
+  });
+}
+
+export async function expireStalePendingApprovals(): Promise<number> {
+  const cutoff = new Date(Date.now() - PENDING_APPROVAL_TTL_MS);
+  return expirePendingApprovalsOlderThan(cutoff);
+}
+
+export async function clearPendingApprovalsForTests(): Promise<void> {
+  await deletePendingApprovalsForTests();
 }
 
 function trimTxResult(result: TxResult): Record<string, unknown> {

@@ -11,9 +11,8 @@ import {
   isDeepBookOrderAction,
   isDeepBookPlaceOrderAction,
 } from "../defi/deepbook-orders.service.js";
-import type { ExecuteTransactionInput, ChainId } from "../chains/types.js";
+import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
-import type { TxResult } from "../chains/types.js";
 import { AppError } from "../../errors/app-error.js";
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { runExecuteTransactionTool } from "./execute-transaction.tool.js";
@@ -29,6 +28,17 @@ import {
   validateExecuteTransactionInput,
 } from "./validate-execute-transaction.js";
 import { buildTransactionDisplay } from "../agent-transaction/build-display.js";
+import {
+  claimPendingApprovalForUser,
+  claimPendingRejectionForUser,
+  clearPendingApprovalsForTests,
+  executeInputFromRecord,
+  expireStalePendingApprovals,
+  markCompleted,
+  pendingTransactionFromRecord,
+  recordPendingApproval,
+} from "../agent-transaction/agent-transaction.service.js";
+import type { ExecuteTransactionContext } from "./execute-transaction-context.js";
 
 const TRANSFER_ACTIONS = new Set([
   "transfer_native",
@@ -70,24 +80,26 @@ function isMutatingExecuteAction(action: string): boolean {
   );
 }
 
-type PendingRecord = {
-  privyUserId: string;
-  input: ExecuteTransactionInput;
-  pending: PendingTransaction;
-  createdAt: number;
-};
+async function pruneExpired(): Promise<void> {
+  await expireStalePendingApprovals();
+}
 
-const pendingById = new Map<string, PendingRecord>();
+export async function buildPendingTransactionPreview(
+  privyUserId: string,
+  input: ExecuteTransactionInput,
+  id = randomUUID(),
+): Promise<PendingTransaction> {
+  validateExecuteTransactionInput(input);
+  const { title, amount_display: amountDisplay } = await buildTransactionDisplay(privyUserId, input);
 
-const TTL_MS = 15 * 60 * 1000;
-
-function pruneExpired(): void {
-  const now = Date.now();
-  for (const [id, record] of pendingById) {
-    if (now - record.createdAt > TTL_MS) {
-      pendingById.delete(id);
-    }
-  }
+  return {
+    id,
+    chain_id: input.chain_id,
+    action: input.action,
+    params: input.params,
+    amount_display: amountDisplay,
+    summary: title,
+  };
 }
 
 function parseAmountAtomic(params: Record<string, unknown>): bigint | null {
@@ -96,25 +108,6 @@ function parseAmountAtomic(params: Record<string, unknown>): bigint | null {
     return null;
   }
   return BigInt(raw);
-}
-
-function formatAmountDisplay(chainId: ChainId, amountAtomic: bigint): string {
-  switch (chainId) {
-    case "sui": {
-      const sui = Number(amountAtomic) / 1_000_000_000;
-      return `${sui.toFixed(4)} SUI`;
-    }
-    case "ethereum": {
-      const eth = Number(amountAtomic) / 1e18;
-      return `${eth.toFixed(6)} ETH`;
-    }
-    case "solana": {
-      const sol = Number(amountAtomic) / 1_000_000_000;
-      return `${sol.toFixed(4)} SOL`;
-    }
-    default:
-      return amountAtomic.toString();
-  }
 }
 
 export function swapRequiresApprovalWithPermissions(
@@ -239,26 +232,19 @@ export async function transferRequiresApproval(
 export async function createPendingTransaction(
   privyUserId: string,
   input: ExecuteTransactionInput,
+  context?: ExecuteTransactionContext,
 ): Promise<PendingTransaction> {
-  validateExecuteTransactionInput(input);
-  pruneExpired();
+  await pruneExpired();
 
-  const { title, amount_display: amountDisplay } = await buildTransactionDisplay(privyUserId, input);
+  const pending = await buildPendingTransactionPreview(privyUserId, input);
 
-  const pending: PendingTransaction = {
-    id: randomUUID(),
-    chain_id: input.chain_id,
-    action: input.action,
-    params: input.params,
-    amount_display: amountDisplay,
-    summary: title,
-  };
-
-  pendingById.set(pending.id, {
+  await recordPendingApproval({
     privyUserId,
+    sessionId: context?.sessionId,
+    messageId: context?.messageId,
+    workflowStepIndex: context?.workflowStepIndex,
     input,
     pending,
-    createdAt: Date.now(),
   });
 
   return pending;
@@ -272,28 +258,45 @@ export async function approvePendingTransaction(
   privyUserId: string,
   transactionId: string,
 ): Promise<ApprovalResult | null> {
-  pruneExpired();
-  const record = pendingById.get(transactionId);
+  await pruneExpired();
 
-  if (!record) {
+  const claimed = await claimPendingApprovalForUser(privyUserId, transactionId);
+  if (!claimed) {
     return null;
   }
 
-  if (record.privyUserId !== privyUserId) {
-    return null;
-  }
-
-  pendingById.delete(transactionId);
+  const pending = pendingTransactionFromRecord(claimed);
+  const executeInput = executeInputFromRecord(claimed);
 
   try {
-    const result = await runExecuteTransactionTool(privyUserId, record.input);
-    return { ok: true, pending: record.pending, result };
+    const result = await runExecuteTransactionTool(privyUserId, executeInput);
+    await markCompleted(transactionId, { kind: "success", result });
+    return { ok: true, pending, result };
   } catch (err) {
-    return { ok: false, pending: record.pending, error: mapAgentToolError(err) };
+    const error = mapAgentToolError(err);
+    await markCompleted(transactionId, {
+      kind: "failure",
+      error: { code: error.code, message: error.message },
+    });
+    return { ok: false, pending, error };
   }
 }
 
-/** Test hook — clear in-memory pending transactions. */
-export function clearPendingTransactionsForTests(): void {
-  pendingById.clear();
+export async function rejectPendingTransaction(
+  privyUserId: string,
+  transactionId: string,
+): Promise<PendingTransaction | null> {
+  await pruneExpired();
+
+  const rejected = await claimPendingRejectionForUser(privyUserId, transactionId);
+  if (!rejected) {
+    return null;
+  }
+
+  return pendingTransactionFromRecord(rejected);
+}
+
+/** Test hook — clear pending approval rows from the database. */
+export async function clearPendingTransactionsForTests(): Promise<void> {
+  await clearPendingApprovalsForTests();
 }

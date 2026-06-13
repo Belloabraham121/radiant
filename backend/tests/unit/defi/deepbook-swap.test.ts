@@ -9,16 +9,16 @@ import {
 } from "../../../src/services/defi/deepbook-swap.service.js";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import {
+  buildPendingTransactionPreview,
   clearPendingTransactionsForTests,
-  createPendingTransaction,
   swapRequiresApprovalWithPermissions,
   transferRequiresApprovalWithPermissions,
 } from "../../../src/services/agent/transaction-approval.service.js";
 
 describe("deepbook-swap.service", () => {
-  afterEach(() => {
+  afterEach(async () => {
     resetDeepBookSwapServiceForTests();
-    clearPendingTransactionsForTests();
+    await clearPendingTransactionsForTests();
   });
 
   it("parseDeepBookSwapParams accepts sell with amount", () => {
@@ -82,8 +82,8 @@ describe("deepbook-swap.service", () => {
 });
 
 describe("swap approval", () => {
-  afterEach(() => {
-    clearPendingTransactionsForTests();
+  afterEach(async () => {
+    await clearPendingTransactionsForTests();
   });
 
   it("auto-approves small SUI sells at or below threshold", () => {
@@ -133,8 +133,8 @@ describe("swap approval", () => {
     );
   });
 
-  it("creates pending swap transaction summaries", async () => {
-    const pending = await createPendingTransaction("did:privy:swap-test", {
+  it("builds pending swap transaction summaries", async () => {
+    const pending = await buildPendingTransactionPreview("did:privy:swap-test", {
       chain_id: "sui",
       action: "swap",
       params: {

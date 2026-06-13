@@ -102,11 +102,12 @@ export function ChatView({ sessionId }: ChatViewProps) {
     pendingTx,
     pendingClarification,
     approving,
+    rejecting,
     respondingClarification,
     sendMessage,
     approvePending,
+    rejectPending,
     respondClarification,
-    dismissPending,
     dismissClarification,
   } = useChatSession(sessionId);
 
@@ -261,9 +262,9 @@ export function ChatView({ sessionId }: ChatViewProps) {
           <TransactionApprovalBar
             className={`${CHAT_COL} mb-3`}
             pending={pendingTx}
-            busy={approving}
+            busy={approving || rejecting}
             onApprove={() => void approvePending()}
-            onCancel={dismissPending}
+            onCancel={() => void rejectPending()}
           />
         ) : null}
 

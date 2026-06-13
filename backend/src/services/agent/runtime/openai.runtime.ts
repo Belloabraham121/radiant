@@ -212,7 +212,9 @@ export const openaiRuntime: AgentRuntime = {
           args = {};
         }
 
-        const result = await runAgentTool(input.privyUserId, toolCall.function.name, args);
+        const result = await runAgentTool(input.privyUserId, toolCall.function.name, args, {
+          sessionId: input.sessionId,
+        });
         tool_calls.push({ name: toolCall.function.name, result });
 
         if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {

@@ -200,3 +200,55 @@ export async function findAgentTransactionsBySessionForUser(
   });
   return rows.map(toRecord);
 }
+
+export async function findPendingApprovalByIdForPrivyUser(
+  id: string,
+  privyUserId: string,
+): Promise<AgentTransactionRecord | null> {
+  const row = await prisma.agentTransaction.findFirst({
+    where: {
+      id,
+      status: "pending_approval",
+      user: { privy_user_id: privyUserId },
+    },
+  });
+  return row ? toRecord(row) : null;
+}
+
+export async function claimAgentTransactionStatus(
+  id: string,
+  userId: bigint,
+  expectedStatus: AgentTransactionStatus,
+  data: UpdateAgentTransactionData,
+): Promise<AgentTransactionRecord | null> {
+  const result = await prisma.agentTransaction.updateMany({
+    where: { id, user_id: userId, status: expectedStatus },
+    data: data as Prisma.AgentTransactionUpdateInput,
+  });
+
+  if (result.count === 0) {
+    return null;
+  }
+
+  return findAgentTransactionById(id);
+}
+
+export async function expirePendingApprovalsOlderThan(cutoff: Date): Promise<number> {
+  const result = await prisma.agentTransaction.updateMany({
+    where: {
+      status: "pending_approval",
+      created_at: { lt: cutoff },
+    },
+    data: {
+      status: "expired",
+      completed_at: new Date(),
+    },
+  });
+  return result.count;
+}
+
+export async function deletePendingApprovalsForTests(): Promise<void> {
+  await prisma.agentTransaction.deleteMany({
+    where: { status: "pending_approval" },
+  });
+}

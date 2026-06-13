@@ -34,9 +34,9 @@ describe("deepbook-balance-manager.service", () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     resetBalanceManagerServiceForTests();
-    clearPendingTransactionsForTests();
+    await clearPendingTransactionsForTests();
   });
 
   after(async () => {

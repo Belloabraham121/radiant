@@ -11,6 +11,7 @@ import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { getAgentRuntime } from "../runtime/index.js";
 import { runAgentTool, type AgentToolErrorResult } from "../tools.js";
+import { linkToolCallTransactionsToMessage } from "../../agent-transaction/link-transactions.js";
 import { startSessionClarification } from "./clarification.store.js";
 import type { ClarificationAnswer, ClarificationGap, PendingClarification } from "./clarification.types.js";
 import {
@@ -233,7 +234,10 @@ async function executeWorkflowStep(
       };
     }
 
-    const result = await runAgentTool(privyUserId, EXECUTE_TRANSACTION_TOOL_NAME, resolvedInput);
+    const result = await runAgentTool(privyUserId, EXECUTE_TRANSACTION_TOOL_NAME, resolvedInput, {
+      sessionId,
+      workflowStepIndex: stepIndex,
+    });
     const tool_calls: ToolCallRecord[] = [{ name: EXECUTE_TRANSACTION_TOOL_NAME, result }];
     if (isToolError(result)) {
       return { status: "error", tool_calls, error: result.error };
@@ -727,6 +731,8 @@ export async function persistWorkflowChatResponse(
     outcome.reply,
     toolCallsJson,
   );
+
+  await linkToolCallTransactionsToMessage(outcome.tool_calls, assistantMessage.id);
 
   await touchSession(session.id, { updated_at: new Date() });
 

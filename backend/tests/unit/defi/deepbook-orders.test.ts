@@ -3,8 +3,8 @@ import { afterEach, describe, it } from "node:test";
 import { AppError } from "../../../src/errors/app-error.js";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import {
+  buildPendingTransactionPreview,
   clearPendingTransactionsForTests,
-  createPendingTransaction,
   orderRequiresApprovalWithPermissions,
   transferRequiresApprovalWithPermissions,
 } from "../../../src/services/agent/transaction-approval.service.js";
@@ -26,9 +26,9 @@ import {
 } from "../../../src/services/agent/unsupported-capabilities.js";
 
 describe("deepbook-orders.service", () => {
-  afterEach(() => {
+  afterEach(async () => {
     resetDeepBookOrdersServiceForTests();
-    clearPendingTransactionsForTests();
+    await clearPendingTransactionsForTests();
   });
 
   it("parseDeepBookLimitOrderParams accepts buy side", () => {
@@ -218,8 +218,8 @@ describe("deepbook-orders.service", () => {
     );
   });
 
-  it("createPendingTransaction formats modify order summary", async () => {
-    const pending = await createPendingTransaction("privy-test", {
+  it("buildPendingTransactionPreview formats modify order summary", async () => {
+    const pending = await buildPendingTransactionPreview("privy-test", {
       chain_id: "sui",
       action: "deepbook_modify_order",
       params: {
@@ -232,8 +232,8 @@ describe("deepbook-orders.service", () => {
     assert.match(pending.amount_display, /qty 4/);
   });
 
-  it("createPendingTransaction formats limit order summary", async () => {
-    const pending = await createPendingTransaction("privy-test", {
+  it("buildPendingTransactionPreview formats limit order summary", async () => {
+    const pending = await buildPendingTransactionPreview("privy-test", {
       chain_id: "sui",
       action: "deepbook_place_limit_order",
       params: {

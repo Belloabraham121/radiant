@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import {
-  clearPendingTransactionsForTests,
+  buildPendingTransactionPreview,
   createPendingTransaction,
+  rejectPendingTransaction,
   transferRequiresApprovalWithPermissions,
 } from "../../../src/services/agent/transaction-approval.service.js";
 
@@ -99,8 +100,7 @@ describe("transaction approval", () => {
   });
 
   it("creates pending provision manager with gas-only display", async () => {
-    clearPendingTransactionsForTests();
-    const pending = await createPendingTransaction("did:privy:test", {
+    const pending = await buildPendingTransactionPreview("did:privy:test", {
       chain_id: "sui",
       action: "deepbook_provision_manager",
       params: {},
@@ -122,7 +122,6 @@ describe("transaction approval", () => {
   });
 
   it("rejects deposit pending without amount", async () => {
-    clearPendingTransactionsForTests();
     await assert.rejects(
       () =>
         createPendingTransaction("did:privy:test", {
@@ -134,9 +133,8 @@ describe("transaction approval", () => {
     );
   });
 
-  it("creates pending transaction records", async () => {
-    clearPendingTransactionsForTests();
-    const pending = await createPendingTransaction("did:privy:test", {
+  it("builds pending transfer preview", async () => {
+    const pending = await buildPendingTransactionPreview("did:privy:test", {
       chain_id: "sui",
       action: "transfer_native",
       params: {

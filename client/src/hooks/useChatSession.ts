@@ -70,6 +70,7 @@ export function useChatSession(sessionId?: string) {
   const [pendingClarification, setPendingClarification] =
     useState<PendingClarification | null>(boot.pending_clarification);
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [respondingClarification, setRespondingClarification] = useState(false);
 
   useEffect(() => {
@@ -211,6 +212,43 @@ export function useChatSession(sessionId?: string) {
     }
   }, [activeSessionId, approving, pendingTx, refreshSessions]);
 
+  const rejectPending = useCallback(async () => {
+    if (!pendingTx || rejecting || approving) return;
+
+    setRejecting(true);
+    setChatError(null);
+
+    try {
+      const data = await postChat({
+        message: "Cancel transaction",
+        session_id: activeSessionId,
+        reject_transaction_id: pendingTx.id,
+      });
+
+      setActiveSessionId(data.session_id);
+      setPendingTx(null);
+      setPendingClarification(data.pending_clarification ?? null);
+      setMessages((current) => [
+        ...current,
+        { id: `u-reject-${Date.now()}`, role: "user", text: "Cancel transaction" },
+        {
+          id: data.message_id,
+          role: "agent",
+          text: data.reply,
+          receipts: mapToolCallsToReceipts(data.tool_calls),
+        },
+      ]);
+
+      void refreshSessions();
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Could not cancel the transaction. Try again.";
+      setChatError(message);
+    } finally {
+      setRejecting(false);
+    }
+  }, [activeSessionId, approving, pendingTx, refreshSessions, rejecting]);
+
   const respondClarification = useCallback(
     async (answer: ClarificationAnswer) => {
       if (!pendingClarification || respondingClarification) return;
@@ -280,9 +318,11 @@ export function useChatSession(sessionId?: string) {
     pendingTx,
     pendingClarification,
     approving,
+    rejecting,
     respondingClarification,
     sendMessage,
     approvePending,
+    rejectPending,
     respondClarification,
     dismissPending: () => setPendingTx(null),
     dismissClarification: () => setPendingClarification(null),

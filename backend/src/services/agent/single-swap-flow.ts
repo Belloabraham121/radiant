@@ -21,6 +21,7 @@ const APPROVAL_REPLY =
 export async function tryExecuteSingleSwapFromMessage(
   privyUserId: string,
   message: string,
+  sessionId?: string,
 ): Promise<SingleSwapOutcome | null> {
   if (!userRequestedSwap(message)) {
     return null;
@@ -66,6 +67,7 @@ export async function tryExecuteSingleSwapFromMessage(
     executeOutcome = await runExecuteTransactionToolWithApproval(
       privyUserId,
       executeInputWithQuote,
+      { sessionId },
     );
   } catch {
     return null;

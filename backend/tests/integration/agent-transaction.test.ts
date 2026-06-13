@@ -6,8 +6,13 @@ import { defaultUserProfileFields } from "../../src/services/auth/user.repositor
 import {
   getTransaction,
   listTransactions,
+  loadPendingApprovalForUser,
   recordPendingApproval,
 } from "../../src/services/agent-transaction/agent-transaction.service.js";
+import {
+  createPendingTransaction,
+  rejectPendingTransaction,
+} from "../../src/services/agent/transaction-approval.service.js";
 import type { PendingTransaction } from "../../src/services/agent/agent.types.js";
 
 const ownerPrivyId = "did:privy:agent-tx-owner";
@@ -104,5 +109,32 @@ describe("agent-transaction.service", () => {
       () => getTransaction(otherPrivyId, ownerList.items[0]!.id),
       (err: unknown) => err instanceof AppError && err.code === "TRANSACTION_NOT_FOUND",
     );
+  });
+
+  it("createPendingTransaction persists to DB and reject loads from DB", async () => {
+    const pending = await createPendingTransaction(ownerPrivyId, {
+      chain_id: "sui",
+      action: "transfer_native",
+      params: {
+        recipient:
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+        amount_atomic: String(30n * 1_000_000_000n),
+      },
+    });
+
+    const loaded = await loadPendingApprovalForUser(ownerPrivyId, pending.id);
+    assert.ok(loaded);
+    assert.equal(loaded.status, "pending_approval");
+    assert.equal(loaded.action, "transfer_native");
+
+    const rejected = await rejectPendingTransaction(ownerPrivyId, pending.id);
+    assert.ok(rejected);
+    assert.equal(rejected.id, pending.id);
+
+    const detail = await getTransaction(ownerPrivyId, pending.id);
+    assert.equal(detail.status, "rejected");
+
+    const missing = await loadPendingApprovalForUser(ownerPrivyId, pending.id);
+    assert.equal(missing, null);
   });
 });

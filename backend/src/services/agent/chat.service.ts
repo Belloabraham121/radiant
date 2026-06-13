@@ -6,7 +6,7 @@ import {
   runChatTurnWithFallback,
 } from "./chat-orchestrator.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
-import { approvePendingTransaction } from "./transaction-approval.service.js";
+import { approvePendingTransaction, rejectPendingTransaction } from "./transaction-approval.service.js";
 import {
   buildTransactionErrorUserContext,
   transactionContextFromPending,
@@ -57,6 +57,23 @@ export async function handleChatMessage(
     }
 
     return persistWorkflowChatResponse(privyUserId, request, continued);
+  }
+
+  if (request.reject_transaction_id) {
+    const rejected = await rejectPendingTransaction(
+      privyUserId,
+      request.reject_transaction_id,
+    );
+
+    if (!rejected) {
+      throw new AppError(
+        404,
+        "APPROVAL_NOT_FOUND",
+        "Transaction approval expired or was not found.",
+      );
+    }
+
+    return persistApprovalTurn(privyUserId, request, "Transaction cancelled.", []);
   }
 
   if (request.approve_transaction_id) {

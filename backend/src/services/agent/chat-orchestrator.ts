@@ -22,6 +22,7 @@ import {
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
 import { tryExecuteSingleSwapFromMessage } from "./single-swap-flow.js";
+import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
@@ -71,6 +72,7 @@ export async function runChatTurn(
     const singleSwapOutcome = await tryExecuteSingleSwapFromMessage(
       privyUserId,
       request.message,
+      session.id,
     );
 
     if (singleSwapOutcome) {
@@ -113,6 +115,8 @@ export async function runChatTurn(
     result.reply,
     toolCallsJson,
   );
+
+  await linkToolCallTransactionsToMessage(result.tool_calls, assistantMessage.id);
 
   const sessionTitle =
     isFirstUserMessage && session.title === "New chat"
@@ -173,6 +177,8 @@ export async function persistToolFailureTurn(
     toolCalls as Prisma.InputJsonValue,
   );
 
+  await linkToolCallTransactionsToMessage(toolCalls, assistantMessage.id);
+
   await touchSession(session.id, { updated_at: new Date() });
 
   return {
@@ -203,6 +209,8 @@ export async function persistApprovalTurn(
     reply,
     toolCalls.length > 0 ? (toolCalls as Prisma.InputJsonValue) : undefined,
   );
+
+  await linkToolCallTransactionsToMessage(toolCalls, assistantMessage.id);
 
   await touchSession(session.id, { updated_at: new Date() });
 

@@ -212,47 +212,47 @@ Auto-approved execute (no bar): insert directly as success | failure
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Extend `createPendingTransaction` to accept optional `{ sessionId, messageId, workflowStepIndex }` | [Backend] |
-| [ ] | After building `PendingTransaction`, call `recordPendingApproval` — **use same UUID** as `pending.id` for correlation | [Backend] |
-| [ ] | On `approvePendingTransaction` success: `markApprovedSubmitted` → `markCompleted` with `TxResult` | [Backend] |
-| [ ] | On `approvePendingTransaction` failure: `markCompleted` with `error_code` / `error_message` | [Backend] |
-| [ ] | Add `rejectPendingTransaction(privyUserId, transactionId)` — called when user cancels approval bar | [Backend] |
-| [ ] | On reject: `markRejected` + remove from pending store | [Backend] |
-| [ ] | On `pruneExpired`: `markExpired` for each pruned pending that has a DB row | [Backend] |
+| [x] | Extend `createPendingTransaction` to accept optional `{ sessionId, messageId, workflowStepIndex }` | [Backend] |
+| [x] | After building `PendingTransaction`, call `recordPendingApproval` — **use same UUID** as `pending.id` for correlation | [Backend] |
+| [x] | On `approvePendingTransaction` success: `markApprovedSubmitted` → `markCompleted` with `TxResult` | [Backend] |
+| [x] | On `approvePendingTransaction` failure: `markCompleted` with `error_code` / `error_message` | [Backend] |
+| [x] | Add `rejectPendingTransaction(privyUserId, transactionId)` — called when user cancels approval bar | [Backend] |
+| [x] | On reject: `markRejected` + remove from pending store | [Backend] |
+| [x] | On `pruneExpired`: `markExpired` for each pruned pending that has a DB row | [Backend] |
 
 ### B.2 Execute tool (`tools.ts`)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Thread `sessionId` / `messageId` / `workflowStepIndex` into `runExecuteTransactionToolWithApproval` | [Backend] |
-| [ ] | When `needsApproval === false` and execute succeeds: `recordAutoExecuted` → `markCompleted(success)` | [Backend] |
-| [ ] | When auto-execute throws before chain: `recordAutoExecuted` → `markCompleted(failure)` | [Backend] |
+| [x] | Thread `sessionId` / `messageId` / `workflowStepIndex` into `runExecuteTransactionToolWithApproval` | [Backend] |
+| [x] | When `needsApproval === false` and execute succeeds: `recordAutoExecuted` → `markCompleted(success)` | [Backend] |
+| [x] | When auto-execute throws before chain: `recordAutoExecuted` → `markCompleted(failure)` | [Backend] |
 
 ### B.3 Chat orchestration
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `chat-orchestrator.ts` / `chat.service.ts` — pass `session_id` from request into tool dispatch | [Backend] |
-| [ ] | After assistant message persisted, backfill `message_id` on transaction row(s) created that turn | [Backend] |
-| [ ] | `workflow-runner.ts` — pass `workflow_step_index` per execute step | [Backend] |
-| [ ] | `single-swap-flow.ts` — record auto-executed or pending swap txs | [Backend] |
+| [x] | `chat-orchestrator.ts` / `chat.service.ts` — pass `session_id` from request into tool dispatch | [Backend] |
+| [x] | After assistant message persisted, backfill `message_id` on transaction row(s) created that turn | [Backend] |
+| [x] | `workflow-runner.ts` — pass `workflow_step_index` per execute step | [Backend] |
+| [x] | `single-swap-flow.ts` — record auto-executed or pending swap txs | [Backend] |
 
 ### B.4 Chat request: reject path
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Add `reject_transaction_id` (or reuse cancel on approval bar API) to chat request schema if not already explicit | [Backend] |
-| [ ] | `POST /api/v1/chat` handler: reject branch calls `rejectPendingTransaction` | [Backend] |
-| [ ] | Client `TransactionApprovalBar` Cancel → send `reject_transaction_id` | [Client] |
+| [x] | Add `reject_transaction_id` (or reuse cancel on approval bar API) to chat request schema if not already explicit | [Backend] |
+| [x] | `POST /api/v1/chat` handler: reject branch calls `rejectPendingTransaction` | [Backend] |
+| [x] | Client `TransactionApprovalBar` Cancel → send `reject_transaction_id` | [Client] |
 
 ### B.5 Migrate pending store (optional in B, required before prod)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | **Phase B-lite:** keep in-memory pending map; DB row is parallel audit trail | [Backend] |
-| [ ] | **Phase B-full:** pending map reads/writes `AgentTransaction` where `status = pending_approval` | [Backend] |
-| [ ] | `approvePendingTransaction` loads input from DB row `params` + `action` + `chain_id` | [Backend] |
-| [ ] | Survives server restart without losing pending approvals | [Backend] |
+| [x] | **Phase B-lite:** keep in-memory pending map; DB row is parallel audit trail | [Backend] |
+| [x] | **Phase B-full:** pending map reads/writes `AgentTransaction` where `status = pending_approval` | [Backend] |
+| [x] | `approvePendingTransaction` loads input from DB row `params` + `action` + `chain_id` | [Backend] |
+| [x] | Survives server restart without losing pending approvals | [Backend] |
 
 ---
 
