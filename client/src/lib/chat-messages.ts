@@ -1,5 +1,7 @@
 import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
+import type { ArtifactPayload } from "@/lib/artifact-types";
+import { extractArtifactFromToolCalls } from "@/lib/extract-artifact";
 import { sanitizeToolErrorMessage } from "@/lib/sanitize-tool-error";
 import {
   mapToolCallsToExecutionSteps,
@@ -25,6 +27,7 @@ export type ChatMessage = {
   text: string;
   receipts?: Receipt[];
   executionSteps?: ExecutionStep[];
+  artifact?: ArtifactPayload;
   streaming?: boolean;
   error?: boolean;
 };
@@ -533,17 +536,22 @@ export function mapToolCallsToMessageExtras(
 ): {
   executionSteps?: ExecutionStep[];
   receipts?: Receipt[];
+  artifact?: ArtifactPayload;
 } {
+  const artifact = extractArtifactFromToolCalls(toolCalls);
   const executionSteps = resolveExecutionSteps(toolCalls, streamedSteps);
   const actionReceipts = buildActionLinkReceipts(toolCalls, executionSteps);
+  const artifactField = artifact ? { artifact } : {};
+
   if (executionSteps) {
     return {
       executionSteps,
+      ...artifactField,
       ...(actionReceipts.length > 0 ? { receipts: actionReceipts } : {}),
     };
   }
   const receipts = mapToolCallsToReceipts(toolCalls);
-  return receipts.length > 0 ? { receipts } : {};
+  return receipts.length > 0 ? { receipts, ...artifactField } : artifactField;
 }
 
 function parseToolCalls(raw: unknown): ChatToolCall[] {

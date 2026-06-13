@@ -84,13 +84,13 @@ Use the [E2B usage cost calculator](https://e2b.dev/pricing) with your chosen vC
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `DeployJob.sandbox_seconds` column | Billable seconds per job |
+| [x] | `DeployJob.sandbox_seconds` column | Billable seconds per job — set in pipeline + webhook reconcile |
 | [ ] | `DeployJob.estimated_cost_usd` | From E2B execution webhook or vCPU×time formula |
 | [ ] | Dashboard: credits remaining | Poll E2B team metrics API weekly |
 | [ ] | Alert at 80% credits burned | Slack/email; switch `SANDBOX_PROVIDER=none` automatically |
-| [ ] | Per-user deploy quota | e.g. 5 E2B deploys/day on Hobby |
+| [x] | Per-user deploy quota | `DEPLOY_MAX_PER_USER_PER_HOUR=5` in `deploy.service.ts` |
 | [ ] | Reject deploy if credits < threshold | Fail fast with user message |
-| [ ] | Log `sandbox.lifecycle.killed` webhooks | Reconcile orphan billing |
+| [x] | Log `sandbox.lifecycle.killed` webhooks | `POST /api/v1/webhooks/e2b` + `reconcileDeployJobOnSandboxKilled` |
 
 ---
 
@@ -365,8 +365,8 @@ Use this section when choosing env vars, providers, or any implementation that k
 | Component | File | Production? | Notes |
 | --------- | ---- | ----------- | ----- |
 | `DockerSandboxProvider` | `docker.provider.ts` (Phase 6) | ✅ Target prod alternative to E2B at scale | Replace `mock` fallback for `SANDBOX_PROVIDER=docker` |
-| Deploy job log buffer | pipeline (planned) | ✅ Stream to Postgres/redis, not grow unbounded in-memory | Cap log lines per job |
-| BullMQ in-process worker | `deploy.worker.ts` (planned) | ✅ One job per worker; don't share handles across workers | |
+| Deploy job log buffer | `deploy-job.repository.ts` | ✅ Postgres `logs` capped at 64 KB per job | Implemented — not unbounded in-memory |
+| BullMQ deploy queue + in-process fallback | `queues.ts` + `enqueueDeployJob` | ✅ Redis BullMQ or `setImmediate` in API process | Separate `worker:deploy` when Redis is up |
 
 ### Quick decision tree
 
@@ -525,9 +525,9 @@ export class E2bSandboxProvider implements SandboxProvider {
 | ------ | ---- | ------ |
 | [x] | Implement full provider | `e2b.provider.ts` — create, write, run, read, list, kill |
 | [x] | `writeFiles` batch | Parallel `files.write` + path validation (no `..`) |
-| [ ] | `run` streams to `DeployJob.logs` | Append via repository (pipeline Step 4) |
+| [x] | `run` streams to `DeployJob.logs` | `appendDeployJobLog` + build `onLine` in `pipeline.ts` |
 | [x] | `readFile` / list dist | `readFile` + `listDir` for Walrus upload |
-| [ ] | **`kill` in `finally`** in pipeline | Non-negotiable on Hobby (deploy pipeline) |
+| [x] | **`kill` in `finally`** in pipeline | `pipeline.ts` — inner `finally` + outer safety kill |
 | [x] | Handle `RateLimitError` | 1s backoff, up to 5 attempts on create |
 | [x] | Unit test with mock | `tests/unit/sandbox/` — no real E2B in CI |
 
@@ -598,9 +598,9 @@ deploy.service.ts — runPipeline(job)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `pipeline.ts` with step enum + progress % | [Backend] |
-| [ ] | Progress map: queued 0%, sandbox 10%, build 40%, walrus 70%, done 100% | [Backend] |
-| [ ] | Idempotency key on POST /deploy | [Backend] |
+| [x] | `pipeline.ts` with step enum + progress % | `job-types.ts` + `[progress:N]` log markers |
+| [x] | Progress map: queued 0%, sandbox 10%, build 40%, walrus 70%, done 100% | `DEPLOY_PROGRESS_PCT` |
+| [x] | Idempotency key on POST /deploy | `Idempotency-Key` header + Redis/memory cache |
 | [ ] | Cancel job endpoint (optional) | [Backend] |
 
 ---
@@ -611,7 +611,7 @@ deploy.service.ts — runPipeline(job)
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `npx prisma migrate dev --name add_projects_artifacts_deploy` | Never hand-name file |
+| [x] | `npx prisma migrate dev --name add_projects_artifacts_deploy` | Applied: `20260614180000_add_projects_artifacts_deploy` |
 
 ```prisma
 enum ProjectStatus {
@@ -695,8 +695,8 @@ model DeployJob {
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Add relations on `User`, `ChatSession` | |
-| [ ] | Repository layer | `project.repository.ts`, `artifact.repository.ts` |
+| [x] | Add relations on `User`, `ChatSession` | `schema.prisma` |
+| [x] | Repository layer | `project.repository.ts`, `artifact.repository.ts`, `deploy-job.repository.ts` |
 | [ ] | Cascade delete tests | User delete removes projects |
 
 ---
@@ -714,9 +714,9 @@ model DeployJob {
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
+| [x] | Map template → pre-built dist path OR custom | `template-registry.ts` |
 | [ ] | `template-registry.ts` Zod schemas per template | |
 | [ ] | Return human description + estimated gas | |
-| [ ] | Map template → pre-built dist path OR custom | |
 
 ### `generate_app`
 
@@ -730,11 +730,11 @@ model DeployJob {
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Create project if no `project_id` | Link to `session_id` |
-| [ ] | Upsert files; bump `artifact_revision` | |
-| [ ] | Return `ArtifactPayload` for client panel | |
-| [ ] | Enforce 512 KB / 50 files | Uses `validateArtifactBatch()` in `sandbox-paths.ts` |
-| [ ] | Whitelist paths under `src/`, `public/` | Uses `normalizeSandboxPath()` — **validator ready** |
+| [x] | Create project if no `project_id` | Link to `session_id` |
+| [x] | Upsert files; bump `artifact_revision` | |
+| [x] | Return `ArtifactPayload` for client panel | |
+| [x] | Enforce 512 KB / 50 files | Uses `validateArtifactBatch()` in `sandbox-paths.ts` |
+| [x] | Whitelist paths under `src/`, `public/` | Uses `normalizeSandboxPath()` |
 
 ### `deploy_app`
 
@@ -747,8 +747,8 @@ model DeployJob {
 | Status | Task | Detail |
 | ------ | ---- | ------ |
 | [ ] | Check credits before E2B enqueue | |
-| [ ] | Reject if job already running for project | |
-| [ ] | Return `{ job_id, status: "queued" }` | |
+| [x] | Reject if job already running for project | `findRunningDeployJobForProject` dedupe |
+| [x] | Return `{ job_id, status: "queued" }` | `deploy_app` tool + `POST /api/v1/deploy` |
 
 ### `register_app`
 
@@ -806,9 +806,12 @@ model DeployJob {
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Auth + ownership check | [Backend] |
-| [ ] | Enqueue BullMQ | [Backend] |
-| [ ] | Rate limit: 5/user/hour on Hobby | [Backend] |
+| [x] | Route + handler | `api/routes/v1/deploy/deploy.ts` |
+| [x] | Zod validation | `deployRequestSchema` (`project_id` uuid) |
+| [x] | Auth + ownership check | `deploy.service.ts` |
+| [x] | Enqueue BullMQ | `infrastructure/redis/queues.ts` — in-process fallback without Redis |
+| [x] | Rate limit: 5/user/hour on Hobby | `DEPLOY_MAX_PER_USER_PER_HOUR` |
+| [x] | Returns `202 Accepted` | On successful enqueue |
 
 ### `GET /api/v1/deploy/:jobId`
 
@@ -826,16 +829,17 @@ model DeployJob {
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Poll-friendly | [Backend] |
+| [x] | Poll-friendly | `GET /api/v1/deploy/:jobId` — `progress_pct`, `logs_tail` |
 | [ ] | Redact secrets from logs | [Backend] |
 
 ### `GET /api/v1/projects` / `GET /api/v1/projects/:id`
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
+| [x] | `GET /api/v1/projects` basic list | `projects.ts` — unpaginated for now |
 | [ ] | Pagination `page`, `limit` | [Backend] |
 | [ ] | Include latest deploy job summary | [Backend] |
-| [ ] | `:id` includes files for current revision | [Backend] |
+| [x] | `:id` includes files for current revision | `GET /api/v1/projects/:id` |
 
 ### `GET /api/v1/apps` (explorer)
 
@@ -851,14 +855,14 @@ model DeployJob {
 
 | Status | Task | Command / detail |
 | ------ | ---- | ---------------- |
-| [ ] | Queue name `radiant:deploy` | `infrastructure/redis/queues.ts` |
-| [ ] | Worker concurrency **2** on Hobby | `DEPLOY_MAX_CONCURRENT=2` |
-| [ ] | Limiter `{ max: 1, duration: 1000 }` | Respect 1 sandbox/sec creation |
-| [ ] | Job timeout 15 min | BullMQ stall detection |
+| [x] | Queue name `radiant:deploy` | `infrastructure/redis/queues.ts` |
+| [x] | Worker concurrency **2** on Hobby | `DEPLOY_MAX_CONCURRENT=2` |
+| [x] | Limiter `{ max: 1, duration: 1000 }` | BullMQ worker limiter |
+| [x] | Job timeout 15 min | `DEPLOY_JOB_TIMEOUT_MS` / worker `lockDuration` |
 | [ ] | Dead letter queue | Failed after 2 retries |
-| [ ] | Start worker | `tsx src/workers/deploy.worker.ts` |
+| [x] | Start worker | `npm run worker:deploy` → `src/workers/deploy.worker.ts` |
 | [ ] | Docker compose service (optional) | `deploy-worker` profile |
-| [ ] | **Never run worker in `main.ts`** | Separate process |
+| [x] | **Never run worker in `main.ts`** | Separate `worker:deploy` process |
 
 ```typescript
 // Worker concurrency — Hobby plan
@@ -992,20 +996,22 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 
 | Status | Task | Implementation detail | Owner |
 | ------ | ---- | --------------------- | ----- |
-| [ ] | Pre-build `templates/escrow/dist/` in repo | CI builds once | [Backend] |
-| [ ] | Pre-build `templates/swap/dist/` | | [Backend] |
-| [ ] | Config injection script | `config.json` with params | [Backend] |
-| [ ] | `NoneSandboxProvider` | No-op sandbox | [Backend] |
-| [ ] | `walrus/sites.client.ts` | Upload static files | [Backend] |
-| [ ] | `deploy.service.ts` pipeline | Provider none path | [Backend] |
-| [ ] | `DeployJob` + BullMQ queue | Still async for UX | [Backend] |
-| [ ] | `deploy_app` tool | | [Backend] |
-| [ ] | `POST /api/v1/deploy` | | [Backend] |
-| [ ] | `GET /api/v1/deploy/:id` | Polling | [Backend] |
-| [ ] | `GET /api/v1/projects` | | [Backend] |
+| [x] | Pre-build `templates/escrow/dist/` in repo | Static stub in `backend/templates/escrow/dist/` |
+| [x] | Pre-build `templates/swap/dist/` | `backend/templates/swap/dist/` |
+| [x] | Pre-build `templates/prediction/dist/` | `backend/templates/prediction/dist/` |
+| [x] | Config injection script | `prepareFixedTemplateDist()` writes `config.json` |
+| [x] | `NoneSandboxProvider` | No-op sandbox | [Backend] |
+| [x] | `walrus/sites.client.ts` | `deployWalrusSite()` — mock or `site-builder` |
+| [x] | `deploy.service.ts` pipeline | `pipeline.ts` — none + e2b/mock paths |
+| [x] | `DeployJob` + BullMQ queue | `queues.ts` + in-process fallback |
+| [x] | `deploy_app` tool | `deploy-app.tool.ts` |
+| [x] | `POST /api/v1/deploy` | `api/routes/v1/deploy/deploy.ts` |
+| [x] | `GET /api/v1/deploy/:id` | Polling |
+| [x] | `GET /api/v1/projects` | `api/routes/v1/projects/projects.ts` |
+| [x] | Integration test (fixed template) | `tests/integration/deploy-pipeline.test.ts` | [Backend] |
 | [ ] | `DeployProgress` UI | | [Client] |
 | [ ] | Projects page real data | | [Client] |
-| [ ] | Manual test: Walrus testnet URL opens | | [QA] |
+| [ ] | Manual test: Walrus testnet URL opens | Set `WALRUS_DEPLOY_MOCK=false` + site-builder | [QA] |
 
 ### Phase 4 — E2B custom builds (Hobby credits — **optimize heavily**)
 
@@ -1013,19 +1019,19 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 
 | Status | Task | Implementation detail | Owner |
 | ------ | ---- | --------------------- | ----- |
-| [ ] | `backend/docker/e2b/scaffold/` | Disk budget <400 MB | [Backend] |
-| [ ] | `template.ts` + `build.prod.ts` | Layer caching | [Backend] |
-| [ ] | Build template `radiant-build:v1` | 2 CPU, 4096 MB | [DevOps] |
-| [ ] | `E2bSandboxProvider` | Full interface | [Backend] |
-| [ ] | Pipeline E2B branch | try/finally kill | [Backend] |
+| [x] | `backend/docker/e2b/scaffold/` | Disk budget <400 MB | [Backend] |
+| [x] | `template.ts` + `build.prod.ts` | Layer caching | [Backend] |
+| [x] | Build template `radiant-build:v1` | 2 CPU, 4096 MB | [DevOps] |
+| [x] | `E2bSandboxProvider` | Full interface | [Backend] |
+| [x] | Pipeline E2B branch | try/finally kill | [Backend] |
 | [ ] | Credit check before enqueue | | [Backend] |
-| [ ] | `DEPLOY_MAX_CONCURRENT=2` | | [Backend] |
-| [ ] | Creation rate limiter 1/s | BullMQ | [Backend] |
+| [x] | `DEPLOY_MAX_CONCURRENT=2` | `config/deploy.ts` + worker | [Backend] |
+| [x] | Creation rate limiter 1/s | BullMQ worker limiter | [Backend] |
 | [x] | `e2b-cleanup.sh` cron | `npm run e2b:cleanup:cron` | [DevOps] |
 | [x] | E2B lifecycle webhooks | `POST /api/v1/webhooks/e2b` | [Backend] |
-| [ ] | Integration test with mock provider | CI default | [Backend] |
-| [ ] | Manual E2B test script | `scripts/e2b-smoke.ts` | [Backend] |
-| [ ] | Log `sandbox_seconds` per job | | [Backend] |
+| [x] | Integration test with mock provider | `tests/integration/deploy-pipeline-custom.test.ts` | [Backend] |
+| [x] | Manual E2B test script | `npm run e2b:smoke` | [Backend] |
+| [x] | Log `sandbox_seconds` per job | `DeployJob.sandbox_seconds` in pipeline | [Backend] |
 | [ ] | Block deploy when credits low | | [Backend] |
 
 ### Phase 5 — Move publish + AppRegistry + Explorer
@@ -1053,8 +1059,8 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | Status | Task | Owner |
 | ------ | ---- | ----- |
 | [ ] | SSE or WS deploy progress | [Both] |
-| [ ] | E2B lifecycle webhooks | [Backend] |
-| [ ] | Per-user deploy quotas | [Backend] |
+| [x] | E2B lifecycle webhooks | `POST /api/v1/webhooks/e2b` | [Backend] |
+| [x] | Per-user deploy quotas | `DEPLOY_MAX_PER_USER_PER_HOUR` | [Backend] |
 | [ ] | Admin view: credit burn dashboard | [Backend] |
 | [ ] | `POST /app/:id/call` stub | [Backend] |
 | [ ] | Update README | [Docs] |
@@ -1065,14 +1071,13 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 
 | Test | Type | E2B credits? |
 | ---- | ---- | ------------ |
-| Path allowlist rejects `../etc/passwd` | unit | No |
-| 512 KB limit enforced | unit | No |
-| `MockSandboxProvider` pipeline | unit | No |
-| `kill()` called on pipeline success | unit | No |
-| `kill()` called on pipeline failure | unit | No |
-| Template-only deploy (none provider) | integration | No |
+| Path allowlist rejects `../etc/passwd` ✓ | unit | No |
+| 512 KB limit enforced ✓ | unit | No |
+| `MockSandboxProvider` custom pipeline ✓ | integration | No |
+| `kill()` in pipeline `finally` ✓ | integration | No |
+| Template-only deploy (none provider) ✓ | integration | No |
 | Projects API auth scoping | integration | No |
-| E2B smoke (manual) | manual | **Yes — budget** |
+| E2B smoke (manual) ✓ `npm run e2b:smoke` | manual | **Yes — budget** |
 | Full custom deploy E2B | manual staging | **Yes — budget** |
 | Explorer public filter | integration | No |
 

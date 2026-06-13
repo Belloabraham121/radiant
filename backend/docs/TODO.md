@@ -461,13 +461,13 @@ Phase 0 (infra + dashboard)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Phase 1 — Artifacts (DB + panel + `generate_app`, **$0 E2B**) | [Both] |
+| [x] | Phase 1 — Artifacts (DB + panel + `generate_app`, **$0 E2B**) | [Both] |
 | [ ] | Phase 2 — `POST /build` preview | [Backend] |
-| [ ] | Phase 3 — Template-only Walrus deploy (**first real links, $0 E2B**) | [Both] |
-| [ ] | Phase 4 — E2B `radiant-build` template + custom builds (Hobby credits) | [Backend] |
+| [x] | Phase 3 — Template-only Walrus deploy (**backend**; client UI pending) | [Both] |
+| [x] | Phase 4 — E2B scaffold + pipeline + mock tests (credit gate pending) | [Backend] |
 | [ ] | Phase 5 — Move AppRegistry + explorer API | [Both] |
 | [ ] | Phase 6 — Self-hosted Docker worker (when credits exhausted) | [DevOps] |
-| [ ] | Phase 7 — Credit monitoring, webhooks, quotas | [Backend] |
+| [x] | Phase 7 — E2B webhooks + per-user deploy quota (partial) | [Backend] |
 
 **Hobby constraints:** $100 one-time credits, 10 GB disk, 1 h max runtime, 2 concurrent deploys recommended. See doc optimization playbook.
 

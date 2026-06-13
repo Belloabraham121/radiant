@@ -138,14 +138,6 @@ export function useChatSession(sessionId?: string) {
           role: "agent",
           text: "",
           streaming: true,
-          executionSteps: [
-            {
-              id: "agent",
-              status: "running",
-              label: "Radiant",
-              detail: "Planning next steps…",
-            },
-          ],
         },
       ]);
       setStreaming(true);
@@ -159,21 +151,16 @@ export function useChatSession(sessionId?: string) {
           },
           {
             onStep: (step) => {
+              if (step.id === "agent") {
+                return;
+              }
               setMessages((current) =>
                 current.map((message) => {
                   if (message.id !== liveAgentId) {
                     return message;
                   }
                   const nextStep = mapStreamStepToExecutionStep(step);
-                  let executionSteps = message.executionSteps ?? [];
-                  if (step.id !== "agent") {
-                    executionSteps = upsertExecutionStep(executionSteps, {
-                      id: "agent",
-                      status: "ok",
-                      label: "Radiant",
-                      detail: "Picked a plan",
-                    });
-                  }
+                  const executionSteps = message.executionSteps ?? [];
                   return {
                     ...message,
                     executionSteps: sortExecutionSteps(
@@ -205,6 +192,7 @@ export function useChatSession(sessionId?: string) {
               text: data.reply,
               streaming: false,
               ...mapToolCallsToMessageExtras(data.tool_calls, liveSteps),
+              ...(data.artifact ? { artifact: data.artifact } : {}),
             },
           ];
 
@@ -224,7 +212,8 @@ export function useChatSession(sessionId?: string) {
         setPendingClarification(data.pending_clarification ?? null);
 
         if (data.artifact) {
-          openArtifact(data.session_id, data.artifact);
+          const artifactSessionKey = sessionId ?? activeSessionId ?? data.session_id;
+          openArtifact(artifactSessionKey, data.artifact);
         }
 
         if (!sessionId && data.session_id) {
@@ -273,7 +262,8 @@ export function useChatSession(sessionId?: string) {
       ]);
 
       if (data.artifact) {
-        openArtifact(data.session_id, data.artifact);
+        const artifactSessionKey = activeSessionId ?? data.session_id;
+        openArtifact(artifactSessionKey, data.artifact);
       }
 
       void refreshSessions({ silent: true });
@@ -314,7 +304,8 @@ export function useChatSession(sessionId?: string) {
       ]);
 
       if (data.artifact) {
-        openArtifact(data.session_id, data.artifact);
+        const artifactSessionKey = activeSessionId ?? data.session_id;
+        openArtifact(artifactSessionKey, data.artifact);
       }
 
       void refreshSessions({ silent: true });
@@ -375,7 +366,8 @@ export function useChatSession(sessionId?: string) {
         ]);
 
         if (data.artifact) {
-          openArtifact(data.session_id, data.artifact);
+          const artifactSessionKey = sessionId ?? activeSessionId ?? data.session_id;
+          openArtifact(artifactSessionKey, data.artifact);
         }
 
         void refreshSessions({ silent: true });

@@ -54,7 +54,11 @@ export async function runChatTurn(
 
   await appendMessage(session.id, "user", request.message);
 
-  if (options.onStream) {
+  const isTransactionContinuation =
+    isApprovalContinuationMessage(request.message) ||
+    isClarificationContinuationRequest(request);
+
+  if (options.onStream && isTransactionContinuation) {
     options.onStream("step", {
       step: {
         id: "agent",
@@ -65,7 +69,7 @@ export async function runChatTurn(
     });
   }
 
-  if (!isApprovalContinuationMessage(request.message) && !isClarificationContinuationRequest(request)) {
+  if (!isTransactionContinuation) {
     const workflowOutcome = await tryStartWorkflowFromMessage(
       privyUserId,
       session.id,

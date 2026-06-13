@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowUp, Check, Copy, ExternalLink, Sparkles } from "lucide-react";
+import { ArrowUp, Check, Copy, ExternalLink, LayoutPanelLeft, Sparkles } from "lucide-react";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
@@ -12,6 +12,7 @@ import { ArtifactPanel } from "@/components/app/ArtifactPanel";
 import { useArtifactSession } from "@/components/app/ArtifactContext";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage, Receipt } from "@/lib/chat-messages";
+import type { ArtifactPayload } from "@/lib/artifact-types";
 import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
@@ -89,7 +90,32 @@ function MessageCopyButton({
   );
 }
 
-function Bubble({ message }: { message: ChatMessage }) {
+function ArtifactViewButton({
+  artifact,
+  onClick,
+}: {
+  artifact: ArtifactPayload;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex max-w-full items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-4 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+    >
+      <LayoutPanelLeft className="size-4 shrink-0 text-[var(--hero-violet)]" strokeWidth={2.5} />
+      <span className="truncate">View app — {artifact.name}</span>
+    </button>
+  );
+}
+
+function Bubble({
+  message,
+  onViewArtifact,
+}: {
+  message: ChatMessage;
+  onViewArtifact?: (artifact: ArtifactPayload) => void;
+}) {
   const isUser = message.role === "user";
   return (
     <div
@@ -139,6 +165,13 @@ function Bubble({ message }: { message: ChatMessage }) {
             ))}
           </div>
         )}
+
+        {message.artifact && !message.streaming ? (
+          <ArtifactViewButton
+            artifact={message.artifact}
+            onClick={() => onViewArtifact?.(message.artifact!)}
+          />
+        ) : null}
 
         <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
           {!message.streaming ? (
@@ -200,6 +233,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     activePath,
     setActivePath,
     closePanel,
+    openArtifact,
   } = useArtifactSession(artifactKey);
 
   const chatColumnClass =
@@ -336,7 +370,11 @@ export function ChatView({ sessionId }: ChatViewProps) {
             ) : null}
 
             {messages.map((message) => (
-              <Bubble key={message.id} message={message} />
+              <Bubble
+                key={message.id}
+                message={message}
+                onViewArtifact={(artifact) => openArtifact(artifact)}
+              />
             ))}
 
             {typing && !streaming && (

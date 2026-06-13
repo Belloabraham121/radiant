@@ -22,6 +22,9 @@ export function ArtifactCodeView({
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b-2 border-[var(--hero-ink)]/10 px-3 py-2 text-xs font-bold text-[var(--hero-ink)]/50">
         {file.path}
+        <span className="ml-2 font-semibold normal-case text-[var(--hero-ink)]/35">
+          read-only — ask the agent to edit
+        </span>
       </div>
       <pre
         className="min-h-0 flex-1 overflow-auto p-4 text-xs leading-relaxed font-mono text-[var(--hero-ink)]"

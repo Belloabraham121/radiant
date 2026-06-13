@@ -65,15 +65,38 @@ ${css}
     showError("No src/App.tsx found — ask your agent to add one.");
     return;
   }
+  function createPreviewRequire() {
+    const registry = {
+      react: React,
+      "react-dom": ReactDOM,
+      "react-dom/client": { createRoot: ReactDOM.createRoot.bind(ReactDOM) },
+      "react/jsx-runtime": {
+        jsx: React.createElement,
+        jsxs: React.createElement,
+        Fragment: React.Fragment,
+      },
+    };
+    return function previewRequire(name) {
+      if (registry[name]) return registry[name];
+      throw new Error(
+        "Preview cannot load module: " + name + " (chat preview supports React only — avoid lucide and other npm imports)",
+      );
+    };
+  }
   try {
     const transformed = Babel.transform(payload.app, {
-      presets: ["env", "react", "typescript"],
+      presets: [
+        ["env", { modules: "commonjs" }],
+        ["react", { runtime: "classic" }],
+        "typescript",
+      ],
       filename: "App.tsx",
     }).code;
     const module = { exports: {} };
     const exports = module.exports;
-    const fn = new Function("React", "ReactDOM", "exports", "module", transformed);
-    fn(React, ReactDOM, exports, module);
+    const require = createPreviewRequire();
+    const fn = new Function("React", "ReactDOM", "require", "exports", "module", transformed);
+    fn(React, ReactDOM, require, exports, module);
     const App = module.exports.default || module.exports;
     if (typeof App !== "function") {
       throw new Error("App.tsx must default-export a React component.");

@@ -57,6 +57,24 @@ export type StreamExecutionStepPayload = {
   chain_id?: string;
 };
 
+const EXECUTION_TIMELINE_TOOL_NAMES = new Set(["execute_transaction", "query_chain"]);
+
+/** Whether this turn should show the on-chain execution timeline (swaps, flash loans, etc.). */
+export function isExecutionTimelineRelevant(toolCalls: ChatToolCall[]): boolean {
+  return toolCalls.some((call) => EXECUTION_TIMELINE_TOOL_NAMES.has(call.name));
+}
+
+/** Drop generic agent-planning pulses when no transaction tools ran. */
+export function filterExecutionStepsForDisplay(
+  steps: ExecutionStep[],
+  toolCalls: ChatToolCall[],
+): ExecutionStep[] {
+  if (isExecutionTimelineRelevant(toolCalls)) {
+    return steps;
+  }
+  return steps.filter((step) => step.id !== "agent");
+}
+
 export function mapStreamStepToExecutionStep(step: StreamExecutionStepPayload): ExecutionStep {
   const chainId = (step.chain_id ?? (step.digest ? "sui" : undefined)) as AgentChainId | undefined;
   return {
@@ -511,9 +529,12 @@ export function resolveExecutionSteps(
 ): ExecutionStep[] | undefined {
   const fromTools = mapToolCallsToExecutionSteps(toolCalls);
   const fromFailures = buildFailedToolExecutionSteps(toolCalls);
-  const combined = mergeExecutionSteps(
-    streamedSteps,
-    mergeExecutionSteps(fromTools ?? [], fromFailures ?? []),
+  const combined = filterExecutionStepsForDisplay(
+    mergeExecutionSteps(
+      streamedSteps,
+      mergeExecutionSteps(fromTools ?? [], fromFailures ?? []),
+    ),
+    toolCalls,
   );
   return combined.length > 0 ? combined : undefined;
 }
