@@ -1,4 +1,4 @@
-import { RateLimitError, Sandbox, type Sandbox as E2bSandbox } from "e2b";
+import { RateLimitError, Sandbox } from "e2b";
 import { AppError } from "../../errors/app-error.js";
 import { getSandboxConfig } from "../../config/sandbox.js";
 import {
@@ -16,12 +16,38 @@ const SCAFFOLD_COPY_TIMEOUT_MS = 120_000;
 const RATE_LIMIT_MAX_ATTEMPTS = 5;
 const RATE_LIMIT_BACKOFF_MS = 1_000;
 
+type E2bCommandRunOptions = {
+  cwd?: string;
+  timeoutMs?: number;
+  onStdout?: (data: string) => void | Promise<void>;
+  onStderr?: (data: string) => void | Promise<void>;
+};
+
+type E2bCommandResult = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+};
+
+/** Minimal E2B surface used by deploy pipeline — enables lean mocks in tests. */
+export type E2bSandboxHandle = {
+  commands: {
+    run: (cmd: string, opts?: E2bCommandRunOptions) => Promise<E2bCommandResult>;
+  };
+  files: {
+    write: (entries: { path: string; data: string }[]) => Promise<unknown>;
+    read: (path: string, opts: { format: "bytes" }) => Promise<Uint8Array>;
+    list: (path: string, opts?: { depth?: number }) => Promise<{ path: string }[]>;
+  };
+  kill: () => Promise<void>;
+};
+
 type E2bSandboxCreateOptions = NonNullable<Parameters<typeof Sandbox.create>[1]>;
 
 export type E2bSandboxFactory = (
   template: string,
   options?: E2bSandboxCreateOptions,
-) => Promise<E2bSandbox>;
+) => Promise<E2bSandboxHandle>;
 
 export type E2bSandboxProviderOptions = {
   createSandbox?: E2bSandboxFactory;
@@ -43,7 +69,7 @@ export class E2bSandboxProvider implements SandboxProvider {
   readonly name = "e2b" as const;
 
   private readonly createSandbox: E2bSandboxFactory;
-  private readonly sandboxes = new Map<string, E2bSandbox>();
+  private readonly sandboxes = new Map<string, E2bSandboxHandle>();
 
   constructor(options: E2bSandboxProviderOptions = {}) {
     this.createSandbox =
@@ -148,7 +174,7 @@ export class E2bSandboxProvider implements SandboxProvider {
     }
   }
 
-  private getSandbox(handleId: string): E2bSandbox {
+  private getSandbox(handleId: string): E2bSandboxHandle {
     const sandbox = this.sandboxes.get(handleId);
     if (!sandbox) {
       throw new AppError(404, "SANDBOX_NOT_FOUND", `E2B sandbox handle not found: ${handleId}`);
@@ -159,7 +185,7 @@ export class E2bSandboxProvider implements SandboxProvider {
   private async createSandboxWithRetry(
     template: string,
     options: E2bSandboxCreateOptions,
-  ): Promise<E2bSandbox> {
+  ): Promise<E2bSandboxHandle> {
     for (let attempt = 1; attempt <= RATE_LIMIT_MAX_ATTEMPTS; attempt++) {
       try {
         return await this.createSandbox(template, options);
