@@ -1,4 +1,4 @@
-import type { DeepBookSwapQuoteResult } from "../../defi/deepbook-swap.service.js";
+import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.service.js";
 import type { TxResult } from "../../chains/types.js";
 import type { ToolCallRecord } from "../agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";

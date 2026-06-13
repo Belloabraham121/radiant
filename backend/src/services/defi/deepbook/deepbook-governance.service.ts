@@ -1,12 +1,12 @@
 import { Transaction } from "@mysten/sui/transactions";
-import { getDeepBookEnv } from "../../config/deepbook.js";
-import { AppError } from "../../errors/app-error.js";
-import { assertGovernanceEnabled } from "../agent/agent-permissions.service.js";
-import { getSuiClient } from "../../infrastructure/sui/client.js";
-import { getPrivyClient } from "../../infrastructure/privy/client.js";
-import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
-import { executeSignedSuiTransaction } from "../wallet/sui-transaction.service.js";
-import { signSuiTransactionBytes } from "../wallet/sui-signing.service.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { AppError } from "../../../errors/app-error.js";
+import { assertGovernanceEnabled } from "../../agent/agent-permissions.service.js";
+import { getSuiClient } from "../../../infrastructure/sui/client.js";
+import { getPrivyClient } from "../../../infrastructure/privy/client.js";
+import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
+import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
+import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import { ensureBalanceManager } from "./deepbook-balance-manager.service.js";
 import type { ProvisionedDeepBookManager } from "./deepbook-balance-manager.types.js";
 import { normalizePoolKey } from "./pool-key.js";
@@ -16,12 +16,12 @@ import {
   type SuiDeepBookExtendedClient,
 } from "./providers/sui-deepbook.provider.js";
 import type { DeepBookClientContext } from "./types.js";
-import type { TxResult } from "../chains/types.js";
+import type { TxResult } from "../../chains/types.js";
 
 export const DEEPBOOK_SUBMIT_PROPOSAL_ACTION = "deepbook_submit_proposal" as const;
 export const DEEPBOOK_VOTE_ACTION = "deepbook_vote" as const;
 
-const GOVERNANCE_ACTIONS = new Set([
+const GOVERNANCE_ACTIONS = new Set<string>([
   DEEPBOOK_SUBMIT_PROPOSAL_ACTION,
   DEEPBOOK_VOTE_ACTION,
 ]);

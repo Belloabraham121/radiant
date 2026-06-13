@@ -4,7 +4,7 @@ import {
   isDeepBookStakeAction,
   parseDeepBookStakeParams,
   parseDeepBookUnstakeParams,
-} from "../../../src/services/defi/deepbook-stake.service.js";
+} from "../../../src/services/defi/deepbook/deepbook-stake.service.js";
 import { AppError } from "../../../src/errors/app-error.js";
 
 describe("deepbook-stake.service", () => {

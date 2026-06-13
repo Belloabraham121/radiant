@@ -1,5 +1,5 @@
-import type { ExecuteTransactionInput } from "../chains/types.js";
-import type { PendingTransaction } from "./agent.types.js";
+import type { ExecuteTransactionInput } from "../../chains/types.js";
+import type { PendingTransaction } from "../agent.types.js";
 
 export type TransactionErrorContext = {
   action: string;

@@ -1,5 +1,5 @@
 import type { DeepBookBalanceManager, Prisma } from "@prisma/client";
-import { prisma } from "../../infrastructure/postgres/client.js";
+import { prisma } from "../../../infrastructure/postgres/client.js";
 
 export async function findBalanceManagerByPrivyUserId(
   privyUserId: string,

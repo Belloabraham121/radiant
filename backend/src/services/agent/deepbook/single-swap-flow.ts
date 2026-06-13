@@ -1,13 +1,13 @@
-import type { ExecuteTransactionInput } from "../chains/types.js";
-import { getDeepBookSwapQuote } from "../defi/deepbook-swap.service.js";
-import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "./agent.types.js";
+import type { ExecuteTransactionInput } from "../../chains/types.js";
+import { getDeepBookSwapQuote } from "../../defi/deepbook/deepbook-swap.service.js";
+import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "../agent.types.js";
 import { isCompoundMarketAndSwapRequest } from "./compound-request-flow.js";
-import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
-import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
-import { runExecuteTransactionToolWithApproval } from "./tools.js";
+import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
+import { runExecuteTransactionToolWithApproval } from "../tools.js";
 import { userRequestedSwap } from "./swap-approval-flow.js";
-import { looksLikeWorkflowMessage } from "./workflow/heuristic-planner.js";
-import { parseSingleSwapIntent } from "./workflow/workflow-parser.js";
+import { looksLikeWorkflowMessage } from "../workflow/heuristic-planner.js";
+import { parseSingleSwapIntent } from "../workflow/workflow-parser.js";
 
 export type SingleSwapOutcome = {
   reply: string;

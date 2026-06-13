@@ -6,7 +6,7 @@ import {
   inferSwapSide,
   parseDeepBookSwapParams,
   resetDeepBookSwapServiceForTests,
-} from "../../../src/services/defi/deepbook-swap.service.js";
+} from "../../../src/services/defi/deepbook/deepbook-swap.service.js";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import {
   buildPendingTransactionPreview,

@@ -26,7 +26,7 @@ import {
   resolveExecuteTransactionOptions,
   type AgentToolOptions,
 } from "./execute-transaction-context.js";
-import { validateExecuteTransactionInput } from "./validate-execute-transaction.js";
+import { validateExecuteTransactionInput } from "./deepbook/validate-execute-transaction.js";
 import {
   recordAutoExecuted,
   markCompleted,
@@ -34,19 +34,19 @@ import {
 import {
   isDeepBookSwapAction,
   preflightDeepBookSwap,
-} from "../defi/deepbook-swap.service.js";
+} from "../defi/deepbook/deepbook-swap.service.js";
 import {
   preflightDeepBookPlaceLimitOrder,
   preflightDeepBookPlaceMarketOrder,
   preflightDeepBookModifyOrder,
   preflightDeepBookWithdrawSettled,
   preflightDeepBookWithdrawSettledPermissionless,
-} from "../defi/deepbook-orders.service.js";
-import { preflightDeepBookWithdraw } from "../defi/deepbook-balance-manager.service.js";
+} from "../defi/deepbook/deepbook-orders.service.js";
+import { preflightDeepBookWithdraw } from "../defi/deepbook/deepbook-balance-manager.service.js";
 import {
   isDeepBookFlashLoanAction,
   preflightDeepBookFlashLoan,
-} from "../defi/deepbook-flash-loan.service.js";
+} from "../defi/deepbook/deepbook-flash-loan.service.js";
 
 export const agentToolDefinitions = [
   executeTransactionToolDefinition,

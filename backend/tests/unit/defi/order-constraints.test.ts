@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   isMultipleOfStep,
   snapToStep,
-} from "../../../src/services/defi/order-constraints.js";
+} from "../../../src/services/defi/deepbook/order-constraints.js";
 
 describe("order-constraints", () => {
   it("treats 1.2 as a valid multiple of tick_size 0.00001", () => {

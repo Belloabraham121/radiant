@@ -1,13 +1,13 @@
-import { isDeepBookSwapAction } from "../defi/deepbook-swap.service.js";
+import { isDeepBookSwapAction } from "../../defi/deepbook/deepbook-swap.service.js";
 import {
   isDeepBookCancelOrderAction,
   isDeepBookPlaceOrderAction,
-} from "../defi/deepbook-orders.service.js";
-import { isDeepBookFlashLoanAction } from "../defi/deepbook-flash-loan.service.js";
-import { isDeepBookStakeAction } from "../defi/deepbook-stake.service.js";
-import { isDeepBookGovernanceAction } from "../defi/deepbook-governance.service.js";
+} from "../../defi/deepbook/deepbook-orders.service.js";
+import { isDeepBookFlashLoanAction } from "../../defi/deepbook/deepbook-flash-loan.service.js";
+import { isDeepBookStakeAction } from "../../defi/deepbook/deepbook-stake.service.js";
+import { isDeepBookGovernanceAction } from "../../defi/deepbook/deepbook-governance.service.js";
 import { isDeepBookProvisionAction } from "./validate-execute-transaction.js";
-import type { AgentTransactionCategory } from "../agent-transaction/agent-transaction.types.js";
+import type { AgentTransactionCategory } from "../../agent-transaction/agent-transaction.types.js";
 
 const TRANSFER_ACTIONS = new Set([
   "transfer_native",

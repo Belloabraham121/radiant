@@ -1,6 +1,6 @@
-import { getDeepBookEnv } from "../../config/deepbook.js";
-import { AppError } from "../../errors/app-error.js";
-import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { AppError } from "../../../errors/app-error.js";
+import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
 import { getDeepBookClient } from "./providers/sui-deepbook.provider.js";
 import {
   fetchIndexerOrderbook,

@@ -1,7 +1,7 @@
 import type { SuiGrpcClient } from "@mysten/sui/grpc";
 import { getSuiClient } from "../../infrastructure/sui/client.js";
-import { atomicToDisplay } from "../defi/asset-scalars.js";
-import type { TokenCatalogEntry } from "../defi/token-catalog.types.js";
+import { atomicToDisplay } from "../defi/deepbook/asset-scalars.js";
+import type { TokenCatalogEntry } from "../defi/deepbook/token-catalog.types.js";
 import type { WalletAssetRow } from "./wallet-assets.types.js";
 
 export type SuiBalanceClient = Pick<SuiGrpcClient, "getBalance">;

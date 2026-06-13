@@ -1,11 +1,11 @@
 import { Transaction } from "@mysten/sui/transactions";
-import { getDeepBookEnv } from "../../config/deepbook.js";
-import { AppError } from "../../errors/app-error.js";
-import { getSuiClient } from "../../infrastructure/sui/client.js";
-import { getPrivyClient } from "../../infrastructure/privy/client.js";
-import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
-import { executeSignedSuiTransaction } from "../wallet/sui-transaction.service.js";
-import { signSuiTransactionBytes } from "../wallet/sui-signing.service.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { AppError } from "../../../errors/app-error.js";
+import { getSuiClient } from "../../../infrastructure/sui/client.js";
+import { getPrivyClient } from "../../../infrastructure/privy/client.js";
+import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
+import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
+import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import {
   checkManagerBalance,
   ensureBalanceManager,
@@ -18,12 +18,12 @@ import {
   type SuiDeepBookExtendedClient,
 } from "./providers/sui-deepbook.provider.js";
 import type { DeepBookClientContext } from "./types.js";
-import type { TxResult } from "../chains/types.js";
+import type { TxResult } from "../../chains/types.js";
 
 export const DEEPBOOK_STAKE_ACTION = "deepbook_stake" as const;
 export const DEEPBOOK_UNSTAKE_ACTION = "deepbook_unstake" as const;
 
-const STAKE_ACTIONS = new Set([DEEPBOOK_STAKE_ACTION, DEEPBOOK_UNSTAKE_ACTION]);
+const STAKE_ACTIONS = new Set<string>([DEEPBOOK_STAKE_ACTION, DEEPBOOK_UNSTAKE_ACTION]);
 
 export type DeepBookStakeParams = {
   pool_key: string;

@@ -1,12 +1,12 @@
 import { MAX_TIMESTAMP } from "@mysten/deepbook-v3";
 import { Transaction } from "@mysten/sui/transactions";
-import { getDeepBookEnv } from "../../config/deepbook.js";
-import { AppError } from "../../errors/app-error.js";
-import { getSuiClient } from "../../infrastructure/sui/client.js";
-import { getPrivyClient } from "../../infrastructure/privy/client.js";
-import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
-import { executeSignedSuiTransaction } from "../wallet/sui-transaction.service.js";
-import { signSuiTransactionBytes } from "../wallet/sui-signing.service.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { AppError } from "../../../errors/app-error.js";
+import { getSuiClient } from "../../../infrastructure/sui/client.js";
+import { getPrivyClient } from "../../../infrastructure/privy/client.js";
+import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
+import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
+import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import {
   ensureBalanceManager,
 } from "./deepbook-balance-manager.service.js";
@@ -21,7 +21,7 @@ import {
   type SuiDeepBookExtendedClient,
 } from "./providers/sui-deepbook.provider.js";
 import type { DeepBookClientContext, OrderSummary } from "./types.js";
-import type { TxResult } from "../chains/types.js";
+import type { TxResult } from "../../chains/types.js";
 
 const LIMIT_ORDER_ACTION = "deepbook_place_limit_order";
 const MARKET_ORDER_ACTION = "deepbook_place_market_order";

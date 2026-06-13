@@ -5,8 +5,8 @@ import type { ChainId, ExecuteTransactionInput, TxResult } from "../chains/types
 import type { PendingTransaction } from "../agent/agent.types.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import { findSessionForUser } from "../conversation/session.repository.js";
-import { buildTransactionDisplay, enrichDisplayFromResult } from "./build-display.js";
-import { categorizeAgentTransactionAction } from "./categorize-action.js";
+import { buildTransactionDisplay, enrichDisplayFromResult } from "./deepbook/build-display.js";
+import { categorizeAgentTransactionAction } from "./deepbook/categorize-action.js";
 import { buildExplorerTxUrl } from "./explorer-url.js";
 import { sanitizeErrorMessageForUi } from "./sanitize-error-message.js";
 import {

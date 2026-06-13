@@ -5,25 +5,25 @@ import type { WalletAssetsData } from "../wallet/wallet-assets.types.js";
 import type {
   DeepBookManagerBalancesResult,
   DeepBookManagerInfo,
-} from "../defi/deepbook-balance-manager.types.js";
+} from "../defi/deepbook/deepbook-balance-manager.types.js";
 import type {
   DeepBookPoolInfo,
   DeepBookPoolsList,
   DeepBookTickerMap,
-} from "../defi/deepbook-pools.service.js";
-import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
-import type { FlashLoanBundleQuoteResult } from "../defi/deepbook-flash-loan.types.js";
-import type { DeepBookOpenOrdersResult } from "../defi/deepbook-orders.service.js";
+} from "../defi/deepbook/deepbook-pools.service.js";
+import type { DeepBookSwapQuoteResult } from "../defi/deepbook/deepbook-swap.service.js";
+import type { FlashLoanBundleQuoteResult } from "../defi/deepbook/deepbook-flash-loan.types.js";
+import type { DeepBookOpenOrdersResult } from "../defi/deepbook/deepbook-orders.service.js";
 import type {
   DeepBookStakeBalanceResult,
   DeepBookStakeRequiredResult,
-} from "../defi/deepbook-stake.service.js";
-import type { DeepBookGovernanceStateResult } from "../defi/deepbook-governance.service.js";
+} from "../defi/deepbook/deepbook-stake.service.js";
+import type { DeepBookGovernanceStateResult } from "../defi/deepbook/deepbook-governance.service.js";
 import type {
   DeepBookOhlcvResult,
   DeepBookTradesResult,
   DeepBookVolumeResult,
-} from "../defi/deepbook-indexer-analytics.service.js";
+} from "../defi/deepbook/deepbook-indexer-analytics.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
 import {
   agentTransactionCategorySchema,

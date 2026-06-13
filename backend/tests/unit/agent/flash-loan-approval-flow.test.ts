@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   formatFlashLoanQuoteReply,
   shouldFinalizeFlashLoanQuoteReply,
-} from "../../../src/services/agent/flash-loan-approval-flow.js";
+} from "../../../src/services/agent/deepbook/flash-loan-approval-flow.js";
 
 describe("flash-loan-approval-flow", () => {
   it("formatFlashLoanQuoteReply explains infeasible repay", () => {

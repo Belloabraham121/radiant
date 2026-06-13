@@ -1,9 +1,9 @@
-import { AppError } from "../../errors/app-error.js";
-import { parseDeepBookDepositWithdrawParams } from "../defi/deepbook-balance-manager.service.js";
+import { AppError } from "../../../errors/app-error.js";
+import { parseDeepBookDepositWithdrawParams } from "../../defi/deepbook/deepbook-balance-manager.service.js";
 import {
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
-} from "../defi/deepbook-swap.service.js";
+} from "../../defi/deepbook/deepbook-swap.service.js";
 import {
   parseDeepBookCancelAllOrdersParams,
   parseDeepBookCancelOrderParams,
@@ -12,22 +12,22 @@ import {
   parseDeepBookMarketOrderParams,
   parseDeepBookModifyOrderParams,
   parseDeepBookWithdrawSettledParams,
-} from "../defi/deepbook-orders.service.js";
+} from "../../defi/deepbook/deepbook-orders.service.js";
 import {
   isDeepBookFlashLoanAction,
   parseDeepBookFlashLoanParams,
-} from "../defi/deepbook-flash-loan.service.js";
+} from "../../defi/deepbook/deepbook-flash-loan.service.js";
 import {
   isDeepBookStakeAction,
   parseDeepBookStakeParams,
   parseDeepBookUnstakeParams,
-} from "../defi/deepbook-stake.service.js";
+} from "../../defi/deepbook/deepbook-stake.service.js";
 import {
   isDeepBookGovernanceAction,
   parseDeepBookSubmitProposalParams,
   parseDeepBookVoteParams,
-} from "../defi/deepbook-governance.service.js";
-import type { ExecuteTransactionInput } from "../chains/types.js";
+} from "../../defi/deepbook/deepbook-governance.service.js";
+import type { ExecuteTransactionInput } from "../../chains/types.js";
 
 export const DEEPBOOK_PROVISION_MANAGER_ACTION = "deepbook_provision_manager" as const;
 

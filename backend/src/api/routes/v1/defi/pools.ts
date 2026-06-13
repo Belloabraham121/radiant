@@ -5,11 +5,11 @@ import {
   getDeepBookOrderbook,
   getDeepBookPoolInfo,
   listDeepBookPools,
-} from "../../../../services/defi/deepbook-pools.service.js";
+} from "../../../../services/defi/deepbook/deepbook-pools.service.js";
 import {
   getDeepBookIndexerStatus,
   getDeepBookOhlcv,
-} from "../../../../services/defi/deepbook-indexer-analytics.service.js";
+} from "../../../../services/defi/deepbook/deepbook-indexer-analytics.service.js";
 import { ok } from "../../../../utils/http-response.js";
 
 const orderbookQuerySchema = z.object({

@@ -2,4 +2,4 @@ export {
   categorizeAgentTransactionAction,
   classifyExecuteAction,
   type ExecuteActionClass,
-} from "../agent/classify-execute-action.js";
+} from "../../agent/deepbook/classify-execute-action.js";

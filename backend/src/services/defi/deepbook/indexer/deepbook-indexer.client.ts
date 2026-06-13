@@ -1,6 +1,6 @@
-import { getDeepBookEnv } from "../../../config/deepbook.js";
-import { AppError } from "../../../errors/app-error.js";
-import { cachedFetch } from "../../../infrastructure/redis/cache.js";
+import { getDeepBookEnv } from "../../../../config/deepbook.js";
+import { AppError } from "../../../../errors/app-error.js";
+import { cachedFetch } from "../../../../infrastructure/redis/cache.js";
 import type {
   IndexerAssetsResponse,
   IndexerHistoricalVolumeResponse,

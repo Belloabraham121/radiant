@@ -21,29 +21,29 @@ import {
   executeDeepBookDeposit,
   executeDeepBookWithdraw,
   executeDeepBookProvisionManager,
-} from "../../defi/deepbook-balance-manager.service.js";
+} from "../../defi/deepbook/deepbook-balance-manager.service.js";
 import {
   executeDeepBookSwap,
   isDeepBookSwapAction,
-} from "../../defi/deepbook-swap.service.js";
+} from "../../defi/deepbook/deepbook-swap.service.js";
 import {
   executeDeepBookOrderAction,
   isDeepBookOrderAction,
-} from "../../defi/deepbook-orders.service.js";
+} from "../../defi/deepbook/deepbook-orders.service.js";
 import {
   executeDeepBookFlashLoan,
   isDeepBookFlashLoanAction,
-} from "../../defi/deepbook-flash-loan.service.js";
+} from "../../defi/deepbook/deepbook-flash-loan.service.js";
 import {
   executeDeepBookStake,
   executeDeepBookUnstake,
   isDeepBookStakeAction,
-} from "../../defi/deepbook-stake.service.js";
+} from "../../defi/deepbook/deepbook-stake.service.js";
 import {
   executeDeepBookSubmitProposal,
   executeDeepBookVote,
   isDeepBookGovernanceAction,
-} from "../../defi/deepbook-governance.service.js";
+} from "../../defi/deepbook/deepbook-governance.service.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;

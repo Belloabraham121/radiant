@@ -7,32 +7,32 @@ import {
   buildDepositExecuteNudge,
   extractDepositIntent,
   shouldNudgeDepositExecute,
-} from "../deposit-approval-flow.js";
+} from "../deepbook/deposit-approval-flow.js";
 import {
   buildWithdrawBalanceNudge,
   buildWithdrawExecuteNudge,
   extractWithdrawIntent,
   shouldNudgeWithdrawBalanceQuery,
   shouldNudgeWithdrawExecute,
-} from "../withdraw-approval-flow.js";
+} from "../deepbook/withdraw-approval-flow.js";
 import {
   isCompoundMarketAndSwapRequest,
   POOL_INFO_BEFORE_SWAP_NUDGE,
   shouldFinalizeCompoundReply,
   shouldNudgePoolInfoBeforeSwap,
-} from "../compound-request-flow.js";
+} from "../deepbook/compound-request-flow.js";
 import {
   shouldNudgeSwapExecute,
   shouldNudgeSwapQuoteAndExecute,
   SWAP_EXECUTE_NUDGE,
   SWAP_QUOTE_AND_EXECUTE_NUDGE,
-} from "../swap-approval-flow.js";
+} from "../deepbook/swap-approval-flow.js";
 import {
   findLatestFlashLoanQuote,
   formatFlashLoanQuoteReply,
   isFlashLoanRepayNotFeasibleError,
   shouldFinalizeFlashLoanQuoteReply,
-} from "../flash-loan-approval-flow.js";
+} from "../deepbook/flash-loan-approval-flow.js";
 import {
   findLastToolError,
   hasSuccessfulQueryResults,
@@ -43,7 +43,7 @@ import {
   buildUnsupportedCapabilityNudge,
   detectUnsupportedCapability,
   isUnsupportedCapabilityNudge,
-} from "../unsupported-capabilities.js";
+} from "../deepbook/unsupported-capabilities.js";
 import { agentToolDefinitions, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { toOpenAiTools } from "./openai-tools.js";
@@ -54,7 +54,7 @@ import {
   synthesizeTurnReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
-import { transactionContextFromInput } from "../transaction-error-context.js";
+import { transactionContextFromInput } from "../deepbook/transaction-error-context.js";
 import { summarizeToolResult } from "./summarize-tool-result.js";
 import type { AgentRuntime, AgentTurnInput, AgentTurnResult } from "./types.js";
 import type { AgentToolErrorResult } from "../tools.js";

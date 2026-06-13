@@ -4,7 +4,7 @@ import {
   isDeepBookGovernanceAction,
   parseDeepBookSubmitProposalParams,
   parseDeepBookVoteParams,
-} from "../../../src/services/defi/deepbook-governance.service.js";
+} from "../../../src/services/defi/deepbook/deepbook-governance.service.js";
 import { AppError } from "../../../src/errors/app-error.js";
 
 describe("deepbook-governance.service", () => {

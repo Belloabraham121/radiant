@@ -1,4 +1,4 @@
-import { getDeepBookEnv } from "../../config/deepbook.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
 
 /** Normalize user/agent pool names to DeepBook indexer keys (e.g. DEEP/USDC → DEEP_USDC). */
 export function normalizePoolKey(input: string): string {

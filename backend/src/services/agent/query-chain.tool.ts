@@ -5,27 +5,27 @@ import {
   ensureBalanceManager,
   getDeepBookManagerBalances,
   getDeepBookManagerInfo,
-} from "../defi/deepbook-balance-manager.service.js";
+} from "../defi/deepbook/deepbook-balance-manager.service.js";
 import {
   getDeepBookPoolInfo,
   getDeepBookTicker,
   listDeepBookPools,
-} from "../defi/deepbook-pools.service.js";
+} from "../defi/deepbook/deepbook-pools.service.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
-import { getDeepBookSwapQuote } from "../defi/deepbook-swap.service.js";
-import { getDeepBookOpenOrders } from "../defi/deepbook-orders.service.js";
-import { getFlashLoanBundleQuote } from "../defi/deepbook-flash-loan-quote.js";
+import { getDeepBookSwapQuote } from "../defi/deepbook/deepbook-swap.service.js";
+import { getDeepBookOpenOrders } from "../defi/deepbook/deepbook-orders.service.js";
+import { getFlashLoanBundleQuote } from "../defi/deepbook/deepbook-flash-loan-quote.js";
 import {
   getDeepBookStakeBalance,
   getDeepBookStakeRequired,
-} from "../defi/deepbook-stake.service.js";
-import { getDeepBookGovernanceState } from "../defi/deepbook-governance.service.js";
+} from "../defi/deepbook/deepbook-stake.service.js";
+import { getDeepBookGovernanceState } from "../defi/deepbook/deepbook-governance.service.js";
 import {
   getDeepBookIndexerStatus,
   getDeepBookOhlcv,
   getDeepBookTrades,
   getDeepBookVolume,
-} from "../defi/deepbook-indexer-analytics.service.js";
+} from "../defi/deepbook/deepbook-indexer-analytics.service.js";
 import { queryAgentTransactions } from "../agent-transaction/agent-transaction.service.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";

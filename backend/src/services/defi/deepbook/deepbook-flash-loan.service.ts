@@ -1,11 +1,11 @@
 import { Transaction } from "@mysten/sui/transactions";
-import { getSuiClient } from "../../infrastructure/sui/client.js";
-import { getPrivyClient } from "../../infrastructure/privy/client.js";
-import { AppError } from "../../errors/app-error.js";
-import { assertFlashLoansEnabled } from "../agent/agent-permissions.service.js";
-import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
-import { executeSignedSuiTransaction } from "../wallet/sui-transaction.service.js";
-import { signSuiTransactionBytes } from "../wallet/sui-signing.service.js";
+import { getSuiClient } from "../../../infrastructure/sui/client.js";
+import { getPrivyClient } from "../../../infrastructure/privy/client.js";
+import { AppError } from "../../../errors/app-error.js";
+import { assertFlashLoansEnabled } from "../../agent/agent-permissions.service.js";
+import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
+import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
+import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import { buildFlashLoanPtb, validateFlashLoanBundle } from "./deepbook-flash-loan-bundle.js";
 import { getFlashLoanBundleQuote } from "./deepbook-flash-loan-quote.js";
 import {
@@ -16,7 +16,7 @@ import {
   type FlashLoanStrategy,
 } from "./deepbook-flash-loan.types.js";
 import { getSuiDeepBookClient } from "./providers/sui-deepbook.provider.js";
-import type { TxResult } from "../chains/types.js";
+import type { TxResult } from "../../chains/types.js";
 
 export const DEEPBOOK_FLASH_LOAN_ACTION = "deepbook_flash_loan" as const;
 

@@ -1,6 +1,6 @@
 import type { PlanSlot } from "./planner.types.js";
 import type { WorkflowPlan } from "./workflow.types.js";
-import { isDeepBookCoinKey, isDeepBookPoolKey } from "../../defi/coin-key.js";
+import { isDeepBookCoinKey, isDeepBookPoolKey } from "../../defi/deepbook/coin-key.js";
 import { resolvePlanSlot, type WorkflowLedgerEntry } from "./workflow-ledger.js";
 
 export function isPlanSlot(value: unknown): value is PlanSlot {

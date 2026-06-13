@@ -9,7 +9,7 @@ import type { ChatRequest, ChatResponse } from "./agent.types.js";
 import { buildAgentContextMessages } from "./context-window.js";
 import { getAgentRuntime } from "./runtime/index.js";
 import type { AgentRuntime } from "./runtime/types.js";
-import type { TransactionErrorContext } from "./transaction-error-context.js";
+import type { TransactionErrorContext } from "./deepbook/transaction-error-context.js";
 import { synthesizeErrorExplanationReply } from "./runtime/error-explanation.js";
 import { stubRuntime } from "./runtime/stub.runtime.js";
 import type { AgentToolErrorResult } from "./tools.js";
@@ -21,7 +21,7 @@ import {
   isApprovalContinuationMessage,
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
-import { tryExecuteSingleSwapFromMessage } from "./single-swap-flow.js";
+import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
 
 type RunChatTurnOptions = {

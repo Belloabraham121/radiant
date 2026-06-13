@@ -4,7 +4,7 @@ import {
   findLatestSwapQuote,
   shouldNudgeSwapExecute,
   shouldNudgeSwapQuoteAndExecute,
-} from "../../../src/services/agent/swap-approval-flow.js";
+} from "../../../src/services/agent/deepbook/swap-approval-flow.js";
 
 describe("swap-approval-flow", () => {
   it("shouldNudgeSwapExecute when quote exists without execute", () => {

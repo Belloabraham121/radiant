@@ -1,8 +1,8 @@
-import { getDeepBookEnv } from "../../config/deepbook.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
 import {
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
-} from "../defi/deepbook-swap.service.js";
+} from "../../defi/deepbook/deepbook-swap.service.js";
 import {
   parseDeepBookCancelAllOrdersParams,
   parseDeepBookCancelOrderParams,
@@ -11,28 +11,28 @@ import {
   parseDeepBookMarketOrderParams,
   parseDeepBookModifyOrderParams,
   parseDeepBookWithdrawSettledParams,
-} from "../defi/deepbook-orders.service.js";
+} from "../../defi/deepbook/deepbook-orders.service.js";
 import {
   checkManagerBalance,
   parseDeepBookDepositWithdrawParams,
-} from "../defi/deepbook-balance-manager.service.js";
-import { isDeepBookProvisionAction } from "../agent/validate-execute-transaction.js";
+} from "../../defi/deepbook/deepbook-balance-manager.service.js";
+import { isDeepBookProvisionAction } from "../../agent/deepbook/validate-execute-transaction.js";
 import {
   isDeepBookFlashLoanAction,
   parseDeepBookFlashLoanParams,
-} from "../defi/deepbook-flash-loan.service.js";
+} from "../../defi/deepbook/deepbook-flash-loan.service.js";
 import {
   isDeepBookStakeAction,
   parseDeepBookStakeParams,
   parseDeepBookUnstakeParams,
-} from "../defi/deepbook-stake.service.js";
+} from "../../defi/deepbook/deepbook-stake.service.js";
 import {
   isDeepBookGovernanceAction,
   parseDeepBookSubmitProposalParams,
   parseDeepBookVoteParams,
-} from "../defi/deepbook-governance.service.js";
-import type { ExecuteTransactionInput, ChainId, TxResult } from "../chains/types.js";
-import { fmtDisplayNumber } from "../../utils/format-display-number.js";
+} from "../../defi/deepbook/deepbook-governance.service.js";
+import type { ExecuteTransactionInput, ChainId, TxResult } from "../../chains/types.js";
+import { fmtDisplayNumber } from "../../../utils/format-display-number.js";
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
 

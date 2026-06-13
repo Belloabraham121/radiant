@@ -1,7 +1,7 @@
 import { AppError } from "../../errors/app-error.js";
 import { resolvePrivyEvmChainId } from "./privy-chain-map.js";
-import { getCatalogForWallet, getTokenCatalog } from "../defi/token-catalog.service.js";
-import { isStablecoinSymbol } from "../defi/asset-scalars.js";
+import { getCatalogForWallet, getTokenCatalog } from "../defi/deepbook/token-catalog.service.js";
+import { isStablecoinSymbol } from "../defi/deepbook/asset-scalars.js";
 import { resolveAgentWalletByPrivyUserId } from "./agent-wallet.service.js";
 import type { WalletAssetsData, WalletAssetsQuery } from "./wallet-assets.types.js";
 import {

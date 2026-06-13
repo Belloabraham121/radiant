@@ -1,5 +1,5 @@
 import { getPrivyClient } from "../../infrastructure/privy/client.js";
-import { isStablecoinSymbol } from "../defi/asset-scalars.js";
+import { isStablecoinSymbol } from "../defi/deepbook/asset-scalars.js";
 import { evmChainIdToPrivyChain, resolvePrivyEvmChainId } from "./privy-chain-map.js";
 import type {
   PrivyBalanceGetParams,

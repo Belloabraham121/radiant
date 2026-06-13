@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildTransactionDisplay,
   enrichDisplayFromResult,
-} from "../../../src/services/agent-transaction/build-display.js";
+} from "../../../src/services/agent-transaction/deepbook/build-display.js";
 import type { TxResult } from "../../../src/services/chains/types.js";
 
 describe("buildTransactionDisplay", () => {

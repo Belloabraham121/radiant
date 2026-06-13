@@ -12,7 +12,7 @@ import { REPLY_AFTER_TOOLS_NUDGE } from "../turn-reply-flow.js";
 import {
   buildTransactionErrorUserContext,
   type TransactionErrorContext,
-} from "../transaction-error-context.js";
+} from "../deepbook/transaction-error-context.js";
 import { buildSystemPrompt } from "./prompts.js";
 import type { AgentTurnMessage } from "./types.js";
 

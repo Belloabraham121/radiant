@@ -1,7 +1,7 @@
-import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
-import type { ToolCallRecord } from "./agent.types.js";
-import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
-import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
+import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.service.js";
+import type { ToolCallRecord } from "../agent.types.js";
+import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 
 function isSwapQuoteResult(result: unknown): result is DeepBookSwapQuoteResult {
   return (

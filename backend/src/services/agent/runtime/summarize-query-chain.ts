@@ -2,15 +2,15 @@ import type { BalanceResult } from "../../chains/types.js";
 import type {
   DeepBookManagerBalancesResult,
   DeepBookManagerInfo,
-} from "../../defi/deepbook-balance-manager.types.js";
+} from "../../defi/deepbook/deepbook-balance-manager.types.js";
 import type {
   DeepBookPoolInfo,
   DeepBookPoolsList,
   DeepBookTickerMap,
-} from "../../defi/deepbook-pools.service.js";
-import type { DeepBookSwapQuoteResult } from "../../defi/deepbook-swap.service.js";
-import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook-flash-loan.types.js";
-import type { DeepBookOpenOrdersResult } from "../../defi/deepbook-orders.service.js";
+} from "../../defi/deepbook/deepbook-pools.service.js";
+import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.service.js";
+import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
+import type { DeepBookOpenOrdersResult } from "../../defi/deepbook/deepbook-orders.service.js";
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
 
 export function summarizeQueryChainResult(result: unknown): string | null {

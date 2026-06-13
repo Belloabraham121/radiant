@@ -10,13 +10,13 @@ import {
   updateAgentPermissions,
 } from "../../src/services/agent/agent-permissions.service.js";
 import { recordPendingApproval } from "../../src/services/agent-transaction/agent-transaction.service.js";
-import { parseDeepBookFlashLoanParams } from "../../src/services/defi/deepbook-flash-loan.types.js";
+import { parseDeepBookFlashLoanParams } from "../../src/services/defi/deepbook/deepbook-flash-loan.types.js";
 import {
   buildFlashLoanPtb,
   validateFlashLoanBundle,
-} from "../../src/services/defi/deepbook-flash-loan-bundle.js";
-import { getFlashLoanBundleQuote } from "../../src/services/defi/deepbook-flash-loan-quote.js";
-import { getSuiDeepBookClient } from "../../src/services/defi/providers/sui-deepbook.provider.js";
+} from "../../src/services/defi/deepbook/deepbook-flash-loan-bundle.js";
+import { getFlashLoanBundleQuote } from "../../src/services/defi/deepbook/deepbook-flash-loan-quote.js";
+import { getSuiDeepBookClient } from "../../src/services/defi/deepbook/providers/sui-deepbook.provider.js";
 
 const privyUserId = "did:privy:flash-loan-integration";
 const walletAddress =

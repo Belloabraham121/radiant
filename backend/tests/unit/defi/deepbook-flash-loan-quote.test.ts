@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { computeBundleRepayFeasibility } from "../../../src/services/defi/deepbook-flash-loan-quote.js";
+import { computeBundleRepayFeasibility } from "../../../src/services/defi/deepbook/deepbook-flash-loan-quote.js";
 
 describe("deepbook-flash-loan-quote", () => {
   it("computeBundleRepayFeasibility is true when min_out covers borrow", () => {

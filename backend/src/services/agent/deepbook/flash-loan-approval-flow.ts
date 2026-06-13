@@ -1,6 +1,6 @@
-import type { FlashLoanBundleQuoteResult } from "../defi/deepbook-flash-loan.types.js";
-import type { ToolCallRecord } from "./agent.types.js";
-import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
+import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
+import type { ToolCallRecord } from "../agent.types.js";
+import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 
 function isFlashLoanQuoteResult(result: unknown): result is FlashLoanBundleQuoteResult {
   return (

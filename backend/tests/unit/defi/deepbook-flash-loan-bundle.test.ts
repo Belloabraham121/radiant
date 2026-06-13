@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { AppError } from "../../../src/errors/app-error.js";
-import { parseDeepBookFlashLoanParams } from "../../../src/services/defi/deepbook-flash-loan.types.js";
+import { parseDeepBookFlashLoanParams } from "../../../src/services/defi/deepbook/deepbook-flash-loan.types.js";
 
 describe("flash loan bundle validation helpers", () => {
   it("rejects first step that does not spend borrowed asset", () => {

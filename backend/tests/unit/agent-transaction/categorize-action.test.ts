@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { categorizeAgentTransactionAction } from "../../../src/services/agent-transaction/categorize-action.js";
+import { categorizeAgentTransactionAction } from "../../../src/services/agent-transaction/deepbook/categorize-action.js";
 
 describe("categorizeAgentTransactionAction", () => {
   it("maps swap actions", () => {

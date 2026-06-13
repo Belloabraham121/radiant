@@ -7,8 +7,8 @@ import {
   getSuiDeepBookClient,
   resetSuiDeepBookClientsForTests,
   setSuiClientFactoryForTests,
-} from "../../../src/services/defi/providers/sui-deepbook.provider.js";
-import { getDefaultSwapProvider, getSwapProvider } from "../../../src/services/defi/swap-registry.js";
+} from "../../../src/services/defi/deepbook/providers/sui-deepbook.provider.js";
+import { getDefaultSwapProvider, getSwapProvider } from "../../../src/services/defi/deepbook/swap-registry.js";
 
 const TEST_ADDRESS = `0x${"a".repeat(64)}`;
 

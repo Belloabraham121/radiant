@@ -4,8 +4,8 @@ import { AppError } from "../../../src/errors/app-error.js";
 import {
   isDeepBookFlashLoanAction,
   parseDeepBookFlashLoanParams,
-} from "../../../src/services/defi/deepbook-flash-loan.service.js";
-import { parseDeepBookFlashLoanParams as parseFromTypes } from "../../../src/services/defi/deepbook-flash-loan.types.js";
+} from "../../../src/services/defi/deepbook/deepbook-flash-loan.service.js";
+import { parseDeepBookFlashLoanParams as parseFromTypes } from "../../../src/services/defi/deepbook/deepbook-flash-loan.types.js";
 import {
   flashLoanRequiresApproval,
   transferRequiresApprovalWithPermissions,

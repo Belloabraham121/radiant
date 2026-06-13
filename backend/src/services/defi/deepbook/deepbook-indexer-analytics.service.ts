@@ -1,5 +1,5 @@
-import { getDeepBookEnv } from "../../config/deepbook.js";
-import { AppError } from "../../errors/app-error.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { AppError } from "../../../errors/app-error.js";
 import { ensureBalanceManager } from "./deepbook-balance-manager.service.js";
 import {
   fetchIndexerAllHistoricalVolume,

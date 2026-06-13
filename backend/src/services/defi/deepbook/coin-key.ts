@@ -1,4 +1,4 @@
-import { getDeepBookEnv } from "../../config/deepbook.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
 
 /** True when the value is a DeepBook tradable coin symbol (SUI, USDC, …). */
 export function isDeepBookCoinKey(value: string): boolean {

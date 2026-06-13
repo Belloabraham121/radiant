@@ -14,7 +14,7 @@ export const agentPermissionsRouter = Router();
 async function readPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const permissions = await getAgentPermissions(req.user.privyUserId);
-    return ok(req, res, permissions);
+    ok(req, res, permissions);
   } catch (err) {
     next(err);
   }
@@ -24,14 +24,15 @@ async function patchPermissions(req: Request, res: Response, next: NextFunction)
   try {
     const body = updateAgentPermissionsSchema.parse(req.body);
     const permissions = await updateAgentPermissions(req.user.privyUserId, body);
-    return ok(req, res, permissions);
+    ok(req, res, permissions);
   } catch (err) {
     if (err instanceof ZodError) {
-      return fail(req, res, 400, {
+      fail(req, res, 400, {
         code: "VALIDATION_ERROR",
         message: "Invalid permissions payload",
         details: err.flatten(),
       });
+      return;
     }
     next(err);
   }

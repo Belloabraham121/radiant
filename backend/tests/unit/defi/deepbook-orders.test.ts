@@ -19,11 +19,11 @@ import {
   parseDeepBookModifyOrderParams,
   parseDeepBookWithdrawSettledParams,
   resetDeepBookOrdersServiceForTests,
-} from "../../../src/services/defi/deepbook-orders.service.js";
+} from "../../../src/services/defi/deepbook/deepbook-orders.service.js";
 import {
   buildUnsupportedCapabilityNudge,
   detectUnsupportedCapability,
-} from "../../../src/services/agent/unsupported-capabilities.js";
+} from "../../../src/services/agent/deepbook/unsupported-capabilities.js";
 
 describe("deepbook-orders.service", () => {
   afterEach(async () => {

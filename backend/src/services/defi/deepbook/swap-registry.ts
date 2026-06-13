@@ -1,4 +1,4 @@
-import { AppError } from "../../errors/app-error.js";
+import { AppError } from "../../../errors/app-error.js";
 import type { DeFiProviderId } from "./types.js";
 
 export type SwapProvider = {

@@ -1,8 +1,8 @@
-import type { DeepBookPoolInfo, DeepBookTickerMap } from "../defi/deepbook-pools.service.js";
-import type { ToolCallRecord } from "./agent.types.js";
-import type { AgentToolErrorResult } from "./tools.js";
-import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
-import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
+import type { DeepBookPoolInfo, DeepBookTickerMap } from "../../defi/deepbook/deepbook-pools.service.js";
+import type { ToolCallRecord } from "../agent.types.js";
+import type { AgentToolErrorResult } from "../tools.js";
+import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { findLatestSwapQuote, hasExecuteTransactionAttempt, userRequestedSwap } from "./swap-approval-flow.js";
 
 export function userAskedMarketPrice(message: string): boolean {

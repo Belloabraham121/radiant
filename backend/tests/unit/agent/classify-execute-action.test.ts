@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import {
   categorizeAgentTransactionAction,
   classifyExecuteAction,
-} from "../../../src/services/agent/classify-execute-action.js";
+} from "../../../src/services/agent/deepbook/classify-execute-action.js";
 
 describe("classify-execute-action", () => {
   it("classifies core execute_transaction families", () => {

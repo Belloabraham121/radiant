@@ -10,7 +10,7 @@ import { approvePendingTransaction, rejectPendingTransaction } from "./transacti
 import {
   buildTransactionErrorUserContext,
   transactionContextFromPending,
-} from "./transaction-error-context.js";
+} from "./deepbook/transaction-error-context.js";
 import { getAgentPermissions } from "./agent-permissions.service.js";
 import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.service.js";
 import {

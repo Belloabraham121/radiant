@@ -6,7 +6,7 @@ import {
   shouldFinalizeCompoundReply,
   shouldNudgePoolInfoBeforeSwap,
   userAskedMarketPrice,
-} from "../../../src/services/agent/compound-request-flow.js";
+} from "../../../src/services/agent/deepbook/compound-request-flow.js";
 
 describe("compound-request-flow", () => {
   const compoundMessage =

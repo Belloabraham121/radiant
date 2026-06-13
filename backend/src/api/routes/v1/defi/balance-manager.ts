@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../../../middleware/auth.js";
-import { getDeepBookManagerUiData } from "../../../../services/defi/deepbook-balance-manager.service.js";
+import { getDeepBookManagerUiData } from "../../../../services/defi/deepbook/deepbook-balance-manager.service.js";
 import { ok } from "../../../../utils/http-response.js";
 
 export const defiBalanceManagerRouter = Router();

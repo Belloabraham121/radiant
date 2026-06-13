@@ -1,11 +1,11 @@
 import { Transaction } from "@mysten/sui/transactions";
-import { getDeepBookEnv } from "../../config/deepbook.js";
-import { AppError } from "../../errors/app-error.js";
-import { getSuiClient } from "../../infrastructure/sui/client.js";
-import { getPrivyClient } from "../../infrastructure/privy/client.js";
-import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
-import { executeSignedSuiTransaction } from "../wallet/sui-transaction.service.js";
-import { signSuiTransactionBytes } from "../wallet/sui-signing.service.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { AppError } from "../../../errors/app-error.js";
+import { getSuiClient } from "../../../infrastructure/sui/client.js";
+import { getPrivyClient } from "../../../infrastructure/privy/client.js";
+import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
+import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
+import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import { getAssetDecimals } from "./asset-scalars.js";
 import { getDeepBookPoolInfo } from "./deepbook-pools.service.js";
 import { isMultipleOfStep } from "./order-constraints.js";
@@ -16,7 +16,7 @@ import {
   type SuiDeepBookExtendedClient,
 } from "./providers/sui-deepbook.provider.js";
 import type { SwapQuote, SwapSide } from "./types.js";
-import type { TxResult } from "../chains/types.js";
+import type { TxResult } from "../../chains/types.js";
 
 const DEFAULT_SLIPPAGE_BPS = 100;
 const DEEP_SCALAR = 1_000_000;

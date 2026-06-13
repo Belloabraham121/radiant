@@ -1,9 +1,9 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
-import { resolvePoolKeyForCoinPair } from "../../defi/pool-key.js";
-import { extractDepositIntent } from "../deposit-approval-flow.js";
-import { userAskedMarketPrice } from "../compound-request-flow.js";
-import { userRequestedSwap } from "../swap-approval-flow.js";
-import { extractWithdrawIntent } from "../withdraw-approval-flow.js";
+import { resolvePoolKeyForCoinPair } from "../../defi/deepbook/pool-key.js";
+import { extractDepositIntent } from "../deepbook/deposit-approval-flow.js";
+import { userAskedMarketPrice } from "../deepbook/compound-request-flow.js";
+import { userRequestedSwap } from "../deepbook/swap-approval-flow.js";
+import { extractWithdrawIntent } from "../deepbook/withdraw-approval-flow.js";
 import type {
   WorkflowAgentStep,
   WorkflowExecuteStep,

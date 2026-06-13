@@ -4,24 +4,24 @@ import {
   estimateSwapNotionalSui,
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
-} from "../defi/deepbook-swap.service.js";
+} from "../defi/deepbook/deepbook-swap.service.js";
 import {
   estimatePlaceOrderNotionalSui,
   isDeepBookCancelOrderAction,
   isDeepBookOrderAction,
   isDeepBookPlaceOrderAction,
-} from "../defi/deepbook-orders.service.js";
+} from "../defi/deepbook/deepbook-orders.service.js";
 import {
   isDeepBookFlashLoanAction,
   parseDeepBookFlashLoanParams,
-} from "../defi/deepbook-flash-loan.service.js";
+} from "../defi/deepbook/deepbook-flash-loan.service.js";
 import {
   isDeepBookStakeAction,
-} from "../defi/deepbook-stake.service.js";
+} from "../defi/deepbook/deepbook-stake.service.js";
 import {
   isDeepBookGovernanceAction,
-} from "../defi/deepbook-governance.service.js";
-import type { FlashLoanRepaySource } from "../defi/deepbook-flash-loan.types.js";
+} from "../defi/deepbook/deepbook-governance.service.js";
+import type { FlashLoanRepaySource } from "../defi/deepbook/deepbook-flash-loan.types.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import { AppError } from "../../errors/app-error.js";
@@ -33,12 +33,12 @@ import {
   resolveAutoApproveMaxDisplay,
 } from "./agent-permissions.service.js";
 import type { AgentPermissions } from "./agent-permissions.types.js";
-import { getDeepBookManagerInfo } from "../defi/deepbook-balance-manager.service.js";
+import { getDeepBookManagerInfo } from "../defi/deepbook/deepbook-balance-manager.service.js";
 import {
   isDeepBookProvisionAction,
   validateExecuteTransactionInput,
-} from "./validate-execute-transaction.js";
-import { buildTransactionDisplay } from "../agent-transaction/build-display.js";
+} from "./deepbook/validate-execute-transaction.js";
+import { buildTransactionDisplay } from "../agent-transaction/deepbook/build-display.js";
 import {
   claimPendingApprovalForUser,
   claimPendingRejectionForUser,

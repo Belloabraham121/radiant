@@ -4,9 +4,9 @@ import {
   normalizeHistoricalVolumeAtomic,
   normalizeOhlcvCandle,
   normalizeTradeRecord,
-} from "../../../src/services/defi/indexer/normalize.js";
-import type { IndexerTradeRecord } from "../../../src/services/defi/indexer/indexer.types.js";
-import type { IndexerPoolRecord } from "../../../src/services/defi/indexer/indexer.types.js";
+} from "../../../src/services/defi/deepbook/indexer/normalize.js";
+import type { IndexerTradeRecord } from "../../../src/services/defi/deepbook/indexer/indexer.types.js";
+import type { IndexerPoolRecord } from "../../../src/services/defi/deepbook/indexer/indexer.types.js";
 
 const SAMPLE_POOL: IndexerPoolRecord = {
   pool_id: "0xabc",

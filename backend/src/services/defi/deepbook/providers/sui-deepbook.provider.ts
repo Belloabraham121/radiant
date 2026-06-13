@@ -1,7 +1,7 @@
 import { deepbook, type DeepBookClient } from "@mysten/deepbook-v3";
 import type { SuiGrpcClient } from "@mysten/sui/grpc";
-import { getDeepBookEnv } from "../../../config/deepbook.js";
-import { getSuiClient } from "../../../infrastructure/sui/client.js";
+import { getDeepBookEnv } from "../../../../config/deepbook.js";
+import { getSuiClient } from "../../../../infrastructure/sui/client.js";
 import type { DeepBookClientContext } from "../types.js";
 
 export type SuiDeepBookExtendedClient = SuiGrpcClient & {

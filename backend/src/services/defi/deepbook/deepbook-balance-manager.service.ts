@@ -1,22 +1,22 @@
 import type { DeepBookBalanceManager } from "@prisma/client";
 import type { DeepBookClient } from "@mysten/deepbook-v3";
 import { Transaction, type TransactionArgument } from "@mysten/sui/transactions";
-import { DEFAULT_BALANCE_MANAGER_KEY, getDeepBookEnv } from "../../config/deepbook.js";
-import { AppError } from "../../errors/app-error.js";
+import { DEFAULT_BALANCE_MANAGER_KEY, getDeepBookEnv } from "../../../config/deepbook.js";
+import { AppError } from "../../../errors/app-error.js";
 import {
   formatPoolKeyCoinKeyError,
   isDeepBookCoinKey,
   isDeepBookPoolKey,
 } from "./coin-key.js";
-import { getSuiClient } from "../../infrastructure/sui/client.js";
-import { findUserByPrivyId } from "../auth/user.repository.js";
-import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
+import { getSuiClient } from "../../../infrastructure/sui/client.js";
+import { findUserByPrivyId } from "../../auth/user.repository.js";
+import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
 import {
   executeSignedSuiTransaction,
   findCreatedObjectIdAfterTransaction,
-} from "../wallet/sui-transaction.service.js";
-import { signSuiTransactionBytes } from "../wallet/sui-signing.service.js";
-import { getPrivyClient } from "../../infrastructure/privy/client.js";
+} from "../../wallet/sui-transaction.service.js";
+import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
+import { getPrivyClient } from "../../../infrastructure/privy/client.js";
 import { getAssetDecimals } from "./asset-scalars.js";
 import {
   createBalanceManager,
@@ -37,7 +37,7 @@ import {
   type SuiDeepBookExtendedClient,
 } from "./providers/sui-deepbook.provider.js";
 import type { DeepBookClientContext } from "./types.js";
-import type { TxResult } from "../chains/types.js";
+import type { TxResult } from "../../chains/types.js";
 
 const BALANCE_MANAGER_TYPE = "balance_manager::BalanceManager";
 const ensureInFlight = new Map<string, Promise<ProvisionedDeepBookManager>>();

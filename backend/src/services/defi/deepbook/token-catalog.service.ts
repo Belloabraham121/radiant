@@ -1,6 +1,7 @@
-import { getDeepBookEnv } from "../../config/deepbook.js";
+import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { getAssetDecimals } from "./asset-scalars.js";
-import { fetchIndexerAssets, type IndexerAssetsResponse } from "./deepbook-indexer.client.js";
+import { fetchIndexerAssets } from "./indexer/deepbook-indexer.client.js";
+import type { IndexerAssetsResponse } from "./indexer/indexer.types.js";
 import { FALLBACK_CATALOG } from "./token-catalog.fallback.js";
 import type { TokenCatalogEntry } from "./token-catalog.types.js";
 

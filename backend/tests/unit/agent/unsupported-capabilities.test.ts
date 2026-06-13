@@ -4,7 +4,7 @@ import {
   buildUnsupportedCapabilityNudge,
   detectUnsupportedCapability,
   isUnsupportedCapabilityNudge,
-} from "../../../src/services/agent/unsupported-capabilities.js";
+} from "../../../src/services/agent/deepbook/unsupported-capabilities.js";
 
 describe("unsupported-capabilities", () => {
   it("does not flag supported order requests", () => {

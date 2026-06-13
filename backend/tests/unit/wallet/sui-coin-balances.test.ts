@@ -5,7 +5,7 @@ import {
   resetSuiBalanceClientForTests,
   setSuiBalanceClientForTests,
 } from "../../../src/services/wallet/sui-coin-balances.js";
-import type { TokenCatalogEntry } from "../../../src/services/defi/token-catalog.types.js";
+import type { TokenCatalogEntry } from "../../../src/services/defi/deepbook/token-catalog.types.js";
 
 const CATALOG: TokenCatalogEntry[] = [
   {

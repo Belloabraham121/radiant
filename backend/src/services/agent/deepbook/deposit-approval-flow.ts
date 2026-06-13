@@ -1,6 +1,6 @@
-import type { AgentToolErrorResult } from "./tools.js";
-import type { ExecuteToolOutcome, ToolCallRecord } from "./agent.types.js";
-import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
+import type { AgentToolErrorResult } from "../tools.js";
+import type { ExecuteToolOutcome, ToolCallRecord } from "../agent.types.js";
+import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 
 export type DeepBookDepositIntent = {
   coin_key: string;
