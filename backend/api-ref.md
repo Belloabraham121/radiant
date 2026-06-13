@@ -154,6 +154,57 @@ Read-only ledger of on-chain actions initiated by the agent wallet via chat. Req
 
 **Agent tool `query_chain` → `agent_transactions`** — same ledger as the routes above, capped at 10 rows for chat context. Optional params: `limit` (max 10), `status`, `category`, `session_id`, `transaction_id` (single-row detail). `chain_id` filters by chain.
 
+### Agent permissions
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| `GET` | `/api/v1/agent/permissions` | Current agent permission flags |
+| `PATCH` | `/api/v1/agent/permissions` | Update permissions (partial body) |
+
+```json
+{
+  "auto_approve_enabled": true,
+  "auto_approve_max_sui": 25,
+  "allow_flash_loans": false,
+  "auto_approve_flash_loans": false
+}
+```
+
+- `allow_flash_loans` — agent may call `deepbook_flash_loan` (default off).
+- `auto_approve_flash_loans` — skip approval dialog for `swap_chain_repay` bundles that repay from swap output (no SUI notional cap). Wallet-repay routes always require approval.
+
+### Agent tools (DeepBook flash loans)
+
+**`query_chain` → `flash_loan_quote`** (Sui only) — quote a flash loan bundle before execute.
+
+```json
+{
+  "chain_id": "sui",
+  "query": "flash_loan_quote",
+  "params": {
+    "pool_key": "SUI_USDC",
+    "borrow_amount": 10000,
+    "asset": "quote",
+    "strategy": "swap_chain_repay",
+    "steps": [{ "pool_key": "DEEP_USDC", "side": "buy", "amount": 10000 }]
+  }
+}
+```
+
+Returns `repay_feasible`, per-step `min_out`, `estimated_surplus`, and `warnings[]`. A single-step route may auto-append a return swap in the quote.
+
+**`execute_transaction` → `deepbook_flash_loan`** — atomic borrow → optional swaps → repay in one PTB.
+
+| Param | Description |
+| ----- | ----------- |
+| `pool_key` | Borrow pool (e.g. `SUI_USDC`) |
+| `borrow_amount` | Display units |
+| `asset` | `base` or `quote` (or `coin_key`) |
+| `strategy` | `round_trip` or `swap_chain_repay` |
+| `steps` | Up to 2 swaps for `swap_chain_repay`; include `min_out_display` from quote |
+| `slippage_bps` | Default 100 |
+| `repay_source` | `swap_output` (default), `wallet`, `merged` |
+
 ## WebSocket
 
 | Path | Events (planned) |

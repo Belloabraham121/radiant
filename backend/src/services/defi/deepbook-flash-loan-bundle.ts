@@ -123,6 +123,7 @@ function assertMaxBorrowNotional(parsed: DeepBookFlashLoanBundleParams): void {
 export async function validateFlashLoanBundle(
   privyUserId: string,
   parsed: DeepBookFlashLoanBundleParams,
+  options?: { quoteMode?: boolean },
 ): Promise<void> {
   await assertFlashLoansEnabled(privyUserId);
 
@@ -144,7 +145,9 @@ export async function validateFlashLoanBundle(
       await validateStepSize(privyUserId, step, stepPool);
     }
 
-    validateFlashLoanStructure(parsed);
+    validateFlashLoanStructure(parsed, {
+      allowIncompleteRoute: options?.quoteMode === true,
+    });
   }
 }
 

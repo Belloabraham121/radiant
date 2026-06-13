@@ -2,60 +2,92 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildFlashLoanExecuteNudge,
-  extractFlashLoanIntent,
-  extractFlashLoanIntentFromMessages,
-  isAffirmativeFlashLoanReply,
+  buildFlashLoanQuoteNudge,
+  extractPoolKeysFromText,
+  inferInitialSwapStep,
   shouldNudgeFlashLoanExecute,
   shouldNudgeFlashLoanMissingAmount,
-  userRequestedFlashLoan,
+  shouldNudgeFlashLoanQuote,
+  userRequestedMultiPoolFlashLoan,
 } from "../../../src/services/agent/flash-loan-approval-flow.js";
 
 describe("flash-loan-approval-flow", () => {
-  it("detects flash loan requests", () => {
-    assert.equal(userRequestedFlashLoan("trigger a flash loan between pools"), true);
+  it("detects multi-pool flash loan requests", () => {
+    assert.equal(
+      userRequestedMultiPoolFlashLoan("flash loan between SUI_USDC and DEEP_USDC"),
+      true,
+    );
+    assert.deepEqual(
+      extractPoolKeysFromText("SUI/USDC and DEEP/USDC pools"),
+      ["SUI_USDC", "DEEP_USDC"],
+    );
   });
 
-  it("extractFlashLoanIntent parses 10000 USDC", () => {
-    const intent = extractFlashLoanIntent("I want to use 10000 USDC");
-    assert.ok(intent);
-    assert.equal(intent.borrow_amount, 10000);
-    assert.equal(intent.coin_key, "USDC");
-    assert.equal(intent.asset, "quote");
-  });
-
-  it("buildFlashLoanExecuteNudge includes execute_transaction params", () => {
-    const nudge = buildFlashLoanExecuteNudge({
+  it("infers USDC borrow hop on DEEP_USDC", () => {
+    const intent = {
       pool_key: "SUI_USDC",
       borrow_amount: 10000,
-      asset: "quote",
+      asset: "quote" as const,
       coin_key: "USDC",
-    });
-    assert.match(nudge, /deepbook_flash_loan/);
-    assert.match(nudge, /borrow_amount: 10000/);
+    };
+    const step = inferInitialSwapStep(
+      intent,
+      "flash loan between SUI_USDC and DEEP_USDC with 10000 USDC",
+      [],
+    );
+    assert.deepEqual(step, { pool_key: "DEEP_USDC", side: "buy", amount: 10000 });
+  });
+
+  it("shouldNudgeFlashLoanQuote for multi-pool amount request", () => {
+    assert.equal(
+      shouldNudgeFlashLoanQuote(
+        [],
+        "10000 USDC",
+        [
+          { role: "user", content: "flash loan between SUI_USDC and DEEP_USDC" },
+          { role: "user", content: "10000 USDC" },
+        ],
+      ),
+      true,
+    );
+  });
+
+  it("buildFlashLoanQuoteNudge includes swap_chain_repay params", () => {
+    const nudge = buildFlashLoanQuoteNudge(
+      {
+        pool_key: "SUI_USDC",
+        borrow_amount: 10000,
+        asset: "quote",
+        coin_key: "USDC",
+      },
+      "10000 USDC",
+      [{ role: "user", content: "flash loan between SUI_USDC and DEEP_USDC" }],
+    );
     assert.match(nudge, /flash_loan_quote/);
+    assert.match(nudge, /swap_chain_repay/);
+    assert.match(nudge, /DEEP_USDC/);
+  });
+
+  it("buildFlashLoanExecuteNudge uses round_trip for single pool", () => {
+    const nudge = buildFlashLoanExecuteNudge({
+      pool_key: "SUI_USDC",
+      borrow_amount: 1,
+      asset: "base",
+      coin_key: "SUI",
+    });
+    assert.match(nudge, /round_trip/);
     assert.match(nudge, /do not ask me to confirm/i);
   });
 
-  it("shouldNudgeFlashLoanExecute when amount provided but no execute", () => {
+  it("shouldNudgeFlashLoanExecute is false for multi-pool route before quote", () => {
     assert.equal(
-      shouldNudgeFlashLoanExecute([], "I want to use 10000 USDC", [
-        { role: "user", content: "flash loan between SUI_USDC and DEEP_USDC" },
-        { role: "assistant", content: "Please confirm" },
-        { role: "user", content: "I want to use 10000 USDC" },
-      ]),
-      true,
+      shouldNudgeFlashLoanExecute(
+        [],
+        "10000 USDC",
+        [{ role: "user", content: "flash loan between SUI_USDC and DEEP_USDC" }],
+      ),
+      false,
     );
-  });
-
-  it("shouldNudgeFlashLoanExecute when user says yes after stating amount", () => {
-    assert.equal(
-      shouldNudgeFlashLoanExecute([], "yes", [
-        { role: "user", content: "flash loan please" },
-        { role: "user", content: "10000 USDC" },
-      ]),
-      true,
-    );
-    assert.equal(isAffirmativeFlashLoanReply("yes"), true);
   });
 
   it("shouldNudgeFlashLoanExecute is false after approval_required", () => {
@@ -86,14 +118,5 @@ describe("flash-loan-approval-flow", () => {
       ),
       true,
     );
-  });
-
-  it("extractFlashLoanIntentFromMessages finds latest amount", () => {
-    const intent = extractFlashLoanIntentFromMessages([
-      { role: "user", content: "flash loan please" },
-      { role: "user", content: "use 5000 USDC" },
-    ]);
-    assert.ok(intent);
-    assert.equal(intent.borrow_amount, 5000);
   });
 });

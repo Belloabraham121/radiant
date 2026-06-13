@@ -279,7 +279,9 @@ export function parseDeepBookFlashLoanParams(
     parsed.estimated_surplus = params.estimated_surplus;
   }
 
-  validateFlashLoanStructure(parsed);
+  validateFlashLoanStructure(parsed, {
+    allowIncompleteRoute: (parsed.steps?.length ?? 0) < 2,
+  });
   return parsed;
 }
 
@@ -361,12 +363,20 @@ function assertRepayAssetClosure(parsed: DeepBookFlashLoanBundleParams): void {
   }
 }
 
-export function validateFlashLoanStructure(parsed: DeepBookFlashLoanBundleParams): void {
+export function validateFlashLoanStructure(
+  parsed: DeepBookFlashLoanBundleParams,
+  options?: { allowIncompleteRoute?: boolean },
+): void {
   if (parsed.strategy !== "swap_chain_repay") {
     return;
   }
 
   assertSamePoolBorrowTradeGuard(parsed);
   assertStepAmountChain(parsed);
+
+  if (options?.allowIncompleteRoute && (parsed.steps?.length ?? 0) < 2) {
+    return;
+  }
+
   assertRepayAssetClosure(parsed);
 }

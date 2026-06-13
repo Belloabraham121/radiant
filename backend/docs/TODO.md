@@ -428,7 +428,7 @@ Phase 0 (infra + dashboard)
 | [x] | Phase D — Swap (quote + execute + approval) | [Both] |
 | [ ] | Phase E — Orders (place/cancel + open orders) | [Both] |
 | [x] | Phase F — Flash loans (permission-gated, round_trip) | [Both] |
-| [ ] | Phase F2 — Flash loan bundle + flash auto-approve → [flash-loan-bundle-TODO.md](../../docs/flash-loan-bundle-TODO.md) | [Both] |
+| [x] | Phase F2 — Flash loan bundle + flash auto-approve → [flash-loan-bundle-TODO.md](../../docs/flash-loan-bundle-TODO.md) | [Both] |
 | [ ] | Phase G — DEEP staking | [Both] |
 | [ ] | Phase H — Governance (propose/vote) | [Both] |
 | [ ] | Phase I — Indexer time-series (OHLCV, volume, trades) | [Backend] |

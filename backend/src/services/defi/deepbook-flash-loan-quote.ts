@@ -7,6 +7,7 @@ import {
   stepCoins,
   type DeepBookFlashLoanBundleParams,
   type FlashLoanBundleQuoteResult,
+  type FlashLoanStep,
   type FlashLoanStepQuote,
 } from "./deepbook-flash-loan.types.js";
 
@@ -103,12 +104,12 @@ async function buildSwapChainQuote(
   privyUserId: string,
   parsed: DeepBookFlashLoanBundleParams,
 ): Promise<FlashLoanBundleQuoteResult> {
-  const steps = parsed.steps ?? [];
+  const steps: FlashLoanStep[] = [...(parsed.steps ?? [])];
   const stepQuotes: FlashLoanStepQuote[] = [];
 
   let runningCoin = parsed.coin_key;
   for (let i = 0; i < steps.length; i += 1) {
-    const step = steps[i];
+    let step = steps[i];
     const pool = resolvePoolCoins(step.pool_key);
     const coins = stepCoins(step.side, pool);
 
@@ -128,9 +129,32 @@ async function buildSwapChainQuote(
       );
     }
 
+    if (i > 0 && stepQuotes[i - 1]) {
+      const expectedIn = stepQuotes[i - 1].out_est;
+      if (Math.abs(step.amount - expectedIn) > REPAY_EPSILON) {
+        step = { ...step, amount: expectedIn };
+        steps[i] = step;
+      }
+    }
+
     const quoted = await quoteSwapStep(privyUserId, step, parsed.slippage_bps);
     stepQuotes.push(quoted);
     runningCoin = quoted.output_coin;
+  }
+
+  if (runningCoin !== parsed.coin_key && stepQuotes.length > 0) {
+    const lastQuote = stepQuotes[stepQuotes.length - 1];
+    const returnPool = resolvePoolCoins(steps[0].pool_key);
+    const returnSide = returnPool.base_coin === lastQuote.output_coin ? "sell" : "buy";
+    const returnStep: FlashLoanStep = {
+      pool_key: steps[0].pool_key,
+      side: returnSide,
+      amount: lastQuote.out_est,
+    };
+    steps.push(returnStep);
+    const returnQuote = await quoteSwapStep(privyUserId, returnStep, parsed.slippage_bps);
+    stepQuotes.push(returnQuote);
+    runningCoin = returnQuote.output_coin;
   }
 
   const lastQuote = stepQuotes[stepQuotes.length - 1];
@@ -168,7 +192,7 @@ export async function getFlashLoanBundleQuote(
   params: Record<string, unknown>,
 ): Promise<FlashLoanBundleQuoteResult> {
   const parsed = parseDeepBookFlashLoanParams(params);
-  await validateFlashLoanBundle(privyUserId, parsed);
+  await validateFlashLoanBundle(privyUserId, parsed, { quoteMode: true });
 
   if (parsed.strategy === "round_trip") {
     return buildRoundTripQuote(parsed);

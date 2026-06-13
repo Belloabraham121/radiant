@@ -11,10 +11,12 @@ describe("agent-permissions.service", () => {
       agent_auto_approve_enabled: false,
       agent_auto_approve_max_sui: 100,
       agent_allow_flash_loans: true,
+      agent_auto_approve_flash_loans: true,
     });
     assert.equal(permissions.auto_approve_enabled, false);
     assert.equal(permissions.auto_approve_max_sui, 100);
     assert.equal(permissions.allow_flash_loans, true);
+    assert.equal(permissions.auto_approve_flash_loans, true);
   });
 
   it("resolveAutoApproveMaxDisplay uses user SUI threshold", () => {

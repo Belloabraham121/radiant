@@ -39,6 +39,18 @@ describe("flash loan bundle validation helpers", () => {
     );
   });
 
+  it("allows single-step route during quote parse", () => {
+    const parsed = parseDeepBookFlashLoanParams({
+      pool_key: "SUI_USDC",
+      borrow_amount: 10000,
+      asset: "quote",
+      strategy: "swap_chain_repay",
+      steps: [{ pool_key: "DEEP_USDC", side: "buy", amount: 10000 }],
+    });
+    assert.equal(parsed.steps?.length, 1);
+    assert.equal(parsed.coin_key, "USDC");
+  });
+
   it("accepts quote borrow with buy then sell route back to USDC", () => {
     const parsed = parseDeepBookFlashLoanParams({
       pool_key: "SUI_USDC",
