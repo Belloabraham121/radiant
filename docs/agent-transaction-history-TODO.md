@@ -262,29 +262,29 @@ Auto-approved execute (no bar): insert directly as success | failure
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `GET /api/v1/agent/transactions` — list for authenticated user | [Backend] |
-| [ ] | Query params: `page`, `limit` (default 20, max 100), `status`, `category`, `chain_id`, `session_id` | [Backend] |
-| [ ] | Response envelope: `{ success, data: { items, meta: { pagination } } }` | [Backend] |
-| [ ] | `GET /api/v1/agent/transactions/:id` — detail DTO with full `params`, `result`, explorer URL | [Backend] |
-| [ ] | `GET /api/v1/chat/sessions/:sessionId/transactions` — optional convenience list | [Backend] |
-| [ ] | Register routes in `api/routes/v1/mod.ts` | [Backend] |
-| [ ] | Document in `backend/api-ref.md` | [Backend] |
+| [x] | `GET /api/v1/agent/transactions` — list for authenticated user | [Backend] |
+| [x] | Query params: `page`, `limit` (default 20, max 100), `status`, `category`, `chain_id`, `session_id` | [Backend] |
+| [x] | Response envelope: `{ success, data: { items, meta: { pagination } } }` | [Backend] |
+| [x] | `GET /api/v1/agent/transactions/:id` — detail DTO with full `params`, `result`, explorer URL | [Backend] |
+| [x] | `GET /api/v1/chat/sessions/:sessionId/transactions` — optional convenience list | [Backend] |
+| [x] | Register routes in `api/routes/v1/mod.ts` | [Backend] |
+| [x] | Document in `backend/api-ref.md` | [Backend] |
 
 ### C.2 List item / detail DTOs
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `AgentTransactionListItem` — id, status, category, chain_id, title, amount_display, digest, effects_status, session_id, message_id, created_at, completed_at | [Backend] |
-| [ ] | `AgentTransactionDetail` — adds params, result, error_*, wallet_address, workflow_step_index, explorer_url | [Backend] |
-| [ ] | `explorer_url` built via existing chain meta helpers (Sui explorer base + digest) | [Backend] |
+| [x] | `AgentTransactionListItem` — id, status, category, chain_id, title, amount_display, digest, effects_status, session_id, message_id, created_at, completed_at | [Backend] |
+| [x] | `AgentTransactionDetail` — adds params, result, error_*, wallet_address, workflow_step_index, explorer_url | [Backend] |
+| [x] | `explorer_url` built via existing chain meta helpers (Sui explorer base + digest) | [Backend] |
 
 ### C.3 Integration tests
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `GET /api/v1/agent/transactions` returns 401 without auth | [Backend] |
-| [ ] | List returns only caller's rows | [Backend] |
-| [ ] | Detail 404 for other user's id | [Backend] |
+| [x] | `GET /api/v1/agent/transactions` returns 401 without auth | [Backend] |
+| [x] | List returns only caller's rows | [Backend] |
+| [x] | Detail 404 for other user's id | [Backend] |
 
 ---
 

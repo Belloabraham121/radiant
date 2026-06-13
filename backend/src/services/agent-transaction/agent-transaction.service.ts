@@ -4,6 +4,7 @@ import { parseChainId } from "../chains/registry.js";
 import type { ChainId, ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "../agent/agent.types.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
+import { findSessionForUser } from "../conversation/session.repository.js";
 import { buildTransactionDisplay, enrichDisplayFromResult } from "./build-display.js";
 import { categorizeAgentTransactionAction } from "./categorize-action.js";
 import { buildExplorerTxUrl } from "./explorer-url.js";
@@ -337,6 +338,11 @@ export async function listSessionTransactions(
   sessionId: string,
 ): Promise<AgentTransactionListItem[]> {
   const userId = await requireUserId(privyUserId);
+  const session = await findSessionForUser(sessionId, userId);
+  if (!session) {
+    throw new AppError(404, "SESSION_NOT_FOUND", "Chat session not found.");
+  }
+
   const rows = await findAgentTransactionsBySessionForUser(sessionId, userId);
   return rows.map(toListItem);
 }

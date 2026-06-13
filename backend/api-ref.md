@@ -16,6 +16,9 @@ Backend API and environment checklist. Implementation lives under `src/`.
 | `GET` | `/api/v1/chat/sessions` | List chat threads for the authenticated user |
 | `POST` | `/api/v1/chat/sessions` | Create a new chat thread |
 | `GET` | `/api/v1/chat/sessions/:sessionId/messages` | Load messages for a thread (404 if not owned) |
+| `GET` | `/api/v1/chat/sessions/:sessionId/transactions` | Agent transaction history for a thread (404 if not owned) |
+| `GET` | `/api/v1/agent/transactions` | Paginated agent wallet activity for the authenticated user |
+| `GET` | `/api/v1/agent/transactions/:id` | Single transaction detail (params, result, explorer URL) |
 | `POST` | `/api/v1/build` | Preview app build without deploying |
 | `POST` | `/api/v1/deploy` | Full deploy pipeline (E2B + Walrus + registry) |
 | `GET` | `/api/v1/apps` | Public marketplace listings |
@@ -102,6 +105,52 @@ Large transfers return `pending_transaction` instead of broadcasting immediately
 ```
 
 Auto-approve thresholds (env): `AGENT_AUTO_APPROVE_MAX_SUI` (default 25), `AGENT_AUTO_APPROVE_MAX_ETH`, `AGENT_AUTO_APPROVE_MAX_SOL`.
+
+### Agent transactions
+
+Read-only ledger of on-chain actions initiated by the agent wallet via chat. Requires cookie.
+
+**`GET /api/v1/agent/transactions`** — query params:
+
+| Param | Type | Description |
+| ----- | ---- | ----------- |
+| `page` | number | Page (default 1) |
+| `limit` | number | Page size (default 20, max 100) |
+| `status` | string | `pending_approval`, `rejected`, `expired`, `submitted`, `success`, `failure` |
+| `category` | string | `swap`, `transfer`, `deepbook_balance`, `deepbook_order`, `deepbook_cancel`, `deepbook_modify`, `deepbook_settled`, `other` |
+| `chain_id` | string | `sui`, `ethereum`, `solana` |
+| `session_id` | uuid | Filter to a chat thread |
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "uuid",
+        "status": "success",
+        "category": "swap",
+        "chain_id": "sui",
+        "title": "Swap on DeepBook (SUI_USDC)",
+        "amount_display": "1 SUI → 2.4 USDC",
+        "digest": "0x…",
+        "effects_status": "success",
+        "session_id": "uuid-or-null",
+        "message_id": "uuid-or-null",
+        "created_at": "2026-06-13T00:00:00.000Z",
+        "completed_at": "2026-06-13T00:00:05.000Z"
+      }
+    ],
+    "meta": {
+      "pagination": { "page": 1, "limit": 20, "total": 1 }
+    }
+  }
+}
+```
+
+**`GET /api/v1/agent/transactions/:id`** — detail adds `action`, `params`, `result`, `error_code`, `error_message`, `wallet_address`, `workflow_step_index`, `submitted_at`, `explorer_url`.
+
+**`GET /api/v1/chat/sessions/:sessionId/transactions`** — convenience list (`{ items: [...] }`) for one thread; 404 if session not owned.
 
 ## WebSocket
 

@@ -1,4 +1,6 @@
 import type { ChainId, ExecuteTransactionInput, TxResult } from "../chains/types.js";
+import { chainIdSchema } from "../chains/types.js";
+import { z } from "zod";
 import type { PendingTransaction } from "../agent/agent.types.js";
 
 /** Mirrors `AgentTransactionStatus` in `schema.prisma` — defined locally so app code does not depend on a generated Prisma client. */
@@ -81,6 +83,37 @@ export type ListAgentTransactionsQuery = {
   chain_id?: ChainId;
   session_id?: string;
 };
+
+export const agentTransactionStatusSchema = z.enum([
+  "pending_approval",
+  "rejected",
+  "expired",
+  "submitted",
+  "success",
+  "failure",
+]);
+
+export const agentTransactionCategorySchema = z.enum([
+  "swap",
+  "transfer",
+  "deepbook_balance",
+  "deepbook_order",
+  "deepbook_cancel",
+  "deepbook_modify",
+  "deepbook_settled",
+  "other",
+]);
+
+export const listAgentTransactionsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().max(100).optional(),
+  status: agentTransactionStatusSchema.optional(),
+  category: agentTransactionCategorySchema.optional(),
+  chain_id: chainIdSchema.optional(),
+  session_id: z.string().uuid().optional(),
+});
+
+export type ListAgentTransactionsQueryParsed = z.infer<typeof listAgentTransactionsQuerySchema>;
 
 export type PaginatedAgentTransactions = {
   items: AgentTransactionListItem[];

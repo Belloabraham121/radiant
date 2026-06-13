@@ -9,6 +9,7 @@ import {
   getSessionMessages,
   listUserSessions,
 } from "../../../../services/conversation/conversation.service.js";
+import { listSessionTransactions } from "../../../../services/agent-transaction/agent-transaction.service.js";
 import { fail, ok } from "../../../../utils/http-response.js";
 
 export const chatSessionsRouter = Router();
@@ -54,6 +55,27 @@ chatSessionsRouter.get(
 
       const data = await getSessionMessages(req.user.privyUserId, sessionId);
       return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/transactions",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const sessionId = req.params.sessionId;
+      if (!sessionId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "sessionId is required",
+        });
+      }
+
+      const items = await listSessionTransactions(req.user.privyUserId, sessionId);
+      return ok(req, res, { items });
     } catch (err) {
       next(err);
     }
