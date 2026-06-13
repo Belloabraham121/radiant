@@ -213,44 +213,33 @@ function resolveIntent(
   return intent;
 }
 
-function shouldUseSwapChainRepay(
-  intent: FlashLoanIntent,
-  lastUserMessage: string,
-  messages: AgentTurnMessage[],
-): boolean {
-  const text = [lastUserMessage, ...messages.map((m) => m.content)].join(" ");
-  return userRequestedMultiPoolFlashLoan(text) || /\bswap/i.test(text);
+function flashLoanUserMessages(messages: AgentTurnMessage[]): string[] {
+  return messages
+    .filter((message) => message.role === "user" && userRequestedFlashLoan(message.content))
+    .map((message) => message.content.trim());
 }
 
-export function inferInitialSwapStep(
-  intent: FlashLoanIntent,
+/** Summarize what the user asked for — context for the agent, not a strategy prescription. */
+export function summarizeFlashLoanUserRequest(
   lastUserMessage: string,
   messages: AgentTurnMessage[],
-): { pool_key: string; side: "buy" | "sell"; amount: number } | null {
-  const mentioned = extractPoolKeysFromText(
-    [lastUserMessage, ...messages.map((m) => m.content)].join(" "),
+  intent: FlashLoanIntent,
+): string {
+  const flashLoanTurns = flashLoanUserMessages(messages);
+  const requestText =
+    flashLoanTurns.length > 0 ? flashLoanTurns.join(" → ") : lastUserMessage.trim();
+  const pools = extractPoolKeysFromText(
+    [requestText, lastUserMessage, ...messages.map((m) => m.content)].join(" "),
   );
-  const tradePool =
-    mentioned.find((poolKey) => poolKey !== intent.pool_key) ??
-    (intent.coin_key === "USDC" ? "DEEP_USDC" : null);
-
-  if (!tradePool) {
-    return null;
-  }
-
-  if (intent.coin_key === "USDC" && intent.asset === "quote") {
-    return { pool_key: tradePool, side: "buy", amount: intent.borrow_amount };
-  }
-
-  if (intent.coin_key === "SUI" && intent.asset === "base") {
-    return { pool_key: tradePool, side: "sell", amount: intent.borrow_amount };
-  }
-
-  return null;
+  const poolHint =
+    pools.length > 0 ? `pools mentioned: ${pools.join(", ")}` : `borrow pool: ${intent.pool_key}`;
+  return (
+    `"${requestText}" — borrow ${intent.borrow_amount} ${intent.coin_key} (${intent.asset}) on ${intent.pool_key}; ${poolHint}`
+  );
 }
 
-/** Multi-pool or swap route: quote first so step amounts and repay_feasible are known. */
-export function shouldNudgeFlashLoanQuote(
+/** User gave borrow amount — nudge the agent to act; strategy choice stays with the LLM. */
+export function shouldNudgeFlashLoanProceed(
   toolCalls: ToolCallRecord[],
   lastUserMessage: string,
   messages: AgentTurnMessage[] = [],
@@ -264,7 +253,7 @@ export function shouldNudgeFlashLoanQuote(
     return false;
   }
 
-  return shouldUseSwapChainRepay(intent, lastUserMessage, messages);
+  return true;
 }
 
 /** After flash_loan_quote, call execute with min_out_display from the quote. */
@@ -283,28 +272,6 @@ export function shouldNudgeFlashLoanExecuteAfterQuote(
   }
 
   return flashLoanContextFromMessages(lastUserMessage, messages);
-}
-
-/** Single-pool round_trip when user gives amount without a multi-pool route. */
-export function shouldNudgeFlashLoanExecute(
-  toolCalls: ToolCallRecord[],
-  lastUserMessage: string,
-  messages: AgentTurnMessage[] = [],
-): boolean {
-  if (
-    hasFlashLoanExecuteAttempt(toolCalls) ||
-    hasFlashLoanQuoteAttempt(toolCalls) ||
-    shouldNudgeFlashLoanQuote(toolCalls, lastUserMessage, messages)
-  ) {
-    return false;
-  }
-
-  const intent = resolveIntent(lastUserMessage, messages);
-  if (!intent || !flashLoanContextFromMessages(lastUserMessage, messages)) {
-    return false;
-  }
-
-  return !shouldUseSwapChainRepay(intent, lastUserMessage, messages);
 }
 
 /** User asked for a flash loan but did not name an amount — ask only for borrow amount/asset, not yes/no confirm. */
@@ -333,41 +300,26 @@ export const FLASH_LOAN_MISSING_AMOUNT_NUDGE =
   "Ask only for borrow_amount and whether they want base or quote (e.g. 10000 USDC). " +
   "Do not ask yes/no to confirm — the app approval dialog is the confirmation.";
 
-export const FLASH_LOAN_QUOTE_NUDGE =
-  "Call query_chain flash_loan_quote now for strategy swap_chain_repay. " +
-  "If repay_feasible is false, explain why and do not execute. " +
-  "Otherwise call execute_transaction deepbook_flash_loan in the same turn with the same params and each step min_out_display from the quote.";
-
 export const FLASH_LOAN_EXECUTE_AFTER_QUOTE_NUDGE =
-  "Submit the flash loan bundle now with execute_transaction deepbook_flash_loan using strategy swap_chain_repay, " +
-  "the same borrow params as the quote, and each step min_out_display from flash_loan_quote. " +
-  "If repay_feasible was false, explain and do not execute. The app shows an approval dialog — do not ask me to confirm in chat.";
+  "The flash_loan_quote result is ready. If repay_feasible is true, call execute_transaction deepbook_flash_loan " +
+  "with the same borrow params, strategy, and steps as the quote, including each step min_out_display. " +
+  "If repay_feasible was false, explain why and do not execute. The app shows an approval dialog — do not ask me to confirm in chat.";
 
-export function buildFlashLoanQuoteNudge(
+export function buildFlashLoanProceedNudge(
   intent: FlashLoanIntent,
   lastUserMessage: string,
   messages: AgentTurnMessage[],
 ): string {
-  const initialStep = inferInitialSwapStep(intent, lastUserMessage, messages);
-  if (!initialStep) {
-    return FLASH_LOAN_QUOTE_NUDGE;
-  }
-
+  const summary = summarizeFlashLoanUserRequest(lastUserMessage, messages, intent);
   return (
-    `Call query_chain flash_loan_quote: chain_id sui, query flash_loan_quote, params { ` +
-    `pool_key: "${intent.pool_key}", borrow_amount: ${intent.borrow_amount}, ` +
-    `asset: "${intent.asset}", strategy: "swap_chain_repay", ` +
-    `steps: [{ pool_key: "${initialStep.pool_key}", side: "${initialStep.side}", amount: ${initialStep.amount} }] }. ` +
-    "The quote may auto-append a return swap step. If repay_feasible is true, call execute_transaction with the same params plus min_out_display per quoted step."
-  );
-}
-
-export function buildFlashLoanExecuteNudge(intent: FlashLoanIntent): string {
-  return (
-    `Call execute_transaction now: chain_id sui, action deepbook_flash_loan, ` +
-    `params { pool_key: "${intent.pool_key}", borrow_amount: ${intent.borrow_amount}, ` +
-    `asset: "${intent.asset}", coin_key: "${intent.coin_key}", strategy: "round_trip" }. ` +
-    "The app shows an approval bar — do not ask me to confirm in chat."
+    `The user requested a flash loan: ${summary}. ` +
+    "You choose the strategy from their natural language — do not use a fixed rule. " +
+    "round_trip: atomic borrow+repay on one pool with no swaps (e.g. simple round trip, borrow and return same asset on same pool). " +
+    "swap_chain_repay: borrow then one or more swaps then repay in one PTB (e.g. cross-pool routes, arb between pools, convert borrowed asset before repay). " +
+    "For swap_chain_repay, call query_chain flash_loan_quote with your chosen pool_key, borrow_amount, asset, strategy, and steps; " +
+    "if repay_feasible is true, call execute_transaction deepbook_flash_loan in the same turn with the same params and min_out_display per quoted step. " +
+    "For round_trip, call execute_transaction deepbook_flash_loan directly with pool_key, borrow_amount, asset, and strategy round_trip. " +
+    "If repay_feasible is false, explain and do not execute. The app approval dialog is the confirmation — do not ask in chat."
   );
 }
 

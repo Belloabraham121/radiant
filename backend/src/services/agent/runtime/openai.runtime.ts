@@ -28,13 +28,11 @@ import {
   SWAP_QUOTE_AND_EXECUTE_NUDGE,
 } from "../swap-approval-flow.js";
 import {
-  shouldNudgeFlashLoanExecute,
   shouldNudgeFlashLoanExecuteAfterQuote,
   shouldNudgeFlashLoanMissingAmount,
-  shouldNudgeFlashLoanQuote,
-  buildFlashLoanExecuteNudge,
+  shouldNudgeFlashLoanProceed,
   buildFlashLoanExecuteNudgeFromQuote,
-  buildFlashLoanQuoteNudge,
+  buildFlashLoanProceedNudge,
   extractFlashLoanIntent,
   extractFlashLoanIntentFromMessages,
   findLatestFlashLoanQuote,
@@ -218,13 +216,13 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
-        if (shouldNudgeFlashLoanQuote(tool_calls, lastUserMessage, input.messages)) {
+        if (shouldNudgeFlashLoanProceed(tool_calls, lastUserMessage, input.messages)) {
           const intent =
             extractFlashLoanIntent(lastUserMessage) ??
             extractFlashLoanIntentFromMessages(input.messages)!;
           messages.push({
             role: "user",
-            content: buildFlashLoanQuoteNudge(intent, lastUserMessage, input.messages),
+            content: buildFlashLoanProceedNudge(intent, lastUserMessage, input.messages),
           });
           continue;
         }
@@ -236,17 +234,6 @@ export const openaiRuntime: AgentRuntime = {
             content: quote.repay_feasible
               ? buildFlashLoanExecuteNudgeFromQuote(quote)
               : FLASH_LOAN_EXECUTE_AFTER_QUOTE_NUDGE,
-          });
-          continue;
-        }
-
-        if (shouldNudgeFlashLoanExecute(tool_calls, lastUserMessage, input.messages)) {
-          const intent =
-            extractFlashLoanIntent(lastUserMessage) ??
-            extractFlashLoanIntentFromMessages(input.messages)!;
-          messages.push({
-            role: "user",
-            content: buildFlashLoanExecuteNudge(intent),
           });
           continue;
         }

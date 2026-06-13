@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  buildFlashLoanExecuteNudge,
-  buildFlashLoanQuoteNudge,
+  buildFlashLoanProceedNudge,
   extractPoolKeysFromText,
   formatFlashLoanQuoteReply,
-  inferInitialSwapStep,
   shouldFinalizeFlashLoanQuoteReply,
-  shouldNudgeFlashLoanExecute,
   shouldNudgeFlashLoanMissingAmount,
-  shouldNudgeFlashLoanQuote,
+  shouldNudgeFlashLoanProceed,
+  summarizeFlashLoanUserRequest,
   userRequestedMultiPoolFlashLoan,
 } from "../../../src/services/agent/flash-loan-approval-flow.js";
 
@@ -25,24 +23,28 @@ describe("flash-loan-approval-flow", () => {
     );
   });
 
-  it("infers USDC borrow hop on DEEP_USDC", () => {
+  it("summarizeFlashLoanUserRequest captures user wording without prescribing strategy", () => {
     const intent = {
       pool_key: "SUI_USDC",
       borrow_amount: 10000,
       asset: "quote" as const,
       coin_key: "USDC",
     };
-    const step = inferInitialSwapStep(
+    const summary = summarizeFlashLoanUserRequest(
+      "10000 USDC",
+      [{ role: "user", content: "flash loan between SUI_USDC and DEEP_USDC" }],
       intent,
-      "flash loan between SUI_USDC and DEEP_USDC with 10000 USDC",
-      [],
     );
-    assert.deepEqual(step, { pool_key: "DEEP_USDC", side: "buy", amount: 10000 });
+    assert.match(summary, /flash loan between SUI_USDC and DEEP_USDC/);
+    assert.match(summary, /10000 USDC/);
+    assert.match(summary, /SUI_USDC/);
+    assert.match(summary, /DEEP_USDC/);
+    assert.doesNotMatch(summary, /swap_chain_repay|round_trip/);
   });
 
-  it("shouldNudgeFlashLoanQuote for multi-pool amount request", () => {
+  it("shouldNudgeFlashLoanProceed when amount is known (any route shape)", () => {
     assert.equal(
-      shouldNudgeFlashLoanQuote(
+      shouldNudgeFlashLoanProceed(
         [],
         "10000 USDC",
         [
@@ -52,10 +54,18 @@ describe("flash-loan-approval-flow", () => {
       ),
       true,
     );
+    assert.equal(
+      shouldNudgeFlashLoanProceed(
+        [],
+        "flash loan 1 SUI on SUI_USDC round trip",
+        [],
+      ),
+      true,
+    );
   });
 
-  it("buildFlashLoanQuoteNudge includes swap_chain_repay params", () => {
-    const nudge = buildFlashLoanQuoteNudge(
+  it("buildFlashLoanProceedNudge lets the agent choose strategy", () => {
+    const nudge = buildFlashLoanProceedNudge(
       {
         pool_key: "SUI_USDC",
         borrow_amount: 10000,
@@ -65,36 +75,16 @@ describe("flash-loan-approval-flow", () => {
       "10000 USDC",
       [{ role: "user", content: "flash loan between SUI_USDC and DEEP_USDC" }],
     );
-    assert.match(nudge, /flash_loan_quote/);
-    assert.match(nudge, /swap_chain_repay/);
-    assert.match(nudge, /DEEP_USDC/);
-  });
-
-  it("buildFlashLoanExecuteNudge uses round_trip for single pool", () => {
-    const nudge = buildFlashLoanExecuteNudge({
-      pool_key: "SUI_USDC",
-      borrow_amount: 1,
-      asset: "base",
-      coin_key: "SUI",
-    });
+    assert.match(nudge, /You choose the strategy/i);
     assert.match(nudge, /round_trip/);
-    assert.match(nudge, /do not ask me to confirm/i);
+    assert.match(nudge, /swap_chain_repay/);
+    assert.doesNotMatch(nudge, /strategy: "swap_chain_repay"/);
+    assert.doesNotMatch(nudge, /strategy: "round_trip"/);
   });
 
-  it("shouldNudgeFlashLoanExecute is false for multi-pool route before quote", () => {
+  it("shouldNudgeFlashLoanProceed is false after approval_required", () => {
     assert.equal(
-      shouldNudgeFlashLoanExecute(
-        [],
-        "10000 USDC",
-        [{ role: "user", content: "flash loan between SUI_USDC and DEEP_USDC" }],
-      ),
-      false,
-    );
-  });
-
-  it("shouldNudgeFlashLoanExecute is false after approval_required", () => {
-    assert.equal(
-      shouldNudgeFlashLoanExecute(
+      shouldNudgeFlashLoanProceed(
         [
           {
             name: "execute_transaction",
