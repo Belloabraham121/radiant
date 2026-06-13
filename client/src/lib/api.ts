@@ -1,6 +1,7 @@
+import { API_BASE_URL } from "./api-config";
+
 /** Backend origin — used for Next.js rewrites and server-side fetches. */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+export { API_BASE_URL };
 
 /**
  * Browser: same-origin (`/api/v1/...`) so Privy cookies on the app host are sent.
@@ -68,16 +69,23 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   try {
     body = JSON.parse(rawText) as ApiEnvelope<T>;
   } catch {
-    const offlineHint =
+    const proxyFailure =
       rawText.length === 0 ||
-      /socket hang up|ECONNREFUSED|Internal Server Error/i.test(rawText);
-    throw new ApiError(
-      response.status,
-      "PARSE_ERROR",
-      offlineHint
-        ? "Could not reach the API server. Make sure the backend is running (npm run dev in backend/)."
-        : "Invalid API response",
-    );
+      /socket hang up|ECONNREFUSED|ECONNRESET|Internal Server Error/i.test(rawText);
+    const likelyTimeout = response.status === 504 || response.status === 502;
+
+    let message = "Invalid API response";
+    if (likelyTimeout || (proxyFailure && response.status >= 500)) {
+      message =
+        "The agent request took too long or the connection dropped. " +
+        "Your backend may still be processing — wait a moment and refresh the chat. " +
+        "If it keeps happening, try a shorter question first.";
+    } else if (proxyFailure) {
+      message =
+        "Could not reach the API server. Make sure the backend is running (npm run dev in backend/).";
+    }
+
+    throw new ApiError(response.status, "PARSE_ERROR", message);
   }
 
   if (!response.ok || !body.success || body.data === null) {
