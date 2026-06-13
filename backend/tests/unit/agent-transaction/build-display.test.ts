@@ -93,4 +93,28 @@ describe("enrichDisplayFromResult", () => {
     const enriched = enrichDisplayFromResult("10 SUI → ~24.5 USDC", result);
     assert.equal(enriched, "10 SUI → 24.1 USDC");
   });
+
+  it("formats large swap fills with thousands separators", () => {
+    const result: TxResult = {
+      chain_id: "sui",
+      digest: "abc",
+      address: "0x1",
+      effects_status: "success",
+      deepbook: {
+        swap: {
+          pool_key: "SUI_USDC",
+          side: "sell",
+          input_coin: "SUI",
+          output_coin: "USDC",
+          in_amount_display: 10_000,
+          out_amount_display: 24_000.5,
+          fee_deep: null,
+          price: 2.4,
+        },
+      },
+    };
+
+    const enriched = enrichDisplayFromResult("estimate", result);
+    assert.equal(enriched, "10,000 SUI → 24,000.5 USDC");
+  });
 });

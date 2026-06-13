@@ -32,6 +32,7 @@ import {
   parseDeepBookVoteParams,
 } from "../defi/deepbook-governance.service.js";
 import type { ExecuteTransactionInput, ChainId, TxResult } from "../chains/types.js";
+import { fmtDisplayNumber } from "../../utils/format-display-number.js";
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
 
@@ -52,15 +53,15 @@ function formatAmountDisplay(chainId: ChainId, amountAtomic: bigint): string {
   switch (chainId) {
     case "sui": {
       const sui = Number(amountAtomic) / 1_000_000_000;
-      return `${sui.toFixed(4)} SUI`;
+      return `${fmtDisplayNumber(sui, 4)} SUI`;
     }
     case "ethereum": {
       const eth = Number(amountAtomic) / 1e18;
-      return `${eth.toFixed(6)} ETH`;
+      return `${fmtDisplayNumber(eth, 6)} ETH`;
     }
     case "solana": {
       const sol = Number(amountAtomic) / 1_000_000_000;
-      return `${sol.toFixed(4)} SOL`;
+      return `${fmtDisplayNumber(sol, 4)} SOL`;
     }
     default:
       return amountAtomic.toString();
@@ -89,7 +90,7 @@ export async function buildTransactionDisplay(
         const balance = await checkManagerBalance(privyUserId, parsed.coin_key);
         amount_display =
           balance.balance_display > 0
-            ? `all ${parsed.coin_key} (${balance.balance_display} ${parsed.coin_key})`
+            ? `all ${parsed.coin_key} (${fmtDisplayNumber(balance.balance_display)} ${parsed.coin_key})`
             : `all ${parsed.coin_key}`;
       } catch {
         amount_display = `all ${parsed.coin_key}`;
@@ -97,7 +98,7 @@ export async function buildTransactionDisplay(
     } else if (parsed.withdraw_all && input.action === "deepbook_withdraw") {
       amount_display = `all ${parsed.coin_key}`;
     } else {
-      amount_display = `${parsed.amount_display} ${parsed.coin_key}`;
+      amount_display = `${fmtDisplayNumber(parsed.amount_display)} ${parsed.coin_key}`;
     }
     const verb = input.action === "deepbook_deposit" ? "Deposit" : "Withdraw";
     title = `${verb} ${amount_display} via DeepBook balance manager`;
@@ -118,7 +119,7 @@ export async function buildTransactionDisplay(
         typeof input.params.estimated_out_display === "number"
           ? input.params.estimated_out_display
           : null;
-      amount_display = `${parsed.amount} ${inputCoin} → ${estOut !== null ? `~${estOut} ` : ""}${outputCoin}`;
+      amount_display = `${fmtDisplayNumber(parsed.amount)} ${inputCoin} → ${estOut !== null ? `~${fmtDisplayNumber(estOut)} ` : ""}${outputCoin}`;
       title = `Swap on DeepBook (${parsed.pool_key})`;
     } catch {
       amount_display = "DeepBook swap";
@@ -128,7 +129,7 @@ export async function buildTransactionDisplay(
     try {
       const parsed = parseDeepBookLimitOrderParams(input.params);
       const side = parsed.is_bid ? "buy" : "sell";
-      amount_display = `${side} ${parsed.quantity} @ ${parsed.price} (${parsed.pool_key})`;
+      amount_display = `${side} ${fmtDisplayNumber(parsed.quantity)} @ ${fmtDisplayNumber(parsed.price)} (${parsed.pool_key})`;
       title = `Place limit order on DeepBook (${parsed.pool_key})`;
     } catch {
       amount_display = "DeepBook limit order";
@@ -138,7 +139,7 @@ export async function buildTransactionDisplay(
     try {
       const parsed = parseDeepBookMarketOrderParams(input.params);
       const side = parsed.is_bid ? "buy" : "sell";
-      amount_display = `${side} ${parsed.quantity} market (${parsed.pool_key})`;
+      amount_display = `${side} ${fmtDisplayNumber(parsed.quantity)} market (${parsed.pool_key})`;
       title = `Place market order on DeepBook (${parsed.pool_key})`;
     } catch {
       amount_display = "DeepBook market order";
@@ -165,8 +166,8 @@ export async function buildTransactionDisplay(
   } else if (input.action === "deepbook_cancel_orders") {
     try {
       const parsed = parseDeepBookCancelOrdersParams(input.params);
-      amount_display = `Cancel ${parsed.order_ids.length} orders (${parsed.pool_key})`;
-      title = `Cancel ${parsed.order_ids.length} DeepBook orders`;
+      amount_display = `Cancel ${fmtDisplayNumber(parsed.order_ids.length, 0)} orders (${parsed.pool_key})`;
+      title = `Cancel ${fmtDisplayNumber(parsed.order_ids.length, 0)} DeepBook orders`;
     } catch {
       amount_display = "Cancel multiple orders";
       title = "Cancel DeepBook orders";
@@ -174,7 +175,7 @@ export async function buildTransactionDisplay(
   } else if (input.action === "deepbook_modify_order") {
     try {
       const parsed = parseDeepBookModifyOrderParams(input.params);
-      amount_display = `Modify order ${parsed.order_id.slice(0, 12)}… → qty ${parsed.quantity}`;
+      amount_display = `Modify order ${parsed.order_id.slice(0, 12)}… → qty ${fmtDisplayNumber(parsed.quantity)}`;
       title = `Modify DeepBook order (${parsed.pool_key})`;
     } catch {
       amount_display = "Modify order";
@@ -203,12 +204,12 @@ export async function buildTransactionDisplay(
       const parsed = parseDeepBookFlashLoanParams(input.params);
       if (parsed.strategy === "swap_chain_repay" && parsed.steps?.length) {
         const route = parsed.steps
-          .map((step) => `${step.side} ${step.amount} @ ${step.pool_key}`)
+          .map((step) => `${step.side} ${fmtDisplayNumber(step.amount)} @ ${step.pool_key}`)
           .join(" → ");
-        amount_display = `Borrow ${parsed.borrow_amount} ${parsed.coin_key} → ${route} → repay ${parsed.borrow_amount} ${parsed.coin_key}`;
+        amount_display = `Borrow ${fmtDisplayNumber(parsed.borrow_amount)} ${parsed.coin_key} → ${route} → repay ${fmtDisplayNumber(parsed.borrow_amount)} ${parsed.coin_key}`;
         title = `Flash loan bundle (${parsed.pool_key})`;
       } else {
-        amount_display = `Borrow ${parsed.borrow_amount} ${parsed.coin_key} (${parsed.pool_key})`;
+        amount_display = `Borrow ${fmtDisplayNumber(parsed.borrow_amount)} ${parsed.coin_key} (${parsed.pool_key})`;
         title = `DeepBook flash loan (${parsed.pool_key})`;
       }
     } catch {
@@ -218,7 +219,7 @@ export async function buildTransactionDisplay(
   } else if (input.action === "deepbook_stake") {
     try {
       const parsed = parseDeepBookStakeParams(input.params);
-      amount_display = `${parsed.amount_display} DEEP`;
+      amount_display = `${fmtDisplayNumber(parsed.amount_display)} DEEP`;
       title = `Stake DEEP on DeepBook (${parsed.pool_key})`;
     } catch {
       amount_display = "Stake DEEP";
@@ -236,7 +237,7 @@ export async function buildTransactionDisplay(
   } else if (input.action === "deepbook_submit_proposal") {
     try {
       const parsed = parseDeepBookSubmitProposalParams(input.params);
-      amount_display = `taker ${parsed.taker_fee} · maker ${parsed.maker_fee} · stake ${parsed.stake_required} DEEP`;
+      amount_display = `taker ${fmtDisplayNumber(parsed.taker_fee)} · maker ${fmtDisplayNumber(parsed.maker_fee)} · stake ${fmtDisplayNumber(parsed.stake_required)} DEEP`;
       title = `Submit governance proposal (${parsed.pool_key})`;
     } catch {
       amount_display = "Governance proposal";
@@ -260,42 +261,42 @@ export async function buildTransactionDisplay(
 export function enrichDisplayFromResult(amountDisplay: string, result: TxResult): string {
   const swap = result.deepbook?.swap;
   if (swap) {
-    return `${swap.in_amount_display} ${swap.input_coin} → ${swap.out_amount_display} ${swap.output_coin}`;
+    return `${fmtDisplayNumber(swap.in_amount_display)} ${swap.input_coin} → ${fmtDisplayNumber(swap.out_amount_display)} ${swap.output_coin}`;
   }
 
   const order = result.deepbook?.order;
   if (order?.action?.includes("place") && order.quantity != null) {
     const side = order.is_bid ? "buy" : "sell";
     return order.price != null
-      ? `${side} ${order.quantity} @ ${order.price}`
-      : `${side} ${order.quantity} market`;
+      ? `${side} ${fmtDisplayNumber(order.quantity)} @ ${fmtDisplayNumber(order.price)}`
+      : `${side} ${fmtDisplayNumber(order.quantity)} market`;
   }
 
   if (order?.action?.includes("cancel")) {
     const count = order.cancelled_count ?? 1;
-    return `${count} order(s) cancelled`;
+    return `${fmtDisplayNumber(count, 0)} order(s) cancelled`;
   }
 
   if (order?.action?.includes("modify") && order.quantity != null) {
-    return `qty ${order.quantity}`;
+    return `qty ${fmtDisplayNumber(order.quantity)}`;
   }
 
   const flashLoan = result.deepbook?.flash_loan;
   if (flashLoan) {
     const surplus =
       typeof flashLoan.estimated_surplus === "number" && flashLoan.estimated_surplus > 0
-        ? ` (surplus ~${flashLoan.estimated_surplus} ${flashLoan.coin_key})`
+        ? ` (surplus ~${fmtDisplayNumber(flashLoan.estimated_surplus)} ${flashLoan.coin_key})`
         : "";
     if (flashLoan.steps_count && flashLoan.steps_count > 0) {
-      return `Flash loan bundle: borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key}${surplus}`;
+      return `Flash loan bundle: borrow ${fmtDisplayNumber(flashLoan.borrow_amount)} ${flashLoan.coin_key}${surplus}`;
     }
-    return `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key}${surplus}`;
+    return `Borrow ${fmtDisplayNumber(flashLoan.borrow_amount)} ${flashLoan.coin_key}${surplus}`;
   }
 
   const coinKey = result.deepbook?.coin_key;
   const amount = result.deepbook?.amount_display;
   if (coinKey && amount != null) {
-    return `${amount} ${coinKey}`;
+    return `${fmtDisplayNumber(amount)} ${coinKey}`;
   }
 
   return amountDisplay;

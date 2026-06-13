@@ -9,6 +9,7 @@ import {
   useAgentTransactionsPage,
   type AgentActivityFilters,
 } from "@/hooks/useAgentTransactions";
+import { formatDisplayNumber } from "@/lib/format-display-amount";
 import type {
   AgentTransactionCategory,
   AgentTransactionStatus,
@@ -171,7 +172,9 @@ export default function ActivityPage() {
       {pagination.total > 0 ? (
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs font-semibold text-[var(--hero-ink)]/45">
-            Page {pagination.page} of {totalPages} · {pagination.total} total
+            Page {formatDisplayNumber(pagination.page, { maxFractionDigits: 0 })} of{" "}
+            {formatDisplayNumber(totalPages, { maxFractionDigits: 0 })} ·{" "}
+            {formatDisplayNumber(pagination.total, { maxFractionDigits: 0 })} total
           </p>
           <div className="flex items-center gap-2">
             <button

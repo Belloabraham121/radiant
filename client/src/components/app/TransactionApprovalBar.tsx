@@ -2,6 +2,7 @@
 
 import { Loader2, ShieldAlert } from "lucide-react";
 import type { PendingTransaction } from "@/lib/chat-api";
+import { formatAmountDisplayText, formatDisplayNumber } from "@/lib/format-display-amount";
 
 export function TransactionApprovalBar({
   pending,
@@ -125,7 +126,7 @@ export function TransactionApprovalBar({
           {pending.summary}
         </p>
         <p className="mt-1 font-heading text-2xl font-extrabold tracking-tight text-[var(--hero-ink)]">
-          {pending.amount_display}
+          {formatAmountDisplayText(pending.amount_display)}
         </p>
         <p className="mt-1 font-mono text-[10px] font-semibold text-[var(--hero-ink)]/45">
           {pending.chain_id} · {pending.action}
@@ -140,11 +141,18 @@ export function TransactionApprovalBar({
               <ul className="mt-2 space-y-1 text-[10px] font-medium text-[var(--hero-ink)]/55">
                 {flashSteps.map((step, index) => (
                   <li key={`${step.pool_key ?? "step"}-${index}`}>
-                    Step {index + 1}: {step.side ?? "?"} {step.amount ?? "?"} @ {step.pool_key ?? "?"}
+                    Step {index + 1}: {step.side ?? "?"}{" "}
+                    {typeof step.amount === "number"
+                      ? formatDisplayNumber(step.amount)
+                      : (step.amount ?? "?")}{" "}
+                    @ {step.pool_key ?? "?"}
                   </li>
                 ))}
                 <li>
-                  Repay {String(pending.params.borrow_amount ?? "?")}{" "}
+                  Repay{" "}
+                  {typeof pending.params.borrow_amount === "number"
+                    ? formatDisplayNumber(pending.params.borrow_amount)
+                    : String(pending.params.borrow_amount ?? "?")}{" "}
                   {String(pending.params.coin_key ?? pending.params.asset ?? "loan asset")} atomically
                 </li>
               </ul>
@@ -154,7 +162,7 @@ export function TransactionApprovalBar({
             </p>
             {typeof pending.params.estimated_surplus === "number" ? (
               <p className="mt-1 text-[10px] font-medium text-[var(--hero-ink)]/45">
-                Estimated surplus: {pending.params.estimated_surplus}
+                Estimated surplus: {formatDisplayNumber(pending.params.estimated_surplus)}
               </p>
             ) : null}
           </>

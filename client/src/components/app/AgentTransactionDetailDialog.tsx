@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAgentTransactionDetail } from "@/hooks/useAgentTransactions";
+import { formatAmountDisplayText } from "@/lib/format-display-amount";
 import {
   formatTransactionStatus,
   transactionStatusChipClass,
@@ -60,7 +61,7 @@ export function AgentTransactionDetailDialog({
                 <div>
                   <p className="font-heading text-lg font-extrabold tracking-tight">{detail.title}</p>
                   <p className="mt-1 text-sm font-medium text-[var(--hero-ink)]/55">
-                    {detail.amount_display}
+                    {formatAmountDisplayText(detail.amount_display)}
                   </p>
                 </div>
                 <span

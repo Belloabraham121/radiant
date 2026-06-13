@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ExternalLink, MessageSquare } from "lucide-react";
+import { formatAmountDisplayText } from "@/lib/format-display-amount";
 import type { AgentTransactionListItem } from "@/lib/agent-transactions-api";
 import {
   formatTransactionStatus,
@@ -26,7 +27,7 @@ export function AgentTransactionRow({ item, onSelect }: AgentTransactionRowProps
         <div className="min-w-0">
           <p className="truncate font-heading text-sm font-extrabold tracking-tight">{item.title}</p>
           <p className="mt-0.5 truncate text-xs font-medium text-[var(--hero-ink)]/55">
-            {item.amount_display}
+            {formatAmountDisplayText(item.amount_display)}
           </p>
         </div>
         <span
