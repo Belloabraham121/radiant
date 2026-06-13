@@ -13,6 +13,17 @@ import {
 
 const REPAY_EPSILON = 1e-6;
 
+export function computeBundleRepayFeasibility(
+  lastMinOut: number,
+  borrowAmount: number,
+  repaySource: DeepBookFlashLoanBundleParams["repay_source"],
+): boolean {
+  if (repaySource !== "swap_output") {
+    return true;
+  }
+  return lastMinOut + REPAY_EPSILON >= borrowAmount;
+}
+
 function applySlippage(outDisplay: number, slippageBps: number): number {
   const factor = Math.max(0, 10_000 - slippageBps) / 10_000;
   return Number((outDisplay * factor).toFixed(9));
@@ -158,9 +169,11 @@ async function buildSwapChainQuote(
   }
 
   const lastQuote = stepQuotes[stepQuotes.length - 1];
-  const repayFeasible =
-    parsed.repay_source !== "swap_output" ||
-    lastQuote.min_out + REPAY_EPSILON >= parsed.borrow_amount;
+  const repayFeasible = computeBundleRepayFeasibility(
+    lastQuote.min_out,
+    parsed.borrow_amount,
+    parsed.repay_source,
+  );
 
   const estimatedSurplus =
     parsed.repay_source === "swap_output" && lastQuote

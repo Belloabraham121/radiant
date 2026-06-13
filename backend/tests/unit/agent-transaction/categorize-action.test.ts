@@ -32,6 +32,10 @@ describe("categorizeAgentTransactionAction", () => {
     );
   });
 
+  it("maps flash loan actions", () => {
+    assert.equal(categorizeAgentTransactionAction("deepbook_flash_loan"), "flash_loan");
+  });
+
   it("falls back to other", () => {
     assert.equal(categorizeAgentTransactionAction("execute_bytes"), "other");
   });

@@ -49,7 +49,7 @@ export function categorizeAgentTransactionAction(action: string): AgentTransacti
   }
 
   if (isDeepBookFlashLoanAction(action)) {
-    return "other";
+    return "flash_loan";
   }
 
   return "other";

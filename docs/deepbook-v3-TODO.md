@@ -258,7 +258,7 @@ One row per user (MVP: single manager per agent wallet).
 
 ## Phase F — Flash loans
 
-> Atomic borrow/repay in one PTB. Off by default in permissions. **F2 (multi-step bundle + flash auto-approve):** [flash-loan-bundle-TODO.md](./flash-loan-bundle-TODO.md)
+> Atomic borrow/repay in one PTB. Off by default in permissions. **F2 (multi-step bundle + flash auto-approve):** [flash-loan-bundle-TODO.md](./flash-loan-bundle-TODO.md) — **Phases 1–7 complete** (2026-06-13).
 
 ### Backend
 
@@ -270,6 +270,7 @@ One row per user (MVP: single manager per agent wallet).
 | [x] | **Always** `approval_required` (ignore auto-approve) — *superseded by F2 `auto_approve_flash_loans`* |
 | [x] | Agent prompt: flash loans are advanced; confirm user intent |
 | [x] | Tests: validation only (no mainnet execution in CI) |
+| [x] | F2: `swap_chain_repay` bundle, `flash_loan_quote`, `auto_approve_flash_loans` — see [flash-loan-bundle-TODO.md](./flash-loan-bundle-TODO.md) |
 
 ### Client
 
@@ -277,6 +278,7 @@ One row per user (MVP: single manager per agent wallet).
 | ------ | ---- |
 | [x] | Settings toggle: “Allow flash loans” (default off) |
 | [x] | Distinct approval modal warning (atomic, repay-or-revert) |
+| [x] | F2: “Auto-approve flash loans” toggle + multi-step bundle approval UI |
 
 ---
 

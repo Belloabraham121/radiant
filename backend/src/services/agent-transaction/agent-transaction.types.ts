@@ -21,6 +21,7 @@ export type AgentTransactionCategory =
   | "deepbook_cancel"
   | "deepbook_modify"
   | "deepbook_settled"
+  | "flash_loan"
   | "other";
 
 /** Row shape returned from the agent transaction repository. */
@@ -101,6 +102,7 @@ export const agentTransactionCategorySchema = z.enum([
   "deepbook_cancel",
   "deepbook_modify",
   "deepbook_settled",
+  "flash_loan",
   "other",
 ]);
 

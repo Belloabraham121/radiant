@@ -117,7 +117,7 @@ Read-only ledger of on-chain actions initiated by the agent wallet via chat. Req
 | `page` | number | Page (default 1) |
 | `limit` | number | Page size (default 20, max 100) |
 | `status` | string | `pending_approval`, `rejected`, `expired`, `submitted`, `success`, `failure` |
-| `category` | string | `swap`, `transfer`, `deepbook_balance`, `deepbook_order`, `deepbook_cancel`, `deepbook_modify`, `deepbook_settled`, `other` |
+| `category` | string | `swap`, `transfer`, `deepbook_balance`, `deepbook_order`, `deepbook_cancel`, `deepbook_modify`, `deepbook_settled`, `flash_loan`, `other` |
 | `chain_id` | string | `sui`, `ethereum`, `solana` |
 | `session_id` | uuid | Filter to a chat thread |
 

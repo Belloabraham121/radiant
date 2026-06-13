@@ -17,6 +17,7 @@ export type AgentTransactionCategory =
   | "deepbook_cancel"
   | "deepbook_modify"
   | "deepbook_settled"
+  | "flash_loan"
   | "other";
 
 export type AgentTransactionListItem = {
