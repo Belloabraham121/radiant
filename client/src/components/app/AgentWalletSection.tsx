@@ -124,6 +124,132 @@ function AssetSkeletonRows() {
   );
 }
 
+function AgentWalletAssetsInline({
+  chainId,
+  hasAddress,
+  walletReady,
+  refreshBalancesOnly,
+}: {
+  chainId: AgentChainId;
+  hasAddress: boolean;
+  walletReady: boolean;
+  refreshBalancesOnly: () => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const evmChainId = chainId === "ethereum" ? getEvmDefaultChainId() : undefined;
+
+  const { data, loading, error, reload, loadIfNeeded } = useWalletAssets({
+    chainId,
+    evmChainId,
+    enabled: walletReady && hasAddress,
+  });
+
+  const handleProfileLoad = useCallback(() => {
+    void loadIfNeeded();
+  }, [loadIfNeeded]);
+
+  useProfileWalletData(handleProfileLoad);
+
+  useEffect(() => {
+    if (expanded && walletReady && hasAddress) {
+      void loadIfNeeded();
+    }
+  }, [chainId, expanded, hasAddress, loadIfNeeded, walletReady]);
+
+  const sortedAssets = useMemo(
+    () => (data ? sortAssets(data.assets) : []),
+    [data],
+  );
+
+  const allZero =
+    data !== null && data.assets.every((asset) => asset.balance_atomic === "0");
+  const summary = data ? collapsedSummary(sortedAssets) : "Tap to view assets";
+
+  return (
+    <div className="mt-5 border-t-2 border-[var(--hero-ink)]/10 pt-4">
+      <button
+        type="button"
+        onClick={() => setExpanded((open) => !open)}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span>
+          <span className="block text-sm font-bold">Assets</span>
+          <span className="block text-xs font-medium text-[var(--hero-ink)]/50">
+            {loading && !data ? "Loading…" : summary}
+          </span>
+        </span>
+        <ChevronDown
+          className={`size-5 shrink-0 text-[var(--hero-ink)]/40 transition-transform ${
+            expanded ? "rotate-180" : ""
+          }`}
+          strokeWidth={2.5}
+        />
+      </button>
+
+      {expanded ? (
+        <div className="pt-4">
+          <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={!hasAddress || loading}
+              onClick={() =>
+                void refreshAllWalletData({ refreshBalancesOnly }).then(() => reload())
+              }
+              className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+
+          {!hasAddress ? (
+            <p className="text-sm font-medium text-[var(--hero-ink)]/55">
+              Your agent wallet is still setting up.
+            </p>
+          ) : error ? (
+            <div className="rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
+              <p className="text-sm font-semibold text-[var(--hero-coral)]">{error}</p>
+              <button
+                type="button"
+                onClick={() => void reload()}
+                className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-[var(--hero-blue)] hover:underline"
+              >
+                <RefreshCw className="size-3.5" />
+                Try again
+              </button>
+            </div>
+          ) : loading && !data ? (
+            <AssetSkeletonRows />
+          ) : (
+            <>
+              {data && data.total_usd !== null ? (
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
+                  ≈ ${data.total_usd.toLocaleString(undefined, { maximumFractionDigits: 2 })} total
+                </p>
+              ) : null}
+
+              {allZero ? (
+                <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-[var(--hero-bg)] px-4 py-5 text-center">
+                  <p className="text-sm font-semibold text-[var(--hero-ink)]/70">No assets yet</p>
+                  <p className="mt-1 text-xs font-medium text-[var(--hero-ink)]/50">
+                    Fund your {getChainMeta(chainId).label} agent wallet to get started.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {sortedAssets.map((asset) => (
+                    <AssetRow key={`${asset.coin_type}-${asset.symbol}`} asset={asset} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function AgentWalletChainCard({
   wallet,
   loading,
@@ -131,6 +257,8 @@ function AgentWalletChainCard({
   onCopy,
   copied,
   footer,
+  walletReady,
+  refreshBalancesOnly,
 }: {
   wallet: ChainWalletState;
   loading: boolean;
@@ -138,6 +266,8 @@ function AgentWalletChainCard({
   copied: boolean;
   onCopy: () => void;
   footer?: ReactNode;
+  walletReady: boolean;
+  refreshBalancesOnly: () => Promise<void>;
 }) {
   const meta = getChainMeta(wallet.chainId);
   const address = wallet.address ?? "";
@@ -235,135 +365,12 @@ function AgentWalletChainCard({
 
       <p className="mt-3 text-xs font-medium text-[var(--hero-ink)]/50">{meta.depositFallbackHint}</p>
       {footer}
-    </div>
-  );
-}
-
-function AgentWalletAssetsPanel({
-  chainId,
-  hasAddress,
-  walletReady,
-  refreshBalancesOnly,
-}: {
-  chainId: AgentChainId;
-  hasAddress: boolean;
-  walletReady: boolean;
-  refreshBalancesOnly: () => Promise<void>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const evmChainId = chainId === "ethereum" ? getEvmDefaultChainId() : undefined;
-
-  const { data, loading, error, reload, loadIfNeeded } = useWalletAssets({
-    chainId,
-    evmChainId,
-    enabled: walletReady && hasAddress,
-  });
-
-  const handleProfileLoad = useCallback(() => {
-    void loadIfNeeded();
-  }, [loadIfNeeded]);
-
-  useProfileWalletData(handleProfileLoad);
-
-  useEffect(() => {
-    if (expanded && walletReady && hasAddress) {
-      void loadIfNeeded();
-    }
-  }, [chainId, expanded, hasAddress, loadIfNeeded, walletReady]);
-
-  const sortedAssets = useMemo(
-    () => (data ? sortAssets(data.assets) : []),
-    [data],
-  );
-
-  const allZero =
-    data !== null && data.assets.every((asset) => asset.balance_atomic === "0");
-  const summary = data ? collapsedSummary(sortedAssets) : "Tap to view assets";
-
-  return (
-    <div className="rounded-3xl border-2 border-[var(--hero-ink)] bg-white shadow-[4px_4px_0_var(--hero-ink)]">
-      <button
-        type="button"
-        onClick={() => setExpanded((open) => !open)}
-        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
-      >
-        <span className="flex items-center gap-2">
-          <Wallet className="size-4 text-[var(--hero-ink)]/50" strokeWidth={2.5} />
-          <span>
-            <span className="block text-sm font-bold">Assets</span>
-            <span className="block text-xs font-medium text-[var(--hero-ink)]/50">
-              {loading && !data ? "Loading…" : summary}
-            </span>
-          </span>
-        </span>
-        <ChevronDown
-          className={`size-5 shrink-0 text-[var(--hero-ink)]/40 transition-transform ${
-            expanded ? "rotate-180" : ""
-          }`}
-          strokeWidth={2.5}
-        />
-      </button>
-
-      {expanded ? (
-        <div className="border-t-2 border-[var(--hero-ink)]/10 px-5 pb-5 pt-4">
-          <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              disabled={!hasAddress || loading}
-              onClick={() =>
-                void refreshAllWalletData({ refreshBalancesOnly }).then(() => reload())
-              }
-              className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
-          </div>
-
-          {!hasAddress ? (
-            <p className="text-sm font-medium text-[var(--hero-ink)]/55">
-              Your agent wallet is still setting up.
-            </p>
-          ) : error ? (
-            <div className="rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
-              <p className="text-sm font-semibold text-[var(--hero-coral)]">{error}</p>
-              <button
-                type="button"
-                onClick={() => void reload()}
-                className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-[var(--hero-blue)] hover:underline"
-              >
-                <RefreshCw className="size-3.5" />
-                Try again
-              </button>
-            </div>
-          ) : loading && !data ? (
-            <AssetSkeletonRows />
-          ) : (
-            <>
-              {data && data.total_usd !== null ? (
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
-                  ≈ ${data.total_usd.toLocaleString(undefined, { maximumFractionDigits: 2 })} total
-                </p>
-              ) : null}
-
-              {allZero ? (
-                <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-[var(--hero-bg)] px-4 py-5 text-center">
-                  <p className="text-sm font-semibold text-[var(--hero-ink)]/70">No assets yet</p>
-                  <p className="mt-1 text-xs font-medium text-[var(--hero-ink)]/50">
-                    Fund your {getChainMeta(chainId).label} agent wallet to get started.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {sortedAssets.map((asset) => (
-                    <AssetRow key={`${asset.coin_type}-${asset.symbol}`} asset={asset} />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      ) : null}
+      <AgentWalletAssetsInline
+        chainId={wallet.chainId}
+        hasAddress={Boolean(wallet.address)}
+        walletReady={walletReady}
+        refreshBalancesOnly={refreshBalancesOnly}
+      />
     </div>
   );
 }
@@ -394,7 +401,6 @@ export function AgentWalletSection() {
   }, [defaultChainId]);
 
   const selectedWallet = wallets.find((w) => w.chainId === selectedChainId);
-  const hasAddress = Boolean(selectedWallet?.address);
 
   const handleRefreshAll = async () => {
     setRefreshingAll(true);
@@ -526,6 +532,8 @@ export function AgentWalletSection() {
               }}
               loading={walletLoading}
               copied={copiedChain === selectedWallet.chainId}
+              walletReady={walletReady}
+              refreshBalancesOnly={refreshBalancesOnly}
               onCopy={() => {
                 if (selectedWallet.address) {
                   void copyAddress(selectedWallet.chainId, selectedWallet.address);
@@ -542,13 +550,6 @@ export function AgentWalletSection() {
               }
             />
           ) : null}
-
-          <AgentWalletAssetsPanel
-            chainId={selectedChainId}
-            hasAddress={hasAddress}
-            walletReady={walletReady}
-            refreshBalancesOnly={refreshBalancesOnly}
-          />
         </div>
       </section>
 
