@@ -28,6 +28,14 @@ import {
   SWAP_QUOTE_AND_EXECUTE_NUDGE,
 } from "../swap-approval-flow.js";
 import {
+  shouldNudgeFlashLoanExecute,
+  shouldNudgeFlashLoanMissingAmount,
+  buildFlashLoanExecuteNudge,
+  extractFlashLoanIntent,
+  extractFlashLoanIntentFromMessages,
+  FLASH_LOAN_MISSING_AMOUNT_NUDGE,
+} from "../flash-loan-approval-flow.js";
+import {
   buildUnsupportedCapabilityNudge,
   detectUnsupportedCapability,
   isUnsupportedCapabilityNudge,
@@ -189,6 +197,25 @@ export const openaiRuntime: AgentRuntime = {
           messages.push({
             role: "user",
             content: buildDepositExecuteNudge(intent),
+          });
+          continue;
+        }
+
+        if (shouldNudgeFlashLoanMissingAmount(tool_calls, lastUserMessage, input.messages)) {
+          messages.push({
+            role: "user",
+            content: FLASH_LOAN_MISSING_AMOUNT_NUDGE,
+          });
+          continue;
+        }
+
+        if (shouldNudgeFlashLoanExecute(tool_calls, lastUserMessage, input.messages)) {
+          const intent =
+            extractFlashLoanIntent(lastUserMessage) ??
+            extractFlashLoanIntentFromMessages(input.messages)!;
+          messages.push({
+            role: "user",
+            content: buildFlashLoanExecuteNudge(intent),
           });
           continue;
         }

@@ -258,7 +258,7 @@ One row per user (MVP: single manager per agent wallet).
 
 ## Phase F — Flash loans
 
-> Atomic borrow/repay in one PTB. **Always** user-approved; off by default in permissions.
+> Atomic borrow/repay in one PTB. Off by default in permissions. **F2 (multi-step bundle + flash auto-approve):** [flash-loan-bundle-TODO.md](./flash-loan-bundle-TODO.md)
 
 ### Backend
 
@@ -267,7 +267,7 @@ One row per user (MVP: single manager per agent wallet).
 | [x] | `execute_transaction` action: `deepbook_flash_loan` |
 | [x] | Params: `pool_key`, `borrow_amount`, `asset`/`coin_key`, `strategy: round_trip` |
 | [x] | `allow_flash_loans` permission gate — reject if false |
-| [x] | **Always** `approval_required` (ignore auto-approve) |
+| [x] | **Always** `approval_required` (ignore auto-approve) — *superseded by F2 `auto_approve_flash_loans`* |
 | [x] | Agent prompt: flash loans are advanced; confirm user intent |
 | [x] | Tests: validation only (no mainnet execution in CI) |
 
