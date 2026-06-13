@@ -1,8 +1,14 @@
 import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
+import type { AgentChainId } from "@/lib/agent-chains";
+import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 export type Receipt = {
   label: string;
   detail?: string;
+  agentTransactionId?: string;
+  digest?: string;
+  chainId?: AgentChainId;
+  sessionId?: string;
 };
 
 export type ChatMessage = {
@@ -56,6 +62,25 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           remaining_quantity: number;
           is_bid: boolean;
         }>;
+        active_stake?: number;
+        inactive_stake?: number;
+        total_stake?: number;
+        stake_required?: number;
+        quorum?: number;
+        current_epoch?: {
+          taker_fee?: number;
+          maker_fee?: number;
+          stake_required?: number;
+        };
+        account?: {
+          active_stake?: number;
+          voted_proposal?: string | null;
+        };
+        quote_volume_24h?: number;
+        trades?: Array<{ trade_id: string }>;
+        count?: number;
+        candles?: Array<{ timestamp_ms: number }>;
+        interval?: string;
       };
 
       if (result.error?.message) {
@@ -90,6 +115,48 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         });
       }
 
+      if (result.total_stake != null && result.pool_key) {
+        receipts.push({
+          label: "DEEP stake",
+          detail: `${result.active_stake ?? 0} active + ${result.inactive_stake ?? 0} inactive on ${result.pool_key}`,
+        });
+      }
+
+      if (result.stake_required != null && result.pool_key) {
+        receipts.push({
+          label: "Stake tier",
+          detail: `${result.stake_required} DEEP required on ${result.pool_key}`,
+        });
+      }
+
+      if (result.quorum != null && result.pool_key) {
+        receipts.push({
+          label: "Governance",
+          detail: `Quorum ${result.quorum} DEEP on ${result.pool_key}`,
+        });
+      }
+
+      if (result.quote_volume_24h != null && result.pool_key) {
+        receipts.push({
+          label: "24h volume",
+          detail: `${result.quote_volume_24h} quote on ${result.pool_key}`,
+        });
+      }
+
+      if (Array.isArray(result.trades) && result.pool_key) {
+        receipts.push({
+          label: "Recent trades",
+          detail: `${result.count ?? result.trades.length} on ${result.pool_key}`,
+        });
+      }
+
+      if (Array.isArray(result.candles) && result.pool_key) {
+        receipts.push({
+          label: "OHLCV",
+          detail: `${result.candles.length} candles (${result.interval ?? "?"}) on ${result.pool_key}`,
+        });
+      }
+
       if (result.balance_display != null) {
         receipts.push({
           label: "Balance checked",
@@ -118,7 +185,9 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       const raw = call.result as {
         error?: { code?: string; message?: string };
         status?: string;
+        agent_transaction_id?: string;
         result?: {
+          chain_id?: AgentChainId;
           digest?: string;
           deepbook?: {
             manager_object_id?: string;
@@ -141,9 +210,22 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               is_bid?: boolean;
               cancelled_count?: number;
             };
+            stake?: {
+              pool_key?: string;
+              action?: string;
+              amount_display?: number | null;
+            };
+            governance?: {
+              pool_key?: string;
+              action?: string;
+              proposal_id?: string | null;
+              taker_fee?: number | null;
+              maker_fee?: number | null;
+              stake_required?: number | null;
+            };
           };
         };
-        pending?: { action?: string; amount_display?: string };
+        pending?: { id?: string; chain_id?: AgentChainId; action?: string; amount_display?: string };
       };
 
       if (raw.error?.message) {
@@ -151,6 +233,15 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       }
 
       const outcome = raw;
+      const agentTransactionId =
+        outcome.agent_transaction_id ?? outcome.pending?.id;
+      const chainId =
+        outcome.result?.chain_id ?? outcome.pending?.chain_id;
+
+      const receiptMeta = {
+        ...(agentTransactionId ? { agentTransactionId } : {}),
+        ...(chainId ? { chainId } : {}),
+      };
 
       if (outcome.status === "approval_required" && outcome.pending) {
         const action = outcome.pending.action ?? "";
@@ -158,17 +249,20 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           receipts.push({
             label: "Setup approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (action === "deepbook_deposit" || action === "deepbook_withdraw") {
           const verb = action === "deepbook_deposit" ? "Deposit" : "Withdraw";
           receipts.push({
             label: `${verb} approval required`,
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (action === "swap" || action === "deepbook_swap") {
           receipts.push({
             label: "Swap approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (
           action === "deepbook_place_limit_order" ||
@@ -177,6 +271,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           receipts.push({
             label: "Order approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (
           action === "deepbook_cancel_order" ||
@@ -186,11 +281,13 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           receipts.push({
             label: "Cancel approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (action === "deepbook_modify_order") {
           receipts.push({
             label: "Modify approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         } else if (
           action === "deepbook_withdraw_settled_amounts" ||
@@ -199,6 +296,19 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           receipts.push({
             label: "Claim proceeds approval required",
             detail: outcome.pending.amount_display,
+            ...receiptMeta,
+          });
+        } else if (action === "deepbook_stake" || action === "deepbook_unstake") {
+          receipts.push({
+            label: action === "deepbook_stake" ? "Stake approval required" : "Unstake approval required",
+            detail: outcome.pending.amount_display,
+            ...receiptMeta,
+          });
+        } else if (action === "deepbook_submit_proposal" || action === "deepbook_vote") {
+          receipts.push({
+            label: action === "deepbook_submit_proposal" ? "Proposal approval required" : "Vote approval required",
+            detail: outcome.pending.amount_display,
+            ...receiptMeta,
           });
         }
       }
@@ -207,6 +317,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const digest = outcome.result.digest;
         const swap = outcome.result.deepbook?.swap;
         const order = outcome.result.deepbook?.order;
+        const stake = outcome.result.deepbook?.stake;
+        const governance = outcome.result.deepbook?.governance;
         const coinKey = outcome.result.deepbook?.coin_key;
         const amount = outcome.result.deepbook?.amount_display;
         const managerObjectId = outcome.result.deepbook?.manager_object_id;
@@ -216,6 +328,10 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const isCancel = order?.action?.includes("cancel");
         const isModify = order?.action?.includes("modify");
         const isSettledWithdraw = order?.action?.includes("withdraw_settled");
+        const isStake = stake?.action === "deepbook_stake";
+        const isUnstake = stake?.action === "deepbook_unstake";
+        const isSubmitProposal = governance?.action === "deepbook_submit_proposal";
+        const isVote = governance?.action === "deepbook_vote";
         const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
         const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer && !isOrder && !isCancel;
@@ -223,6 +339,14 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         receipts.push({
           label: isSwap
             ? "Swap executed"
+            : isStake
+              ? "DEEP staked"
+              : isUnstake
+                ? "DEEP unstaked"
+              : isSubmitProposal
+                ? "Proposal submitted"
+                : isVote
+                  ? "Vote cast"
             : isOrder
               ? "Order placed"
               : isCancel
@@ -240,6 +364,14 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
                     : "Transaction sent",
           detail: isSwap
             ? `${swap.in_amount_display} ${swap.input_coin} → ${swap.out_amount_display} ${swap.output_coin} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+            : isStake && stake
+              ? `${stake.amount_display ?? "?"} DEEP on ${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+              : isUnstake && stake
+                ? `${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+              : isSubmitProposal && governance
+                ? `${governance.pool_key ?? "?"} · fees/stake proposed · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                : isVote && governance
+                  ? `${governance.proposal_id?.slice(0, 12) ?? "?"}… on ${governance.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
             : isOrder && order
               ? `${order.is_bid ? "buy" : "sell"} ${order.quantity ?? ""}${order.price != null ? ` @ ${order.price}` : ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
               : isCancel && order
@@ -259,6 +391,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
                     : digest.length > 12
                       ? `${digest.slice(0, 10)}…`
                       : digest,
+          ...receiptMeta,
+          digest,
         });
       }
     }

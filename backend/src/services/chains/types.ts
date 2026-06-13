@@ -59,6 +59,28 @@ export type TxResult = {
       pay_with_deep?: boolean;
       cancelled_count?: number;
     };
+    flash_loan?: {
+      pool_key: string;
+      borrow_amount: number;
+      coin_key: string;
+      asset: "base" | "quote";
+      strategy: "round_trip" | "swap_chain_repay";
+      steps_count?: number;
+      estimated_surplus?: number | null;
+    };
+    stake?: {
+      pool_key: string;
+      action: "deepbook_stake" | "deepbook_unstake";
+      amount_display: number | null;
+    };
+    governance?: {
+      pool_key: string;
+      action: "deepbook_submit_proposal" | "deepbook_vote";
+      proposal_id: string | null;
+      taker_fee: number | null;
+      maker_fee: number | null;
+      stake_required: number | null;
+    };
   };
 };
 

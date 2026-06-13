@@ -23,7 +23,7 @@ function initialChatSessionState(sessionId?: string) {
     return {
       messages: [] as ChatMessage[],
       title: "New chat",
-      loading: false,
+      hydrating: false,
       skipFetch: true,
       pending_transaction: null as PendingTransaction | null,
       pending_clarification: null as PendingClarification | null,
@@ -35,7 +35,7 @@ function initialChatSessionState(sessionId?: string) {
     return {
       messages: cached.messages,
       title: cached.title,
-      loading: false,
+      hydrating: false,
       skipFetch: true,
       pending_transaction: cached.pending_transaction ?? null,
       pending_clarification: cached.pending_clarification ?? null,
@@ -45,7 +45,7 @@ function initialChatSessionState(sessionId?: string) {
   return {
     messages: [] as ChatMessage[],
     title: "New chat",
-    loading: true,
+    hydrating: true,
     skipFetch: false,
     pending_transaction: null as PendingTransaction | null,
     pending_clarification: null as PendingClarification | null,
@@ -60,7 +60,7 @@ export function useChatSession(sessionId?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
   const [title, setTitle] = useState(boot.title);
   const [activeSessionId, setActiveSessionId] = useState(sessionId);
-  const [loading, setLoading] = useState(boot.loading);
+  const [hydrating, setHydrating] = useState(boot.hydrating);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -70,6 +70,7 @@ export function useChatSession(sessionId?: string) {
   const [pendingClarification, setPendingClarification] =
     useState<PendingClarification | null>(boot.pending_clarification);
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const [respondingClarification, setRespondingClarification] = useState(false);
 
   useEffect(() => {
@@ -82,22 +83,27 @@ export function useChatSession(sessionId?: string) {
     let cancelled = false;
 
     async function loadSession() {
-      setLoading(true);
+      setHydrating(true);
       setLoadError(null);
       try {
         const data = await fetchSessionMessages(id);
         if (cancelled) return;
         setTitle(data.session.title);
-        setMessages(apiMessagesToChatMessages(data.messages));
+        setMessages((current) => {
+          if (current.length > 0) {
+            return current;
+          }
+          return apiMessagesToChatMessages(data.messages);
+        });
       } catch (err) {
         if (cancelled) return;
-        setMessages([]);
+        setMessages((current) => (current.length > 0 ? current : []));
         setLoadError(
           err instanceof ApiError ? err.message : "Could not load this conversation.",
         );
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          setHydrating(false);
         }
       }
     }
@@ -163,7 +169,7 @@ export function useChatSession(sessionId?: string) {
           router.replace(`/app/chat/${data.session_id}`);
         }
 
-        void refreshSessions();
+        void refreshSessions({ silent: true });
       } catch (err) {
         const message =
           err instanceof ApiError ? err.message : "Could not reach your agent. Try again.";
@@ -201,7 +207,7 @@ export function useChatSession(sessionId?: string) {
         },
       ]);
 
-      void refreshSessions();
+      void refreshSessions({ silent: true });
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Approval failed. Try again.";
@@ -210,6 +216,43 @@ export function useChatSession(sessionId?: string) {
       setApproving(false);
     }
   }, [activeSessionId, approving, pendingTx, refreshSessions]);
+
+  const rejectPending = useCallback(async () => {
+    if (!pendingTx || rejecting || approving) return;
+
+    setRejecting(true);
+    setChatError(null);
+
+    try {
+      const data = await postChat({
+        message: "Cancel transaction",
+        session_id: activeSessionId,
+        reject_transaction_id: pendingTx.id,
+      });
+
+      setActiveSessionId(data.session_id);
+      setPendingTx(null);
+      setPendingClarification(data.pending_clarification ?? null);
+      setMessages((current) => [
+        ...current,
+        { id: `u-reject-${Date.now()}`, role: "user", text: "Cancel transaction" },
+        {
+          id: data.message_id,
+          role: "agent",
+          text: data.reply,
+          receipts: mapToolCallsToReceipts(data.tool_calls),
+        },
+      ]);
+
+      void refreshSessions({ silent: true });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Could not cancel the transaction. Try again.";
+      setChatError(message);
+    } finally {
+      setRejecting(false);
+    }
+  }, [activeSessionId, approving, pendingTx, refreshSessions, rejecting]);
 
   const respondClarification = useCallback(
     async (answer: ClarificationAnswer) => {
@@ -258,7 +301,7 @@ export function useChatSession(sessionId?: string) {
           },
         ]);
 
-        void refreshSessions();
+        void refreshSessions({ silent: true });
       } catch (err) {
         const message =
           err instanceof ApiError ? err.message : "Could not process your response.";
@@ -273,16 +316,18 @@ export function useChatSession(sessionId?: string) {
   return {
     messages,
     title,
-    loading,
+    hydrating,
     loadError,
     typing,
     chatError,
     pendingTx,
     pendingClarification,
     approving,
+    rejecting,
     respondingClarification,
     sendMessage,
     approvePending,
+    rejectPending,
     respondClarification,
     dismissPending: () => setPendingTx(null),
     dismissClarification: () => setPendingClarification(null),

@@ -2,11 +2,11 @@ import { getDeepBookEnv } from "../../../config/deepbook.js";
 import {
   getDeepBookPoolInfo,
   type DeepBookPoolInfo,
-} from "../../defi/deepbook-pools.service.js";
+} from "../../defi/deepbook/deepbook-pools.service.js";
 import {
   formatConstraintNumber,
   snapToStep,
-} from "../../defi/order-constraints.js";
+} from "../../defi/deepbook/order-constraints.js";
 import type {
   ClarificationGap,
   ClarificationSuggestion,

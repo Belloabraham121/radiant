@@ -27,3 +27,8 @@ export function getSuiClient(): SuiGrpcClient {
   }
   return client;
 }
+
+/** Test hook — clear the Sui gRPC client singleton. */
+export function resetSuiClientForTests(): void {
+  client = undefined;
+}

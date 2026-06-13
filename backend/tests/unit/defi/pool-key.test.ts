@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { findPoolByKey } from "../../../src/services/defi/indexer/normalize.js";
-import { normalizePoolKey } from "../../../src/services/defi/pool-key.js";
-import type { IndexerPoolRecord } from "../../../src/services/defi/indexer/indexer.types.js";
+import { findPoolByKey } from "../../../src/services/defi/deepbook/indexer/normalize.js";
+import { normalizePoolKey } from "../../../src/services/defi/deepbook/pool-key.js";
+import type { IndexerPoolRecord } from "../../../src/services/defi/deepbook/indexer/indexer.types.js";
 
 const POOLS: IndexerPoolRecord[] = [
   {

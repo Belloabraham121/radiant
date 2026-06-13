@@ -8,10 +8,11 @@ import {
 } from "../../../utils/agent-tool-errors.js";
 import type { AgentPermissions } from "../agent-permissions.types.js";
 import type { AgentToolErrorResult } from "../tools.js";
+import { REPLY_AFTER_TOOLS_NUDGE } from "../turn-reply-flow.js";
 import {
   buildTransactionErrorUserContext,
   type TransactionErrorContext,
-} from "../transaction-error-context.js";
+} from "../deepbook/transaction-error-context.js";
 import { buildSystemPrompt } from "./prompts.js";
 import type { AgentTurnMessage } from "./types.js";
 
@@ -162,6 +163,29 @@ export async function explainTransactionError(input: {
       502,
       "ERROR_EXPLANATION_EMPTY",
       "The agent could not generate an error explanation.",
+    );
+  }
+
+  return reply;
+}
+
+export async function synthesizeTurnReply(input: {
+  client: OpenAI;
+  model: string;
+  messages: ChatCompletionMessageParam[];
+}): Promise<string> {
+  const completion = await input.client.chat.completions.create({
+    model: input.model,
+    messages: [...input.messages, { role: "user", content: REPLY_AFTER_TOOLS_NUDGE }],
+    max_tokens: 1024,
+  });
+
+  const reply = completion.choices[0]?.message?.content?.trim();
+  if (!reply) {
+    throw new AppError(
+      502,
+      "TURN_REPLY_EMPTY",
+      "The agent could not generate a reply from tool results.",
     );
   }
 

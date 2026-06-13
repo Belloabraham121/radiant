@@ -21,15 +21,29 @@ import {
   executeDeepBookDeposit,
   executeDeepBookWithdraw,
   executeDeepBookProvisionManager,
-} from "../../defi/deepbook-balance-manager.service.js";
+} from "../../defi/deepbook/deepbook-balance-manager.service.js";
 import {
   executeDeepBookSwap,
   isDeepBookSwapAction,
-} from "../../defi/deepbook-swap.service.js";
+} from "../../defi/deepbook/deepbook-swap.service.js";
 import {
   executeDeepBookOrderAction,
   isDeepBookOrderAction,
-} from "../../defi/deepbook-orders.service.js";
+} from "../../defi/deepbook/deepbook-orders.service.js";
+import {
+  executeDeepBookFlashLoan,
+  isDeepBookFlashLoanAction,
+} from "../../defi/deepbook/deepbook-flash-loan.service.js";
+import {
+  executeDeepBookStake,
+  executeDeepBookUnstake,
+  isDeepBookStakeAction,
+} from "../../defi/deepbook/deepbook-stake.service.js";
+import {
+  executeDeepBookSubmitProposal,
+  executeDeepBookVote,
+  isDeepBookGovernanceAction,
+} from "../../defi/deepbook/deepbook-governance.service.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;
@@ -290,6 +304,70 @@ export const suiAdapter: ChainAdapter = {
             is_bid: result.is_bid,
             pay_with_deep: result.pay_with_deep,
             cancelled_count: result.cancelled_count,
+          },
+        },
+      };
+    }
+
+    if (isDeepBookFlashLoanAction(action)) {
+      const result = await executeDeepBookFlashLoan(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          flash_loan: {
+            pool_key: result.pool_key,
+            borrow_amount: result.borrow_amount,
+            coin_key: result.coin_key,
+            asset: result.asset,
+            strategy: result.strategy,
+            steps_count: result.steps_count,
+            estimated_surplus: result.estimated_surplus,
+          },
+        },
+      };
+    }
+
+    if (isDeepBookStakeAction(action)) {
+      const result =
+        action === "deepbook_stake"
+          ? await executeDeepBookStake(privyUserId, params)
+          : await executeDeepBookUnstake(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          stake: {
+            pool_key: result.pool_key,
+            action: result.action,
+            amount_display: result.amount_display ?? null,
+          },
+        },
+      };
+    }
+
+    if (isDeepBookGovernanceAction(action)) {
+      const result =
+        action === "deepbook_submit_proposal"
+          ? await executeDeepBookSubmitProposal(privyUserId, params)
+          : await executeDeepBookVote(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          governance: {
+            pool_key: result.pool_key,
+            action: result.action,
+            proposal_id: result.proposal_id ?? null,
+            taker_fee: result.taker_fee ?? null,
+            maker_fee: result.maker_fee ?? null,
+            stake_required: result.stake_required ?? null,
           },
         },
       };

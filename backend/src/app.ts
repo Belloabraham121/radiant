@@ -6,6 +6,7 @@ import { errorHandlerMiddleware } from "./api/middleware/error-handler.js";
 import { requestLoggerMiddleware } from "./api/middleware/request-logger.js";
 import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
 import { agentPermissionsRouter } from "./api/routes/v1/agent/permissions.js";
+import { agentTransactionsRouter } from "./api/routes/v1/agent/transactions.js";
 import { authMeRouter } from "./api/routes/v1/auth/me.js";
 import { authRegisterWalletRouter } from "./api/routes/v1/auth/register-wallet.js";
 import { walletAssetsRouter } from "./api/routes/v1/wallets/assets.js";
@@ -36,6 +37,7 @@ export function createApp() {
   app.use(healthRouter);
   app.use(authMeRouter);
   app.use(agentPermissionsRouter);
+  app.use(agentTransactionsRouter);
   app.use(authRegisterWalletRouter);
   app.use(authLogoutRouter);
   app.use(walletBalancesRouter);

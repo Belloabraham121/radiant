@@ -6,9 +6,9 @@ import {
   listDeepBookPools,
   resetDeepBookPoolsServiceForTests,
   setDeepBookIndexerFnsForTests,
-} from "../../../src/services/defi/deepbook-pools.service.js";
-import { IndexerRequestError } from "../../../src/services/defi/indexer/deepbook-indexer.client.js";
-import type { IndexerPoolRecord } from "../../../src/services/defi/indexer/indexer.types.js";
+} from "../../../src/services/defi/deepbook/deepbook-pools.service.js";
+import { IndexerRequestError } from "../../../src/services/defi/deepbook/indexer/deepbook-indexer.client.js";
+import type { IndexerPoolRecord } from "../../../src/services/defi/deepbook/indexer/indexer.types.js";
 
 const MOCK_POOLS: IndexerPoolRecord[] = [
   {

@@ -5,20 +5,37 @@ import type { WalletAssetsData } from "../wallet/wallet-assets.types.js";
 import type {
   DeepBookManagerBalancesResult,
   DeepBookManagerInfo,
-} from "../defi/deepbook-balance-manager.types.js";
+} from "../defi/deepbook/deepbook-balance-manager.types.js";
 import type {
   DeepBookPoolInfo,
   DeepBookPoolsList,
   DeepBookTickerMap,
-} from "../defi/deepbook-pools.service.js";
-import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
-import type { DeepBookOpenOrdersResult } from "../defi/deepbook-orders.service.js";
+} from "../defi/deepbook/deepbook-pools.service.js";
+import type { DeepBookSwapQuoteResult } from "../defi/deepbook/deepbook-swap.service.js";
+import type { FlashLoanBundleQuoteResult } from "../defi/deepbook/deepbook-flash-loan.types.js";
+import type { DeepBookOpenOrdersResult } from "../defi/deepbook/deepbook-orders.service.js";
+import type {
+  DeepBookStakeBalanceResult,
+  DeepBookStakeRequiredResult,
+} from "../defi/deepbook/deepbook-stake.service.js";
+import type { DeepBookGovernanceStateResult } from "../defi/deepbook/deepbook-governance.service.js";
+import type {
+  DeepBookOhlcvResult,
+  DeepBookTradesResult,
+  DeepBookVolumeResult,
+} from "../defi/deepbook/deepbook-indexer-analytics.service.js";
+import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
+import {
+  agentTransactionCategorySchema,
+  agentTransactionStatusSchema,
+} from "../agent-transaction/agent-transaction.types.js";
 
 export const chatRequestSchema = z
   .object({
     message: z.string().max(8000).optional().default(""),
     session_id: z.string().uuid().optional(),
     approve_transaction_id: z.string().uuid().optional(),
+    reject_transaction_id: z.string().uuid().optional(),
     clarification_id: z.string().uuid().optional(),
     /** @deprecated use clarification_confirm */
     clarification_response: z.enum(["yes", "no"]).optional(),
@@ -31,8 +48,9 @@ export const chatRequestSchema = z
     (body) =>
       Boolean(body.message?.trim()) ||
       Boolean(body.approve_transaction_id) ||
+      Boolean(body.reject_transaction_id) ||
       Boolean(body.clarification_id),
-    { message: "message, approve_transaction_id, or clarification_id is required" },
+    { message: "message, approve_transaction_id, reject_transaction_id, or clarification_id is required" },
   );
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
@@ -105,7 +123,15 @@ export const queryChainInputSchema = z.object({
     "deepbook_pool_info",
     "deepbook_ticker",
     "swap_quote",
+    "flash_loan_quote",
     "deepbook_open_orders",
+    "deepbook_stake_balance",
+    "deepbook_stake_required",
+    "deepbook_governance_state",
+    "deepbook_trades",
+    "deepbook_volume",
+    "deepbook_ohlcv",
+    "agent_transactions",
   ]),
   params: z
     .object({
@@ -121,6 +147,11 @@ export const queryChainInputSchema = z.object({
       pay_with_deep: z.boolean().optional(),
       slippage_bps: z.number().int().min(0).max(5000).optional(),
       min_out_display: z.number().positive().optional(),
+      limit: z.number().int().positive().max(10).optional(),
+      status: agentTransactionStatusSchema.optional(),
+      category: agentTransactionCategorySchema.optional(),
+      session_id: z.string().uuid().optional(),
+      transaction_id: z.string().uuid().optional(),
     })
     .passthrough()
     .optional()
@@ -138,8 +169,16 @@ export type QueryChainResult =
   | DeepBookPoolInfo
   | DeepBookTickerMap
   | DeepBookSwapQuoteResult
-  | DeepBookOpenOrdersResult;
+  | FlashLoanBundleQuoteResult
+  | DeepBookOpenOrdersResult
+  | DeepBookStakeBalanceResult
+  | DeepBookStakeRequiredResult
+  | DeepBookGovernanceStateResult
+  | DeepBookTradesResult
+  | DeepBookVolumeResult
+  | DeepBookOhlcvResult
+  | AgentTransactionsQueryResult;
 
 export type ExecuteToolOutcome =
-  | { status: "executed"; result: TxResult }
-  | { status: "approval_required"; pending: PendingTransaction };
+  | { status: "executed"; result: TxResult; agent_transaction_id?: string }
+  | { status: "approval_required"; pending: PendingTransaction; agent_transaction_id?: string };

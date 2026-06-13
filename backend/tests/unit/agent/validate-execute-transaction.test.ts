@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { AppError } from "../../../src/errors/app-error.js";
 import {
   validateExecuteTransactionInput,
-} from "../../../src/services/agent/validate-execute-transaction.js";
+} from "../../../src/services/agent/deepbook/validate-execute-transaction.js";
 
 describe("validateExecuteTransactionInput", () => {
   it("rejects deepbook_deposit without an amount", () => {

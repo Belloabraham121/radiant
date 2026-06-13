@@ -19,10 +19,10 @@ import type { PlannerOutput } from "../../../src/services/agent/workflow/planner
 const SESSION = "00000000-0000-4000-8000-000000000101";
 
 describe("workflow planner system", () => {
-  afterEach(() => {
+  afterEach(async () => {
     clearAllClarificationsForTests();
     clearAllSessionWorkflowsForTests();
-    clearPendingTransactionsForTests();
+    await clearPendingTransactionsForTests();
     setAgentToolHandlerForTests(null);
     setPlannerHandlerForTests(null);
   });

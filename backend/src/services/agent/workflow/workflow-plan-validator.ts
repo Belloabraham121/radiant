@@ -1,6 +1,6 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
-import { extractDepositIntent } from "../deposit-approval-flow.js";
-import { getDeepBookPoolInfo } from "../../defi/deepbook-pools.service.js";
+import { extractDepositIntent } from "../deepbook/deposit-approval-flow.js";
+import { getDeepBookPoolInfo } from "../../defi/deepbook/deepbook-pools.service.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import type { QueryChainInput } from "../agent.types.js";
 import type { ClarificationGap, ClarificationKind } from "./clarification.types.js";

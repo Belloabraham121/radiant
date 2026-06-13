@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "predev": "prisma generate",
     "start": "tsx src/main.ts",
     "start:prod": "npm run db:deploy && tsx src/main.ts",
     "postinstall": "prisma generate",

@@ -4,23 +4,26 @@ import {
   estimateSwapNotionalSui,
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
-} from "../defi/deepbook-swap.service.js";
+} from "../defi/deepbook/deepbook-swap.service.js";
 import {
   estimatePlaceOrderNotionalSui,
   isDeepBookCancelOrderAction,
   isDeepBookOrderAction,
   isDeepBookPlaceOrderAction,
-  parseDeepBookCancelAllOrdersParams,
-  parseDeepBookCancelOrderParams,
-  parseDeepBookCancelOrdersParams,
-  parseDeepBookLimitOrderParams,
-  parseDeepBookMarketOrderParams,
-  parseDeepBookModifyOrderParams,
-  parseDeepBookWithdrawSettledParams,
-} from "../defi/deepbook-orders.service.js";
-import type { ExecuteTransactionInput, ChainId } from "../chains/types.js";
+} from "../defi/deepbook/deepbook-orders.service.js";
+import {
+  isDeepBookFlashLoanAction,
+  parseDeepBookFlashLoanParams,
+} from "../defi/deepbook/deepbook-flash-loan.service.js";
+import {
+  isDeepBookStakeAction,
+} from "../defi/deepbook/deepbook-stake.service.js";
+import {
+  isDeepBookGovernanceAction,
+} from "../defi/deepbook/deepbook-governance.service.js";
+import type { FlashLoanRepaySource } from "../defi/deepbook/deepbook-flash-loan.types.js";
+import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
-import type { TxResult } from "../chains/types.js";
 import { AppError } from "../../errors/app-error.js";
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { runExecuteTransactionTool } from "./execute-transaction.tool.js";
@@ -30,15 +33,23 @@ import {
   resolveAutoApproveMaxDisplay,
 } from "./agent-permissions.service.js";
 import type { AgentPermissions } from "./agent-permissions.types.js";
-import {
-  checkManagerBalance,
-  getDeepBookManagerInfo,
-  parseDeepBookDepositWithdrawParams,
-} from "../defi/deepbook-balance-manager.service.js";
+import { getDeepBookManagerInfo } from "../defi/deepbook/deepbook-balance-manager.service.js";
 import {
   isDeepBookProvisionAction,
   validateExecuteTransactionInput,
-} from "./validate-execute-transaction.js";
+} from "./deepbook/validate-execute-transaction.js";
+import { buildTransactionDisplay } from "../agent-transaction/deepbook/build-display.js";
+import {
+  claimPendingApprovalForUser,
+  claimPendingRejectionForUser,
+  clearPendingApprovalsForTests,
+  executeInputFromRecord,
+  expireStalePendingApprovals,
+  markCompleted,
+  pendingTransactionFromRecord,
+  recordPendingApproval,
+} from "../agent-transaction/agent-transaction.service.js";
+import type { ExecuteTransactionContext } from "./execute-transaction-context.js";
 
 const TRANSFER_ACTIONS = new Set([
   "transfer_native",
@@ -69,6 +80,11 @@ const MUTATING_EXECUTE_ACTIONS = new Set([
   "deepbook_modify_order",
   "deepbook_withdraw_settled_amounts",
   "deepbook_withdraw_settled_amounts_permissionless",
+  "deepbook_flash_loan",
+  "deepbook_stake",
+  "deepbook_unstake",
+  "deepbook_submit_proposal",
+  "deepbook_vote",
   "execute_bytes",
 ]);
 
@@ -76,28 +92,33 @@ function isMutatingExecuteAction(action: string): boolean {
   return (
     isDeepBookSwapAction(action) ||
     isDeepBookOrderAction(action) ||
+    isDeepBookFlashLoanAction(action) ||
+    isDeepBookStakeAction(action) ||
+    isDeepBookGovernanceAction(action) ||
     MUTATING_EXECUTE_ACTIONS.has(action)
   );
 }
 
-type PendingRecord = {
-  privyUserId: string;
-  input: ExecuteTransactionInput;
-  pending: PendingTransaction;
-  createdAt: number;
-};
+async function pruneExpired(): Promise<void> {
+  await expireStalePendingApprovals();
+}
 
-const pendingById = new Map<string, PendingRecord>();
+export async function buildPendingTransactionPreview(
+  privyUserId: string,
+  input: ExecuteTransactionInput,
+  id = randomUUID(),
+): Promise<PendingTransaction> {
+  validateExecuteTransactionInput(input);
+  const { title, amount_display: amountDisplay } = await buildTransactionDisplay(privyUserId, input);
 
-const TTL_MS = 15 * 60 * 1000;
-
-function pruneExpired(): void {
-  const now = Date.now();
-  for (const [id, record] of pendingById) {
-    if (now - record.createdAt > TTL_MS) {
-      pendingById.delete(id);
-    }
-  }
+  return {
+    id,
+    chain_id: input.chain_id,
+    action: input.action,
+    params: input.params,
+    amount_display: amountDisplay,
+    summary: title,
+  };
 }
 
 function parseAmountAtomic(params: Record<string, unknown>): bigint | null {
@@ -106,25 +127,6 @@ function parseAmountAtomic(params: Record<string, unknown>): bigint | null {
     return null;
   }
   return BigInt(raw);
-}
-
-function formatAmountDisplay(chainId: ChainId, amountAtomic: bigint): string {
-  switch (chainId) {
-    case "sui": {
-      const sui = Number(amountAtomic) / 1_000_000_000;
-      return `${sui.toFixed(4)} SUI`;
-    }
-    case "ethereum": {
-      const eth = Number(amountAtomic) / 1e18;
-      return `${eth.toFixed(6)} ETH`;
-    }
-    case "solana": {
-      const sol = Number(amountAtomic) / 1_000_000_000;
-      return `${sol.toFixed(4)} SOL`;
-    }
-    default:
-      return amountAtomic.toString();
-  }
 }
 
 export function swapRequiresApprovalWithPermissions(
@@ -183,11 +185,43 @@ export function orderRequiresApprovalWithPermissions(
   }
 }
 
+export function flashLoanRequiresApproval(
+  permissions: AgentPermissions,
+  input: ExecuteTransactionInput,
+): boolean {
+  if (!permissions.allow_flash_loans) {
+    return true;
+  }
+
+  try {
+    const parsed = parseDeepBookFlashLoanParams(input.params);
+    const repaySource: FlashLoanRepaySource = parsed.repay_source;
+    if (repaySource === "wallet" || repaySource === "merged") {
+      return true;
+    }
+    return !permissions.auto_approve_flash_loans;
+  } catch {
+    return true;
+  }
+}
+
 export function transferRequiresApprovalWithPermissions(
   permissions: AgentPermissions,
   input: ExecuteTransactionInput,
 ): boolean {
   if (!permissions.auto_approve_enabled && isMutatingExecuteAction(input.action)) {
+    return true;
+  }
+
+  if (isDeepBookFlashLoanAction(input.action)) {
+    return flashLoanRequiresApproval(permissions, input);
+  }
+
+  if (isDeepBookStakeAction(input.action)) {
+    return true;
+  }
+
+  if (isDeepBookGovernanceAction(input.action)) {
     return true;
   }
 
@@ -249,150 +283,19 @@ export async function transferRequiresApproval(
 export async function createPendingTransaction(
   privyUserId: string,
   input: ExecuteTransactionInput,
+  context?: ExecuteTransactionContext,
 ): Promise<PendingTransaction> {
-  validateExecuteTransactionInput(input);
-  pruneExpired();
+  await pruneExpired();
 
-  const amount = parseAmountAtomic(input.params) ?? BigInt(0);
-  const recipient =
-    typeof input.params.recipient === "string" ? input.params.recipient : "unknown recipient";
+  const pending = await buildPendingTransactionPreview(privyUserId, input);
 
-  let summary = `Send ${formatAmountDisplay(input.chain_id, amount)} to ${recipient.slice(0, 12)}… on ${input.chain_id}`;
-  let amountDisplay = formatAmountDisplay(input.chain_id, amount);
-
-  if (isDeepBookProvisionAction(input.action)) {
-    summary = "Create DeepBook balance manager";
-    amountDisplay = "Network fee only (~0.01 SUI)";
-  } else if (DEEPBOOK_WRITE_ACTIONS.has(input.action)) {
-    const parsed = parseDeepBookDepositWithdrawParams(input.params);
-    if (parsed.withdraw_all && input.action === "deepbook_withdraw") {
-      try {
-        const balance = await checkManagerBalance(privyUserId, parsed.coin_key);
-        amountDisplay =
-          balance.balance_display > 0
-            ? `all ${parsed.coin_key} (${balance.balance_display} ${parsed.coin_key})`
-            : `all ${parsed.coin_key}`;
-      } catch {
-        amountDisplay = `all ${parsed.coin_key}`;
-      }
-    } else {
-      amountDisplay = `${parsed.amount_display} ${parsed.coin_key}`;
-    }
-    const verb = input.action === "deepbook_deposit" ? "Deposit" : "Withdraw";
-    summary = `${verb} ${amountDisplay} via DeepBook balance manager`;
-  } else if (isDeepBookSwapAction(input.action)) {
-    try {
-      const parsed = parseDeepBookSwapParams(input.params);
-      const poolDef =
-        getDeepBookEnv().pools[parsed.pool_key as keyof ReturnType<typeof getDeepBookEnv>["pools"]];
-      const inputCoin =
-        parsed.side === "sell"
-          ? (poolDef?.baseCoin ?? "base")
-          : (poolDef?.quoteCoin ?? "quote");
-      const outputCoin =
-        parsed.side === "sell"
-          ? (poolDef?.quoteCoin ?? "quote")
-          : (poolDef?.baseCoin ?? "base");
-      const estOut =
-        typeof input.params.estimated_out_display === "number"
-          ? input.params.estimated_out_display
-          : null;
-      amountDisplay = `${parsed.amount} ${inputCoin} → ${estOut !== null ? `~${estOut} ` : ""}${outputCoin}`;
-      summary = `Swap on DeepBook (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "DeepBook swap";
-      summary = "Swap via DeepBook";
-    }
-  } else if (input.action === "deepbook_place_limit_order") {
-    try {
-      const parsed = parseDeepBookLimitOrderParams(input.params);
-      const side = parsed.is_bid ? "buy" : "sell";
-      amountDisplay = `${side} ${parsed.quantity} @ ${parsed.price} (${parsed.pool_key})`;
-      summary = `Place limit order on DeepBook (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "DeepBook limit order";
-      summary = "Place limit order via DeepBook";
-    }
-  } else if (input.action === "deepbook_place_market_order") {
-    try {
-      const parsed = parseDeepBookMarketOrderParams(input.params);
-      const side = parsed.is_bid ? "buy" : "sell";
-      amountDisplay = `${side} ${parsed.quantity} market (${parsed.pool_key})`;
-      summary = `Place market order on DeepBook (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "DeepBook market order";
-      summary = "Place market order via DeepBook";
-    }
-  } else if (input.action === "deepbook_cancel_order") {
-    try {
-      const parsed = parseDeepBookCancelOrderParams(input.params);
-      amountDisplay = `Cancel order ${parsed.order_id.slice(0, 12)}…`;
-      summary = `Cancel DeepBook order (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "Cancel order";
-      summary = "Cancel DeepBook order";
-    }
-  } else if (input.action === "deepbook_cancel_all_orders") {
-    try {
-      const parsed = parseDeepBookCancelAllOrdersParams(input.params);
-      amountDisplay = `Cancel all open orders (${parsed.pool_key})`;
-      summary = "Cancel all DeepBook orders";
-    } catch {
-      amountDisplay = "Cancel all orders";
-      summary = "Cancel all DeepBook orders";
-    }
-  } else if (input.action === "deepbook_cancel_orders") {
-    try {
-      const parsed = parseDeepBookCancelOrdersParams(input.params);
-      amountDisplay = `Cancel ${parsed.order_ids.length} orders (${parsed.pool_key})`;
-      summary = `Cancel ${parsed.order_ids.length} DeepBook orders`;
-    } catch {
-      amountDisplay = "Cancel multiple orders";
-      summary = "Cancel DeepBook orders";
-    }
-  } else if (input.action === "deepbook_modify_order") {
-    try {
-      const parsed = parseDeepBookModifyOrderParams(input.params);
-      amountDisplay = `Modify order ${parsed.order_id.slice(0, 12)}… → qty ${parsed.quantity}`;
-      summary = `Modify DeepBook order (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "Modify order";
-      summary = "Modify DeepBook order";
-    }
-  } else if (input.action === "deepbook_withdraw_settled_amounts") {
-    try {
-      const parsed = parseDeepBookWithdrawSettledParams(input.params);
-      amountDisplay = `Claim settled proceeds (${parsed.pool_key})`;
-      summary = "Withdraw settled amounts from DeepBook";
-    } catch {
-      amountDisplay = "Claim settled proceeds";
-      summary = "Withdraw settled amounts";
-    }
-  } else if (input.action === "deepbook_withdraw_settled_amounts_permissionless") {
-    try {
-      const parsed = parseDeepBookWithdrawSettledParams(input.params);
-      amountDisplay = `Claim settled proceeds — permissionless (${parsed.pool_key})`;
-      summary = "Withdraw settled amounts (permissionless)";
-    } catch {
-      amountDisplay = "Claim settled proceeds";
-      summary = "Withdraw settled amounts (permissionless)";
-    }
-  }
-
-  const pending: PendingTransaction = {
-    id: randomUUID(),
-    chain_id: input.chain_id,
-    action: input.action,
-    params: input.params,
-    amount_display: amountDisplay,
-    summary,
-  };
-
-  pendingById.set(pending.id, {
+  await recordPendingApproval({
     privyUserId,
+    sessionId: context?.sessionId,
+    messageId: context?.messageId,
+    workflowStepIndex: context?.workflowStepIndex,
     input,
     pending,
-    createdAt: Date.now(),
   });
 
   return pending;
@@ -406,28 +309,45 @@ export async function approvePendingTransaction(
   privyUserId: string,
   transactionId: string,
 ): Promise<ApprovalResult | null> {
-  pruneExpired();
-  const record = pendingById.get(transactionId);
+  await pruneExpired();
 
-  if (!record) {
+  const claimed = await claimPendingApprovalForUser(privyUserId, transactionId);
+  if (!claimed) {
     return null;
   }
 
-  if (record.privyUserId !== privyUserId) {
-    return null;
-  }
-
-  pendingById.delete(transactionId);
+  const pending = pendingTransactionFromRecord(claimed);
+  const executeInput = executeInputFromRecord(claimed);
 
   try {
-    const result = await runExecuteTransactionTool(privyUserId, record.input);
-    return { ok: true, pending: record.pending, result };
+    const result = await runExecuteTransactionTool(privyUserId, executeInput);
+    await markCompleted(transactionId, { kind: "success", result });
+    return { ok: true, pending, result };
   } catch (err) {
-    return { ok: false, pending: record.pending, error: mapAgentToolError(err) };
+    const error = mapAgentToolError(err);
+    await markCompleted(transactionId, {
+      kind: "failure",
+      error: { code: error.code, message: error.message },
+    });
+    return { ok: false, pending, error };
   }
 }
 
-/** Test hook — clear in-memory pending transactions. */
-export function clearPendingTransactionsForTests(): void {
-  pendingById.clear();
+export async function rejectPendingTransaction(
+  privyUserId: string,
+  transactionId: string,
+): Promise<PendingTransaction | null> {
+  await pruneExpired();
+
+  const rejected = await claimPendingRejectionForUser(privyUserId, transactionId);
+  if (!rejected) {
+    return null;
+  }
+
+  return pendingTransactionFromRecord(rejected);
+}
+
+/** Test hook — clear pending approval rows from the database. */
+export async function clearPendingTransactionsForTests(): Promise<void> {
+  await clearPendingApprovalsForTests();
 }

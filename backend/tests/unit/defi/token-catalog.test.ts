@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { resetDeepBookEnvForTests } from "../../../src/config/deepbook.js";
-import type { IndexerAssetsResponse } from "../../../src/services/defi/deepbook-indexer.client.js";
+import type { IndexerAssetsResponse } from "../../../src/services/defi/deepbook/indexer/indexer.types.js";
 import {
   getCatalogForWallet,
   getTokenCatalog,
   resetTokenCatalogForTests,
   setFetchIndexerAssetsForTests,
-} from "../../../src/services/defi/token-catalog.service.js";
+} from "../../../src/services/defi/deepbook/token-catalog.service.js";
 
 const MOCK_ASSETS: IndexerAssetsResponse = {
   SUI: {

@@ -86,14 +86,19 @@ export async function runStubAgent(
   } else {
     const transfer = parseTransferIntent(message);
     if (transfer) {
-      const outcome = (await runAgentTool(privyUserId, EXECUTE_TRANSACTION_TOOL_NAME, {
-        chain_id: chainId,
-        action: "transfer_native",
-        params: {
-          recipient: transfer.recipient,
-          amount_atomic: transfer.amount,
+      const outcome = (await runAgentTool(
+        privyUserId,
+        EXECUTE_TRANSACTION_TOOL_NAME,
+        {
+          chain_id: chainId,
+          action: "transfer_native",
+          params: {
+            recipient: transfer.recipient,
+            amount_atomic: transfer.amount,
+          },
         },
-      })) as ExecuteToolOutcome;
+        { sessionId: _sessionId },
+      )) as ExecuteToolOutcome;
 
       tool_calls.push({ name: EXECUTE_TRANSACTION_TOOL_NAME, result: outcome });
       if (outcome.status === "approval_required") {

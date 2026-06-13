@@ -2,19 +2,35 @@ import type { BalanceResult } from "../../chains/types.js";
 import type {
   DeepBookManagerBalancesResult,
   DeepBookManagerInfo,
-} from "../../defi/deepbook-balance-manager.types.js";
+} from "../../defi/deepbook/deepbook-balance-manager.types.js";
 import type {
   DeepBookPoolInfo,
   DeepBookPoolsList,
   DeepBookTickerMap,
-} from "../../defi/deepbook-pools.service.js";
-import type { DeepBookSwapQuoteResult } from "../../defi/deepbook-swap.service.js";
-import type { DeepBookOpenOrdersResult } from "../../defi/deepbook-orders.service.js";
+} from "../../defi/deepbook/deepbook-pools.service.js";
+import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.service.js";
+import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
+import type { DeepBookOpenOrdersResult } from "../../defi/deepbook/deepbook-orders.service.js";
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
+import type { AgentTransactionsQueryResult } from "../../agent-transaction/agent-transaction.types.js";
+
+function isAgentTransactionsResult(result: unknown): result is AgentTransactionsQueryResult {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    Array.isArray((result as AgentTransactionsQueryResult).items) &&
+    typeof (result as AgentTransactionsQueryResult).summary === "string" &&
+    typeof (result as AgentTransactionsQueryResult).total === "number"
+  );
+}
 
 export function summarizeQueryChainResult(result: unknown): string | null {
   if (typeof result !== "object" || result === null) {
     return null;
+  }
+
+  if (isAgentTransactionsResult(result)) {
+    return result.summary;
   }
 
   const openOrders = result as DeepBookOpenOrdersResult;
@@ -29,6 +45,28 @@ export function summarizeQueryChainResult(result: unknown): string | null {
     const suffix =
       openOrders.orders.length > 8 ? `\n…and ${openOrders.orders.length - 8} more` : "";
     return `Open orders on ${openOrders.pool_key} (${openOrders.orders.length}):\n${lines.join("\n")}${suffix}`;
+  }
+
+  const flashLoanQuote = result as FlashLoanBundleQuoteResult;
+  if (
+    flashLoanQuote.strategy &&
+    typeof flashLoanQuote.repay_feasible === "boolean" &&
+    Array.isArray(flashLoanQuote.steps)
+  ) {
+    const stepSummary = flashLoanQuote.steps
+      .map(
+        (step, index) =>
+          `step ${index + 1} ${step.side} ${step.in_amount}→~${step.out_est} ${step.output_coin}@${step.pool_key}`,
+      )
+      .join("; ");
+    return (
+      `Flash loan quote: borrow ${flashLoanQuote.borrow_amount} ${flashLoanQuote.coin_key} ` +
+      `from ${flashLoanQuote.pool_key} (${flashLoanQuote.strategy}); ` +
+      `${stepSummary || "no swap steps"}; repay_feasible=${flashLoanQuote.repay_feasible}` +
+      (flashLoanQuote.estimated_surplus != null
+        ? `; surplus~${flashLoanQuote.estimated_surplus}`
+        : "")
+    );
   }
 
   const swapQuote = result as DeepBookSwapQuoteResult;

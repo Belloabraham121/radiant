@@ -12,9 +12,9 @@ import type { WorkflowPlan } from "../../../src/services/agent/workflow/workflow
 const SESSION = "00000000-0000-4000-8000-000000000099";
 
 describe("workflow-runner", () => {
-  afterEach(() => {
+  afterEach(async () => {
     clearAllSessionWorkflowsForTests();
-    clearPendingTransactionsForTests();
+    await clearPendingTransactionsForTests();
     setAgentToolHandlerForTests(null);
   });
 

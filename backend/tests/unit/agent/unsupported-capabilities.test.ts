@@ -4,7 +4,7 @@ import {
   buildUnsupportedCapabilityNudge,
   detectUnsupportedCapability,
   isUnsupportedCapabilityNudge,
-} from "../../../src/services/agent/unsupported-capabilities.js";
+} from "../../../src/services/agent/deepbook/unsupported-capabilities.js";
 
 describe("unsupported-capabilities", () => {
   it("does not flag supported order requests", () => {
@@ -21,15 +21,27 @@ describe("unsupported-capabilities", () => {
     assert.equal(detectUnsupportedCapability("What is the SUI_USDC price?"), null);
   });
 
-  it("detects flash loans", () => {
-    assert.equal(detectUnsupportedCapability("Get me a flash loan on DeepBook")?.id, "flash_loan");
+  it("does not flag supported flash loan requests", () => {
+    assert.equal(detectUnsupportedCapability("Get me a flash loan on DeepBook"), null);
   });
 
-  it("nudge forbids fake empty results for unsupported features", () => {
+  it("does not flag supported stake requests", () => {
+    assert.equal(detectUnsupportedCapability("Stake 100 DEEP on SUI_USDC"), null);
+    assert.equal(detectUnsupportedCapability("How much DEEP do I have staked?"), null);
+    assert.equal(detectUnsupportedCapability("Unstake my DEEP from DeepBook"), null);
+  });
+
+  it("does not flag supported governance requests", () => {
+    assert.equal(detectUnsupportedCapability("What is the governance state on SUI_USDC?"), null);
+    assert.equal(detectUnsupportedCapability("Vote on proposal 0xabc"), null);
+    assert.equal(detectUnsupportedCapability("Submit a governance proposal for lower fees"), null);
+  });
+
+  it("nudge helper still works when capabilities list is extended later", () => {
     const nudge = buildUnsupportedCapabilityNudge({
-      id: "flash_loan",
-      label: "flash loans",
-      pattern: /flash loan/i,
+      id: "governance",
+      label: "governance voting",
+      pattern: /governance/i,
     });
     assert.match(nudge, /NOT support this in chat yet/i);
     assert.match(nudge, /Do not say the list is empty/i);

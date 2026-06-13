@@ -4,7 +4,7 @@ import {
   buildDepositExecuteNudge,
   extractDepositIntent,
   shouldNudgeDepositExecute,
-} from "../../../src/services/agent/deposit-approval-flow.js";
+} from "../../../src/services/agent/deepbook/deposit-approval-flow.js";
 
 describe("deposit-approval-flow", () => {
   it("extractDepositIntent parses deposit 1 sui", () => {

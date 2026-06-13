@@ -67,6 +67,7 @@ export type ChatRequest = {
   message: string;
   session_id?: string;
   approve_transaction_id?: string;
+  reject_transaction_id?: string;
   clarification_id?: string;
   /** @deprecated use clarification_confirm */
   clarification_response?: "yes" | "no";

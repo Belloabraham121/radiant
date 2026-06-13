@@ -5,12 +5,21 @@ import {
   getDeepBookOrderbook,
   getDeepBookPoolInfo,
   listDeepBookPools,
-} from "../../../../services/defi/deepbook-pools.service.js";
+} from "../../../../services/defi/deepbook/deepbook-pools.service.js";
+import {
+  getDeepBookIndexerStatus,
+  getDeepBookOhlcv,
+} from "../../../../services/defi/deepbook/deepbook-indexer-analytics.service.js";
 import { ok } from "../../../../utils/http-response.js";
 
 const orderbookQuerySchema = z.object({
   level: z.coerce.number().int().min(1).max(2).optional(),
   depth: z.coerce.number().int().min(0).optional(),
+});
+
+const ohlcvQuerySchema = z.object({
+  interval: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
 export const defiPoolsRouter = Router();
@@ -57,3 +66,34 @@ defiPoolsRouter.get(
     }
   },
 );
+
+defiPoolsRouter.get(
+  "/api/v1/defi/pools/:poolName/ohlcv",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const query = ohlcvQuerySchema.parse({
+        interval: req.query.interval,
+        limit: req.query.limit,
+      });
+
+      const ohlcv = await getDeepBookOhlcv({
+        pool_key: req.params.poolName,
+        interval: query.interval,
+        limit: query.limit,
+      });
+      return ok(req, res, ohlcv);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+defiPoolsRouter.get("/api/v1/defi/indexer/status", requireAuth, async (req, res, next) => {
+  try {
+    const status = await getDeepBookIndexerStatus();
+    return ok(req, res, status);
+  } catch (err) {
+    next(err);
+  }
+});

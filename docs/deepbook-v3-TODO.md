@@ -258,25 +258,27 @@ One row per user (MVP: single manager per agent wallet).
 
 ## Phase F — Flash loans
 
-> Atomic borrow/repay in one PTB. **Always** user-approved; off by default in permissions.
+> Atomic borrow/repay in one PTB. Off by default in permissions. **F2 (multi-step bundle + flash auto-approve):** [flash-loan-bundle-TODO.md](./flash-loan-bundle-TODO.md) — **Phases 1–7 complete** (2026-06-13).
 
 ### Backend
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `execute_transaction` action: `deepbook_flash_loan` |
-| [ ] | Params: `pool_key`, `borrow_amount`, `coin_key`, embedded `repay` PTB builder or callback pattern per SDK |
-| [ ] | `allow_flash_loans` permission gate — reject if false |
-| [ ] | **Always** `approval_required` (ignore auto-approve) |
-| [ ] | Agent prompt: flash loans are advanced; confirm user intent |
-| [ ] | Tests: validation only (no mainnet execution in CI) |
+| [x] | `execute_transaction` action: `deepbook_flash_loan` |
+| [x] | Params: `pool_key`, `borrow_amount`, `asset`/`coin_key`, `strategy: round_trip` |
+| [x] | `allow_flash_loans` permission gate — reject if false |
+| [x] | **Always** `approval_required` (ignore auto-approve) — *superseded by F2 `auto_approve_flash_loans`* |
+| [x] | Agent prompt: flash loans are advanced; confirm user intent |
+| [x] | Tests: validation only (no mainnet execution in CI) |
+| [x] | F2: `swap_chain_repay` bundle, `flash_loan_quote`, `auto_approve_flash_loans` — see [flash-loan-bundle-TODO.md](./flash-loan-bundle-TODO.md) |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Settings toggle: “Allow flash loans” (default off) |
-| [ ] | Distinct approval modal warning (atomic, repay-or-revert) |
+| [x] | Settings toggle: “Allow flash loans” (default off) |
+| [x] | Distinct approval modal warning (atomic, repay-or-revert) |
+| [x] | F2: “Auto-approve flash loans” toggle + multi-step bundle approval UI |
 
 ---
 
@@ -288,16 +290,16 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `execute_transaction`: `deepbook_stake`, `deepbook_unstake` |
-| [ ] | Extend `query_chain`: `deepbook_stake_balance`, `deepbook_stake_required` (per pool) |
+| [x] | `execute_transaction`: `deepbook_stake`, `deepbook_unstake` |
+| [x] | Extend `query_chain`: `deepbook_stake_balance`, `deepbook_stake_required` (per pool) |
 | [ ] | Indexer: use pool summary / on-chain reads for stake status |
-| [ ] | Approval for stake/unstake amounts above threshold |
+| [x] | Approval for stake/unstake amounts above threshold |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Chat receipt for stake/unstake |
+| [x] | Chat receipt for stake/unstake |
 | [ ] | Optional: show staked DEEP + fee tier hint in wallet section |
 
 ---
@@ -310,17 +312,17 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `execute_transaction`: `deepbook_submit_proposal`, `deepbook_vote` |
-| [ ] | Extend `query_chain`: `deepbook_governance_state` — leading proposal, quorum, next-epoch fees |
-| [ ] | Respect `allow_governance` permission |
-| [ ] | Approval for governance txs (lower risk but still on-chain writes) |
+| [x] | `execute_transaction`: `deepbook_submit_proposal`, `deepbook_vote` |
+| [x] | Extend `query_chain`: `deepbook_governance_state` — leading proposal, quorum, next-epoch fees |
+| [x] | Respect `allow_governance` permission |
+| [x] | Approval for governance txs (lower risk but still on-chain writes) |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Settings toggle: “Allow governance actions” |
-| [ ] | Approval modal: proposal params or vote choice |
+| [x] | Settings toggle: “Allow governance actions” |
+| [x] | Approval modal: proposal params or vote choice |
 
 ---
 
@@ -332,14 +334,14 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Historical volume: `/historical_volume/:pools`, `/all_historical_volume` |
-| [ ] | Per-user volume: `/historical_volume_by_balance_manager_id` (+ `_with_interval`) |
-| [ ] | Trades: `/trades/:pool` with `start_time`, `end_time`, `limit` |
-| [ ] | OHLCV: `/ohclv/:pool?interval=1h` for charts |
-| [ ] | Health: `/status` — expose lag in admin/metrics |
-| [ ] | Extend `query_chain`: `deepbook_trades`, `deepbook_volume`, `deepbook_ohlcv` |
-| [ ] | `GET /api/v1/defi/pools/:pool/ohlcv` — optional REST for UI |
-| [ ] | Cache hot paths (Redis): ticker, orderbook L1, 30–60s TTL |
+| [x] | Historical volume: `/historical_volume/:pools`, `/all_historical_volume` |
+| [x] | Per-user volume: `/historical_volume_by_balance_manager_id` (+ `_with_interval`) |
+| [x] | Trades: `/trades/:pool` with `start_time`, `end_time`, `limit` |
+| [x] | OHLCV: `/ohclv/:pool?interval=1h` for charts |
+| [x] | Health: `/status` — expose lag in admin/metrics |
+| [x] | Extend `query_chain`: `deepbook_trades`, `deepbook_volume`, `deepbook_ohlcv` |
+| [x] | `GET /api/v1/defi/pools/:pool/ohlcv` — optional REST for UI |
+| [x] | Cache hot paths (Redis): ticker, orderbook L1, 30–60s TTL |
 
 ### Backend (self-hosted indexer — optional)
 
@@ -353,7 +355,7 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Agent answers “volume last 24h on SUI/USDC” via tool (no chart required) |
+| [x] | Agent answers “volume last 24h on SUI/USDC” via tool (no chart required) |
 | [ ] | Optional: mini sparkline / volume stat on explorer (OHLCV endpoint) |
 
 ---
@@ -366,20 +368,20 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Prisma `UserAgentPermissions` + migration |
-| [ ] | `GET/PATCH /api/v1/users/me/permissions` |
-| [ ] | `transaction-approval.service.ts` — load per-user prefs; fall back to env |
-| [ ] | Classify actions: `transfer`, `swap`, `order`, `stake`, `governance`, `flash_loan` |
-| [ ] | `flash_loan` → always approve; `swap` → respect `auto_approve_swaps` + notional cap |
+| [x] | Prisma agent permission columns on `User` + migrations (`agent_auto_approve_*`, `agent_allow_flash_loans`, `agent_allow_governance`) |
+| [x] | `GET/PATCH /api/v1/agent/permissions` (+ alias `/api/v1/users/me/permissions`) |
+| [x] | `transaction-approval.service.ts` — load per-user prefs; fall back to env defaults |
+| [x] | Classify actions: `transfer`, `swap`, `order`, `stake`, `governance`, `flash_loan` (`classify-execute-action.ts` + ledger categories) |
+| [x] | `flash_loan` → respect `allow_flash_loans`; optional skip via `auto_approve_flash_loans`; `swap` → `auto_approve_enabled` + SUI notional cap |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Replace mock `Toggle` in settings with persisted permissions API |
-| [ ] | Add toggles: auto-approve swaps, allow flash loans, allow governance |
-| [ ] | Threshold input for max auto-approve SUI (and/or USD equivalent later) |
-| [ ] | Approval modal reads pending tx `action` type for correct copy |
+| [x] | Settings toggles persisted via permissions API (`AgentPermissionsSection`) |
+| [x] | Toggles: auto-approve, allow flash loans, auto-approve flash loans, allow governance |
+| [x] | Threshold input for max auto-approve SUI |
+| [x] | Approval modal reads pending tx `action` type for correct copy (`TransactionApprovalBar`) |
 
 ---
 

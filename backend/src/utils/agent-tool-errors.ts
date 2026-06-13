@@ -87,7 +87,7 @@ function guidanceForErrorCode(code: string): string {
     case "SIGNING_FAILED":
       return "Explain there was a wallet signing issue and suggest reconnecting or re-registering the agent wallet.";
     case "VALIDATION_ERROR":
-      return "Explain the transaction params were incomplete. For deepbook_deposit include coin_key and amount_display (positive number). Retry the tool call with correct params — do not ask the user to confirm in chat.";
+      return "Explain which param was wrong in plain language. For deepbook_flash_loan / flash_loan_quote: pool_key is the borrow pool; asset must be base or quote (or coin_key matching the pool); swap_chain_repay requires steps with pool_key, side buy|sell, amount; first step spends the borrowed coin. Fix params from the conversation and retry the tool — do not ask the user to confirm in chat when pool, amount, and strategy are already in the thread.";
     default:
       return "Explain what went wrong in plain language and suggest a practical next step.";
   }

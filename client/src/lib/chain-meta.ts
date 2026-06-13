@@ -79,6 +79,26 @@ export function chainExplorerAccountUrl(chainId: AgentChainId, address: string):
   }
 }
 
+/** Block explorer URL for a submitted transaction digest/hash. */
+export function chainExplorerTxUrl(chainId: AgentChainId, digest: string): string | null {
+  if (!digest) return null;
+  switch (chainId) {
+    case "sui":
+      return `https://suiscan.xyz/mainnet/tx/${digest}`;
+    case "ethereum": {
+      const chainIdNum = getEvmDefaultChainId();
+      if (chainIdNum === 8453) {
+        return `https://basescan.org/tx/${digest}`;
+      }
+      return `https://etherscan.io/tx/${digest}`;
+    }
+    case "solana":
+      return `https://solscan.io/tx/${digest}`;
+    default:
+      return null;
+  }
+}
+
 export function formatNativeBalance(amount: number, maxFractionDigits = 4): string {
   if (!Number.isFinite(amount)) return "—";
   return amount.toLocaleString(undefined, {

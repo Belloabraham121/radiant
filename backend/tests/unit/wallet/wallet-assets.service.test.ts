@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { resetDeepBookEnvForTests } from "../../../src/config/deepbook.js";
 import { AppError } from "../../../src/errors/app-error.js";
-import type { IndexerAssetsResponse } from "../../../src/services/defi/deepbook-indexer.client.js";
+import type { IndexerAssetsResponse } from "../../../src/services/defi/deepbook/indexer/indexer.types.js";
 import {
   resetTokenCatalogForTests,
   setFetchIndexerAssetsForTests,
-} from "../../../src/services/defi/token-catalog.service.js";
+} from "../../../src/services/defi/deepbook/token-catalog.service.js";
 import { setAdapterForTests } from "../../../src/services/chains/registry.js";
 import { suiAdapter } from "../../../src/services/chains/adapters/sui.js";
 import { getWalletAssetsForAddress } from "../../../src/services/wallet/wallet-assets.service.js";

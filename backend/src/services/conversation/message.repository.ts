@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatMessageRole, Prisma } from "@prisma/client";
+import { getAgentContextConfig } from "../../config/agent.js";
 import { prisma } from "../../infrastructure/postgres/client.js";
 
 export async function listMessagesBySessionId(sessionId: string): Promise<ChatMessage[]> {
@@ -6,6 +7,23 @@ export async function listMessagesBySessionId(sessionId: string): Promise<ChatMe
     where: { session_id: sessionId },
     orderBy: { created_at: "asc" },
   });
+}
+
+/** Recent thread messages for agent context (newest-first query, returned ascending). */
+export async function listRecentMessagesBySessionId(
+  sessionId: string,
+  limit?: number,
+): Promise<ChatMessage[]> {
+  const { maxMessages } = getAgentContextConfig();
+  const take = limit ?? maxMessages;
+
+  const recent = await prisma.chatMessage.findMany({
+    where: { session_id: sessionId },
+    orderBy: { created_at: "desc" },
+    take,
+  });
+
+  return recent.reverse();
 }
 
 export async function appendMessage(

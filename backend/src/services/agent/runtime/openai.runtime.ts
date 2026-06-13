@@ -7,31 +7,45 @@ import {
   buildDepositExecuteNudge,
   extractDepositIntent,
   shouldNudgeDepositExecute,
-} from "../deposit-approval-flow.js";
+} from "../deepbook/deposit-approval-flow.js";
 import {
   buildWithdrawBalanceNudge,
   buildWithdrawExecuteNudge,
   extractWithdrawIntent,
   shouldNudgeWithdrawBalanceQuery,
   shouldNudgeWithdrawExecute,
-} from "../withdraw-approval-flow.js";
+} from "../deepbook/withdraw-approval-flow.js";
 import {
   isCompoundMarketAndSwapRequest,
   POOL_INFO_BEFORE_SWAP_NUDGE,
   shouldFinalizeCompoundReply,
   shouldNudgePoolInfoBeforeSwap,
-} from "../compound-request-flow.js";
+} from "../deepbook/compound-request-flow.js";
 import {
   shouldNudgeSwapExecute,
   shouldNudgeSwapQuoteAndExecute,
   SWAP_EXECUTE_NUDGE,
   SWAP_QUOTE_AND_EXECUTE_NUDGE,
-} from "../swap-approval-flow.js";
+} from "../deepbook/swap-approval-flow.js";
+import {
+  findLatestFlashLoanQuote,
+  formatFlashLoanQuoteReply,
+  isFlashLoanRepayNotFeasibleError,
+  shouldFinalizeFlashLoanQuoteReply,
+} from "../deepbook/flash-loan-approval-flow.js";
+import {
+  findLastToolError,
+  hasSuccessfulQueryResults,
+  REPLY_AFTER_TOOLS_NUDGE,
+  shouldNudgeReplyAfterTools,
+  hasAgentTransactionsQuery,
+  AGENT_TRANSACTIONS_REPLY_NUDGE,
+} from "../turn-reply-flow.js";
 import {
   buildUnsupportedCapabilityNudge,
   detectUnsupportedCapability,
   isUnsupportedCapabilityNudge,
-} from "../unsupported-capabilities.js";
+} from "../deepbook/unsupported-capabilities.js";
 import { agentToolDefinitions, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { toOpenAiTools } from "./openai-tools.js";
@@ -39,9 +53,10 @@ import type { ExecuteTransactionInput } from "../../chains/types.js";
 import {
   explainTransactionError,
   isAgentToolErrorResult,
+  synthesizeTurnReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
-import { transactionContextFromInput } from "../transaction-error-context.js";
+import { transactionContextFromInput } from "../deepbook/transaction-error-context.js";
 import { summarizeToolResult } from "./summarize-tool-result.js";
 import type { AgentRuntime, AgentTurnInput, AgentTurnResult } from "./types.js";
 import type { AgentToolErrorResult } from "../tools.js";
@@ -101,6 +116,7 @@ export const openaiRuntime: AgentRuntime = {
     const tool_calls: AgentTurnResult["tool_calls"] = [];
     let pending_transaction: AgentTurnResult["pending_transaction"] = null;
     let reply = "";
+    let lastExecuteInput: ExecuteTransactionInput | null = null;
     const lastUserMessage =
       [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
 
@@ -193,6 +209,16 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
+        if (shouldNudgeReplyAfterTools(tool_calls)) {
+          messages.push({
+            role: "user",
+            content: hasAgentTransactionsQuery(tool_calls)
+              ? `${REPLY_AFTER_TOOLS_NUDGE}\n\n${AGENT_TRANSACTIONS_REPLY_NUDGE}`
+              : REPLY_AFTER_TOOLS_NUDGE,
+          });
+          continue;
+        }
+
         reply = choice.content?.trim() || "Done.";
         break;
       }
@@ -200,7 +226,6 @@ export const openaiRuntime: AgentRuntime = {
       messages.push(choice);
 
       let executeToolError: AgentToolErrorResult | null = null;
-      let lastExecuteInput: ExecuteTransactionInput | null = null;
 
       for (const toolCall of toolCallList) {
         if (toolCall.type !== "function") continue;
@@ -212,7 +237,9 @@ export const openaiRuntime: AgentRuntime = {
           args = {};
         }
 
-        const result = await runAgentTool(input.privyUserId, toolCall.function.name, args);
+        const result = await runAgentTool(input.privyUserId, toolCall.function.name, args, {
+          sessionId: input.sessionId,
+        });
         tool_calls.push({ name: toolCall.function.name, result });
 
         if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
@@ -250,6 +277,15 @@ export const openaiRuntime: AgentRuntime = {
         break;
       }
 
+      const flashLoanQuoteReply = shouldFinalizeFlashLoanQuoteReply(
+        tool_calls,
+        pending_transaction !== null,
+      );
+      if (flashLoanQuoteReply) {
+        reply = formatFlashLoanQuoteReply(flashLoanQuoteReply);
+        break;
+      }
+
       if (executeToolError) {
         const compoundReply = shouldFinalizeCompoundReply(
           tool_calls,
@@ -258,7 +294,15 @@ export const openaiRuntime: AgentRuntime = {
         );
 
         if (executeToolError.error.code === "VALIDATION_ERROR" && !compoundReply) {
-          // Allow the model to retry with corrected params in the next step.
+          const quote = findLatestFlashLoanQuote(tool_calls);
+          if (
+            quote &&
+            (!quote.repay_feasible ||
+              isFlashLoanRepayNotFeasibleError(executeToolError.error.message))
+          ) {
+            reply = formatFlashLoanQuoteReply(quote);
+            break;
+          }
           continue;
         }
 
@@ -281,7 +325,34 @@ export const openaiRuntime: AgentRuntime = {
     }
 
     if (!reply) {
-      reply = "I processed your request.";
+      const quote = findLatestFlashLoanQuote(tool_calls);
+      if (quote) {
+        reply = formatFlashLoanQuoteReply(quote);
+      } else {
+        const lastToolError = findLastToolError(tool_calls);
+        if (lastToolError) {
+          try {
+            reply = await explainTransactionError({
+              client,
+              model,
+              messages,
+              toolName: lastToolError.name,
+              toolResult: lastToolError.result,
+              transactionContext: transactionContextFromInput(lastExecuteInput),
+            });
+          } catch (err) {
+            throw mapOpenAiError(err);
+          }
+        } else if (hasSuccessfulQueryResults(tool_calls)) {
+          try {
+            reply = await synthesizeTurnReply({ client, model, messages });
+          } catch (err) {
+            throw mapOpenAiError(err);
+          }
+        } else {
+          reply = "I processed your request.";
+        }
+      }
     }
 
     return { reply, tool_calls, pending_transaction };

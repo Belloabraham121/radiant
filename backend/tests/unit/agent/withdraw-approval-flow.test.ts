@@ -5,7 +5,7 @@ import {
   extractWithdrawIntent,
   shouldNudgeWithdrawBalanceQuery,
   shouldNudgeWithdrawExecute,
-} from "../../../src/services/agent/withdraw-approval-flow.js";
+} from "../../../src/services/agent/deepbook/withdraw-approval-flow.js";
 
 describe("withdraw-approval-flow", () => {
   it("extractWithdrawIntent parses withdraw all my sui", () => {
