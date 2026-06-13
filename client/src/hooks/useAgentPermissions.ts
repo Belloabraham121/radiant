@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { fetchAuthMe } from "@/lib/auth-api";
+import { ApiError } from "@/lib/api";
 import {
   updateAgentPermissions,
   type AgentPermissions,
@@ -10,6 +11,7 @@ import {
 const DEFAULT_PERMISSIONS: AgentPermissions = {
   auto_approve_enabled: true,
   auto_approve_max_sui: 25,
+  allow_flash_loans: false,
 };
 
 export function useAgentPermissions(authenticated: boolean) {
@@ -31,7 +33,10 @@ export function useAgentPermissions(authenticated: boolean) {
       try {
         const me = await fetchAuthMe();
         if (!cancelled && me.agent_permissions) {
-          setPermissions(me.agent_permissions);
+          setPermissions({
+            ...DEFAULT_PERMISSIONS,
+            ...me.agent_permissions,
+          });
         }
       } catch {
         if (!cancelled) {
@@ -62,11 +67,15 @@ export function useAgentPermissions(authenticated: boolean) {
 
     try {
       const updated = await updateAgentPermissions(patch);
-      setPermissions(updated);
+      setPermissions({ ...DEFAULT_PERMISSIONS, ...updated });
       return updated;
-    } catch {
+    } catch (err) {
       setPermissions(permissions);
-      setError("Could not save agent permissions.");
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Could not save agent permissions.",
+      );
       return null;
     } finally {
       setSaving(false);
@@ -80,5 +89,6 @@ export function useAgentPermissions(authenticated: boolean) {
     error,
     setAutoApproveEnabled: (enabled: boolean) => savePermissions({ auto_approve_enabled: enabled }),
     setAutoApproveMaxSui: (maxSui: number) => savePermissions({ auto_approve_max_sui: maxSui }),
+    setAllowFlashLoans: (enabled: boolean) => savePermissions({ allow_flash_loans: enabled }),
   };
 }

@@ -9,16 +9,19 @@ export function defaultAgentPermissions(): AgentPermissions {
   return {
     auto_approve_enabled: true,
     auto_approve_max_sui: getAutoApproveMaxDisplay("sui"),
+    allow_flash_loans: false,
   };
 }
 
 export function agentPermissionsFromUser(user: {
   agent_auto_approve_enabled: boolean;
   agent_auto_approve_max_sui: number;
+  agent_allow_flash_loans?: boolean;
 }): AgentPermissions {
   return {
     auto_approve_enabled: user.agent_auto_approve_enabled,
     auto_approve_max_sui: user.agent_auto_approve_max_sui,
+    allow_flash_loans: user.agent_allow_flash_loans ?? false,
   };
 }
 
@@ -28,6 +31,17 @@ export async function getAgentPermissions(privyUserId: string): Promise<AgentPer
     return defaultAgentPermissions();
   }
   return agentPermissionsFromUser(user);
+}
+
+export async function assertFlashLoansEnabled(privyUserId: string): Promise<void> {
+  const permissions = await getAgentPermissions(privyUserId);
+  if (!permissions.allow_flash_loans) {
+    throw new AppError(
+      403,
+      "FLASH_LOANS_DISABLED",
+      "Flash loans are disabled for this account. Enable them in Settings → Agent permissions.",
+    );
+  }
 }
 
 export async function updateAgentPermissions(
@@ -47,6 +61,9 @@ export async function updateAgentPermissions(
         : {}),
       ...(patch.auto_approve_max_sui !== undefined
         ? { agent_auto_approve_max_sui: patch.auto_approve_max_sui }
+        : {}),
+      ...(patch.allow_flash_loans !== undefined
+        ? { agent_allow_flash_loans: patch.allow_flash_loans }
         : {}),
     },
   });

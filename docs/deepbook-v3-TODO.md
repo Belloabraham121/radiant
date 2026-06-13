@@ -264,19 +264,19 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `execute_transaction` action: `deepbook_flash_loan` |
-| [ ] | Params: `pool_key`, `borrow_amount`, `coin_key`, embedded `repay` PTB builder or callback pattern per SDK |
-| [ ] | `allow_flash_loans` permission gate — reject if false |
-| [ ] | **Always** `approval_required` (ignore auto-approve) |
-| [ ] | Agent prompt: flash loans are advanced; confirm user intent |
-| [ ] | Tests: validation only (no mainnet execution in CI) |
+| [x] | `execute_transaction` action: `deepbook_flash_loan` |
+| [x] | Params: `pool_key`, `borrow_amount`, `asset`/`coin_key`, `strategy: round_trip` |
+| [x] | `allow_flash_loans` permission gate — reject if false |
+| [x] | **Always** `approval_required` (ignore auto-approve) |
+| [x] | Agent prompt: flash loans are advanced; confirm user intent |
+| [x] | Tests: validation only (no mainnet execution in CI) |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Settings toggle: “Allow flash loans” (default off) |
-| [ ] | Distinct approval modal warning (atomic, repay-or-revert) |
+| [x] | Settings toggle: “Allow flash loans” (default off) |
+| [x] | Distinct approval modal warning (atomic, repay-or-revert) |
 
 ---
 

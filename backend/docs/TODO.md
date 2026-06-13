@@ -427,7 +427,7 @@ Phase 0 (infra + dashboard)
 | [x] | Phase C — Pools + indexer client (reads) | [Backend] |
 | [x] | Phase D — Swap (quote + execute + approval) | [Both] |
 | [ ] | Phase E — Orders (place/cancel + open orders) | [Both] |
-| [ ] | Phase F — Flash loans (permission-gated, always approve) | [Both] |
+| [x] | Phase F — Flash loans (permission-gated, always approve) | [Both] |
 | [ ] | Phase G — DEEP staking | [Both] |
 | [ ] | Phase H — Governance (propose/vote) | [Both] |
 | [ ] | Phase I — Indexer time-series (OHLCV, volume, trades) | [Backend] |

@@ -11,6 +11,7 @@ import {
   isDeepBookOrderAction,
   isDeepBookPlaceOrderAction,
 } from "../defi/deepbook-orders.service.js";
+import { isDeepBookFlashLoanAction } from "../defi/deepbook-flash-loan.service.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import { AppError } from "../../errors/app-error.js";
@@ -69,6 +70,7 @@ const MUTATING_EXECUTE_ACTIONS = new Set([
   "deepbook_modify_order",
   "deepbook_withdraw_settled_amounts",
   "deepbook_withdraw_settled_amounts_permissionless",
+  "deepbook_flash_loan",
   "execute_bytes",
 ]);
 
@@ -76,6 +78,7 @@ function isMutatingExecuteAction(action: string): boolean {
   return (
     isDeepBookSwapAction(action) ||
     isDeepBookOrderAction(action) ||
+    isDeepBookFlashLoanAction(action) ||
     MUTATING_EXECUTE_ACTIONS.has(action)
   );
 }
@@ -171,6 +174,10 @@ export function transferRequiresApprovalWithPermissions(
   input: ExecuteTransactionInput,
 ): boolean {
   if (!permissions.auto_approve_enabled && isMutatingExecuteAction(input.action)) {
+    return true;
+  }
+
+  if (isDeepBookFlashLoanAction(input.action)) {
     return true;
   }
 

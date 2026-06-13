@@ -53,6 +53,7 @@ export function AgentPermissionsSection() {
     error,
     setAutoApproveEnabled,
     setAutoApproveMaxSui,
+    setAllowFlashLoans,
   } = useAgentPermissions(authenticated);
   const serverMaxSui = String(permissions.auto_approve_max_sui);
   const [draftMaxSui, setDraftMaxSui] = useState(serverMaxSui);
@@ -135,6 +136,20 @@ export function AgentPermissionsSection() {
             </p>
           </div>
         ) : null}
+
+        <PermissionToggle
+          label="Allow flash loans"
+          detail={
+            loading
+              ? "Loading…"
+              : permissions.allow_flash_loans
+                ? "Advanced DeepBook flash loans are enabled. Every flash loan still requires your approval."
+                : "Flash loans stay disabled. The agent cannot initiate deepbook_flash_loan until you turn this on."
+          }
+          on={permissions.allow_flash_loans}
+          disabled={loading || saving}
+          onToggle={() => void setAllowFlashLoans(!permissions.allow_flash_loans)}
+        />
       </div>
     </section>
   );

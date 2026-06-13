@@ -21,15 +21,15 @@ describe("unsupported-capabilities", () => {
     assert.equal(detectUnsupportedCapability("What is the SUI_USDC price?"), null);
   });
 
-  it("detects flash loans", () => {
-    assert.equal(detectUnsupportedCapability("Get me a flash loan on DeepBook")?.id, "flash_loan");
+  it("does not flag supported flash loan requests", () => {
+    assert.equal(detectUnsupportedCapability("Get me a flash loan on DeepBook"), null);
   });
 
   it("nudge forbids fake empty results for unsupported features", () => {
     const nudge = buildUnsupportedCapabilityNudge({
-      id: "flash_loan",
-      label: "flash loans",
-      pattern: /flash loan/i,
+      id: "governance",
+      label: "governance voting",
+      pattern: /governance/i,
     });
     assert.match(nudge, /NOT support this in chat yet/i);
     assert.match(nudge, /Do not say the list is empty/i);

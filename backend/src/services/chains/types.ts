@@ -59,6 +59,13 @@ export type TxResult = {
       pay_with_deep?: boolean;
       cancelled_count?: number;
     };
+    flash_loan?: {
+      pool_key: string;
+      borrow_amount: number;
+      coin_key: string;
+      asset: "base" | "quote";
+      strategy: "round_trip";
+    };
   };
 };
 

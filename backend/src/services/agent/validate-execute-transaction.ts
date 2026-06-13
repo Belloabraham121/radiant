@@ -13,6 +13,10 @@ import {
   parseDeepBookModifyOrderParams,
   parseDeepBookWithdrawSettledParams,
 } from "../defi/deepbook-orders.service.js";
+import {
+  isDeepBookFlashLoanAction,
+  parseDeepBookFlashLoanParams,
+} from "../defi/deepbook-flash-loan.service.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 
 export const DEEPBOOK_PROVISION_MANAGER_ACTION = "deepbook_provision_manager" as const;
@@ -80,6 +84,11 @@ export function validateExecuteTransactionInput(input: ExecuteTransactionInput):
     input.action === "deepbook_withdraw_settled_amounts_permissionless"
   ) {
     parseDeepBookWithdrawSettledParams(input.params);
+    return;
+  }
+
+  if (isDeepBookFlashLoanAction(input.action)) {
+    parseDeepBookFlashLoanParams(input.params);
     return;
   }
 }

@@ -17,6 +17,10 @@ import {
   parseDeepBookDepositWithdrawParams,
 } from "../defi/deepbook-balance-manager.service.js";
 import { isDeepBookProvisionAction } from "../agent/validate-execute-transaction.js";
+import {
+  isDeepBookFlashLoanAction,
+  parseDeepBookFlashLoanParams,
+} from "../defi/deepbook-flash-loan.service.js";
 import type { ExecuteTransactionInput, ChainId, TxResult } from "../chains/types.js";
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
@@ -184,6 +188,15 @@ export async function buildTransactionDisplay(
       amount_display = "Claim settled proceeds";
       title = "Withdraw settled amounts (permissionless)";
     }
+  } else if (isDeepBookFlashLoanAction(input.action)) {
+    try {
+      const parsed = parseDeepBookFlashLoanParams(input.params);
+      amount_display = `Borrow ${parsed.borrow_amount} ${parsed.coin_key} (${parsed.pool_key})`;
+      title = `DeepBook flash loan (${parsed.pool_key})`;
+    } catch {
+      amount_display = "DeepBook flash loan";
+      title = "DeepBook flash loan";
+    }
   }
 
   return { title, amount_display };
@@ -211,6 +224,11 @@ export function enrichDisplayFromResult(amountDisplay: string, result: TxResult)
 
   if (order?.action?.includes("modify") && order.quantity != null) {
     return `qty ${order.quantity}`;
+  }
+
+  const flashLoan = result.deepbook?.flash_loan;
+  if (flashLoan) {
+    return `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key}`;
   }
 
   const coinKey = result.deepbook?.coin_key;

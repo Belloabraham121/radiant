@@ -30,6 +30,7 @@ export function TransactionApprovalBar({
   const isSettledWithdraw =
     pending.action === "deepbook_withdraw_settled_amounts" ||
     pending.action === "deepbook_withdraw_settled_amounts_permissionless";
+  const isFlashLoan = pending.action === "deepbook_flash_loan";
   const isOrder = isLimitOrder || isMarketOrder;
 
   return (
@@ -49,7 +50,9 @@ export function TransactionApprovalBar({
           >
             {isSwap
               ? "Approve swap"
-              : isOrder
+              : isFlashLoan
+                ? "Approve flash loan"
+                : isOrder
                 ? "Approve order"
                 : isCancelOrder
                   ? "Approve cancel"
@@ -64,7 +67,9 @@ export function TransactionApprovalBar({
           <p className="mt-0.5 text-xs font-medium text-[var(--hero-ink)]/50">
             {isSwap
               ? "Review the quote, then approve to execute on chain."
-              : isLimitOrder
+              : isFlashLoan
+                ? "Atomic borrow and repay in one transaction. If repayment fails, the entire transaction reverts — you only pay gas."
+                : isLimitOrder
                 ? "Review price and size, then approve to place the limit order on DeepBook."
                 : isMarketOrder
                   ? "Review the order size and side, then approve to place on DeepBook."
@@ -99,6 +104,10 @@ export function TransactionApprovalBar({
         {isSwap ? (
           <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
             Estimated output may shift slightly before the transaction lands on chain.
+          </p>
+        ) : isFlashLoan ? (
+          <p className="mt-2 text-[10px] font-medium text-[var(--hero-coral)]">
+            Advanced: uncollateralized loan — must be repaid in the same transaction or everything reverts.
           </p>
         ) : isLimitOrder ? (
           <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">

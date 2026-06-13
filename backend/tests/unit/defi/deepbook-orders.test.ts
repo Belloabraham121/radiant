@@ -258,9 +258,8 @@ describe("unsupported-capabilities after orders", () => {
     assert.equal(detectUnsupportedCapability("Cancel all my orders on SUI_USDC"), null);
   });
 
-  it("still flags flash loans", () => {
-    assert.equal(detectUnsupportedCapability("I want a flash loan on DeepBook")?.id, "flash_loan");
-    assert.match(buildUnsupportedCapabilityNudge({ id: "flash_loan", label: "flash loans", pattern: /flash/i }), /orders/i);
+  it("does not flag supported flash loan requests", () => {
+    assert.equal(detectUnsupportedCapability("I want a flash loan on DeepBook"), null);
   });
 
   it("does not flag modify or claim settled requests", () => {

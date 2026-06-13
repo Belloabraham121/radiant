@@ -43,6 +43,10 @@ import {
   preflightDeepBookWithdrawSettledPermissionless,
 } from "../defi/deepbook-orders.service.js";
 import { preflightDeepBookWithdraw } from "../defi/deepbook-balance-manager.service.js";
+import {
+  isDeepBookFlashLoanAction,
+  preflightDeepBookFlashLoan,
+} from "../defi/deepbook-flash-loan.service.js";
 
 export const agentToolDefinitions = [
   executeTransactionToolDefinition,
@@ -159,6 +163,9 @@ export async function runExecuteTransactionToolWithApproval(
       }
       if (input.action === "deepbook_withdraw") {
         await preflightDeepBookWithdraw(privyUserId, input.params);
+      }
+      if (isDeepBookFlashLoanAction(input.action)) {
+        await preflightDeepBookFlashLoan(privyUserId, input.params);
       }
       const pending = await createPendingTransaction(privyUserId, input, context);
       return {

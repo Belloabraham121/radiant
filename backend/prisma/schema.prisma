@@ -45,6 +45,8 @@ model User {
   agent_auto_approve_enabled Boolean @default(true)
   /// Max SUI notional for auto-approved swaps/transfers (display units).
   agent_auto_approve_max_sui Float    @default(25)
+  /// When true, agent may initiate DeepBook flash loans (always require approval).
+  agent_allow_flash_loans    Boolean  @default(false)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

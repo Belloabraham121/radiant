@@ -30,7 +30,8 @@ export const executeTransactionToolDefinition = {
           "deepbook_provision_manager, deepbook_deposit, deepbook_withdraw, swap (alias deepbook_swap), " +
           "deepbook_place_limit_order, deepbook_place_market_order, deepbook_cancel_order, " +
           "deepbook_cancel_orders, deepbook_cancel_all_orders, deepbook_modify_order, " +
-          "deepbook_withdraw_settled_amounts, deepbook_withdraw_settled_amounts_permissionless.",
+          "deepbook_withdraw_settled_amounts, deepbook_withdraw_settled_amounts_permissionless, " +
+          "deepbook_flash_loan.",
       },
       params: {
         type: "object",
@@ -47,6 +48,8 @@ export const executeTransactionToolDefinition = {
           "deepbook_modify_order: { pool_key?, order_id, quantity } — SDK modifies size only, not price. " +
           "deepbook_withdraw_settled_amounts: { pool_key? }. " +
           "deepbook_withdraw_settled_amounts_permissionless: { pool_key? }. " +
+          "deepbook_flash_loan: { pool_key?, borrow_amount, asset: base|quote or coin_key, strategy?: round_trip } — " +
+          "atomic borrow/repay in one transaction; requires allow_flash_loans in Settings and always needs approval. " +
           "execute_bytes: { transaction_bytes } (base64).",
         additionalProperties: true,
       },

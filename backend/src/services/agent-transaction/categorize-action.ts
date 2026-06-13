@@ -1,5 +1,6 @@
 import { isDeepBookSwapAction } from "../defi/deepbook-swap.service.js";
 import { isDeepBookCancelOrderAction, isDeepBookPlaceOrderAction } from "../defi/deepbook-orders.service.js";
+import { isDeepBookFlashLoanAction } from "../defi/deepbook-flash-loan.service.js";
 import { isDeepBookProvisionAction } from "../agent/validate-execute-transaction.js";
 import type { AgentTransactionCategory } from "./agent-transaction.types.js";
 
@@ -45,6 +46,10 @@ export function categorizeAgentTransactionAction(action: string): AgentTransacti
 
   if (DEEPBOOK_SETTLED_ACTIONS.has(action)) {
     return "deepbook_settled";
+  }
+
+  if (isDeepBookFlashLoanAction(action)) {
+    return "other";
   }
 
   return "other";
