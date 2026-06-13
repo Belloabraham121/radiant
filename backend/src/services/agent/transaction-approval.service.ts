@@ -10,13 +10,6 @@ import {
   isDeepBookCancelOrderAction,
   isDeepBookOrderAction,
   isDeepBookPlaceOrderAction,
-  parseDeepBookCancelAllOrdersParams,
-  parseDeepBookCancelOrderParams,
-  parseDeepBookCancelOrdersParams,
-  parseDeepBookLimitOrderParams,
-  parseDeepBookMarketOrderParams,
-  parseDeepBookModifyOrderParams,
-  parseDeepBookWithdrawSettledParams,
 } from "../defi/deepbook-orders.service.js";
 import type { ExecuteTransactionInput, ChainId } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
@@ -30,15 +23,12 @@ import {
   resolveAutoApproveMaxDisplay,
 } from "./agent-permissions.service.js";
 import type { AgentPermissions } from "./agent-permissions.types.js";
-import {
-  checkManagerBalance,
-  getDeepBookManagerInfo,
-  parseDeepBookDepositWithdrawParams,
-} from "../defi/deepbook-balance-manager.service.js";
+import { getDeepBookManagerInfo } from "../defi/deepbook-balance-manager.service.js";
 import {
   isDeepBookProvisionAction,
   validateExecuteTransactionInput,
 } from "./validate-execute-transaction.js";
+import { buildTransactionDisplay } from "../agent-transaction/build-display.js";
 
 const TRANSFER_ACTIONS = new Set([
   "transfer_native",
@@ -253,131 +243,7 @@ export async function createPendingTransaction(
   validateExecuteTransactionInput(input);
   pruneExpired();
 
-  const amount = parseAmountAtomic(input.params) ?? BigInt(0);
-  const recipient =
-    typeof input.params.recipient === "string" ? input.params.recipient : "unknown recipient";
-
-  let summary = `Send ${formatAmountDisplay(input.chain_id, amount)} to ${recipient.slice(0, 12)}… on ${input.chain_id}`;
-  let amountDisplay = formatAmountDisplay(input.chain_id, amount);
-
-  if (isDeepBookProvisionAction(input.action)) {
-    summary = "Create DeepBook balance manager";
-    amountDisplay = "Network fee only (~0.01 SUI)";
-  } else if (DEEPBOOK_WRITE_ACTIONS.has(input.action)) {
-    const parsed = parseDeepBookDepositWithdrawParams(input.params);
-    if (parsed.withdraw_all && input.action === "deepbook_withdraw") {
-      try {
-        const balance = await checkManagerBalance(privyUserId, parsed.coin_key);
-        amountDisplay =
-          balance.balance_display > 0
-            ? `all ${parsed.coin_key} (${balance.balance_display} ${parsed.coin_key})`
-            : `all ${parsed.coin_key}`;
-      } catch {
-        amountDisplay = `all ${parsed.coin_key}`;
-      }
-    } else {
-      amountDisplay = `${parsed.amount_display} ${parsed.coin_key}`;
-    }
-    const verb = input.action === "deepbook_deposit" ? "Deposit" : "Withdraw";
-    summary = `${verb} ${amountDisplay} via DeepBook balance manager`;
-  } else if (isDeepBookSwapAction(input.action)) {
-    try {
-      const parsed = parseDeepBookSwapParams(input.params);
-      const poolDef =
-        getDeepBookEnv().pools[parsed.pool_key as keyof ReturnType<typeof getDeepBookEnv>["pools"]];
-      const inputCoin =
-        parsed.side === "sell"
-          ? (poolDef?.baseCoin ?? "base")
-          : (poolDef?.quoteCoin ?? "quote");
-      const outputCoin =
-        parsed.side === "sell"
-          ? (poolDef?.quoteCoin ?? "quote")
-          : (poolDef?.baseCoin ?? "base");
-      const estOut =
-        typeof input.params.estimated_out_display === "number"
-          ? input.params.estimated_out_display
-          : null;
-      amountDisplay = `${parsed.amount} ${inputCoin} → ${estOut !== null ? `~${estOut} ` : ""}${outputCoin}`;
-      summary = `Swap on DeepBook (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "DeepBook swap";
-      summary = "Swap via DeepBook";
-    }
-  } else if (input.action === "deepbook_place_limit_order") {
-    try {
-      const parsed = parseDeepBookLimitOrderParams(input.params);
-      const side = parsed.is_bid ? "buy" : "sell";
-      amountDisplay = `${side} ${parsed.quantity} @ ${parsed.price} (${parsed.pool_key})`;
-      summary = `Place limit order on DeepBook (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "DeepBook limit order";
-      summary = "Place limit order via DeepBook";
-    }
-  } else if (input.action === "deepbook_place_market_order") {
-    try {
-      const parsed = parseDeepBookMarketOrderParams(input.params);
-      const side = parsed.is_bid ? "buy" : "sell";
-      amountDisplay = `${side} ${parsed.quantity} market (${parsed.pool_key})`;
-      summary = `Place market order on DeepBook (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "DeepBook market order";
-      summary = "Place market order via DeepBook";
-    }
-  } else if (input.action === "deepbook_cancel_order") {
-    try {
-      const parsed = parseDeepBookCancelOrderParams(input.params);
-      amountDisplay = `Cancel order ${parsed.order_id.slice(0, 12)}…`;
-      summary = `Cancel DeepBook order (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "Cancel order";
-      summary = "Cancel DeepBook order";
-    }
-  } else if (input.action === "deepbook_cancel_all_orders") {
-    try {
-      const parsed = parseDeepBookCancelAllOrdersParams(input.params);
-      amountDisplay = `Cancel all open orders (${parsed.pool_key})`;
-      summary = "Cancel all DeepBook orders";
-    } catch {
-      amountDisplay = "Cancel all orders";
-      summary = "Cancel all DeepBook orders";
-    }
-  } else if (input.action === "deepbook_cancel_orders") {
-    try {
-      const parsed = parseDeepBookCancelOrdersParams(input.params);
-      amountDisplay = `Cancel ${parsed.order_ids.length} orders (${parsed.pool_key})`;
-      summary = `Cancel ${parsed.order_ids.length} DeepBook orders`;
-    } catch {
-      amountDisplay = "Cancel multiple orders";
-      summary = "Cancel DeepBook orders";
-    }
-  } else if (input.action === "deepbook_modify_order") {
-    try {
-      const parsed = parseDeepBookModifyOrderParams(input.params);
-      amountDisplay = `Modify order ${parsed.order_id.slice(0, 12)}… → qty ${parsed.quantity}`;
-      summary = `Modify DeepBook order (${parsed.pool_key})`;
-    } catch {
-      amountDisplay = "Modify order";
-      summary = "Modify DeepBook order";
-    }
-  } else if (input.action === "deepbook_withdraw_settled_amounts") {
-    try {
-      const parsed = parseDeepBookWithdrawSettledParams(input.params);
-      amountDisplay = `Claim settled proceeds (${parsed.pool_key})`;
-      summary = "Withdraw settled amounts from DeepBook";
-    } catch {
-      amountDisplay = "Claim settled proceeds";
-      summary = "Withdraw settled amounts";
-    }
-  } else if (input.action === "deepbook_withdraw_settled_amounts_permissionless") {
-    try {
-      const parsed = parseDeepBookWithdrawSettledParams(input.params);
-      amountDisplay = `Claim settled proceeds — permissionless (${parsed.pool_key})`;
-      summary = "Withdraw settled amounts (permissionless)";
-    } catch {
-      amountDisplay = "Claim settled proceeds";
-      summary = "Withdraw settled amounts (permissionless)";
-    }
-  }
+  const { title, amount_display: amountDisplay } = await buildTransactionDisplay(privyUserId, input);
 
   const pending: PendingTransaction = {
     id: randomUUID(),
@@ -385,7 +251,7 @@ export async function createPendingTransaction(
     action: input.action,
     params: input.params,
     amount_display: amountDisplay,
-    summary,
+    summary: title,
   };
 
   pendingById.set(pending.id, {

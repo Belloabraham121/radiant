@@ -1,0 +1,260 @@
+import { AppError } from "../../errors/app-error.js";
+import { findUserByPrivyId } from "../auth/user.repository.js";
+import { parseChainId } from "../chains/registry.js";
+import type { ChainId, TxResult } from "../chains/types.js";
+import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
+import { buildTransactionDisplay, enrichDisplayFromResult } from "./build-display.js";
+import { categorizeAgentTransactionAction } from "./categorize-action.js";
+import { buildExplorerTxUrl } from "./explorer-url.js";
+import {
+  createAgentTransaction,
+  findAgentTransactionById,
+  findAgentTransactionByIdForUser,
+  findAgentTransactionsBySessionForUser,
+  listAgentTransactionsForUser,
+  updateAgentTransactionById,
+} from "./agent-transaction.repository.js";
+import type {
+  AgentTransactionDetail,
+  AgentTransactionListItem,
+  AgentTransactionRecord,
+  AttachMessageInput,
+  ListAgentTransactionsQuery,
+  PaginatedAgentTransactions,
+  RecordAutoExecutedInput,
+  RecordPendingApprovalInput,
+  TransactionCompletion,
+} from "./agent-transaction.types.js";
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
+async function requireUserId(privyUserId: string): Promise<bigint> {
+  const user = await findUserByPrivyId(privyUserId);
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User profile not found.");
+  }
+  return user.id;
+}
+
+async function resolveWalletAddress(privyUserId: string, chainId: ChainId): Promise<string> {
+  const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, chainId);
+  if (!wallet) {
+    throw new AppError(
+      404,
+      "WALLET_NOT_FOUND",
+      `No agent wallet registered for chain "${chainId}"`,
+    );
+  }
+  return wallet.address;
+}
+
+function toListItem(row: AgentTransactionRecord): AgentTransactionListItem {
+  return {
+    id: row.id,
+    status: row.status,
+    category: row.category,
+    chain_id: parseChainId(row.chain_id),
+    title: row.title,
+    amount_display: row.amount_display,
+    digest: row.digest,
+    effects_status: row.effects_status,
+    session_id: row.session_id,
+    message_id: row.message_id,
+    created_at: row.created_at.toISOString(),
+    completed_at: row.completed_at?.toISOString() ?? null,
+  };
+}
+
+function toDetail(row: AgentTransactionRecord): AgentTransactionDetail {
+  const chainId = parseChainId(row.chain_id);
+  return {
+    ...toListItem(row),
+    action: row.action,
+    params: row.params as Record<string, unknown>,
+    wallet_address: row.wallet_address,
+    workflow_step_index: row.workflow_step_index,
+    result: (row.result as TxResult | null) ?? null,
+    error_code: row.error_code,
+    error_message: row.error_message,
+    submitted_at: row.submitted_at?.toISOString() ?? null,
+    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest) : null,
+  };
+}
+
+function trimTxResult(result: TxResult): Record<string, unknown> {
+  return result as Record<string, unknown>;
+}
+
+function normalizePagination(query: ListAgentTransactionsQuery): {
+  page: number;
+  limit: number;
+  skip: number;
+} {
+  const page = Math.max(DEFAULT_PAGE, query.page ?? DEFAULT_PAGE);
+  const limit = Math.min(MAX_LIMIT, Math.max(1, query.limit ?? DEFAULT_LIMIT));
+  return { page, limit, skip: (page - 1) * limit };
+}
+
+export async function recordPendingApproval(
+  input: RecordPendingApprovalInput,
+): Promise<AgentTransactionListItem> {
+  const userId = await requireUserId(input.privyUserId);
+  const walletAddress = await resolveWalletAddress(input.privyUserId, input.input.chain_id);
+  const display = await buildTransactionDisplay(input.privyUserId, input.input);
+
+  const row = await createAgentTransaction({
+    id: input.pending.id,
+    user_id: userId,
+    session_id: input.sessionId ?? null,
+    message_id: input.messageId ?? null,
+    workflow_step_index: input.workflowStepIndex ?? null,
+    chain_id: input.input.chain_id,
+    wallet_address: walletAddress,
+    action: input.input.action,
+    params: input.input.params,
+    category: categorizeAgentTransactionAction(input.input.action),
+    title: display.title,
+    amount_display: input.pending.amount_display || display.amount_display,
+    status: "pending_approval",
+  });
+
+  return toListItem(row);
+}
+
+export async function recordAutoExecuted(
+  input: RecordAutoExecutedInput,
+): Promise<AgentTransactionListItem> {
+  const userId = await requireUserId(input.privyUserId);
+  const walletAddress = await resolveWalletAddress(input.privyUserId, input.input.chain_id);
+  const display = await buildTransactionDisplay(input.privyUserId, input.input);
+
+  const row = await createAgentTransaction({
+    ...(input.transactionId ? { id: input.transactionId } : {}),
+    user_id: userId,
+    session_id: input.sessionId ?? null,
+    message_id: input.messageId ?? null,
+    workflow_step_index: input.workflowStepIndex ?? null,
+    chain_id: input.input.chain_id,
+    wallet_address: walletAddress,
+    action: input.input.action,
+    params: input.input.params,
+    category: categorizeAgentTransactionAction(input.input.action),
+    title: display.title,
+    amount_display: display.amount_display,
+    status: "submitted",
+    submitted_at: new Date(),
+  });
+
+  return toListItem(row);
+}
+
+export async function markApprovedSubmitted(transactionId: string): Promise<void> {
+  await updateAgentTransactionById(transactionId, {
+    status: "submitted",
+    submitted_at: new Date(),
+  });
+}
+
+export async function markCompleted(
+  transactionId: string,
+  completion: TransactionCompletion,
+): Promise<AgentTransactionListItem | null> {
+  const now = new Date();
+  const existing = await findAgentTransactionById(transactionId);
+
+  if (completion.kind === "success") {
+    const amountDisplay = existing
+      ? enrichDisplayFromResult(existing.amount_display, completion.result)
+      : enrichDisplayFromResult("", completion.result);
+
+    const row = await updateAgentTransactionById(transactionId, {
+      status: "success",
+      digest: completion.result.digest,
+      effects_status: completion.result.effects_status,
+      result: trimTxResult(completion.result),
+      error_code: null,
+      error_message: null,
+      completed_at: now,
+      ...(amountDisplay ? { amount_display: amountDisplay } : {}),
+    });
+    return row ? toListItem(row) : null;
+  }
+
+  const row = await updateAgentTransactionById(transactionId, {
+    status: "failure",
+    error_code: completion.error.code,
+    error_message: completion.error.message,
+    completed_at: now,
+  });
+  return row ? toListItem(row) : null;
+}
+
+export async function markRejected(transactionId: string): Promise<void> {
+  await updateAgentTransactionById(transactionId, {
+    status: "rejected",
+    completed_at: new Date(),
+  });
+}
+
+export async function markExpired(transactionId: string): Promise<void> {
+  await updateAgentTransactionById(transactionId, {
+    status: "expired",
+    completed_at: new Date(),
+  });
+}
+
+export async function attachMessageId(input: AttachMessageInput): Promise<void> {
+  await updateAgentTransactionById(input.transactionId, {
+    message: { connect: { id: input.messageId } },
+  });
+}
+
+export async function listTransactions(
+  privyUserId: string,
+  query: ListAgentTransactionsQuery = {},
+): Promise<PaginatedAgentTransactions> {
+  const userId = await requireUserId(privyUserId);
+  const { page, limit, skip } = normalizePagination(query);
+
+  const { items, total } = await listAgentTransactionsForUser({
+    user_id: userId,
+    status: query.status,
+    category: query.category,
+    chain_id: query.chain_id,
+    session_id: query.session_id,
+    skip,
+    take: limit,
+  });
+
+  return {
+    items: items.map(toListItem),
+    page,
+    limit,
+    total,
+  };
+}
+
+export async function getTransaction(
+  privyUserId: string,
+  transactionId: string,
+): Promise<AgentTransactionDetail> {
+  const userId = await requireUserId(privyUserId);
+  const row = await findAgentTransactionByIdForUser(transactionId, userId);
+
+  if (!row) {
+    throw new AppError(404, "TRANSACTION_NOT_FOUND", "Agent transaction not found.");
+  }
+
+  return toDetail(row);
+}
+
+export async function listSessionTransactions(
+  privyUserId: string,
+  sessionId: string,
+): Promise<AgentTransactionListItem[]> {
+  const userId = await requireUserId(privyUserId);
+  const rows = await findAgentTransactionsBySessionForUser(sessionId, userId);
+  return rows.map(toListItem);
+}

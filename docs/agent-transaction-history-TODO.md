@@ -180,27 +180,27 @@ Auto-approved execute (no bar): insert directly as success | failure
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `agent-transaction.types.ts` — `AgentTransactionListItem`, `AgentTransactionDetail`, create/update input types | [Backend] |
-| [ ] | `categorize-action.ts` — map `action` string → `AgentTransactionCategory` | [Backend] |
-| [ ] | `build-display.ts` — reuse logic from `createPendingTransaction` for `title` + `amount_display`; add post-execute enrichment from `TxResult` | [Backend] |
-| [ ] | `agent-transaction.repository.ts` — `create`, `updateById`, `findByIdForUser`, `listForUser` (paginated), `findBySessionForUser` | [Backend] |
-| [ ] | `agent-transaction.service.ts` — public API: | [Backend] |
-| [ ] | → `recordPendingApproval({ userId, sessionId?, messageId?, input, pending, workflowStepIndex? })` | [Backend] |
-| [ ] | → `recordAutoExecuted({ ... })` — no approval path | [Backend] |
-| [ ] | → `markApprovedSubmitted(id)` | [Backend] |
-| [ ] | → `markCompleted(id, { result \| error })` | [Backend] |
-| [ ] | → `markRejected(id)` | [Backend] |
-| [ ] | → `markExpired(id)` | [Backend] |
-| [ ] | → `listTransactions(privyUserId, query)` / `getTransaction(privyUserId, id)` | [Backend] |
-| [ ] | Resolve `wallet_address` from `AgentWallet` for `chain_id` at write time | [Backend] |
+| [x] | `agent-transaction.types.ts` — `AgentTransactionListItem`, `AgentTransactionDetail`, create/update input types | [Backend] |
+| [x] | `categorize-action.ts` — map `action` string → `AgentTransactionCategory` | [Backend] |
+| [x] | `build-display.ts` — reuse logic from `createPendingTransaction` for `title` + `amount_display`; add post-execute enrichment from `TxResult` | [Backend] |
+| [x] | `agent-transaction.repository.ts` — `create`, `updateById`, `findByIdForUser`, `listForUser` (paginated), `findBySessionForUser` | [Backend] |
+| [x] | `agent-transaction.service.ts` — public API: | [Backend] |
+| [x] | → `recordPendingApproval({ userId, sessionId?, messageId?, input, pending, workflowStepIndex? })` | [Backend] |
+| [x] | → `recordAutoExecuted({ ... })` — no approval path | [Backend] |
+| [x] | → `markApprovedSubmitted(id)` | [Backend] |
+| [x] | → `markCompleted(id, { result \| error })` | [Backend] |
+| [x] | → `markRejected(id)` | [Backend] |
+| [x] | → `markExpired(id)` | [Backend] |
+| [x] | → `listTransactions(privyUserId, query)` / `getTransaction(privyUserId, id)` | [Backend] |
+| [x] | Resolve `wallet_address` from `AgentWallet` for `chain_id` at write time | [Backend] |
 
 ### A.3 Unit tests (domain)
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `categorize-action` covers all current DeepBook + transfer + swap actions | [Backend] |
-| [ ] | `build-display` snapshots for swap, limit order, deposit, cancel, modify | [Backend] |
-| [ ] | Repository list pagination + user isolation (cannot read another user's row) | [Backend] |
+| [x] | `categorize-action` covers all current DeepBook + transfer + swap actions | [Backend] |
+| [x] | `build-display` snapshots for swap, limit order, deposit, cancel, modify | [Backend] |
+| [x] | Repository list pagination + user isolation (cannot read another user's row) | [Backend] |
 
 ---
 
