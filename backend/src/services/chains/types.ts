@@ -68,6 +68,11 @@ export type TxResult = {
       steps_count?: number;
       estimated_surplus?: number | null;
     };
+    stake?: {
+      pool_key: string;
+      action: "deepbook_stake" | "deepbook_unstake";
+      amount_display: number | null;
+    };
   };
 };
 

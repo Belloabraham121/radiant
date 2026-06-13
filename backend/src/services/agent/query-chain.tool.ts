@@ -15,6 +15,10 @@ import { getDeepBookEnv } from "../../config/deepbook.js";
 import { getDeepBookSwapQuote } from "../defi/deepbook-swap.service.js";
 import { getDeepBookOpenOrders } from "../defi/deepbook-orders.service.js";
 import { getFlashLoanBundleQuote } from "../defi/deepbook-flash-loan-quote.js";
+import {
+  getDeepBookStakeBalance,
+  getDeepBookStakeRequired,
+} from "../defi/deepbook-stake.service.js";
 import { queryAgentTransactions } from "../agent-transaction/agent-transaction.service.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
@@ -64,10 +68,12 @@ export const queryChainToolDefinition = {
           "swap_quote",
           "flash_loan_quote",
           "deepbook_open_orders",
+          "deepbook_stake_balance",
+          "deepbook_stake_required",
           "agent_transactions",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, or agent_transactions (recent on-chain actions initiated by the agent).",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, deepbook_stake_balance, deepbook_stake_required, or agent_transactions (recent on-chain actions initiated by the agent).",
       },
       params: {
         type: "object",
@@ -77,6 +83,8 @@ export const queryChainToolDefinition = {
           "Fees default to input token; set pay_with_deep: true only if wallet holds DEEP. " +
           "flash_loan_quote: { pool_key, borrow_amount, asset: base|quote (or coin_key), strategy: round_trip | swap_chain_repay, steps?: [{ pool_key, side: buy|sell, amount }] } — " +
           "quote before swap_chain_repay execute; pool_key is borrow pool; asset base|quote is borrowed side (USDC on SUI_USDC = quote). " +
+          "deepbook_stake_balance: { pool_key? } — active/inactive DEEP stake for your balance manager on that pool. " +
+          "deepbook_stake_required: { pool_key? } — current and next-epoch stake_required and fees for the pool. " +
           "May also pass input_coin/from + output_coin/to instead of side for swap_quote. " +
           "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
           "returns recent agent wallet activity with session_id/message_id to link back to chat. " +
@@ -182,6 +190,14 @@ export async function runQueryChainTool(
     case "deepbook_open_orders": {
       assertSuiDeepBookQuery(parsed.chain_id);
       return getDeepBookOpenOrders(privyUserId, parsed.params);
+    }
+    case "deepbook_stake_balance": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return getDeepBookStakeBalance(privyUserId, parsed.params);
+    }
+    case "deepbook_stake_required": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return getDeepBookStakeRequired(privyUserId, parsed.params);
     }
     case "agent_transactions": {
       return queryAgentTransactions(privyUserId, {

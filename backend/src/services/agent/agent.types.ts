@@ -14,6 +14,10 @@ import type {
 import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
 import type { FlashLoanBundleQuoteResult } from "../defi/deepbook-flash-loan.types.js";
 import type { DeepBookOpenOrdersResult } from "../defi/deepbook-orders.service.js";
+import type {
+  DeepBookStakeBalanceResult,
+  DeepBookStakeRequiredResult,
+} from "../defi/deepbook-stake.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
 import {
   agentTransactionCategorySchema,
@@ -115,6 +119,8 @@ export const queryChainInputSchema = z.object({
     "swap_quote",
     "flash_loan_quote",
     "deepbook_open_orders",
+    "deepbook_stake_balance",
+    "deepbook_stake_required",
     "agent_transactions",
   ]),
   params: z
@@ -155,6 +161,8 @@ export type QueryChainResult =
   | DeepBookSwapQuoteResult
   | FlashLoanBundleQuoteResult
   | DeepBookOpenOrdersResult
+  | DeepBookStakeBalanceResult
+  | DeepBookStakeRequiredResult
   | AgentTransactionsQueryResult;
 
 export type ExecuteToolOutcome =

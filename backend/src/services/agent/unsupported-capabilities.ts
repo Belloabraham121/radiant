@@ -7,11 +7,6 @@ export type UnsupportedCapability = {
 /** DeepBook / chat features documented in deepbook-v3-TODO but not wired yet. */
 export const UNSUPPORTED_CAPABILITIES: UnsupportedCapability[] = [
   {
-    id: "stake_deep",
-    label: "staking DEEP on DeepBook",
-    pattern: /\bstake\s+\d*\s*deep\b|\bstaking\s+deep\b/i,
-  },
-  {
     id: "governance",
     label: "DeepBook governance voting",
     pattern: /\bgovernance\b|\bvote\s+(yes|no|on)\b.*\b(proposal|deepbook)\b/i,
@@ -19,7 +14,7 @@ export const UNSUPPORTED_CAPABILITIES: UnsupportedCapability[] = [
 ];
 
 export const SUPPORTED_DEEPBOOK_SUMMARY =
-  "swaps, limit/market orders, cancel/modify orders, claim settled proceeds, flash loans (round-trip and multi-step swap_chain_repay bundles — quote via flash_loan_quote, Settings opt-in), open orders, balance manager setup, deposits, withdrawals, wallet and manager balances, pool listings, ticker/pool info, swap quotes, and agent transaction history";
+  "swaps, limit/market orders, cancel/modify orders, claim settled proceeds, flash loans (round-trip and multi-step swap_chain_repay bundles — quote via flash_loan_quote, Settings opt-in), DEEP staking and unstaking (deepbook_stake / deepbook_unstake, stake balance via deepbook_stake_balance), open orders, balance manager setup, deposits, withdrawals, wallet and manager balances, pool listings, ticker/pool info, swap quotes, and agent transaction history";
 
 export function detectUnsupportedCapability(message: string): UnsupportedCapability | null {
   for (const capability of UNSUPPORTED_CAPABILITIES) {

@@ -290,16 +290,16 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `execute_transaction`: `deepbook_stake`, `deepbook_unstake` |
-| [ ] | Extend `query_chain`: `deepbook_stake_balance`, `deepbook_stake_required` (per pool) |
+| [x] | `execute_transaction`: `deepbook_stake`, `deepbook_unstake` |
+| [x] | Extend `query_chain`: `deepbook_stake_balance`, `deepbook_stake_required` (per pool) |
 | [ ] | Indexer: use pool summary / on-chain reads for stake status |
-| [ ] | Approval for stake/unstake amounts above threshold |
+| [x] | Approval for stake/unstake amounts above threshold |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Chat receipt for stake/unstake |
+| [x] | Chat receipt for stake/unstake |
 | [ ] | Optional: show staked DEEP + fee tier hint in wallet section |
 
 ---

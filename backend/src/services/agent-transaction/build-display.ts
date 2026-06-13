@@ -21,6 +21,11 @@ import {
   isDeepBookFlashLoanAction,
   parseDeepBookFlashLoanParams,
 } from "../defi/deepbook-flash-loan.service.js";
+import {
+  isDeepBookStakeAction,
+  parseDeepBookStakeParams,
+  parseDeepBookUnstakeParams,
+} from "../defi/deepbook-stake.service.js";
 import type { ExecuteTransactionInput, ChainId, TxResult } from "../chains/types.js";
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
@@ -204,6 +209,24 @@ export async function buildTransactionDisplay(
     } catch {
       amount_display = "DeepBook flash loan";
       title = "DeepBook flash loan";
+    }
+  } else if (input.action === "deepbook_stake") {
+    try {
+      const parsed = parseDeepBookStakeParams(input.params);
+      amount_display = `${parsed.amount_display} DEEP`;
+      title = `Stake DEEP on DeepBook (${parsed.pool_key})`;
+    } catch {
+      amount_display = "Stake DEEP";
+      title = "Stake DEEP on DeepBook";
+    }
+  } else if (input.action === "deepbook_unstake") {
+    try {
+      const parsed = parseDeepBookUnstakeParams(input.params);
+      amount_display = "All active stake → balance manager";
+      title = `Unstake DEEP from DeepBook (${parsed.pool_key})`;
+    } catch {
+      amount_display = "Unstake DEEP";
+      title = "Unstake DEEP from DeepBook";
     }
   }
 

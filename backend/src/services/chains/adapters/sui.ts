@@ -34,6 +34,11 @@ import {
   executeDeepBookFlashLoan,
   isDeepBookFlashLoanAction,
 } from "../../defi/deepbook-flash-loan.service.js";
+import {
+  executeDeepBookStake,
+  executeDeepBookUnstake,
+  isDeepBookStakeAction,
+} from "../../defi/deepbook-stake.service.js";
 
 function parseRecipient(params: Record<string, unknown>): string {
   const recipient = params.recipient;
@@ -315,6 +320,26 @@ export const suiAdapter: ChainAdapter = {
             strategy: result.strategy,
             steps_count: result.steps_count,
             estimated_surplus: result.estimated_surplus,
+          },
+        },
+      };
+    }
+
+    if (isDeepBookStakeAction(action)) {
+      const result =
+        action === "deepbook_stake"
+          ? await executeDeepBookStake(privyUserId, params)
+          : await executeDeepBookUnstake(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: result.digest,
+        address: result.address,
+        effects_status: result.effects_status,
+        deepbook: {
+          stake: {
+            pool_key: result.pool_key,
+            action: result.action,
+            amount_display: result.amount_display ?? null,
           },
         },
       };

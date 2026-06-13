@@ -25,6 +25,12 @@ describe("unsupported-capabilities", () => {
     assert.equal(detectUnsupportedCapability("Get me a flash loan on DeepBook"), null);
   });
 
+  it("does not flag supported stake requests", () => {
+    assert.equal(detectUnsupportedCapability("Stake 100 DEEP on SUI_USDC"), null);
+    assert.equal(detectUnsupportedCapability("How much DEEP do I have staked?"), null);
+    assert.equal(detectUnsupportedCapability("Unstake my DEEP from DeepBook"), null);
+  });
+
   it("nudge forbids fake empty results for unsupported features", () => {
     const nudge = buildUnsupportedCapabilityNudge({
       id: "governance",

@@ -62,6 +62,10 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
           remaining_quantity: number;
           is_bid: boolean;
         }>;
+        active_stake?: number;
+        inactive_stake?: number;
+        total_stake?: number;
+        stake_required?: number;
       };
 
       if (result.error?.message) {
@@ -93,6 +97,20 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             count === 0
               ? result.pool_key
               : `${count} on ${result.pool_key}`,
+        });
+      }
+
+      if (result.total_stake != null && result.pool_key) {
+        receipts.push({
+          label: "DEEP stake",
+          detail: `${result.active_stake ?? 0} active + ${result.inactive_stake ?? 0} inactive on ${result.pool_key}`,
+        });
+      }
+
+      if (result.stake_required != null && result.pool_key) {
+        receipts.push({
+          label: "Stake tier",
+          detail: `${result.stake_required} DEEP required on ${result.pool_key}`,
         });
       }
 
@@ -148,6 +166,11 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               quantity?: number;
               is_bid?: boolean;
               cancelled_count?: number;
+            };
+            stake?: {
+              pool_key?: string;
+              action?: string;
+              amount_display?: number | null;
             };
           };
         };
@@ -224,6 +247,12 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             detail: outcome.pending.amount_display,
             ...receiptMeta,
           });
+        } else if (action === "deepbook_stake" || action === "deepbook_unstake") {
+          receipts.push({
+            label: action === "deepbook_stake" ? "Stake approval required" : "Unstake approval required",
+            detail: outcome.pending.amount_display,
+            ...receiptMeta,
+          });
         }
       }
 
@@ -231,6 +260,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const digest = outcome.result.digest;
         const swap = outcome.result.deepbook?.swap;
         const order = outcome.result.deepbook?.order;
+        const stake = outcome.result.deepbook?.stake;
         const coinKey = outcome.result.deepbook?.coin_key;
         const amount = outcome.result.deepbook?.amount_display;
         const managerObjectId = outcome.result.deepbook?.manager_object_id;
@@ -240,6 +270,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const isCancel = order?.action?.includes("cancel");
         const isModify = order?.action?.includes("modify");
         const isSettledWithdraw = order?.action?.includes("withdraw_settled");
+        const isStake = stake?.action === "deepbook_stake";
+        const isUnstake = stake?.action === "deepbook_unstake";
         const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
         const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer && !isOrder && !isCancel;
@@ -247,6 +279,10 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         receipts.push({
           label: isSwap
             ? "Swap executed"
+            : isStake
+              ? "DEEP staked"
+              : isUnstake
+                ? "DEEP unstaked"
             : isOrder
               ? "Order placed"
               : isCancel
@@ -264,6 +300,10 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
                     : "Transaction sent",
           detail: isSwap
             ? `${swap.in_amount_display} ${swap.input_coin} → ${swap.out_amount_display} ${swap.output_coin} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+            : isStake && stake
+              ? `${stake.amount_display ?? "?"} DEEP on ${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+              : isUnstake && stake
+                ? `${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
             : isOrder && order
               ? `${order.is_bid ? "buy" : "sell"} ${order.quantity ?? ""}${order.price != null ? ` @ ${order.price}` : ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
               : isCancel && order

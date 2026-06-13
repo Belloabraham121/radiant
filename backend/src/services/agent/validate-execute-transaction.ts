@@ -17,6 +17,11 @@ import {
   isDeepBookFlashLoanAction,
   parseDeepBookFlashLoanParams,
 } from "../defi/deepbook-flash-loan.service.js";
+import {
+  isDeepBookStakeAction,
+  parseDeepBookStakeParams,
+  parseDeepBookUnstakeParams,
+} from "../defi/deepbook-stake.service.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 
 export const DEEPBOOK_PROVISION_MANAGER_ACTION = "deepbook_provision_manager" as const;
@@ -89,6 +94,16 @@ export function validateExecuteTransactionInput(input: ExecuteTransactionInput):
 
   if (isDeepBookFlashLoanAction(input.action)) {
     parseDeepBookFlashLoanParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_stake") {
+    parseDeepBookStakeParams(input.params);
+    return;
+  }
+
+  if (input.action === "deepbook_unstake") {
+    parseDeepBookUnstakeParams(input.params);
     return;
   }
 }

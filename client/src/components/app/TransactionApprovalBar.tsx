@@ -31,6 +31,8 @@ export function TransactionApprovalBar({
     pending.action === "deepbook_withdraw_settled_amounts" ||
     pending.action === "deepbook_withdraw_settled_amounts_permissionless";
   const isFlashLoan = pending.action === "deepbook_flash_loan";
+  const isStake = pending.action === "deepbook_stake";
+  const isUnstake = pending.action === "deepbook_unstake";
   const flashStrategy =
     isFlashLoan && typeof pending.params.strategy === "string"
       ? pending.params.strategy
@@ -59,6 +61,10 @@ export function TransactionApprovalBar({
               ? "Approve swap"
               : isFlashLoan
                 ? "Approve flash loan"
+                : isStake
+                  ? "Approve stake"
+                  : isUnstake
+                    ? "Approve unstake"
                 : isOrder
                 ? "Approve order"
                 : isCancelOrder
@@ -78,6 +84,10 @@ export function TransactionApprovalBar({
                 ? flashStrategy === "swap_chain_repay"
                   ? "Atomic borrow → swaps → repay in one transaction. If any step fails, everything reverts — you only pay gas."
                   : "Atomic borrow and repay in one transaction. If repayment fails, the entire transaction reverts — you only pay gas."
+                : isStake
+                  ? "Stakes DEEP from your DeepBook balance manager into the pool for fee discounts."
+                  : isUnstake
+                    ? "Returns your active stake from the pool back to your balance manager."
                 : isLimitOrder
                 ? "Review price and size, then approve to place the limit order on DeepBook."
                 : isMarketOrder
