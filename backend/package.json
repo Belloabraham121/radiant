@@ -16,7 +16,10 @@
     "setup:privy-signer": "tsx scripts/setup-privy-signer.ts",
     "check": "tsc --noEmit && npm test",
     "test": "tsx --test tests/integration/**/*.test.ts tests/unit/**/*.test.ts",
-    "test:integration": "tsx --test tests/integration/**/*.test.ts"
+    "test:integration": "tsx --test tests/integration/**/*.test.ts",
+    "e2b:template:build": "tsx docker/e2b/build.prod.ts",
+    "e2b:template:build:dev": "tsx docker/e2b/build.dev.ts",
+    "e2b:smoke": "tsx docker/e2b/smoke.ts"
   },
   "dependencies": {
     "@mysten/deepbook-v3": "^1.4.1",

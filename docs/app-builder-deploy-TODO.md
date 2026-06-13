@@ -388,12 +388,12 @@ export const template = Template()
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `template.ts` as above | Layer order per E2B caching docs |
-| [ ] | `build.prod.ts` | `Template.build(template, 'radiant-build:v1', { cpuCount: 2, memoryMB: 4096 })` |
-| [ ] | Run locally once | `npx tsx backend/docker/e2b/build.prod.ts` |
-| [ ] | Verify template in dashboard | Alias `radiant-build` or `radiant-build:v1` |
-| [ ] | Smoke test | `Sandbox.create('radiant-build:v1')` → `node -v` → `kill` |
-| [ ] | Document rebuild policy | Rebuild only on lockfile/CLI bump |
+| [x] | `template.ts` as above | Layer order per E2B caching docs |
+| [x] | `build.prod.ts` | `Template.build(template, 'radiant-build:v1', { cpuCount: 2, memoryMB: 4096 })` |
+| [x] | Run locally once | `npm run e2b:template:build` (build ~25s after cache) |
+| [x] | Verify template in dashboard | `radiant-build:v1` / template ID `b0t6vzuyn0a6z3xm1762` |
+| [x] | Smoke test | `npm run e2b:smoke` — node, sui, npm build OK |
+| [x] | Document rebuild policy | Rebuild on lockfile / `RADIANT_SUI_CLI_RELEASE` / scaffold changes only |
 
 ### Step 4 — `E2bSandboxProvider` implementation
 

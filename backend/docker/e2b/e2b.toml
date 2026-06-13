@@ -1,0 +1,6 @@
+# Metadata for E2B CLI — builds run via SDK (build.prod.ts), not Dockerfile.
+# Rebuild: npx tsx docker/e2b/build.prod.ts (from backend/)
+template_id = "radiant-build"
+template_name = "radiant-build:v1"
+cpu_count = 2
+memory_mb = 4096
