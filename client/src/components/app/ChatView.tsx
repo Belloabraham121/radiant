@@ -133,13 +133,20 @@ function Bubble({
               : "rounded-bl-md bg-white shadow-[4px_4px_0_var(--hero-ink)]"
           }`}
         >
-          {isUser ? message.text : <AgentMessageMarkdown text={message.text} />}
+          {isUser ? (
+            message.text
+          ) : message.streaming && !message.text ? (
+            <span className="text-[var(--hero-ink)]/45">Working on your request…</span>
+          ) : (
+            <AgentMessageMarkdown text={message.text} />
+          )}
         </div>
 
         {message.executionSteps && message.executionSteps.length > 0 ? (
           <ExecutionTimeline
             steps={message.executionSteps}
             onViewActivity={onViewActivity}
+            live={message.streaming === true}
           />
         ) : null}
 
@@ -156,7 +163,9 @@ function Bubble({
         )}
 
         <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-          <MessageCopyButton text={message.text} isUser={isUser} />
+          {!message.streaming ? (
+            <MessageCopyButton text={message.text} isUser={isUser} />
+          ) : null}
         </div>
       </div>
     </div>
@@ -200,6 +209,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     hydrating,
     loadError,
     typing,
+    streaming,
     chatError,
     pendingTx,
     pendingClarification,
@@ -281,12 +291,12 @@ export function ChatView({ sessionId }: ChatViewProps) {
     const container = scrollRef.current;
     if (!container) return;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [hydrating, messages, pendingTx, typing]);
+  }, [hydrating, messages, pendingTx, typing, streaming]);
 
   const send = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || typing) return;
+    if (!text || typing || streaming) return;
     setInput("");
     void sendMessage(text);
   };
@@ -347,7 +357,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
               />
             ))}
 
-            {typing && (
+            {typing && !streaming && (
               <div className="flex justify-start">
                 <div className="hero-blink flex items-center gap-1.5 rounded-3xl rounded-bl-md border-2 border-[var(--hero-ink)] bg-white px-5 py-4 shadow-[4px_4px_0_var(--hero-ink)]">
                   <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
@@ -408,6 +418,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
               disabled={
                 !input.trim() ||
                 typing ||
+                streaming ||
                 Boolean(loadError) ||
                 Boolean(pendingTx) ||
                 Boolean(pendingClarification)

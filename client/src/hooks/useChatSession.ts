@@ -15,6 +15,12 @@ import {
   mapToolCallsToMessageExtras,
   type ChatMessage,
 } from "@/lib/chat-messages";
+import {
+  mapStreamStepToExecutionStep,
+  sortExecutionSteps,
+  upsertExecutionStep,
+} from "@/lib/chat-execution-steps";
+import { postChatStream } from "@/lib/chat-stream";
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 
@@ -63,6 +69,7 @@ export function useChatSession(sessionId?: string) {
   const [hydrating, setHydrating] = useState(boot.hydrating);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(
     boot.pending_transaction,
@@ -117,21 +124,65 @@ export function useChatSession(sessionId?: string) {
 
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim() || typing) return;
+      if (!text.trim() || typing || streaming) return;
 
       const optimisticId = `u-${Date.now()}`;
+      const liveAgentId = `a-live-${Date.now()}`;
       setMessages((current) => [
         ...current,
         { id: optimisticId, role: "user", text },
+        {
+          id: liveAgentId,
+          role: "agent",
+          text: "",
+          streaming: true,
+          executionSteps: [
+            {
+              id: "agent",
+              status: "running",
+              label: "Radiant",
+              detail: "Planning next steps…",
+            },
+          ],
+        },
       ]);
-      setTyping(true);
+      setStreaming(true);
       setChatError(null);
 
       try {
-        const data = await postChat({
-          message: text,
-          session_id: activeSessionId,
-        });
+        const data = await postChatStream(
+          {
+            message: text,
+            session_id: activeSessionId,
+          },
+          {
+            onStep: (step) => {
+              setMessages((current) =>
+                current.map((message) => {
+                  if (message.id !== liveAgentId) {
+                    return message;
+                  }
+                  const nextStep = mapStreamStepToExecutionStep(step);
+                  let executionSteps = message.executionSteps ?? [];
+                  if (step.id !== "agent") {
+                    executionSteps = upsertExecutionStep(executionSteps, {
+                      id: "agent",
+                      status: "ok",
+                      label: "Radiant",
+                      detail: "Picked a plan",
+                    });
+                  }
+                  return {
+                    ...message,
+                    executionSteps: sortExecutionSteps(
+                      upsertExecutionStep(executionSteps, nextStep),
+                    ),
+                  };
+                }),
+              );
+            },
+          },
+        );
 
         const nextTitle =
           title === "New chat" ? text.slice(0, 60) : title;
@@ -139,14 +190,19 @@ export function useChatSession(sessionId?: string) {
         setActiveSessionId(data.session_id);
         setTitle(nextTitle);
         setMessages((current) => {
+          const liveSteps =
+            current.find((message) => message.id === liveAgentId)?.executionSteps ?? [];
           const nextMessages: ChatMessage[] = [
-            ...current.filter((message) => message.id !== optimisticId),
+            ...current.filter(
+              (message) => message.id !== optimisticId && message.id !== liveAgentId,
+            ),
             { id: optimisticId, role: "user", text },
             {
               id: data.message_id,
               role: "agent",
               text: data.reply,
-              ...mapToolCallsToMessageExtras(data.tool_calls),
+              streaming: false,
+              ...mapToolCallsToMessageExtras(data.tool_calls, liveSteps),
             },
           ];
 
@@ -174,11 +230,14 @@ export function useChatSession(sessionId?: string) {
         const message =
           err instanceof ApiError ? err.message : "Could not reach your agent. Try again.";
         setChatError(message);
+        setMessages((current) =>
+          current.filter((entry) => entry.id !== liveAgentId),
+        );
       } finally {
-        setTyping(false);
+        setStreaming(false);
       }
     },
-    [activeSessionId, refreshSessions, router, sessionId, title, typing],
+    [activeSessionId, refreshSessions, router, sessionId, streaming, title, typing],
   );
 
   const approvePending = useCallback(async () => {
@@ -319,6 +378,7 @@ export function useChatSession(sessionId?: string) {
     hydrating,
     loadError,
     typing,
+    streaming,
     chatError,
     pendingTx,
     pendingClarification,

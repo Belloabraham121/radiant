@@ -7,6 +7,8 @@ import { touchSession } from "../conversation/session.repository.js";
 import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.service.js";
 import type { ChatRequest, ChatResponse } from "./agent.types.js";
 import { buildAgentContextMessages } from "./context-window.js";
+import { runWithExecutionProgress } from "./execution-progress-context.js";
+import type { ChatStreamSender } from "./execution-progress.types.js";
 import { getAgentRuntime } from "./runtime/index.js";
 import type { AgentRuntime } from "./runtime/types.js";
 import type { TransactionErrorContext } from "./deepbook/transaction-error-context.js";
@@ -26,6 +28,7 @@ import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-tra
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
+  onStream?: ChatStreamSender;
 };
 
 export async function runChatTurn(
@@ -48,6 +51,17 @@ export async function runChatTurn(
   const memoryBlock = formatMemoryBlock(memory);
 
   await appendMessage(session.id, "user", request.message);
+
+  if (options.onStream) {
+    options.onStream("step", {
+      step: {
+        id: "agent",
+        status: "running",
+        label: "Radiant",
+        detail: "Planning next steps…",
+      },
+    });
+  }
 
   if (!isApprovalContinuationMessage(request.message) && !isClarificationContinuationRequest(request)) {
     const workflowOutcome = await tryStartWorkflowFromMessage(
@@ -102,13 +116,19 @@ export async function runChatTurn(
   ]);
 
   const runtime = options.forceRuntime ?? getAgentRuntime();
-  const result = await runtime.runTurn({
-    privyUserId,
-    sessionId: session.id,
-    messages: contextMessages,
-    memoryBlock,
-    agentPermissions,
-  });
+  const result = await runWithExecutionProgress(
+    (event) => {
+      options.onStream?.("step", event);
+    },
+    () =>
+      runtime.runTurn({
+        privyUserId,
+        sessionId: session.id,
+        messages: contextMessages,
+        memoryBlock,
+        agentPermissions,
+      }),
+  );
 
   const toolCallsJson: Prisma.InputJsonValue | undefined =
     result.tool_calls.length > 0 ? (result.tool_calls as Prisma.InputJsonValue) : undefined;
@@ -239,13 +259,14 @@ export async function persistApprovalTurn(
 export async function runChatTurnWithFallback(
   privyUserId: string,
   request: ChatRequest,
+  options: Pick<RunChatTurnOptions, "onStream"> = {},
 ): Promise<ChatResponse> {
   try {
-    return await runChatTurn(privyUserId, request);
+    return await runChatTurn(privyUserId, request, options);
   } catch (err) {
     if (getAgentProvider() === "openai" && getOpenAiConfig().fallbackStub) {
       console.warn("OpenAI agent failed; falling back to stub runtime.", err);
-      return runChatTurn(privyUserId, request, { forceRuntime: stubRuntime });
+      return runChatTurn(privyUserId, request, { forceRuntime: stubRuntime, ...options });
     }
     throw err;
   }

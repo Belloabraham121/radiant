@@ -1,9 +1,16 @@
 import type { ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
 
-export type ExecutionStepStatus = "ok" | "failed" | "skipped" | "warning";
+export type ExecutionStepStatus =
+  | "pending"
+  | "running"
+  | "ok"
+  | "failed"
+  | "skipped"
+  | "warning";
 
 export type ExecutionStep = {
+  id: string;
   status: ExecutionStepStatus;
   label: string;
   detail?: string;
@@ -37,6 +44,104 @@ type FlashLoanQuoteResult = {
 type ToolErrorResult = {
   error: { code?: string; message?: string };
 };
+
+export type StreamExecutionStepPayload = {
+  id: string;
+  status: ExecutionStepStatus;
+  label: string;
+  detail?: string;
+  agent_transaction_id?: string;
+  digest?: string;
+  chain_id?: string;
+};
+
+export function mapStreamStepToExecutionStep(step: StreamExecutionStepPayload): ExecutionStep {
+  return {
+    id: step.id,
+    status: step.status,
+    label: step.label,
+    detail: step.detail,
+    ...(step.agent_transaction_id ? { agentTransactionId: step.agent_transaction_id } : {}),
+    ...(step.digest ? { digest: step.digest } : {}),
+    ...(step.chain_id ? { chainId: step.chain_id as AgentChainId } : {}),
+  };
+}
+
+export function upsertExecutionStep(
+  steps: ExecutionStep[],
+  incoming: ExecutionStep,
+): ExecutionStep[] {
+  const index = steps.findIndex((step) => step.id === incoming.id);
+  if (index === -1) {
+    return [...steps, incoming];
+  }
+  const next = [...steps];
+  next[index] = { ...next[index], ...incoming };
+  return next;
+}
+
+export const EXECUTION_STEP_ORDER = [
+  "agent",
+  "quote",
+  "swap-1",
+  "swap-2",
+  "swap-3",
+  "swap-quote",
+  "repay",
+  "execute",
+] as const;
+
+export function sortExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
+  return normalizeExecutionSteps(
+    [...steps].sort((a, b) => {
+      const indexA = EXECUTION_STEP_ORDER.indexOf(a.id as (typeof EXECUTION_STEP_ORDER)[number]);
+      const indexB = EXECUTION_STEP_ORDER.indexOf(b.id as (typeof EXECUTION_STEP_ORDER)[number]);
+      const rankA = indexA === -1 ? 100 : indexA;
+      const rankB = indexB === -1 ? 100 : indexB;
+      if (rankA !== rankB) return rankA - rankB;
+      return a.id.localeCompare(b.id);
+    }),
+  );
+}
+
+export function isFlashLoanParamValidationError(message: string): boolean {
+  return /params\.steps|steps\[\d+\]|swap_chain_repay|borrow_amount|deepbook_flash_loan|must be a positive number|Step \d+ must spend|Final swap must output/i.test(
+    message,
+  );
+}
+
+function isFlashLoanFlow(steps: ExecutionStep[]): boolean {
+  return steps.some((step) => step.id === "quote" || step.id.startsWith("swap-"));
+}
+
+/** Drop noise and fix execute/quote pairing for flash loan turns. */
+export function normalizeExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
+  let next = [...steps];
+
+  if (isFlashLoanFlow(next)) {
+    next = next.filter((step) => step.id !== "swap-quote");
+  }
+
+  const quote = next.find((step) => step.id === "quote");
+  const execute = next.find((step) => step.id === "execute");
+
+  if (
+    quote?.status === "failed" &&
+    execute &&
+    (execute.status === "failed" || execute.status === "running") &&
+    execute.detail &&
+    isFlashLoanParamValidationError(execute.detail)
+  ) {
+    next = upsertExecutionStep(next, {
+      id: "execute",
+      status: "skipped",
+      label: "Execute bundle",
+      detail: "Blocked — fix the flash loan route before executing",
+    });
+  }
+
+  return next;
+}
 
 function isToolError(result: unknown): result is ToolErrorResult {
   return (
@@ -76,6 +181,7 @@ function buildFlashLoanExecutionSteps(
   const steps: ExecutionStep[] = [];
 
   steps.push({
+    id: "quote",
     status: "ok",
     label: "Quote flash loan",
     detail: `Borrow ${quote.borrow_amount} ${quote.coin_key} from ${quote.pool_key} (${quote.strategy})`,
@@ -83,6 +189,7 @@ function buildFlashLoanExecutionSteps(
 
   for (const [index, step] of quote.steps.entries()) {
     steps.push({
+      id: `swap-${index + 1}`,
       status: "ok",
       label: `Swap ${index + 1}`,
       detail: `${step.side} ${step.in_amount} ${step.input_coin} → ~${step.out_est} ${step.output_coin} on ${step.pool_key}`,
@@ -100,12 +207,14 @@ function buildFlashLoanExecutionSteps(
         ? `surplus ~${quote.estimated_surplus} ${quote.coin_key}`
         : `shortfall ~${Math.abs(quote.estimated_surplus)} ${quote.coin_key}`;
     steps.push({
+      id: "repay",
       status: quote.repay_feasible ? "ok" : "failed",
       label: "Repay check",
       detail: `${repayDetail} — ${surplusLabel}`,
     });
   } else {
     steps.push({
+      id: "repay",
       status: quote.repay_feasible ? "ok" : "failed",
       label: "Repay check",
       detail: quote.repay_feasible
@@ -120,11 +229,22 @@ function buildFlashLoanExecutionSteps(
 
   if (executeCall) {
     if (isToolError(executeCall.result)) {
-      steps.push({
-        status: "failed",
-        label: "Execute bundle",
-        detail: executeCall.result.error.message,
-      });
+      const message = executeCall.result.error.message ?? "Transaction failed";
+      if (isFlashLoanParamValidationError(message)) {
+        steps.push({
+          id: "execute",
+          status: "skipped",
+          label: "Execute bundle",
+          detail: message,
+        });
+      } else {
+        steps.push({
+          id: "execute",
+          status: "failed",
+          label: "Execute bundle",
+          detail: message,
+        });
+      }
     } else {
       const outcome = executeCall.result as {
         status?: string;
@@ -143,6 +263,7 @@ function buildFlashLoanExecutionSteps(
 
       if (outcome.status === "approval_required") {
         steps.push({
+          id: "execute",
           status: "warning",
           label: "Execute bundle",
           detail: "Waiting for your approval in the dialog",
@@ -150,6 +271,7 @@ function buildFlashLoanExecutionSteps(
         });
       } else if (outcome.status === "executed" && outcome.result?.digest) {
         steps.push({
+          id: "execute",
           status: "ok",
           label: "Execute bundle",
           detail: `Broadcast · ${outcome.result.digest.slice(0, 10)}…`,
@@ -160,6 +282,7 @@ function buildFlashLoanExecutionSteps(
     }
   } else if (!quote.repay_feasible) {
     steps.push({
+      id: "execute",
       status: "skipped",
       label: "Execute bundle",
       detail: "Blocked — swap outputs would not cover the borrow for atomic repay",
@@ -202,6 +325,7 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
       quote.output_amount_display != null
     ) {
       steps.push({
+        id: "swap-quote",
         status: "ok",
         label: "Swap quote",
         detail: `${quote.input_amount_display} ${quote.input_coin} → ~${quote.output_amount_display} ${quote.output_coin}${quote.pool_key ? ` (${quote.pool_key})` : ""}`,
@@ -212,6 +336,7 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
   if (executeCall) {
     if (isToolError(executeCall.result)) {
       steps.push({
+        id: "execute",
         status: "failed",
         label: "Execute swap",
         detail: executeCall.result.error.message,
@@ -234,6 +359,7 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
 
       if (outcome.status === "approval_required") {
         steps.push({
+          id: "execute",
           status: "warning",
           label: "Execute swap",
           detail: "Waiting for your approval in the dialog",
@@ -242,6 +368,7 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
       } else if (outcome.status === "executed" && outcome.result?.digest) {
         const swap = outcome.result.deepbook?.swap;
         steps.push({
+          id: "execute",
           status: "ok",
           label: "Execute swap",
           detail: swap
@@ -274,8 +401,107 @@ export function mapToolCallsToExecutionSteps(
   return buildSwapExecutionSteps(toolCalls);
 }
 
-/** Whether failed query_chain pills should be hidden (flash loan timeline covers them). */
+function isFlashLoanRelatedError(message: string): boolean {
+  return isFlashLoanParamValidationError(message);
+}
+
+function buildFailedToolExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | undefined {
+  const steps: ExecutionStep[] = [];
+
+  for (const call of toolCalls) {
+    if (call.name === "query_chain" && isToolError(call.result)) {
+      const message = call.result.error.message ?? "Query failed";
+      const stepMatch = message.match(/Step (\d+)/i);
+
+      if (isFlashLoanRelatedError(message)) {
+        if (stepMatch) {
+          steps.push({
+            id: `swap-${stepMatch[1]}`,
+            status: "failed",
+            label: `Swap ${stepMatch[1]}`,
+            detail: message,
+          });
+        }
+        steps.push({
+          id: "quote",
+          status: "failed",
+          label: "Quote flash loan",
+          detail: message,
+        });
+      } else {
+        steps.push({
+          id: `query-failed-${steps.length}`,
+          status: "failed",
+          label: "Query failed",
+          detail: message,
+        });
+      }
+      continue;
+    }
+
+    if (call.name === "execute_transaction" && isToolError(call.result)) {
+      const message = call.result.error.message ?? "Transaction failed";
+      if (isFlashLoanParamValidationError(message)) {
+        steps.push({
+          id: "quote",
+          status: "failed",
+          label: "Quote flash loan",
+          detail: message,
+        });
+        steps.push({
+          id: "execute",
+          status: "skipped",
+          label: "Execute bundle",
+          detail: "Blocked — fix the flash loan route before executing",
+        });
+      } else {
+        steps.push({
+          id: "execute",
+          status: "failed",
+          label: "Execute bundle",
+          detail: message,
+        });
+      }
+    }
+  }
+
+  return steps.length > 0 ? steps : undefined;
+}
+
+/** Merge streamed steps with tool-derived steps; later updates win per id. */
+export function mergeExecutionSteps(
+  base: ExecutionStep[],
+  incoming: ExecutionStep[],
+): ExecutionStep[] {
+  let merged = [...base];
+  for (const step of incoming) {
+    merged = upsertExecutionStep(merged, step);
+  }
+  return sortExecutionSteps(merged);
+}
+
+/** Build execution timeline from tool calls and optional streamed steps. */
+export function resolveExecutionSteps(
+  toolCalls: ChatToolCall[],
+  streamedSteps: ExecutionStep[] = [],
+): ExecutionStep[] | undefined {
+  const fromTools = mapToolCallsToExecutionSteps(toolCalls);
+  const fromFailures = buildFailedToolExecutionSteps(toolCalls);
+  const combined = mergeExecutionSteps(
+    streamedSteps,
+    mergeExecutionSteps(fromTools ?? [], fromFailures ?? []),
+  );
+  return combined.length > 0 ? combined : undefined;
+}
+
+/** Whether failed query_chain pills should be hidden (execution timeline covers them). */
 export function shouldSuppressQueryFailureReceipts(toolCalls: ChatToolCall[]): boolean {
+  if (mapToolCallsToExecutionSteps(toolCalls) !== undefined) {
+    return true;
+  }
+  if (buildFailedToolExecutionSteps(toolCalls) !== undefined) {
+    return true;
+  }
   const flashQuoteIndex = findLatestFlashLoanQuoteIndex(toolCalls);
   if (flashQuoteIndex < 0) {
     return false;

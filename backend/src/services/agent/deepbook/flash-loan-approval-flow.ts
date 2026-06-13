@@ -88,6 +88,23 @@ export function isFlashLoanRepayNotFeasibleError(message: string): boolean {
   return /repay is not feasible|repay_feasible:\s*false/i.test(message);
 }
 
+export function isFlashLoanParamValidationError(message: string): boolean {
+  return /params\.steps|steps\[\d+\]|swap_chain_repay|borrow_amount|deepbook_flash_loan|must be a positive number|Step \d+ must spend|Final swap must output/i.test(
+    message,
+  );
+}
+
+function isSwapQuoteResult(result: unknown): boolean {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "input_coin" in result &&
+    "output_amount_display" in result &&
+    !("error" in result) &&
+    !("strategy" in result)
+  );
+}
+
 function findLatestFlashLoanQuoteIndex(toolCalls: ToolCallRecord[]): number {
   for (let i = toolCalls.length - 1; i >= 0; i -= 1) {
     const call = toolCalls[i];
@@ -98,19 +115,49 @@ function findLatestFlashLoanQuoteIndex(toolCalls: ToolCallRecord[]): number {
   return -1;
 }
 
+function hasFlashLoanValidationFailure(toolCalls: ToolCallRecord[]): boolean {
+  return toolCalls.some((call) => {
+    if (call.name !== QUERY_CHAIN_TOOL_NAME || !isToolErrorResult(call.result)) {
+      return false;
+    }
+    const message = call.result.error?.message ?? "";
+    return isFlashLoanParamValidationError(message);
+  });
+}
+
+function isFlashLoanFlowContext(toolCalls: ToolCallRecord[]): boolean {
+  const quoteIndex = findLatestFlashLoanQuoteIndex(toolCalls);
+  const quote = quoteIndex >= 0 ? toolCalls[quoteIndex].result : null;
+  const infeasibleQuote =
+    quote && isFlashLoanQuoteResult(quote) && !quote.repay_feasible && quoteIndex >= 0;
+
+  if (infeasibleQuote || hasFlashLoanValidationFailure(toolCalls)) {
+    return true;
+  }
+
+  return toolCalls.some((call) => {
+    if (call.name !== EXECUTE_TRANSACTION_TOOL_NAME || !isToolErrorResult(call.result)) {
+      return false;
+    }
+    return isFlashLoanParamValidationError(call.result.error?.message ?? "");
+  });
+}
+
 /** Drop noisy failed query_chain calls after an infeasible flash loan quote. */
 export function filterToolCallsForClientDisplay(
   toolCalls: ToolCallRecord[],
 ): ToolCallRecord[] {
   const quote = findLatestFlashLoanQuote(toolCalls);
-  if (!quote || quote.repay_feasible) {
+  const quoteIndex = findLatestFlashLoanQuoteIndex(toolCalls);
+  const infeasibleQuote = quote && !quote.repay_feasible && quoteIndex >= 0;
+  const validationFailure = hasFlashLoanValidationFailure(toolCalls);
+  const flashLoanContext = isFlashLoanFlowContext(toolCalls);
+
+  if (!infeasibleQuote && !validationFailure && !flashLoanContext) {
     return toolCalls;
   }
 
-  const quoteIndex = findLatestFlashLoanQuoteIndex(toolCalls);
-  if (quoteIndex < 0) {
-    return toolCalls;
-  }
+  let keepFailedQuery = validationFailure && quoteIndex < 0;
 
   return toolCalls.filter((call, index) => {
     if (call.name === EXECUTE_TRANSACTION_TOOL_NAME) {
@@ -119,11 +166,23 @@ export function filterToolCallsForClientDisplay(
     if (call.name !== QUERY_CHAIN_TOOL_NAME) {
       return true;
     }
+    if (isSwapQuoteResult(call.result)) {
+      return !flashLoanContext;
+    }
     if (isFlashLoanQuoteResult(call.result)) {
       return true;
     }
-    if (isToolErrorResult(call.result) && index > quoteIndex) {
-      return false;
+    if (isToolErrorResult(call.result)) {
+      if (infeasibleQuote && index > quoteIndex) {
+        return false;
+      }
+      if (validationFailure) {
+        if (keepFailedQuery) {
+          keepFailedQuery = false;
+          return true;
+        }
+        return false;
+      }
     }
     return true;
   });

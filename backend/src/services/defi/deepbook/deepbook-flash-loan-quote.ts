@@ -1,4 +1,5 @@
 import { AppError } from "../../../errors/app-error.js";
+import { emitExecutionProgress } from "../../agent/execution-progress-context.js";
 import { getDeepBookSwapQuote } from "./deepbook-swap.service.js";
 import { validateFlashLoanBundle } from "./deepbook-flash-loan-bundle.js";
 import {
@@ -111,10 +112,60 @@ function buildWarnings(
   return warnings;
 }
 
+function emitRepayProgress(
+  parsed: DeepBookFlashLoanBundleParams,
+  lastQuote: FlashLoanStepQuote,
+  repayFeasible: boolean,
+  estimatedSurplus: number | null,
+): void {
+  const repayDetail = `Need ${parsed.borrow_amount} ${parsed.coin_key}; last min out ~${lastQuote.min_out} ${lastQuote.output_coin}`;
+  let detail: string;
+  if (estimatedSurplus != null) {
+    const surplusLabel =
+      estimatedSurplus >= 0
+        ? `surplus ~${estimatedSurplus} ${parsed.coin_key}`
+        : `shortfall ~${Math.abs(estimatedSurplus)} ${parsed.coin_key}`;
+    detail = `${repayDetail} — ${surplusLabel}`;
+  } else {
+    detail = repayFeasible
+      ? `${repayDetail} — feasible at quoted minimums`
+      : `${repayDetail} — not feasible at quoted minimums`;
+  }
+
+  emitExecutionProgress({
+    step: {
+      id: "repay",
+      status: repayFeasible ? "ok" : "failed",
+      label: "Repay check",
+      detail,
+    },
+  });
+
+  if (!repayFeasible) {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "skipped",
+        label: "Execute bundle",
+        detail: "Blocked — swap outputs would not cover the borrow for atomic repay",
+      },
+    });
+  }
+}
+
 async function buildSwapChainQuote(
   privyUserId: string,
   parsed: DeepBookFlashLoanBundleParams,
 ): Promise<FlashLoanBundleQuoteResult> {
+  emitExecutionProgress({
+    step: {
+      id: "quote",
+      status: "running",
+      label: "Quote flash loan",
+      detail: `Borrow ${parsed.borrow_amount} ${parsed.coin_key} from ${parsed.pool_key}`,
+    },
+  });
+
   const steps: FlashLoanStep[] = [...(parsed.steps ?? [])];
   const stepQuotes: FlashLoanStepQuote[] = [];
 
@@ -148,9 +199,28 @@ async function buildSwapChainQuote(
       }
     }
 
+    const swapId = `swap-${stepQuotes.length + 1}`;
+    emitExecutionProgress({
+      step: {
+        id: swapId,
+        status: "running",
+        label: `Swap ${stepQuotes.length + 1}`,
+        detail: `${step.side} on ${step.pool_key}…`,
+      },
+    });
+
     const quoted = await quoteSwapStep(privyUserId, step, parsed.slippage_bps);
     stepQuotes.push(quoted);
     runningCoin = quoted.output_coin;
+
+    emitExecutionProgress({
+      step: {
+        id: swapId,
+        status: "ok",
+        label: `Swap ${stepQuotes.length}`,
+        detail: `${quoted.side} ${quoted.in_amount} ${quoted.input_coin} → ~${quoted.out_est} ${quoted.output_coin} on ${quoted.pool_key}`,
+      },
+    });
   }
 
   if (runningCoin !== parsed.coin_key && stepQuotes.length > 0) {
@@ -163,12 +233,50 @@ async function buildSwapChainQuote(
       amount: lastQuote.out_est,
     };
     steps.push(returnStep);
+
+    const swapId = `swap-${stepQuotes.length + 1}`;
+    emitExecutionProgress({
+      step: {
+        id: swapId,
+        status: "running",
+        label: `Swap ${stepQuotes.length + 1}`,
+        detail: `${returnSide} on ${returnStep.pool_key}…`,
+      },
+    });
+
     const returnQuote = await quoteSwapStep(privyUserId, returnStep, parsed.slippage_bps);
     stepQuotes.push(returnQuote);
     runningCoin = returnQuote.output_coin;
+
+    emitExecutionProgress({
+      step: {
+        id: swapId,
+        status: "ok",
+        label: `Swap ${stepQuotes.length}`,
+        detail: `${returnQuote.side} ${returnQuote.in_amount} ${returnQuote.input_coin} → ~${returnQuote.out_est} ${returnQuote.output_coin} on ${returnQuote.pool_key}`,
+      },
+    });
   }
 
+  emitExecutionProgress({
+    step: {
+      id: "quote",
+      status: "ok",
+      label: "Quote flash loan",
+      detail: `Borrow ${parsed.borrow_amount} ${parsed.coin_key} from ${parsed.pool_key} (${parsed.strategy})`,
+    },
+  });
+
   const lastQuote = stepQuotes[stepQuotes.length - 1];
+  emitExecutionProgress({
+    step: {
+      id: "repay",
+      status: "running",
+      label: "Repay check",
+      detail: "Checking whether swap outputs cover the borrow…",
+    },
+  });
+
   const repayFeasible = computeBundleRepayFeasibility(
     lastQuote.min_out,
     parsed.borrow_amount,
@@ -179,6 +287,8 @@ async function buildSwapChainQuote(
     parsed.repay_source === "swap_output" && lastQuote
       ? Number((lastQuote.out_est - parsed.borrow_amount).toFixed(9))
       : null;
+
+  emitRepayProgress(parsed, lastQuote, repayFeasible, estimatedSurplus);
 
   const requiresManualApproval =
     parsed.repay_source === "wallet" || parsed.repay_source === "merged";

@@ -156,4 +156,63 @@ describe("flash-loan-approval-flow", () => {
     ];
     assert.equal(filterToolCallsForClientDisplay(toolCalls).length, 2);
   });
+
+  it("filterToolCallsForClientDisplay dedupes validation failures", () => {
+    const toolCalls = [
+      {
+        name: "query_chain",
+        result: {
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Step 2 must spend SUI from step 1, but spends USDT",
+          },
+        },
+      },
+      {
+        name: "query_chain",
+        result: {
+          error: { code: "VALIDATION_ERROR", message: "Another failed query" },
+        },
+      },
+    ];
+    assert.equal(filterToolCallsForClientDisplay(toolCalls).length, 1);
+  });
+
+  it("filterToolCallsForClientDisplay drops unrelated swap_quote during flash loan errors", () => {
+    const toolCalls = [
+      {
+        name: "query_chain",
+        result: {
+          error: {
+            code: "VALIDATION_ERROR",
+            message: 'params.steps is required for strategy "swap_chain_repay" (1–2 steps)',
+          },
+        },
+      },
+      {
+        name: "query_chain",
+        result: {
+          input_coin: "SUI",
+          output_coin: "USDC",
+          input_amount_display: 10000,
+          output_amount_display: 7681.64,
+          pool_key: "SUI_USDC",
+        },
+      },
+      {
+        name: "execute_transaction",
+        result: {
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "steps[0].amount must be a positive number",
+          },
+        },
+      },
+    ];
+
+    const filtered = filterToolCallsForClientDisplay(toolCalls);
+    assert.equal(filtered.length, 2);
+    assert.equal(filtered[0]?.name, "query_chain");
+    assert.equal(filtered[1]?.name, "execute_transaction");
+  });
 });

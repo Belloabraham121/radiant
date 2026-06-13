@@ -5,6 +5,7 @@ import {
   persistToolFailureTurn,
   runChatTurnWithFallback,
 } from "./chat-orchestrator.js";
+import type { ChatStreamSender } from "./execution-progress.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { approvePendingTransaction, rejectPendingTransaction } from "./transaction-approval.service.js";
 import {
@@ -138,4 +139,32 @@ export async function handleChatMessage(
   }
 
   return runChatTurnWithFallback(privyUserId, request);
+}
+
+export async function handleChatMessageStream(
+  privyUserId: string,
+  request: ChatRequest,
+  send: ChatStreamSender,
+): Promise<ChatResponse> {
+  if (
+    request.approve_transaction_id ||
+    request.reject_transaction_id ||
+    request.clarification_id
+  ) {
+    const data = await handleChatMessage(privyUserId, request);
+    send("done", data);
+    return data;
+  }
+
+  try {
+    const data = await runChatTurnWithFallback(privyUserId, request, {
+      onStream: send,
+    });
+    send("done", data);
+    return data;
+  } catch (err) {
+    const message = err instanceof AppError ? err.message : "Agent request failed.";
+    send("error", { message });
+    throw err;
+  }
 }

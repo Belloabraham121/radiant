@@ -2,6 +2,7 @@ import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
 import {
   mapToolCallsToExecutionSteps,
+  resolveExecutionSteps,
   shouldSuppressQueryFailureReceipts,
   type ExecutionStep,
 } from "@/lib/chat-execution-steps";
@@ -23,6 +24,7 @@ export type ChatMessage = {
   text: string;
   receipts?: Receipt[];
   executionSteps?: ExecutionStep[];
+  streaming?: boolean;
   error?: boolean;
 };
 
@@ -424,11 +426,14 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
 }
 
 /** Map tool calls to execution timeline and/or receipt pills for live chat responses. */
-export function mapToolCallsToMessageExtras(toolCalls: ChatToolCall[]): {
+export function mapToolCallsToMessageExtras(
+  toolCalls: ChatToolCall[],
+  streamedSteps: ExecutionStep[] = [],
+): {
   executionSteps?: ExecutionStep[];
   receipts?: Receipt[];
 } {
-  const executionSteps = mapToolCallsToExecutionSteps(toolCalls);
+  const executionSteps = resolveExecutionSteps(toolCalls, streamedSteps);
   if (executionSteps) {
     return { executionSteps };
   }
