@@ -55,7 +55,6 @@ export function Sidebar() {
     try {
       const id = await createSession();
       router.push(`/app/chat/${id}`);
-      setOpen(false);
     } finally {
       setCreating(false);
     }
@@ -147,7 +146,6 @@ export function Sidebar() {
                 <Link
                   key={chat.id}
                   href={`/app/chat/${chat.id}`}
-                  onClick={() => setOpen(false)}
                   className={`group rounded-2xl border-2 px-4 py-3 transition-all ${
                     active
                       ? "border-[var(--hero-ink)] bg-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-ink)]"

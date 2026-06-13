@@ -1,14 +1,29 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useWallets } from "@mysten/dapp-kit-react";
-import { Check, Copy, ExternalLink, Loader2, RefreshCw, Wallet, WalletMinimal } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Loader2,
+  RefreshCw,
+  Wallet,
+  WalletMinimal,
+} from "lucide-react";
 import { useAgentWallet, type ChainWalletState } from "@/components/wallet/AgentWalletProvider";
 import { EvmDepositDialog } from "@/components/wallet/deposits/EvmDepositDialog";
 import { SolanaDepositDialog } from "@/components/wallet/deposits/SolanaDepositDialog";
 import { SuiDepositDialog } from "@/components/wallet/deposits/SuiDepositDialog";
 import type { AgentChainId } from "@/lib/agent-chains";
-import { formatChainAddress, getChainMeta, chainExplorerAccountUrl, formatNativeBalance, getEvmDefaultChainId } from "@/lib/chain-meta";
+import {
+  formatChainAddress,
+  getChainMeta,
+  chainExplorerAccountUrl,
+  formatNativeBalance,
+  getEvmDefaultChainId,
+} from "@/lib/chain-meta";
 import {
   depositRailForChain,
   isDepositRailAvailable,
@@ -18,6 +33,96 @@ import { refreshAllWalletData } from "@/lib/refresh-wallet-data";
 import { DeepBookBalancesLine } from "@/components/wallet/DeepBookBalancesLine";
 import { invalidateDeepBookManagerCache } from "@/lib/wallet-session-cache";
 import { AgentActivityPanel } from "@/components/app/AgentActivityPanel";
+import { useProfileWalletData } from "@/hooks/useProfileWalletData";
+import { useWalletAssets } from "@/hooks/useWalletAssets";
+import type { WalletAssetRow } from "@/lib/wallet-assets-api";
+
+const ASSET_ACCENT: Record<string, string> = {
+  SUI: "var(--hero-blue)",
+  USDC: "var(--hero-mint)",
+  USDT: "var(--hero-coral)",
+  DEEP: "var(--hero-violet)",
+  WAL: "var(--hero-amber)",
+  ETH: "var(--hero-ink)",
+  SOL: "var(--hero-violet)",
+};
+
+function formatBalance(amount: number, decimals: number): string {
+  if (amount === 0) return "0";
+  const maxFrac = Math.min(decimals, 6);
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxFrac,
+  });
+}
+
+function sortAssets(assets: WalletAssetRow[]): WalletAssetRow[] {
+  return [...assets].sort((a, b) => {
+    const aNonZero = a.balance_atomic !== "0";
+    const bNonZero = b.balance_atomic !== "0";
+    if (aNonZero !== bNonZero) return aNonZero ? -1 : 1;
+    return a.symbol.localeCompare(b.symbol);
+  });
+}
+
+function collapsedSummary(assets: WalletAssetRow[]): string {
+  const nonZero = assets.filter((a) => a.balance_atomic !== "0");
+  if (nonZero.length === 0) return "No assets yet";
+
+  const top = nonZero
+    .slice(0, 2)
+    .map((a) => `${formatBalance(a.balance_display, a.decimals)} ${a.symbol}`);
+  return top.join(", ");
+}
+
+function AssetRow({ asset }: { asset: WalletAssetRow }) {
+  const accent = ASSET_ACCENT[asset.symbol] ?? "var(--hero-ink)";
+  const isZero = asset.balance_atomic === "0";
+
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl border-2 px-4 py-3 ${
+        isZero
+          ? "border-[var(--hero-ink)]/10 bg-[var(--hero-bg)]"
+          : "border-[var(--hero-ink)]/20 bg-white"
+      }`}
+    >
+      <span
+        className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--hero-ink)] font-heading text-sm font-extrabold text-white"
+        style={{ backgroundColor: accent }}
+      >
+        {asset.symbol.slice(0, 3)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-heading text-sm font-extrabold tracking-tight">{asset.symbol}</p>
+        <p className="truncate text-xs font-medium text-[var(--hero-ink)]/50">{asset.name}</p>
+      </div>
+      <div className="text-right">
+        <p className="font-mono text-sm font-bold">
+          {formatBalance(asset.balance_display, asset.decimals)}
+        </p>
+        {asset.usd_value !== null ? (
+          <p className="text-[11px] font-medium text-[var(--hero-ink)]/45">
+            ${asset.usd_value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AssetSkeletonRows() {
+  return (
+    <div className="flex flex-col gap-2">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="h-16 animate-pulse rounded-2xl border-2 border-[var(--hero-ink)]/10 bg-[var(--hero-ink)]/5"
+        />
+      ))}
+    </div>
+  );
+}
 
 function AgentWalletChainCard({
   wallet,
@@ -134,6 +239,135 @@ function AgentWalletChainCard({
   );
 }
 
+function AgentWalletAssetsPanel({
+  chainId,
+  hasAddress,
+  walletReady,
+  refreshBalancesOnly,
+}: {
+  chainId: AgentChainId;
+  hasAddress: boolean;
+  walletReady: boolean;
+  refreshBalancesOnly: () => Promise<void>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const evmChainId = chainId === "ethereum" ? getEvmDefaultChainId() : undefined;
+
+  const { data, loading, error, reload, loadIfNeeded } = useWalletAssets({
+    chainId,
+    evmChainId,
+    enabled: walletReady && hasAddress,
+  });
+
+  const handleProfileLoad = useCallback(() => {
+    void loadIfNeeded();
+  }, [loadIfNeeded]);
+
+  useProfileWalletData(handleProfileLoad);
+
+  useEffect(() => {
+    if (expanded && walletReady && hasAddress) {
+      void loadIfNeeded();
+    }
+  }, [chainId, expanded, hasAddress, loadIfNeeded, walletReady]);
+
+  const sortedAssets = useMemo(
+    () => (data ? sortAssets(data.assets) : []),
+    [data],
+  );
+
+  const allZero =
+    data !== null && data.assets.every((asset) => asset.balance_atomic === "0");
+  const summary = data ? collapsedSummary(sortedAssets) : "Tap to view assets";
+
+  return (
+    <div className="rounded-3xl border-2 border-[var(--hero-ink)] bg-white shadow-[4px_4px_0_var(--hero-ink)]">
+      <button
+        type="button"
+        onClick={() => setExpanded((open) => !open)}
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+      >
+        <span className="flex items-center gap-2">
+          <Wallet className="size-4 text-[var(--hero-ink)]/50" strokeWidth={2.5} />
+          <span>
+            <span className="block text-sm font-bold">Assets</span>
+            <span className="block text-xs font-medium text-[var(--hero-ink)]/50">
+              {loading && !data ? "Loading…" : summary}
+            </span>
+          </span>
+        </span>
+        <ChevronDown
+          className={`size-5 shrink-0 text-[var(--hero-ink)]/40 transition-transform ${
+            expanded ? "rotate-180" : ""
+          }`}
+          strokeWidth={2.5}
+        />
+      </button>
+
+      {expanded ? (
+        <div className="border-t-2 border-[var(--hero-ink)]/10 px-5 pb-5 pt-4">
+          <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={!hasAddress || loading}
+              onClick={() =>
+                void refreshAllWalletData({ refreshBalancesOnly }).then(() => reload())
+              }
+              className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+
+          {!hasAddress ? (
+            <p className="text-sm font-medium text-[var(--hero-ink)]/55">
+              Your agent wallet is still setting up.
+            </p>
+          ) : error ? (
+            <div className="rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
+              <p className="text-sm font-semibold text-[var(--hero-coral)]">{error}</p>
+              <button
+                type="button"
+                onClick={() => void reload()}
+                className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-[var(--hero-blue)] hover:underline"
+              >
+                <RefreshCw className="size-3.5" />
+                Try again
+              </button>
+            </div>
+          ) : loading && !data ? (
+            <AssetSkeletonRows />
+          ) : (
+            <>
+              {data && data.total_usd !== null ? (
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
+                  ≈ ${data.total_usd.toLocaleString(undefined, { maximumFractionDigits: 2 })} total
+                </p>
+              ) : null}
+
+              {allZero ? (
+                <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-[var(--hero-bg)] px-4 py-5 text-center">
+                  <p className="text-sm font-semibold text-[var(--hero-ink)]/70">No assets yet</p>
+                  <p className="mt-1 text-xs font-medium text-[var(--hero-ink)]/50">
+                    Fund your {getChainMeta(chainId).label} agent wallet to get started.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {sortedAssets.map((asset) => (
+                    <AssetRow key={`${asset.coin_type}-${asset.symbol}`} asset={asset} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function AgentWalletSection() {
   const {
     status: walletStatus,
@@ -146,6 +380,7 @@ export function AgentWalletSection() {
   } = useAgentWallet();
 
   const suiWallets = useWallets();
+  const [selectedChainId, setSelectedChainId] = useState<AgentChainId>(defaultChainId);
   const [copiedChain, setCopiedChain] = useState<AgentChainId | null>(null);
   const [depositChain, setDepositChain] = useState<AgentChainId | null>(null);
   const [depositHint, setDepositHint] = useState<string | null>(null);
@@ -153,6 +388,13 @@ export function AgentWalletSection() {
   const walletLoading = walletStatus === "loading" || walletStatus === "idle";
   const walletReady = walletStatus === "ready";
   const [refreshingAll, setRefreshingAll] = useState(false);
+
+  useEffect(() => {
+    setSelectedChainId(defaultChainId);
+  }, [defaultChainId]);
+
+  const selectedWallet = wallets.find((w) => w.chainId === selectedChainId);
+  const hasAddress = Boolean(selectedWallet?.address);
 
   const handleRefreshAll = async () => {
     setRefreshingAll(true);
@@ -196,9 +438,37 @@ export function AgentWalletSection() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.2em] text-[var(--hero-ink)]/40">
             <Wallet className="size-4" strokeWidth={2.5} />
-            Agent wallets
+            Agent wallet
           </h2>
           <div className="flex flex-wrap items-center gap-2">
+            {enabledChains.length > 1 ? (
+              <div className="relative">
+                <select
+                  value={selectedChainId}
+                  onChange={(e) => setSelectedChainId(e.target.value as AgentChainId)}
+                  aria-label="Select agent wallet chain"
+                  className="appearance-none rounded-full border-2 border-[var(--hero-ink)] bg-white py-1.5 pl-3 pr-8 text-xs font-bold transition-transform hover:-translate-y-0.5"
+                >
+                  {enabledChains.map((id) => {
+                    const meta = getChainMeta(id);
+                    return (
+                      <option key={id} value={id}>
+                        {meta.label}
+                        {id === defaultChainId ? " · default" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                <ChevronDown
+                  className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--hero-ink)]/50"
+                  strokeWidth={2.5}
+                />
+              </div>
+            ) : (
+              <span className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-3 py-1 text-xs font-bold text-[var(--hero-violet)] shadow-[2px_2px_0_var(--hero-ink)]">
+                {getChainMeta(defaultChainId).label}
+              </span>
+            )}
             <button
               type="button"
               disabled={walletLoading || !walletReady || refreshingAll}
@@ -208,16 +478,14 @@ export function AgentWalletSection() {
               <RefreshCw className={`size-3.5 ${refreshingAll ? "animate-spin" : ""}`} />
               Refresh balances
             </button>
-            <span className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-3 py-1 text-xs font-bold text-[var(--hero-violet)] shadow-[2px_2px_0_var(--hero-ink)]">
-              Default: {getChainMeta(defaultChainId).label}
-            </span>
           </div>
         </div>
 
         <p className="mb-5 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
-          One embedded wallet per chain family. Fund each so your agent can operate on Sui,
-          EVM ({enabledChains.includes("ethereum") ? "same 0x on all EVM networks" : "off"}),
-          and Solana.
+          Your agent&apos;s embedded wallet on{" "}
+          {getChainMeta(selectedChainId).label}. Switch chains to view other wallets
+          {enabledChains.includes("ethereum") ? " — the same 0x address is used across EVM networks" : ""}
+          .
         </p>
 
         {depositHint ? (
@@ -247,32 +515,40 @@ export function AgentWalletSection() {
         ) : null}
 
         <div className="flex flex-col gap-4">
-          {wallets.map((wallet) => (
+          {selectedWallet ? (
             <AgentWalletChainCard
-              key={wallet.chainId}
               wallet={{
-                ...wallet,
+                ...selectedWallet,
                 label:
-                  wallet.chainId === defaultChainId
-                    ? `${wallet.label} · default`
-                    : wallet.label,
+                  selectedWallet.chainId === defaultChainId
+                    ? `${selectedWallet.label} · default`
+                    : selectedWallet.label,
               }}
               loading={walletLoading}
-              copied={copiedChain === wallet.chainId}
+              copied={copiedChain === selectedWallet.chainId}
               onCopy={() => {
-                if (wallet.address) void copyAddress(wallet.chainId, wallet.address);
+                if (selectedWallet.address) {
+                  void copyAddress(selectedWallet.chainId, selectedWallet.address);
+                }
               }}
-              onDeposit={() => openDeposit(wallet.chainId)}
+              onDeposit={() => openDeposit(selectedWallet.chainId)}
               footer={
-                wallet.chainId === "sui" && walletReady && wallet.address ? (
+                selectedWallet.chainId === "sui" && walletReady && selectedWallet.address ? (
                   <DeepBookBalancesLine
                     enabled={walletReady}
-                    walletSuiBalance={wallet.balanceDisplay}
+                    walletSuiBalance={selectedWallet.balanceDisplay}
                   />
                 ) : null
               }
             />
-          ))}
+          ) : null}
+
+          <AgentWalletAssetsPanel
+            chainId={selectedChainId}
+            hasAddress={hasAddress}
+            walletReady={walletReady}
+            refreshBalancesOnly={refreshBalancesOnly}
+          />
         </div>
       </section>
 

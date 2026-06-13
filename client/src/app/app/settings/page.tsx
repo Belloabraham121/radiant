@@ -8,7 +8,6 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { AgentWalletSection } from "@/components/app/AgentWalletSection";
 import { ConnectedAccountsSection } from "@/components/app/ConnectedAccountsSection";
 import { SidebarToggle } from "@/components/app/Sidebar";
-import { InYourWalletSection } from "@/components/profile/InYourWalletSection";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
 import { AgentPermissionsSection } from "@/components/app/AgentPermissionsSection";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -152,7 +151,6 @@ export default function SettingsPage() {
           memberSince={memberSince}
           avatarSize={56}
         />
-        <InYourWalletSection />
         <div className="mt-4">
           <LogoutButton variant="full" />
         </div>
