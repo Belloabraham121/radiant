@@ -14,6 +14,26 @@ enum ChatMessageRole {
   tool
 }
 
+enum AgentTransactionStatus {
+  pending_approval
+  rejected
+  expired
+  submitted
+  success
+  failure
+}
+
+enum AgentTransactionCategory {
+  swap
+  transfer
+  deepbook_balance
+  deepbook_order
+  deepbook_cancel
+  deepbook_modify
+  deepbook_settled
+  other
+}
+
 model User {
   id            BigInt   @id @default(autoincrement())
   privy_user_id String   @unique
@@ -30,6 +50,7 @@ model User {
 
   agent_wallets            AgentWallet[]
   chat_sessions            ChatSession[]
+  agent_transactions       AgentTransaction[]
   agent_memory             AgentMemory?
   deepbook_balance_manager DeepBookBalanceManager?
 }
@@ -49,7 +70,8 @@ model ChatSession {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  messages ChatMessage[]
+  messages           ChatMessage[]
+  agent_transactions AgentTransaction[]
 
   @@index([user_id, updated_at(sort: Desc)])
 }
@@ -60,9 +82,44 @@ model ChatMessage {
   session    ChatSession     @relation(fields: [session_id], references: [id], onDelete: Cascade)
   role       ChatMessageRole
   content    String
-  tool_calls Json?
-  created_at DateTime        @default(now())
+  tool_calls         Json?
+  created_at         DateTime            @default(now())
+  agent_transactions AgentTransaction[]
 
+  @@index([session_id, created_at(sort: Asc)])
+}
+
+/// Ledger of on-chain actions initiated by the user's agent wallet via chat.
+model AgentTransaction {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  user_id             BigInt
+  user                User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  session_id          String?                  @db.Uuid
+  session             ChatSession?             @relation(fields: [session_id], references: [id], onDelete: SetNull)
+  message_id          String?                  @db.Uuid
+  message             ChatMessage?             @relation(fields: [message_id], references: [id], onDelete: SetNull)
+  workflow_step_index Int?
+  chain_id            String
+  wallet_address      String
+  action              String
+  params              Json
+  category            AgentTransactionCategory
+  title               String
+  amount_display      String
+  status              AgentTransactionStatus
+  digest              String?
+  effects_status      String?
+  result              Json?
+  error_code          String?
+  error_message       String?
+  created_at          DateTime                 @default(now())
+  submitted_at        DateTime?
+  completed_at        DateTime?
+
+  @@unique([digest])
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id, status, created_at(sort: Desc)])
+  @@index([user_id, category, created_at(sort: Desc)])
   @@index([session_id, created_at(sort: Asc)])
 }
 
