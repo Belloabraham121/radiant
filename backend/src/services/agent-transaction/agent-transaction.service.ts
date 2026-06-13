@@ -28,6 +28,8 @@ import type {
   AttachMessageInput,
   ListAgentTransactionsQuery,
   PaginatedAgentTransactions,
+  QueryAgentTransactionsInput,
+  AgentTransactionsQueryResult,
   RecordAutoExecutedInput,
   RecordPendingApprovalInput,
   TransactionCompletion,
@@ -36,6 +38,8 @@ import type {
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+export const AGENT_QUERY_TRANSACTIONS_DEFAULT_LIMIT = 10;
+export const AGENT_QUERY_TRANSACTIONS_MAX_LIMIT = 10;
 export const PENDING_APPROVAL_TTL_MS = 15 * 60 * 1000;
 
 async function requireUserId(privyUserId: string): Promise<bigint> {
@@ -317,6 +321,36 @@ export async function listTransactions(
     page,
     limit,
     total,
+  };
+}
+
+export async function queryAgentTransactions(
+  privyUserId: string,
+  input: QueryAgentTransactionsInput = {},
+): Promise<AgentTransactionsQueryResult> {
+  if (input.transactionId) {
+    const detail = await getTransaction(privyUserId, input.transactionId);
+    return { items: [detail], total: 1, limit: 1 };
+  }
+
+  const limit = Math.min(
+    AGENT_QUERY_TRANSACTIONS_MAX_LIMIT,
+    Math.max(1, input.limit ?? AGENT_QUERY_TRANSACTIONS_DEFAULT_LIMIT),
+  );
+
+  const result = await listTransactions(privyUserId, {
+    page: 1,
+    limit,
+    status: input.status,
+    category: input.category,
+    chain_id: input.chainId,
+    session_id: input.sessionId,
+  });
+
+  return {
+    items: result.items,
+    total: result.total,
+    limit: result.limit,
   };
 }
 

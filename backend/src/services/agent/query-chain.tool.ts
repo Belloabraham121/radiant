@@ -14,6 +14,7 @@ import {
 import { getDeepBookEnv } from "../../config/deepbook.js";
 import { getDeepBookSwapQuote } from "../defi/deepbook-swap.service.js";
 import { getDeepBookOpenOrders } from "../defi/deepbook-orders.service.js";
+import { queryAgentTransactions } from "../agent-transaction/agent-transaction.service.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import type { BalanceContext } from "../chains/types.js";
@@ -61,9 +62,10 @@ export const queryChainToolDefinition = {
           "deepbook_ticker",
           "swap_quote",
           "deepbook_open_orders",
+          "agent_transactions",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, or deepbook_open_orders.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, deepbook_open_orders, or agent_transactions (recent on-chain actions initiated by the agent).",
       },
       params: {
         type: "object",
@@ -72,6 +74,8 @@ export const queryChainToolDefinition = {
           "sell = spend base for quote (e.g. SUI→USDC); buy = spend quote for base. " +
           "Fees default to input token; set pay_with_deep: true only if wallet holds DEEP. " +
           "May also pass input_coin/from + output_coin/to instead of side. " +
+          "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
+          "returns recent agent wallet activity with session_id/message_id to link back to chat. " +
           "EVM balances: { evm_chain_id }.",
         additionalProperties: true,
       },
@@ -170,6 +174,16 @@ export async function runQueryChainTool(
     case "deepbook_open_orders": {
       assertSuiDeepBookQuery(parsed.chain_id);
       return getDeepBookOpenOrders(privyUserId, parsed.params);
+    }
+    case "agent_transactions": {
+      return queryAgentTransactions(privyUserId, {
+        chainId: parsed.chain_id,
+        limit: parsed.params.limit,
+        status: parsed.params.status,
+        category: parsed.params.category,
+        sessionId: parsed.params.session_id,
+        transactionId: parsed.params.transaction_id,
+      });
     }
     default:
       throw new AppError(

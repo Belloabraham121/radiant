@@ -152,6 +152,8 @@ Read-only ledger of on-chain actions initiated by the agent wallet via chat. Req
 
 **`GET /api/v1/chat/sessions/:sessionId/transactions`** — convenience list (`{ items: [...] }`) for one thread; 404 if session not owned.
 
+**Agent tool `query_chain` → `agent_transactions`** — same ledger as the routes above, capped at 10 rows for chat context. Optional params: `limit` (max 10), `status`, `category`, `session_id`, `transaction_id` (single-row detail). `chain_id` filters by chain.
+
 ## WebSocket
 
 | Path | Events (planned) |

@@ -7,8 +7,10 @@ import {
   getTransaction,
   listTransactions,
   loadPendingApprovalForUser,
+  queryAgentTransactions,
   recordPendingApproval,
 } from "../../src/services/agent-transaction/agent-transaction.service.js";
+import { runQueryChainTool } from "../../src/services/agent/query-chain.tool.js";
 import {
   createPendingTransaction,
   rejectPendingTransaction,
@@ -136,5 +138,33 @@ describe("agent-transaction.service", () => {
 
     const missing = await loadPendingApprovalForUser(ownerPrivyId, pending.id);
     assert.equal(missing, null);
+  });
+
+  it("queryAgentTransactions caps limit at 10 and supports transaction_id lookup", async () => {
+    const listed = await queryAgentTransactions(ownerPrivyId, { limit: 50, chainId: "sui" });
+    assert.equal(listed.limit, 10);
+    assert.ok(listed.items.length >= 1);
+
+    const firstId = listed.items[0]!.id;
+    const detail = await queryAgentTransactions(ownerPrivyId, {
+      transactionId: firstId,
+    });
+    assert.equal(detail.total, 1);
+    assert.equal(detail.limit, 1);
+    assert.equal(detail.items[0]?.id, firstId);
+    assert.ok("params" in (detail.items[0] ?? {}));
+  });
+
+  it("runQueryChainTool returns agent_transactions for the authenticated user", async () => {
+    const result = await runQueryChainTool(ownerPrivyId, {
+      chain_id: "sui",
+      query: "agent_transactions",
+      params: { category: "swap", limit: 5 },
+    });
+
+    assert.ok("items" in result);
+    assert.equal(result.limit, 5);
+    assert.ok(result.items.length >= 1);
+    assert.equal(result.items[0]?.category, "swap");
   });
 });

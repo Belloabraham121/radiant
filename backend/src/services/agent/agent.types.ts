@@ -13,6 +13,11 @@ import type {
 } from "../defi/deepbook-pools.service.js";
 import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
 import type { DeepBookOpenOrdersResult } from "../defi/deepbook-orders.service.js";
+import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
+import {
+  agentTransactionCategorySchema,
+  agentTransactionStatusSchema,
+} from "../agent-transaction/agent-transaction.types.js";
 
 export const chatRequestSchema = z
   .object({
@@ -108,6 +113,7 @@ export const queryChainInputSchema = z.object({
     "deepbook_ticker",
     "swap_quote",
     "deepbook_open_orders",
+    "agent_transactions",
   ]),
   params: z
     .object({
@@ -123,6 +129,11 @@ export const queryChainInputSchema = z.object({
       pay_with_deep: z.boolean().optional(),
       slippage_bps: z.number().int().min(0).max(5000).optional(),
       min_out_display: z.number().positive().optional(),
+      limit: z.number().int().positive().max(10).optional(),
+      status: agentTransactionStatusSchema.optional(),
+      category: agentTransactionCategorySchema.optional(),
+      session_id: z.string().uuid().optional(),
+      transaction_id: z.string().uuid().optional(),
     })
     .passthrough()
     .optional()
@@ -140,7 +151,8 @@ export type QueryChainResult =
   | DeepBookPoolInfo
   | DeepBookTickerMap
   | DeepBookSwapQuoteResult
-  | DeepBookOpenOrdersResult;
+  | DeepBookOpenOrdersResult
+  | AgentTransactionsQueryResult;
 
 export type ExecuteToolOutcome =
   | { status: "executed"; result: TxResult; agent_transaction_id?: string }

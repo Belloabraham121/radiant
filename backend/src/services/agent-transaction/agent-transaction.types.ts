@@ -122,6 +122,22 @@ export type PaginatedAgentTransactions = {
   total: number;
 };
 
+/** Result shape for `query_chain` → `agent_transactions` (capped list for agent context). */
+export type AgentTransactionsQueryResult = {
+  items: Array<AgentTransactionListItem | AgentTransactionDetail>;
+  total: number;
+  limit: number;
+};
+
+export type QueryAgentTransactionsInput = {
+  chainId?: ChainId;
+  limit?: number;
+  status?: AgentTransactionStatus;
+  category?: AgentTransactionCategory;
+  sessionId?: string;
+  transactionId?: string;
+};
+
 export type RecordPendingApprovalInput = {
   privyUserId: string;
   sessionId?: string;
