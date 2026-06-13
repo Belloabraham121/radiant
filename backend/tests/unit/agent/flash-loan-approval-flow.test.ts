@@ -32,6 +32,7 @@ describe("flash-loan-approval-flow", () => {
     });
     assert.match(nudge, /deepbook_flash_loan/);
     assert.match(nudge, /borrow_amount: 10000/);
+    assert.match(nudge, /flash_loan_quote/);
     assert.match(nudge, /do not ask me to confirm/i);
   });
 

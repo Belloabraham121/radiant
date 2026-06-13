@@ -191,8 +191,16 @@ export async function buildTransactionDisplay(
   } else if (isDeepBookFlashLoanAction(input.action)) {
     try {
       const parsed = parseDeepBookFlashLoanParams(input.params);
-      amount_display = `Borrow ${parsed.borrow_amount} ${parsed.coin_key} (${parsed.pool_key})`;
-      title = `DeepBook flash loan (${parsed.pool_key})`;
+      if (parsed.strategy === "swap_chain_repay" && parsed.steps?.length) {
+        const route = parsed.steps
+          .map((step) => `${step.side} ${step.amount} @ ${step.pool_key}`)
+          .join(" → ");
+        amount_display = `Borrow ${parsed.borrow_amount} ${parsed.coin_key} → ${route} → repay ${parsed.borrow_amount} ${parsed.coin_key}`;
+        title = `Flash loan bundle (${parsed.pool_key})`;
+      } else {
+        amount_display = `Borrow ${parsed.borrow_amount} ${parsed.coin_key} (${parsed.pool_key})`;
+        title = `DeepBook flash loan (${parsed.pool_key})`;
+      }
     } catch {
       amount_display = "DeepBook flash loan";
       title = "DeepBook flash loan";
@@ -228,7 +236,14 @@ export function enrichDisplayFromResult(amountDisplay: string, result: TxResult)
 
   const flashLoan = result.deepbook?.flash_loan;
   if (flashLoan) {
-    return `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key}`;
+    const surplus =
+      typeof flashLoan.estimated_surplus === "number" && flashLoan.estimated_surplus > 0
+        ? ` (surplus ~${flashLoan.estimated_surplus} ${flashLoan.coin_key})`
+        : "";
+    if (flashLoan.steps_count && flashLoan.steps_count > 0) {
+      return `Flash loan bundle: borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key}${surplus}`;
+    }
+    return `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key}${surplus}`;
   }
 
   const coinKey = result.deepbook?.coin_key;

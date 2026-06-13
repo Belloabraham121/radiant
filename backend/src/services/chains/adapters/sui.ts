@@ -313,6 +313,8 @@ export const suiAdapter: ChainAdapter = {
             coin_key: result.coin_key,
             asset: result.asset,
             strategy: result.strategy,
+            steps_count: result.steps_count,
+            estimated_surplus: result.estimated_surplus,
           },
         },
       };

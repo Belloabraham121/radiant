@@ -54,6 +54,7 @@ export function AgentPermissionsSection() {
     setAutoApproveEnabled,
     setAutoApproveMaxSui,
     setAllowFlashLoans,
+    setAutoApproveFlashLoans,
   } = useAgentPermissions(authenticated);
   const serverMaxSui = String(permissions.auto_approve_max_sui);
   const [draftMaxSui, setDraftMaxSui] = useState(serverMaxSui);
@@ -143,13 +144,25 @@ export function AgentPermissionsSection() {
             loading
               ? "Loading…"
               : permissions.allow_flash_loans
-                ? "Advanced DeepBook flash loans are enabled. Every flash loan still requires your approval."
+                ? permissions.auto_approve_flash_loans
+                  ? "Flash loans enabled. Bundled routes that repay from swap output may skip the approval dialog."
+                  : "Advanced DeepBook flash loans are enabled. Every flash loan shows an approval dialog."
                 : "Flash loans stay disabled. The agent cannot initiate deepbook_flash_loan until you turn this on."
           }
           on={permissions.allow_flash_loans}
           disabled={loading || saving}
           onToggle={() => void setAllowFlashLoans(!permissions.allow_flash_loans)}
         />
+
+        {permissions.allow_flash_loans ? (
+          <PermissionToggle
+            label="Auto-approve flash loans"
+            detail="Execute flash loan bundles without a confirmation dialog. Atomic loans only spend gas if the transaction fails. Swaps that repay from your wallet still ask for approval."
+            on={permissions.auto_approve_flash_loans}
+            disabled={loading || saving}
+            onToggle={() => void setAutoApproveFlashLoans(!permissions.auto_approve_flash_loans)}
+          />
+        ) : null}
       </div>
     </section>
   );

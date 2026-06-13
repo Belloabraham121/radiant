@@ -12,6 +12,7 @@ import type {
   DeepBookTickerMap,
 } from "../defi/deepbook-pools.service.js";
 import type { DeepBookSwapQuoteResult } from "../defi/deepbook-swap.service.js";
+import type { FlashLoanBundleQuoteResult } from "../defi/deepbook-flash-loan.types.js";
 import type { DeepBookOpenOrdersResult } from "../defi/deepbook-orders.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
 import {
@@ -112,6 +113,7 @@ export const queryChainInputSchema = z.object({
     "deepbook_pool_info",
     "deepbook_ticker",
     "swap_quote",
+    "flash_loan_quote",
     "deepbook_open_orders",
     "agent_transactions",
   ]),
@@ -151,6 +153,7 @@ export type QueryChainResult =
   | DeepBookPoolInfo
   | DeepBookTickerMap
   | DeepBookSwapQuoteResult
+  | FlashLoanBundleQuoteResult
   | DeepBookOpenOrdersResult
   | AgentTransactionsQueryResult;
 

@@ -11,7 +11,11 @@ import {
   isDeepBookOrderAction,
   isDeepBookPlaceOrderAction,
 } from "../defi/deepbook-orders.service.js";
-import { isDeepBookFlashLoanAction } from "../defi/deepbook-flash-loan.service.js";
+import {
+  isDeepBookFlashLoanAction,
+  parseDeepBookFlashLoanParams,
+} from "../defi/deepbook-flash-loan.service.js";
+import type { FlashLoanRepaySource } from "../defi/deepbook-flash-loan.types.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import { AppError } from "../../errors/app-error.js";
@@ -169,6 +173,26 @@ export function orderRequiresApprovalWithPermissions(
   }
 }
 
+export function flashLoanRequiresApproval(
+  permissions: AgentPermissions,
+  input: ExecuteTransactionInput,
+): boolean {
+  if (!permissions.allow_flash_loans) {
+    return true;
+  }
+
+  try {
+    const parsed = parseDeepBookFlashLoanParams(input.params);
+    const repaySource: FlashLoanRepaySource = parsed.repay_source;
+    if (repaySource === "wallet" || repaySource === "merged") {
+      return true;
+    }
+    return !permissions.auto_approve_flash_loans;
+  } catch {
+    return true;
+  }
+}
+
 export function transferRequiresApprovalWithPermissions(
   permissions: AgentPermissions,
   input: ExecuteTransactionInput,
@@ -178,7 +202,7 @@ export function transferRequiresApprovalWithPermissions(
   }
 
   if (isDeepBookFlashLoanAction(input.action)) {
-    return true;
+    return flashLoanRequiresApproval(permissions, input);
   }
 
   if (

@@ -10,6 +10,7 @@ export function defaultAgentPermissions(): AgentPermissions {
     auto_approve_enabled: true,
     auto_approve_max_sui: getAutoApproveMaxDisplay("sui"),
     allow_flash_loans: false,
+    auto_approve_flash_loans: false,
   };
 }
 
@@ -17,11 +18,13 @@ export function agentPermissionsFromUser(user: {
   agent_auto_approve_enabled: boolean;
   agent_auto_approve_max_sui: number;
   agent_allow_flash_loans?: boolean;
+  agent_auto_approve_flash_loans?: boolean;
 }): AgentPermissions {
   return {
     auto_approve_enabled: user.agent_auto_approve_enabled,
     auto_approve_max_sui: user.agent_auto_approve_max_sui,
     allow_flash_loans: user.agent_allow_flash_loans ?? false,
+    auto_approve_flash_loans: user.agent_auto_approve_flash_loans ?? false,
   };
 }
 
@@ -64,6 +67,9 @@ export async function updateAgentPermissions(
         : {}),
       ...(patch.allow_flash_loans !== undefined
         ? { agent_allow_flash_loans: patch.allow_flash_loans }
+        : {}),
+      ...(patch.auto_approve_flash_loans !== undefined
+        ? { agent_auto_approve_flash_loans: patch.auto_approve_flash_loans }
         : {}),
     },
   });

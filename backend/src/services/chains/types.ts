@@ -64,7 +64,9 @@ export type TxResult = {
       borrow_amount: number;
       coin_key: string;
       asset: "base" | "quote";
-      strategy: "round_trip";
+      strategy: "round_trip" | "swap_chain_repay";
+      steps_count?: number;
+      estimated_surplus?: number | null;
     };
   };
 };

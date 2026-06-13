@@ -197,7 +197,7 @@ export function buildFlashLoanExecuteNudge(intent: FlashLoanIntent): string {
     `Call execute_transaction now: chain_id sui, action deepbook_flash_loan, ` +
     `params { pool_key: "${intent.pool_key}", borrow_amount: ${intent.borrow_amount}, ` +
     `asset: "${intent.asset}", coin_key: "${intent.coin_key}", strategy: "round_trip" }. ` +
-    "v1 is round_trip on one pool only (multi-pool bundles are not wired yet). " +
+    "For multi-pool routes use strategy swap_chain_repay with steps[] — call query_chain flash_loan_quote first. " +
     "The app shows an approval bar — do not ask me to confirm in chat."
   );
 }

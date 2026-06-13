@@ -31,6 +31,13 @@ export function TransactionApprovalBar({
     pending.action === "deepbook_withdraw_settled_amounts" ||
     pending.action === "deepbook_withdraw_settled_amounts_permissionless";
   const isFlashLoan = pending.action === "deepbook_flash_loan";
+  const flashStrategy =
+    isFlashLoan && typeof pending.params.strategy === "string"
+      ? pending.params.strategy
+      : null;
+  const flashSteps = isFlashLoan && Array.isArray(pending.params.steps)
+    ? (pending.params.steps as Array<{ pool_key?: string; side?: string; amount?: number }>)
+    : [];
   const isOrder = isLimitOrder || isMarketOrder;
 
   return (
@@ -68,7 +75,9 @@ export function TransactionApprovalBar({
             {isSwap
               ? "Review the quote, then approve to execute on chain."
               : isFlashLoan
-                ? "Atomic borrow and repay in one transaction. If repayment fails, the entire transaction reverts — you only pay gas."
+                ? flashStrategy === "swap_chain_repay"
+                  ? "Atomic borrow → swaps → repay in one transaction. If any step fails, everything reverts — you only pay gas."
+                  : "Atomic borrow and repay in one transaction. If repayment fails, the entire transaction reverts — you only pay gas."
                 : isLimitOrder
                 ? "Review price and size, then approve to place the limit order on DeepBook."
                 : isMarketOrder
@@ -106,9 +115,29 @@ export function TransactionApprovalBar({
             Estimated output may shift slightly before the transaction lands on chain.
           </p>
         ) : isFlashLoan ? (
-          <p className="mt-2 text-[10px] font-medium text-[var(--hero-coral)]">
-            Advanced: uncollateralized loan — must be repaid in the same transaction or everything reverts.
-          </p>
+          <>
+            {flashSteps.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-[10px] font-medium text-[var(--hero-ink)]/55">
+                {flashSteps.map((step, index) => (
+                  <li key={`${step.pool_key ?? "step"}-${index}`}>
+                    Step {index + 1}: {step.side ?? "?"} {step.amount ?? "?"} @ {step.pool_key ?? "?"}
+                  </li>
+                ))}
+                <li>
+                  Repay {String(pending.params.borrow_amount ?? "?")}{" "}
+                  {String(pending.params.coin_key ?? pending.params.asset ?? "loan asset")} atomically
+                </li>
+              </ul>
+            ) : null}
+            <p className="mt-2 text-[10px] font-medium text-[var(--hero-coral)]">
+              Advanced: uncollateralized loan — must be repaid in the same transaction or everything reverts.
+            </p>
+            {typeof pending.params.estimated_surplus === "number" ? (
+              <p className="mt-1 text-[10px] font-medium text-[var(--hero-ink)]/45">
+                Estimated surplus: {pending.params.estimated_surplus}
+              </p>
+            ) : null}
+          </>
         ) : isLimitOrder ? (
           <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
             Limit orders lock funds in your DeepBook balance manager until filled or cancelled.

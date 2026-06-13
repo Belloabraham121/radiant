@@ -47,6 +47,8 @@ model User {
   agent_auto_approve_max_sui Float    @default(25)
   /// When true, agent may initiate DeepBook flash loans (always require approval).
   agent_allow_flash_loans    Boolean  @default(false)
+  /// When true, swap_chain_repay flash loans with swap_output repay may skip approval dialog.
+  agent_auto_approve_flash_loans Boolean @default(false)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

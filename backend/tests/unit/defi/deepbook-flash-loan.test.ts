@@ -5,7 +5,9 @@ import {
   isDeepBookFlashLoanAction,
   parseDeepBookFlashLoanParams,
 } from "../../../src/services/defi/deepbook-flash-loan.service.js";
+import { parseDeepBookFlashLoanParams as parseFromTypes } from "../../../src/services/defi/deepbook-flash-loan.types.js";
 import {
+  flashLoanRequiresApproval,
   transferRequiresApprovalWithPermissions,
 } from "../../../src/services/agent/transaction-approval.service.js";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
@@ -35,6 +37,37 @@ describe("deepbook-flash-loan.service", () => {
     assert.equal(parsed.borrow_amount, 10);
   });
 
+  it("parseDeepBookFlashLoanParams accepts swap_chain_repay with 2 steps", () => {
+    const parsed = parseFromTypes({
+      pool_key: "SUI_USDC",
+      borrow_amount: 10000,
+      asset: "quote",
+      strategy: "swap_chain_repay",
+      steps: [
+        { pool_key: "DEEP_USDC", side: "buy", amount: 10000 },
+        { pool_key: "DEEP_USDC", side: "sell", amount: 500 },
+      ],
+    });
+    assert.equal(parsed.strategy, "swap_chain_repay");
+    assert.equal(parsed.steps?.length, 2);
+    assert.equal(parsed.repay_source, "swap_output");
+    assert.equal(parsed.slippage_bps, 100);
+  });
+
+  it("parseDeepBookFlashLoanParams rejects steps on round_trip", () => {
+    assert.throws(
+      () =>
+        parseDeepBookFlashLoanParams({
+          pool_key: "SUI_USDC",
+          borrow_amount: 1,
+          asset: "base",
+          strategy: "round_trip",
+          steps: [{ pool_key: "DEEP_USDC", side: "sell", amount: 1 }],
+        }),
+      (err: unknown) => err instanceof AppError && err.code === "VALIDATION_ERROR",
+    );
+  });
+
   it("parseDeepBookFlashLoanParams rejects unknown strategy", () => {
     assert.throws(
       () =>
@@ -55,18 +88,76 @@ describe("deepbook-flash-loan.service", () => {
 });
 
 describe("flash loan approval rules", () => {
-  it("always requires approval even when auto-approve is enabled", () => {
+  const baseInput = {
+    chain_id: "sui" as const,
+    action: "deepbook_flash_loan",
+    params: {
+      pool_key: "SUI_USDC",
+      borrow_amount: 1,
+      asset: "base",
+      strategy: "round_trip",
+    },
+  };
+
+  it("requires approval when flash loans disabled", () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
-        chain_id: "sui",
-        action: "deepbook_flash_loan",
-        params: {
-          pool_key: "SUI_USDC",
-          borrow_amount: 1,
-          asset: "base",
-        },
-      }),
+      flashLoanRequiresApproval(
+        { ...defaultAgentPermissions(), allow_flash_loans: false },
+        baseInput,
+      ),
       true,
+    );
+  });
+
+  it("requires approval when allow on but auto off", () => {
+    assert.equal(
+      flashLoanRequiresApproval(
+        { ...defaultAgentPermissions(), allow_flash_loans: true, auto_approve_flash_loans: false },
+        baseInput,
+      ),
+      true,
+    );
+  });
+
+  it("skips approval when allow on, auto on, swap_output repay", () => {
+    assert.equal(
+      flashLoanRequiresApproval(
+        { ...defaultAgentPermissions(), allow_flash_loans: true, auto_approve_flash_loans: true },
+        baseInput,
+      ),
+      false,
+    );
+  });
+
+  it("always requires approval for wallet repay", () => {
+    assert.equal(
+      flashLoanRequiresApproval(
+        {
+          ...defaultAgentPermissions(),
+          allow_flash_loans: true,
+          auto_approve_flash_loans: true,
+        },
+        {
+          ...baseInput,
+          params: {
+            ...baseInput.params,
+            strategy: "swap_chain_repay",
+            repay_source: "wallet",
+            steps: [{ pool_key: "DEEP_USDC", side: "sell", amount: 1 }],
+          },
+        },
+      ),
+      true,
+    );
+  });
+
+  it("transferRequiresApprovalWithPermissions delegates flash loans", () => {
+    assert.equal(
+      transferRequiresApprovalWithPermissions(
+        { ...defaultAgentPermissions(), allow_flash_loans: true, auto_approve_flash_loans: true },
+        baseInput,
+      ),
+      false,
     );
   });
 });

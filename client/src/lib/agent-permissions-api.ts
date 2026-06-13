@@ -4,6 +4,7 @@ export type AgentPermissions = {
   auto_approve_enabled: boolean;
   auto_approve_max_sui: number;
   allow_flash_loans: boolean;
+  auto_approve_flash_loans: boolean;
 };
 
 export async function fetchAgentPermissions(): Promise<AgentPermissions> {

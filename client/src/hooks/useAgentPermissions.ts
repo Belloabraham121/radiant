@@ -12,6 +12,7 @@ const DEFAULT_PERMISSIONS: AgentPermissions = {
   auto_approve_enabled: true,
   auto_approve_max_sui: 25,
   allow_flash_loans: false,
+  auto_approve_flash_loans: false,
 };
 
 export function useAgentPermissions(authenticated: boolean) {
@@ -89,6 +90,12 @@ export function useAgentPermissions(authenticated: boolean) {
     error,
     setAutoApproveEnabled: (enabled: boolean) => savePermissions({ auto_approve_enabled: enabled }),
     setAutoApproveMaxSui: (maxSui: number) => savePermissions({ auto_approve_max_sui: maxSui }),
-    setAllowFlashLoans: (enabled: boolean) => savePermissions({ allow_flash_loans: enabled }),
+    setAllowFlashLoans: (enabled: boolean) =>
+      savePermissions({
+        allow_flash_loans: enabled,
+        ...(enabled ? {} : { auto_approve_flash_loans: false }),
+      }),
+    setAutoApproveFlashLoans: (enabled: boolean) =>
+      savePermissions({ auto_approve_flash_loans: enabled }),
   };
 }
