@@ -1,19 +1,25 @@
 import { config } from "dotenv";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { killRadiantSandboxes } from "../src/services/sandbox/e2b-cleanup.service.js";
+import { sweepRadiantSandboxes } from "../src/services/sandbox/e2b-cleanup.service.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(here, "../.env") });
 
 async function main() {
-  const result = await killRadiantSandboxes();
-  console.log(`Killed ${result.killed.length} radiant sandbox(es).`);
-  if (result.killed.length > 0) {
-    console.log(result.killed.join("\n"));
+  const result = await sweepRadiantSandboxes();
+  console.log(
+    `Killed ${result.running.killed.length} running and ${result.paused.killed.length} paused radiant sandbox(es).`,
+  );
+  if (result.running.killed.length > 0) {
+    console.log("Running:", result.running.killed.join("\n"));
   }
-  if (result.failed.length > 0) {
-    console.error("Failed to kill:", result.failed);
+  if (result.paused.killed.length > 0) {
+    console.log("Paused:", result.paused.killed.join("\n"));
+  }
+  const failed = [...result.running.failed, ...result.paused.failed];
+  if (failed.length > 0) {
+    console.error("Failed to kill:", failed);
     process.exit(1);
   }
 }

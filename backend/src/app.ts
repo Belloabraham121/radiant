@@ -16,6 +16,7 @@ import { healthRouter } from "./api/routes/health.js";
 import { chatRouter } from "./api/routes/v1/chat/chat.js";
 import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
+import { e2bWebhookRouter } from "./api/routes/v1/webhooks/e2b.js";
 import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.js";
 import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
 import { createCorsOptions } from "./config/cors.js";
@@ -29,6 +30,11 @@ export function createApp() {
     "/api/v1/webhooks/privy",
     express.raw({ type: "application/json" }),
     privyWebhookRouter,
+  );
+  app.use(
+    "/api/v1/webhooks/e2b",
+    express.raw({ type: "application/json" }),
+    e2bWebhookRouter,
   );
   app.use(express.json());
   app.use(cookieParser());

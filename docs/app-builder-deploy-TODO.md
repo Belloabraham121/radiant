@@ -553,18 +553,18 @@ E2B Volumes persist across sandbox lifetimes. **Private beta** — email support
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | **Skip for MVP on Hobby** | Preinstalled `node_modules` is enough |
-| [ ] | Re-evaluate if pnpm store cache saves >30s | ROI vs complexity |
-| [ ] | If enabled: shared volume at `/pnpm-store` | One volume, many sandboxes |
+| [x] | **Skip for MVP on Hobby** | Preinstalled `node_modules` is enough — **not implemented** |
+| [ ] | Re-evaluate if pnpm store cache saves >30s | ROI vs complexity — defer until custom deploy volume pain |
+| [ ] | If enabled: shared volume at `/pnpm-store` | One volume, many sandboxes — requires E2B volumes beta |
 
 ### Step 7 — Orphan cleanup (Hobby hygiene)
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
 | [x] | Script `backend/scripts/e2b-cleanup.sh` | `e2b sandbox kill --all --state=running` |
-| [ ] | Cron in dev / staging | Every 15 min — use `npm run e2b:cleanup` or `e2b:cleanup:radiant` |
+| [x] | Cron in dev / staging | `npm run e2b:cleanup:cron` (15 min default) or `e2b:cleanup:once` |
 | [x] | On deploy worker boot | `killStaleRadiantSandboxesOnBoot()` when `DEPLOY_KILL_STALE_SANDBOXES_ON_BOOT=true` |
-| [ ] | Lifecycle webhook endpoint | Log killed events; reconcile `DeployJob` |
+| [x] | Lifecycle webhook endpoint | `POST /api/v1/webhooks/e2b` — register via `npm run e2b:webhook:register` |
 
 ---
 
@@ -1021,7 +1021,8 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | [ ] | Credit check before enqueue | | [Backend] |
 | [ ] | `DEPLOY_MAX_CONCURRENT=2` | | [Backend] |
 | [ ] | Creation rate limiter 1/s | BullMQ | [Backend] |
-| [ ] | `e2b-cleanup.sh` cron | | [DevOps] |
+| [x] | `e2b-cleanup.sh` cron | `npm run e2b:cleanup:cron` | [DevOps] |
+| [x] | E2B lifecycle webhooks | `POST /api/v1/webhooks/e2b` | [Backend] |
 | [ ] | Integration test with mock provider | CI default | [Backend] |
 | [ ] | Manual E2B test script | `scripts/e2b-smoke.ts` | [Backend] |
 | [ ] | Log `sandbox_seconds` per job | | [Backend] |

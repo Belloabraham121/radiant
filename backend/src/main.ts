@@ -53,6 +53,7 @@ async function start() {
         "POST /api/v1/auth/logout",
         "GET /api/v1/wallets/balances",
         "POST /api/v1/chat",
+        "POST /api/v1/webhooks/e2b",
       ],
     });
   });

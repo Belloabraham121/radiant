@@ -21,7 +21,10 @@
     "e2b:template:build:dev": "tsx docker/e2b/build.dev.ts",
     "e2b:smoke": "tsx docker/e2b/smoke.ts",
     "e2b:cleanup": "bash scripts/e2b-cleanup.sh",
-    "e2b:cleanup:radiant": "tsx scripts/e2b-cleanup-radiant.ts"
+    "e2b:cleanup:radiant": "tsx scripts/e2b-cleanup-radiant.ts",
+    "e2b:cleanup:cron": "tsx scripts/e2b-cleanup-cron.ts",
+    "e2b:cleanup:once": "E2B_CLEANUP_ONCE=true tsx scripts/e2b-cleanup-cron.ts",
+    "e2b:webhook:register": "tsx scripts/e2b-register-webhook.ts"
   },
   "dependencies": {
     "@mysten/deepbook-v3": "^1.4.1",
