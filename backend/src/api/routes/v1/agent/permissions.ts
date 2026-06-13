@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { requireAuth } from "../../../middleware/auth.js";
 import {
@@ -10,16 +11,16 @@ import { fail, ok } from "../../../../utils/http-response.js";
 
 export const agentPermissionsRouter = Router();
 
-agentPermissionsRouter.get("/api/v1/agent/permissions", requireAuth, async (req, res, next) => {
+async function readPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const permissions = await getAgentPermissions(req.user.privyUserId);
     return ok(req, res, permissions);
   } catch (err) {
     next(err);
   }
-});
+}
 
-agentPermissionsRouter.patch("/api/v1/agent/permissions", requireAuth, async (req, res, next) => {
+async function patchPermissions(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const body = updateAgentPermissionsSchema.parse(req.body);
     const permissions = await updateAgentPermissions(req.user.privyUserId, body);
@@ -34,4 +35,11 @@ agentPermissionsRouter.patch("/api/v1/agent/permissions", requireAuth, async (re
     }
     next(err);
   }
-});
+}
+
+agentPermissionsRouter.get("/api/v1/agent/permissions", requireAuth, readPermissions);
+agentPermissionsRouter.patch("/api/v1/agent/permissions", requireAuth, patchPermissions);
+
+/** Alias paths documented in deepbook-v3-TODO Phase J. */
+agentPermissionsRouter.get("/api/v1/users/me/permissions", requireAuth, readPermissions);
+agentPermissionsRouter.patch("/api/v1/users/me/permissions", requireAuth, patchPermissions);

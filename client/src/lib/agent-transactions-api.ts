@@ -18,6 +18,8 @@ export type AgentTransactionCategory =
   | "deepbook_modify"
   | "deepbook_settled"
   | "flash_loan"
+  | "stake"
+  | "governance"
   | "other";
 
 export type AgentTransactionListItem = {

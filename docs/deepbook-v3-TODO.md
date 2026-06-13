@@ -368,20 +368,20 @@ One row per user (MVP: single manager per agent wallet).
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Prisma `UserAgentPermissions` + migration |
-| [ ] | `GET/PATCH /api/v1/users/me/permissions` |
-| [ ] | `transaction-approval.service.ts` — load per-user prefs; fall back to env |
-| [ ] | Classify actions: `transfer`, `swap`, `order`, `stake`, `governance`, `flash_loan` |
-| [ ] | `flash_loan` → always approve; `swap` → respect `auto_approve_swaps` + notional cap |
+| [x] | Prisma agent permission columns on `User` + migrations (`agent_auto_approve_*`, `agent_allow_flash_loans`, `agent_allow_governance`) |
+| [x] | `GET/PATCH /api/v1/agent/permissions` (+ alias `/api/v1/users/me/permissions`) |
+| [x] | `transaction-approval.service.ts` — load per-user prefs; fall back to env defaults |
+| [x] | Classify actions: `transfer`, `swap`, `order`, `stake`, `governance`, `flash_loan` (`classify-execute-action.ts` + ledger categories) |
+| [x] | `flash_loan` → respect `allow_flash_loans`; optional skip via `auto_approve_flash_loans`; `swap` → `auto_approve_enabled` + SUI notional cap |
 
 ### Client
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Replace mock `Toggle` in settings with persisted permissions API |
-| [ ] | Add toggles: auto-approve swaps, allow flash loans, allow governance |
-| [ ] | Threshold input for max auto-approve SUI (and/or USD equivalent later) |
-| [ ] | Approval modal reads pending tx `action` type for correct copy |
+| [x] | Settings toggles persisted via permissions API (`AgentPermissionsSection`) |
+| [x] | Toggles: auto-approve, allow flash loans, auto-approve flash loans, allow governance |
+| [x] | Threshold input for max auto-approve SUI |
+| [x] | Approval modal reads pending tx `action` type for correct copy (`TransactionApprovalBar`) |
 
 ---
 

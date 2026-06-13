@@ -121,6 +121,43 @@ describe("transaction approval", () => {
     );
   });
 
+  it("always requires approval for stake and governance actions", () => {
+    const permissions = defaultAgentPermissions();
+    assert.equal(
+      transferRequiresApprovalWithPermissions(permissions, {
+        chain_id: "sui",
+        action: "deepbook_stake",
+        params: { pool_key: "SUI_USDC", amount: 10 },
+      }),
+      true,
+    );
+    assert.equal(
+      transferRequiresApprovalWithPermissions(permissions, {
+        chain_id: "sui",
+        action: "deepbook_submit_proposal",
+        params: {
+          pool_key: "SUI_USDC",
+          taker_fee: 0.001,
+          maker_fee: 0.0005,
+          stake_required: 100,
+        },
+      }),
+      true,
+    );
+    assert.equal(
+      transferRequiresApprovalWithPermissions(permissions, {
+        chain_id: "sui",
+        action: "deepbook_vote",
+        params: {
+          pool_key: "SUI_USDC",
+          proposal_id:
+            "0x6149bfe6808f0d6a9db1c766552b7ae1df477f5885493436214ed4228e842393",
+        },
+      }),
+      true,
+    );
+  });
+
   it("rejects deposit pending without amount", async () => {
     await assert.rejects(
       () =>

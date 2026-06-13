@@ -117,7 +117,7 @@ Read-only ledger of on-chain actions initiated by the agent wallet via chat. Req
 | `page` | number | Page (default 1) |
 | `limit` | number | Page size (default 20, max 100) |
 | `status` | string | `pending_approval`, `rejected`, `expired`, `submitted`, `success`, `failure` |
-| `category` | string | `swap`, `transfer`, `deepbook_balance`, `deepbook_order`, `deepbook_cancel`, `deepbook_modify`, `deepbook_settled`, `flash_loan`, `other` |
+| `category` | string | `swap`, `transfer`, `deepbook_balance`, `deepbook_order`, `deepbook_cancel`, `deepbook_modify`, `deepbook_settled`, `flash_loan`, `stake`, `governance`, `other` |
 | `chain_id` | string | `sui`, `ethereum`, `solana` |
 | `session_id` | uuid | Filter to a chat thread |
 
@@ -160,18 +160,22 @@ Read-only ledger of on-chain actions initiated by the agent wallet via chat. Req
 | ------ | ---- | ----------- |
 | `GET` | `/api/v1/agent/permissions` | Current agent permission flags |
 | `PATCH` | `/api/v1/agent/permissions` | Update permissions (partial body) |
+| `GET` | `/api/v1/users/me/permissions` | Alias of agent permissions GET |
+| `PATCH` | `/api/v1/users/me/permissions` | Alias of agent permissions PATCH |
 
 ```json
 {
   "auto_approve_enabled": true,
   "auto_approve_max_sui": 25,
   "allow_flash_loans": false,
-  "auto_approve_flash_loans": false
+  "auto_approve_flash_loans": false,
+  "allow_governance": false
 }
 ```
 
 - `allow_flash_loans` — agent may call `deepbook_flash_loan` (default off).
 - `auto_approve_flash_loans` — skip approval dialog for `swap_chain_repay` bundles that repay from swap output (no SUI notional cap). Wallet-repay routes always require approval.
+- `allow_governance` — agent may call `deepbook_submit_proposal` and `deepbook_vote` (default off; governance txs always show approval dialog).
 
 ### Agent tools (DeepBook flash loans)
 

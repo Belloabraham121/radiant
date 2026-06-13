@@ -33,6 +33,9 @@ const CATEGORY_OPTIONS: { value: "" | AgentTransactionCategory; label: string }[
   { value: "deepbook_cancel", label: "Cancels" },
   { value: "deepbook_modify", label: "Modifies" },
   { value: "deepbook_settled", label: "Settled" },
+  { value: "flash_loan", label: "Flash loans" },
+  { value: "stake", label: "Staking" },
+  { value: "governance", label: "Governance" },
   { value: "other", label: "Other" },
 ];
 
