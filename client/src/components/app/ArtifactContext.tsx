@@ -16,6 +16,7 @@ type SessionArtifactState = {
   payload: ArtifactPayload | null;
   activePath: string;
   streaming: boolean;
+  userDismissed: boolean;
 };
 
 const emptyState = (): SessionArtifactState => ({
@@ -23,6 +24,7 @@ const emptyState = (): SessionArtifactState => ({
   payload: null,
   activePath: "",
   streaming: false,
+  userDismissed: false,
 });
 
 type UpdateArtifactOptions = {
@@ -71,6 +73,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
         payload,
         activePath: firstPath,
         streaming: false,
+        userDismissed: false,
       },
     }));
   }, []);
@@ -80,17 +83,24 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
       setBySession((current) => {
         const prev = current[sessionKey] ?? emptyState();
         const merged = mergeArtifactPayload(prev.payload, payload);
-        const shouldOpen = options.open ?? prev.panelOpen;
         const streaming = options.streaming ?? prev.streaming;
         const activePath = pickActivePath(merged, options.activePath ?? prev.activePath);
+
+        let panelOpen = prev.panelOpen;
+        if (options.open === true) {
+          panelOpen = !prev.userDismissed;
+        } else if (options.open === false) {
+          panelOpen = false;
+        }
 
         return {
           ...current,
           [sessionKey]: {
-            panelOpen: shouldOpen,
+            panelOpen,
             payload: merged,
             activePath,
             streaming,
+            userDismissed: prev.userDismissed,
           },
         };
       });
@@ -103,7 +113,12 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
       const prev = current[sessionKey] ?? emptyState();
       return {
         ...current,
-        [sessionKey]: { ...prev, panelOpen: false, streaming: false },
+        [sessionKey]: {
+          ...prev,
+          panelOpen: false,
+          streaming: false,
+          userDismissed: true,
+        },
       };
     });
   }, []);
@@ -140,6 +155,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
           ...fromState,
           panelOpen: fromState.panelOpen || toState.panelOpen,
           streaming: false,
+          userDismissed: fromState.userDismissed && !fromState.panelOpen,
         },
         [fromKey]: emptyState(),
       };

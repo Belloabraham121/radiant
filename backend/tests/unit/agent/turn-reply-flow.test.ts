@@ -37,27 +37,24 @@ describe("turn-reply-flow", () => {
   });
 
   it("shouldNudgeReplyAfterTools when data fetched but no transaction outcome", () => {
-    assert.equal(
-      shouldNudgeReplyAfterTools([
-        {
-          name: "query_chain",
-          result: {
-            pools: [{ pool_key: "SUI_USDC", base_coin: "SUI", quote_coin: "USDC" }],
-            default_pool: "SUI_USDC",
-          },
+    const poolQuery = [
+      {
+        name: "query_chain",
+        result: {
+          pools: [{ pool_key: "SUI_USDC", base_coin: "SUI", quote_coin: "USDC" }],
+          default_pool: "SUI_USDC",
         },
-      ]),
-      true,
+      },
+    ] as const;
+
+    assert.equal(shouldNudgeReplyAfterTools([...poolQuery]), true);
+    assert.equal(
+      shouldNudgeReplyAfterTools([...poolQuery], "Here are the pools that support flash loans."),
+      false,
     );
     assert.equal(
       shouldNudgeReplyAfterTools([
-        {
-          name: "query_chain",
-          result: {
-            pools: [{ pool_key: "SUI_USDC", base_coin: "SUI", quote_coin: "USDC" }],
-            default_pool: "SUI_USDC",
-          },
-        },
+        ...poolQuery,
         {
           name: "execute_transaction",
           result: { status: "approval_required", pending: { action: "swap" } },

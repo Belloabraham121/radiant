@@ -258,6 +258,7 @@ export const openaiRuntime: AgentRuntime = {
     const tool_calls: AgentTurnResult["tool_calls"] = [];
     let pending_transaction: AgentTurnResult["pending_transaction"] = null;
     let reply = "";
+    let streamedReplyAccum = "";
     let lastExecuteInput: ExecuteTransactionInput | null = null;
     const lastUserMessage =
       [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
@@ -277,6 +278,7 @@ export const openaiRuntime: AgentRuntime = {
     for (let step = 0; step < maxToolSteps; step += 1) {
       let choice;
       let streamedReplyText = false;
+      streamedReplyAccum = "";
       try {
         if (hasExecutionProgressContext()) {
           choice = await streamChatCompletion(client, {
@@ -287,6 +289,7 @@ export const openaiRuntime: AgentRuntime = {
           }, {
             onContentDelta: (delta) => {
               streamedReplyText = true;
+              streamedReplyAccum += delta;
               emitReplyDelta(delta);
             },
             onToolCallDelta: (toolCall) => {
@@ -329,13 +332,9 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       const toolCallList = choice.tool_calls ?? [];
-      const batchHasExecute = toolCallList.some(
-        (toolCall) =>
-          toolCall.type === "function" &&
-          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME,
-      );
-      if (toolCallList.length > 0 && streamedReplyText && batchHasExecute) {
+      if (toolCallList.length > 0 && streamedReplyText) {
         emitReplyClear();
+        streamedReplyAccum = "";
       }
       if (toolCallList.length === 0) {
         const unsupported = detectUnsupportedCapability(lastUserMessage);
@@ -406,7 +405,7 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
-        if (shouldNudgeReplyAfterTools(tool_calls)) {
+        if (shouldNudgeReplyAfterTools(tool_calls, choice.content)) {
           messages.push({
             role: "user",
             content: buildReplyAfterToolsNudge(tool_calls),
@@ -414,11 +413,17 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
-        reply = choice.content?.trim() || "Done.";
+        reply = choice.content?.trim() || streamedReplyAccum.trim() || "Done.";
         break;
       }
 
       messages.push(choice);
+
+      const batchHasExecute = toolCallList.some(
+        (toolCall) =>
+          toolCall.type === "function" &&
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME,
+      );
 
       let executeToolError: AgentToolErrorResult | null = null;
       let infeasibleFlashLoanQuote: FlashLoanBundleQuoteResult | null = null;
@@ -671,10 +676,15 @@ export const openaiRuntime: AgentRuntime = {
             throw mapOpenAiError(err);
           }
         } else if (hasSuccessfulQueryResults(tool_calls)) {
-          try {
-            reply = await synthesizeTurnReply({ client, model, messages });
-          } catch (err) {
-            throw mapOpenAiError(err);
+          const streamed = streamedReplyAccum.trim();
+          if (streamed) {
+            reply = streamed;
+          } else {
+            try {
+              reply = await synthesizeTurnReply({ client, model, messages });
+            } catch (err) {
+              throw mapOpenAiError(err);
+            }
           }
         } else {
           reply = "I processed your request.";

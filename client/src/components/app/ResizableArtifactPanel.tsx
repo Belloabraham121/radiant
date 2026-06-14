@@ -10,6 +10,7 @@ const MIN_WIDTH = 300;
 const MAX_WIDTH = 960;
 
 function clampWidth(value: number): number {
+  if (typeof window === "undefined") return DEFAULT_WIDTH;
   const max = Math.min(MAX_WIDTH, Math.round(window.innerWidth * 0.85));
   return Math.min(max, Math.max(MIN_WIDTH, Math.round(value)));
 }
@@ -20,6 +21,12 @@ function readStoredWidth(): number {
   const parsed = raw ? Number(raw) : NaN;
   if (!Number.isFinite(parsed)) return clampWidth(DEFAULT_WIDTH);
   return clampWidth(parsed);
+}
+
+function clearDocumentDragStyles() {
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+  document.body.style.pointerEvents = "";
 }
 
 export function ResizableArtifactPanel({
@@ -39,14 +46,26 @@ export function ResizableArtifactPanel({
   onPayloadChange: (payload: ArtifactPayload) => void;
   onClose: () => void;
 }) {
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const widthRef = useRef(DEFAULT_WIDTH);
+  const [width, setWidth] = useState(() => readStoredWidth());
+  const widthRef = useRef(width);
+  const handleRef = useRef<HTMLDivElement>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    const stored = readStoredWidth();
-    setWidth(stored);
-    widthRef.current = stored;
+    widthRef.current = width;
+  }, [width]);
+
+  const stopDragging = useCallback(() => {
+    cleanupRef.current?.();
+    cleanupRef.current = null;
+    clearDocumentDragStyles();
   }, []);
+
+  useEffect(() => {
+    return () => {
+      stopDragging();
+    };
+  }, [stopDragging]);
 
   const persistWidth = useCallback((next: number) => {
     const clamped = clampWidth(next);
@@ -56,32 +75,63 @@ export function ResizableArtifactPanel({
   }, []);
 
   const startResize = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return;
       event.preventDefault();
+      event.stopPropagation();
+
+      stopDragging();
+
+      const handle = handleRef.current;
+      if (!handle) return;
+
+      handle.setPointerCapture(event.pointerId);
+
       const startX = event.clientX;
       const startWidth = widthRef.current;
+      const pointerId = event.pointerId;
 
-      function onMouseMove(moveEvent: MouseEvent) {
+      const onPointerMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        moveEvent.preventDefault();
         const delta = startX - moveEvent.clientX;
         const next = clampWidth(startWidth + delta);
         widthRef.current = next;
         setWidth(next);
-      }
+      };
 
-      function onMouseUp() {
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
+      const onPointerEnd = (endEvent: PointerEvent) => {
+        if (endEvent.pointerId !== pointerId) return;
         persistWidth(widthRef.current);
-      }
+        stopDragging();
+      };
+
+      const cleanup = () => {
+        handle.removeEventListener("pointermove", onPointerMove);
+        handle.removeEventListener("pointerup", onPointerEnd);
+        handle.removeEventListener("pointercancel", onPointerEnd);
+        handle.removeEventListener("lostpointercapture", onPointerEnd);
+        try {
+          if (handle.hasPointerCapture(pointerId)) {
+            handle.releasePointerCapture(pointerId);
+          }
+        } catch {
+          // Pointer may already be released after unmount.
+        }
+        clearDocumentDragStyles();
+      };
+
+      cleanupRef.current = cleanup;
 
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
+
+      handle.addEventListener("pointermove", onPointerMove);
+      handle.addEventListener("pointerup", onPointerEnd);
+      handle.addEventListener("pointercancel", onPointerEnd);
+      handle.addEventListener("lostpointercapture", onPointerEnd);
     },
-    [persistWidth],
+    [persistWidth, stopDragging],
   );
 
   const shellStyle = {
@@ -90,18 +140,19 @@ export function ResizableArtifactPanel({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 h-[52vh] w-full lg:relative lg:z-0 lg:h-full lg:shrink-0 lg:w-[var(--artifact-panel-width)]"
+      className="fixed inset-x-0 bottom-0 z-40 h-[52vh] w-full lg:relative lg:z-0 lg:h-full lg:max-w-[85vw] lg:shrink-0 lg:w-[var(--artifact-panel-width)]"
       style={shellStyle}
     >
       <div
+        ref={handleRef}
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize artifact panel"
         title="Drag to resize"
-        className="absolute -left-1 top-0 z-20 hidden h-full w-3 cursor-col-resize touch-none lg:block"
-        onMouseDown={startResize}
+        className="absolute -left-1 top-0 z-20 hidden h-full w-3 cursor-col-resize touch-none select-none lg:block"
+        onPointerDown={startResize}
       >
-        <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[var(--hero-ink)]/10 transition-colors hover:bg-[var(--hero-ink)]/25" />
+        <div className="pointer-events-none absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[var(--hero-ink)]/10 transition-colors hover:bg-[var(--hero-ink)]/25" />
       </div>
       <ArtifactPanel
         payload={payload}

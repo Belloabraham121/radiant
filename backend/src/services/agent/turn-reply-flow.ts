@@ -64,8 +64,14 @@ function hasPendingOrExecutedTransaction(toolCalls: ToolCallRecord[]): boolean {
   });
 }
 
-/** Model fetched data but returned no text — prompt a reply without guessing user intent. */
-export function shouldNudgeReplyAfterTools(toolCalls: ToolCallRecord[]): boolean {
+/** Model fetched data but returned no assistant text — prompt a reply without guessing user intent. */
+export function shouldNudgeReplyAfterTools(
+  toolCalls: ToolCallRecord[],
+  assistantContent?: string | null,
+): boolean {
+  if (assistantContent?.trim()) {
+    return false;
+  }
   if (!hasSuccessfulQueryResults(toolCalls)) {
     return false;
   }

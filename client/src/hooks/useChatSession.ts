@@ -220,8 +220,9 @@ export function useChatSession(sessionId?: string) {
         setActiveSessionId(data.session_id);
         setTitle(nextTitle);
         setMessages((current) => {
-          const liveSteps =
-            current.find((message) => message.id === liveAgentId)?.executionSteps ?? [];
+          const liveMessage = current.find((message) => message.id === liveAgentId);
+          const liveSteps = liveMessage?.executionSteps ?? [];
+          const finalReply = data.reply.trim() || liveMessage?.text.trim() || "";
           const nextMessages: ChatMessage[] = [
             ...current.filter(
               (message) => message.id !== optimisticId && message.id !== liveAgentId,
@@ -230,7 +231,7 @@ export function useChatSession(sessionId?: string) {
             {
               id: data.message_id,
               role: "agent",
-              text: data.reply,
+              text: finalReply,
               streaming: false,
               ...mapToolCallsToMessageExtras(data.tool_calls, liveSteps),
               ...(data.artifact ? { artifact: data.artifact } : {}),
