@@ -1,5 +1,9 @@
 import { apiFetch } from "@/lib/api";
 import type { AgentChainId } from "@/lib/agent-chains";
+import type {
+  AgentTransactionApprovalApiResult,
+  AgentTransactionRejectApiResult,
+} from "@/lib/app-actions-api";
 
 export type AgentTransactionStatus =
   | "pending_approval"
@@ -88,6 +92,18 @@ export async function listAgentTransactions(
 
 export async function getAgentTransaction(id: string): Promise<AgentTransactionDetail> {
   return apiFetch<AgentTransactionDetail>(`/api/v1/agent/transactions/${id}`);
+}
+
+export async function approveAgentTransaction(
+  id: string,
+): Promise<AgentTransactionApprovalApiResult> {
+  return apiFetch(`/api/v1/agent/transactions/${id}/approve`, { method: "POST" });
+}
+
+export async function rejectAgentTransaction(
+  id: string,
+): Promise<AgentTransactionRejectApiResult> {
+  return apiFetch(`/api/v1/agent/transactions/${id}/reject`, { method: "POST" });
 }
 
 export async function listSessionAgentTransactions(

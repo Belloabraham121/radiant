@@ -44,11 +44,13 @@ export function ArtifactPreview({
   revision,
   projectId,
   installationId,
+  onProxiedApiResponse,
 }: {
   files: ArtifactFile[];
   revision: number;
   projectId?: string;
   installationId?: string;
+  onProxiedApiResponse?: (status: number, body: string, path: string) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewPathRef = useRef("/");
@@ -103,6 +105,7 @@ export function ArtifactPreview({
               headers: data.body ? { "Content-Type": "application/json" } : undefined,
             });
             const text = await res.text();
+            onProxiedApiResponse?.(res.status, text, path);
             iframeRef.current?.contentWindow?.postMessage(
               {
                 type: PREVIEW_API_RESPONSE,
@@ -142,7 +145,7 @@ export function ArtifactPreview({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [postNavigate, installationId, projectId]);
+  }, [postNavigate, installationId, projectId, onProxiedApiResponse]);
 
   function handlePathChange(path: string) {
     setPreviewPath(path);

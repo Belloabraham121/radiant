@@ -124,10 +124,8 @@ Live mode (optional) ◄──────────────┘     AgentI
 | Status | Task | Detail |
 | ------ | ---- | ------ |
 | [x] | Return `approval_required` without blocking HTTP | `{ status, pending, agent_transaction_id }` via `AppActionResult` |
-| [ ] | UI polling or chat bridge for approve | Reuse `TransactionApprovalBar` pattern OR in-app modal |
-| [ ] | `POST .../actions/:action/approve` optional | Or approve via existing `POST /chat` with `approve_transaction_id` |
-| [ ] | UI polling or chat bridge for approve | Reuse `TransactionApprovalBar` pattern OR in-app modal |
-| [ ] | `POST .../actions/:action/approve` optional | Or approve via existing `POST /chat` with `approve_transaction_id` |
+| [x] | UI bridge for approve | `ArtifactPreviewWithApproval` + `useAgentTransactionApproval` + `TransactionApprovalBar` on run pages / artifact panel |
+| [x] | `POST /api/v1/agent/transactions/:id/approve` + `/reject` | UI path without chat session; chat still uses `POST /chat` with `approve_transaction_id` |
 
 ### 1.4 Tests
 
@@ -594,6 +592,7 @@ Fallback: chat execution timeline + receipts only (already shipped in chat).
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 1.3 | UI approval: `POST .../agent/transactions/:id/approve|reject`, `ArtifactPreviewWithApproval`, `useAgentTransactionApproval` |
 | 2026-06-14 | 0.2–1.2 | `AppActionResult`, `AppActionContext`, `app-action.service.ts`, result mappers + tests |
 | 2026-06-14 | 0.1 | Action registry: `app-action.types`, `app-action-registry`, `app-action-param-schemas`, `app-action-mapper` + unit tests |
 | 2026-06-14 | — | Initial doc created from architecture review |

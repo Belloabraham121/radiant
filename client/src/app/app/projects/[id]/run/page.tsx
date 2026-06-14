@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import { ArtifactPreview } from "@/components/app/ArtifactPreview";
+import { ArtifactPreviewWithApproval } from "@/components/app/ArtifactPreviewWithApproval";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 import { fetchProjectArtifact } from "@/lib/projects-api";
@@ -71,7 +71,7 @@ export default function ProjectRunPage({ params }: { params: Promise<{ id: strin
         ) : null}
 
         {artifact && !loading && !error ? (
-          <ArtifactPreview
+          <ArtifactPreviewWithApproval
             files={artifact.files}
             revision={artifact.revision}
             projectId={id}

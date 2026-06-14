@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Code2, Eye, X, type LucideIcon } from "lucide-react";
 import { ArtifactCodeView } from "@/components/app/ArtifactCodeView";
 import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
-import { ArtifactPreview } from "@/components/app/ArtifactPreview";
+import { ArtifactPreviewWithApproval } from "@/components/app/ArtifactPreviewWithApproval";
 import { ArtifactProjectControls } from "@/components/app/ArtifactProjectControls";
 import { ArtifactSaveToProjects } from "@/components/app/ArtifactSaveToProjects";
 import type { ArtifactPayload } from "@/lib/artifact-types";
@@ -143,7 +143,7 @@ export function ArtifactPanel({
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab === "preview" ? (
-          <ArtifactPreview
+          <ArtifactPreviewWithApproval
             files={payload.files}
             revision={payload.revision}
             projectId={projectId}
