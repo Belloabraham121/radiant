@@ -253,6 +253,8 @@ Project-scoped and installation-scoped routes execute via the **authenticated us
 | `approval_required` | User must approve — includes `pending`, `agent_transaction_id`; approve via `POST /api/v1/agent/transactions/:id/approve` |
 | `error` | Validation or execution failure — includes `error.code`, `error.message` |
 
+**In-app approval:** Preview iframes that receive `approval_required` show `TransactionApprovalBar` in the parent shell (chat artifact panel or run page). Approve/reject via `POST /api/v1/agent/transactions/:id/approve|reject` — no chat redirect.
+
 **`GET /api/v1/projects/:projectId/actions`** — returns the project's persisted action schema (`schema_version`, `app_id`, `protocol`, `actions[]` with param fields). Swap-template and DeFi apps get a default DeepBook schema on `generate_app`; non-DeFi projects return `protocol: "custom"` with an empty `actions` array. Installations inherit the source project's schema.
 
 **`POST /api/v1/projects/:projectId/actions/swap`** example:

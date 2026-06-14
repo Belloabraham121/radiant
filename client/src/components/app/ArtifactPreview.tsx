@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArtifactPreviewNavBar } from "@/components/app/ArtifactPreviewNavBar";
 import { buildArtifactPreviewSrcdoc } from "@/lib/artifact-preview";
 import { extractArtifactPreviewRoutes } from "@/lib/artifact-preview-routes";
@@ -11,7 +11,6 @@ import {
   PREVIEW_NAVIGATE_TYPE,
   proxyPreviewApiRequest,
 } from "@/lib/artifact-preview-bridge";
-import { usePreviewAgentEventRelay } from "@/hooks/usePreviewAgentEventRelay";
 
 function PreviewLoadingOverlay() {
   return (
@@ -47,6 +46,7 @@ export function ArtifactPreview({
   projectId,
   installationId,
   sessionId,
+  iframeRef: externalIframeRef,
   onProxiedApiResponse,
 }: {
   files: ArtifactFile[];
@@ -54,9 +54,11 @@ export function ArtifactPreview({
   projectId?: string;
   installationId?: string;
   sessionId?: string;
+  iframeRef?: RefObject<HTMLIFrameElement | null>;
   onProxiedApiResponse?: (status: number, body: string, path: string) => void;
 }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const internalIframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeRef = externalIframeRef ?? internalIframeRef;
   const previewPathRef = useRef("/");
   const [previewPath, setPreviewPath] = useState("/");
   const [refreshKey, setRefreshKey] = useState(0);
@@ -68,9 +70,6 @@ export function ArtifactPreview({
     () => buildArtifactPreviewSrcdoc(files, { projectId, installationId, sessionId }),
     [files, projectId, installationId, sessionId],
   );
-
-  const previewEnabled = Boolean(projectId || installationId);
-  usePreviewAgentEventRelay(iframeRef, sessionId, previewEnabled);
 
   useEffect(() => {
     previewPathRef.current = previewPath;

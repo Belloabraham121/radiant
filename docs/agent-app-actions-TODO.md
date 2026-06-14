@@ -425,20 +425,24 @@ Preview animation is **best-effort** and may lead or lag the on-chain transactio
 
 **Exit criteria:** Swap from generated app shows approval UI; approve completes action.
 
-### 9.1 Options (pick one in implementation)
+### 9.1 Decision — Option A (artifact shell)
 
-| Option | Description |
-| ------ | ----------- |
-| A | Global Radiant modal (reuse `TransactionApprovalBar` at app shell level) |
-| B | In-iframe modal via postMessage to parent |
-| C | Redirect focus to chat with pending tx |
+**Chosen:** **Option A** — reuse `TransactionApprovalBar` in the Radiant artifact shell (`ArtifactPreviewWithApproval`), not an in-iframe modal (B) or chat redirect (C).
+
+Rationale: parent already proxies API calls with cookies; approval bar above the preview keeps Privy/session context, matches chat UX, and avoids sandbox postMessage for approve/reject.
+
+| Option | Description | Status |
+| ------ | ----------- | ------ |
+| A | Global Radiant modal (reuse `TransactionApprovalBar` at app shell level) | **Shipped** — bar above preview in chat panel + run pages |
+| B | In-iframe modal via postMessage to parent | Not chosen |
+| C | Redirect focus to chat with pending tx | Not chosen |
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Decision recorded in this doc | |
-| [ ] | Implement chosen path | |
-| [ ] | `approval_required` from action API opens modal | |
-| [ ] | Approve calls existing `approvePendingTransaction` | |
+| [x] | Decision recorded in this doc | Option A — artifact shell |
+| [x] | Implement chosen path | `ArtifactPreviewWithApproval` |
+| [x] | `approval_required` from action API opens modal | `onProxiedApiResponse` → `handleActionResult` |
+| [x] | Approve calls existing `approvePendingTransaction` | `approveAgentTransaction` → iframe `agent_done` relay |
 
 ---
 
@@ -597,6 +601,7 @@ SSE preview may lead/lag the tx by ~300ms. Use `agent_done.digest` + chat ledger
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 9 | In-app approval UX — Option A artifact shell; approve relays digest to iframe |
 | 2026-06-14 | 8.4–8.5 | Ordering docs, swap refresh on `agent_done`, emit/receive integration test, demo script |
 | 2026-06-14 | 8.3 | Client `useAgentStream`, iframe relay, runtime animate handler |
 | 2026-06-14 | 8.2 | Stream hooks in execute path: `broadcast` flag, semantic + step events |
