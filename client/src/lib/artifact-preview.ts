@@ -411,6 +411,14 @@ ${css}
 
   try {
     npmRegistry = createNpmRegistry();
+    // Next.js layout.tsx is not executed in chat preview — bootstrap platform libs first.
+    var platformBoot = ["lib/radiant-client.ts", "lib/radiant-agent-runtime.ts"];
+    for (var bi = 0; bi < platformBoot.length; bi++) {
+      var bootId = platformBoot[bi];
+      if (payload.modules[bootId]) {
+        loadModule(bootId);
+      }
+    }
     var entryExports = loadModule(payload.entry);
     var App = entryExports.default || entryExports;
     if (typeof App !== "function") {

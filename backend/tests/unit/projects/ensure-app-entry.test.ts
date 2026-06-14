@@ -84,7 +84,7 @@ describe("ensureAppEntry", () => {
     assert.match(dexApp!.content, /flashLoanQuote/);
     assert.match(dexApp!.content, /openOrders/);
     assert.ok(page);
-    assert.match(page!.content, /DexApp/);
+    assert.match(page!.content, /radiant-agent-runtime/);
   });
 
   it("injects Tailwind import into globals.css for deploy builds", () => {

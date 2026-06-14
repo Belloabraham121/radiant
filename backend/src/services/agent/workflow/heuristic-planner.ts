@@ -1,7 +1,5 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
-import {
-  classifyWorkflowSegment,
-} from "./workflow-parser.js";
+import { classifyWorkflowSegment, messageHasBuildAppIntent } from "./workflow-parser.js";
 import type {
   PlannerOutput,
   PlannedStep,
@@ -159,6 +157,10 @@ function workflowStepToPlanned(
 export function looksLikeWorkflowMessage(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed) return false;
+
+  if (messageHasBuildAppIntent(trimmed)) {
+    return false;
+  }
 
   const actionPattern =
     /\b(swap|deposit|withdraw|with\s*all|transfer|send|order|buy|sell|cancel|place|click|comot|put)\b/gi;

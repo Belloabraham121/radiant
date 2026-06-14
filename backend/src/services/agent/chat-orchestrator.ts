@@ -24,6 +24,7 @@ import {
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
+import { tryBuildAppFromMessage } from "../projects/build-app-flow.js";
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
 import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
 import { extractArtifactFromToolCalls } from "../projects/extract-artifact.js";
@@ -70,6 +71,30 @@ export async function runChatTurn(
   }
 
   if (!isTransactionContinuation) {
+    const buildOutcome = await tryBuildAppFromMessage(
+      privyUserId,
+      request.message,
+      session.id,
+    );
+
+    if (buildOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, {
+        ...buildOutcome,
+        pending_clarification: null,
+        workflowCompleted: true,
+      });
+    }
+
     const workflowOutcome = await tryStartWorkflowFromMessage(
       privyUserId,
       session.id,

@@ -154,6 +154,7 @@ export function ensureAppEntry(
       path: "app/page.tsx",
       content:
         `"use client";\n\n` +
+        `import "../lib/radiant-agent-runtime";\n` +
         `import Main from "${importPath}";\n\n` +
         `export default function Page() {\n` +
         `  return <Main />;\n` +

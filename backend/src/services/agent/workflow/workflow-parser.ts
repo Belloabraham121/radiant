@@ -284,6 +284,36 @@ export function messageHasExecutableSwapIntent(message: string): boolean {
   return parseSingleSwapIntent(message) !== null;
 }
 
+const BUILD_VERB_PATTERN = /\b(build|create|make|design|develop|implement|scaffold|generate)\b/i;
+const BUILD_SUBJECT_PATTERN =
+  /\b(app|ui|interface|dashboard|page|widget|dex|uniswap|swap\s+app|deepbook|artifact|preview|tabs?)\b/i;
+
+/** True when the user wants a React artifact generated — not an immediate wallet swap. */
+export function messageHasBuildAppIntent(message: string): boolean {
+  const trimmed = message.trim();
+  if (!trimmed) return false;
+  if (messageHasExecutableSwapIntent(trimmed)) return false;
+  if (!BUILD_VERB_PATTERN.test(trimmed)) return false;
+
+  if (/\b(like|similar to)\s+uniswap\b/i.test(trimmed)) return true;
+  if (/\btabs?\s+for\b/i.test(trimmed)) return true;
+  if (/\bdeepbook\b/i.test(trimmed) && /\bswap\b/i.test(trimmed)) return true;
+  if (/\b(flash\s+loan|stake|governance|open\s+orders?)\b/i.test(trimmed) && BUILD_SUBJECT_PATTERN.test(trimmed)) {
+    return true;
+  }
+
+  return BUILD_SUBJECT_PATTERN.test(trimmed);
+}
+
+/** User asked to persist the generated app to Projects (not just chat preview). */
+export function messageRequestsSaveToProjects(message: string): boolean {
+  return (
+    /\bsave(?:\s+it)?\s+to\s+(?:my\s+)?projects?\b/i.test(message) ||
+    /\bsave\s+this\s+(?:to\s+)?projects?\b/i.test(message) ||
+    /\bkeep\s+it\s+in\s+projects?\b/i.test(message)
+  );
+}
+
 function parseTransferSegment(segment: string): WorkflowExecuteStep | null {
   const sendMatch = segment.match(
     new RegExp(
