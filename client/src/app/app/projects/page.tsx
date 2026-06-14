@@ -4,10 +4,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { ArrowUpRight, ExternalLink, Globe, Hammer, Loader2 } from "lucide-react";
+import { ArrowUpRight, Hammer, Loader2, Play, Sparkles } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { fetchAllProjects, type ProjectSummary } from "@/lib/projects-api";
-import { isMockWalrusSiteUrl } from "@/lib/deploy-api";
 
 gsap.registerPlugin(useGSAP);
 
@@ -71,7 +70,8 @@ export default function ProjectsPage() {
             Your projects
           </h1>
           <p className="mt-2 max-w-xl text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
-            Everything your agent has built for you. Deployed apps show a Walrus URL when live.
+            Apps your agent has built for you. Open any project inside Radiant — personal apps stay
+            in your dashboard, not on external links.
           </p>
         </div>
       </div>
@@ -91,17 +91,16 @@ export default function ProjectsPage() {
 
       {!loading && !error && projects.length === 0 ? (
         <p className="mt-10 rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/15 bg-[var(--hero-bg)]/40 p-6 text-sm font-semibold text-[var(--hero-ink)]/55">
-          No projects yet. Ask the agent to build an app in chat — it will appear here.
+          No projects yet. Ask the agent to build an app in chat — it will appear here when saved.
         </p>
       ) : null}
 
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
         {projects.map((project) => {
-          const isLive = project.status === "live" || Boolean(project.walrus_url);
+          const isReady = project.status === "live";
           return (
-            <Link
+            <article
               key={project.id}
-              href={`/app/projects/${project.id}`}
               data-project-card
               className="group flex flex-col gap-4 rounded-3xl border-2 border-[var(--hero-ink)] bg-white p-6 shadow-[5px_5px_0_var(--hero-ink)] transition-all duration-300 hover:-translate-y-2 hover:shadow-[9px_9px_0_var(--hero-ink)]"
             >
@@ -113,10 +112,10 @@ export default function ProjectsPage() {
                   {project.name[0]?.toUpperCase() ?? "?"}
                 </span>
                 <span className="flex items-center gap-2">
-                  {isLive ? (
+                  {isReady ? (
                     <span className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1 text-xs font-bold text-[var(--hero-mint)]">
-                      <Globe className="size-3.5" strokeWidth={2.5} />
-                      live
+                      <Sparkles className="size-3.5" strokeWidth={2.5} />
+                      ready
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)]/20 px-3 py-1 text-xs font-bold text-[#b97700]">
@@ -124,7 +123,6 @@ export default function ProjectsPage() {
                       draft
                     </span>
                   )}
-                  <ArrowUpRight className="size-5 text-[var(--hero-ink)]/30 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[var(--hero-ink)]" />
                 </span>
               </div>
 
@@ -137,28 +135,29 @@ export default function ProjectsPage() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2 border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-3 text-xs font-bold text-[var(--hero-ink)]/45">
-                <span>
+              <div className="flex flex-col gap-3 border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-3">
+                <span className="text-xs font-bold text-[var(--hero-ink)]/45">
                   {project.template} · rev {project.artifact_revision} · updated{" "}
                   {formatDate(project.updated_at)}
                 </span>
-                {project.walrus_url ? (
-                  isMockWalrusSiteUrl(project.walrus_url) ? (
-                    <span className="text-[var(--hero-amber)]">Mock URL — redeploy with Walrus configured</span>
-                  ) : (
-                    <span
-                      className="inline-flex items-center gap-1 truncate text-[var(--hero-violet)]"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      <ExternalLink className="size-3 shrink-0" strokeWidth={2.5} aria-hidden />
-                      <span className="truncate">{project.walrus_url}</span>
-                    </span>
-                  )
-                ) : (
-                  <span className="text-[var(--hero-ink)]/35">Not deployed yet</span>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/app/projects/${project.id}/run`}
+                    className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)] px-3 py-1.5 text-xs font-bold text-white"
+                  >
+                    <Play className="size-3.5" strokeWidth={2.5} aria-hidden />
+                    Open
+                  </Link>
+                  <Link
+                    href={`/app/projects/${project.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)]/20 px-3 py-1.5 text-xs font-bold text-[var(--hero-ink)]/70 hover:border-[var(--hero-ink)]/40"
+                  >
+                    Details
+                    <ArrowUpRight className="size-3.5" strokeWidth={2.5} aria-hidden />
+                  </Link>
+                </div>
               </div>
-            </Link>
+            </article>
           );
         })}
       </div>

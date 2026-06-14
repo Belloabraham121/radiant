@@ -83,7 +83,7 @@ describe("runDeployPipeline (custom + mock sandbox)", () => {
     await prisma.$disconnect();
   });
 
-  it("builds in mock sandbox, kills handle, and completes deploy", async () => {
+  it("builds in mock sandbox, kills handle, and marks the project live", async () => {
     await runDeployPipeline(jobId);
 
     const job = await prisma.deployJob.findUnique({ where: { id: jobId } });
@@ -92,8 +92,8 @@ describe("runDeployPipeline (custom + mock sandbox)", () => {
     assert.ok(job.logs.includes("mock build complete"));
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
-    assert.equal(project?.status, "draft");
+    assert.equal(project?.status, "live");
     assert.equal(project?.walrus_url, null);
-    assert.ok(job?.logs.includes("WALRUS_DEPLOY_MOCK"));
+    assert.ok(job?.logs.includes("ready in Radiant"));
   });
 });

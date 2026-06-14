@@ -5,7 +5,6 @@ export type DeployPipelineStep =
   | "load"
   | "sandbox"
   | "build"
-  | "walrus"
   | "finalize"
   | "done"
   | "failed";
@@ -14,8 +13,7 @@ export const DEPLOY_PROGRESS_PCT: Record<DeployPipelineStep, number> = {
   queued: 0,
   load: 5,
   sandbox: 10,
-  build: 40,
-  walrus: 70,
+  build: 55,
   finalize: 90,
   done: 100,
   failed: 0,

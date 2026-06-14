@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Code2, Eye, Rocket, X, type LucideIcon } from "lucide-react";
+import { Code2, Eye, X, type LucideIcon } from "lucide-react";
 import { ArtifactCodeView } from "@/components/app/ArtifactCodeView";
 import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
 import { ArtifactPreview } from "@/components/app/ArtifactPreview";
 import { ArtifactProjectControls } from "@/components/app/ArtifactProjectControls";
-import { ArtifactDeployPanel } from "@/components/app/ArtifactDeployPanel";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 
-type ArtifactTab = "preview" | "code" | "deploy";
+type ArtifactTab = "preview" | "code";
 
 const ARTIFACT_TABS: { id: ArtifactTab; label: string; Icon: LucideIcon }[] = [
   { id: "preview", label: "Preview", Icon: Eye },
   { id: "code", label: "Code", Icon: Code2 },
-  { id: "deploy", label: "Deploy", Icon: Rocket },
 ];
 
 function tabStorageKey(projectId: string): string {
@@ -25,9 +23,10 @@ function readStoredTab(projectId?: string): ArtifactTab {
   if (typeof window === "undefined" || !projectId) return "preview";
   try {
     const stored = sessionStorage.getItem(tabStorageKey(projectId));
-    if (stored === "preview" || stored === "code" || stored === "deploy") {
+    if (stored === "preview" || stored === "code") {
       return stored;
     }
+    if (stored === "deploy") return "preview";
   } catch {
     // ignore
   }
@@ -157,13 +156,6 @@ export function ArtifactPanel({
               streaming={streaming}
             />
           </div>
-        ) : null}
-
-        {tab === "deploy" ? (
-          <ArtifactDeployPanel
-            projectId={projectId}
-            disabled={streaming}
-          />
         ) : null}
       </div>
     </aside>

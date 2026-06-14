@@ -14,7 +14,7 @@ import {
   markDeployJobRunning,
 } from "./deploy-job.repository.js";
 import { DEPLOY_PROGRESS_PCT, type DeployPipelineStep } from "./job-types.js";
-import { resolveDeployProvider, isFixedTemplate } from "./template-registry.js";
+import { isFixedTemplate } from "./template-registry.js";
 import {
   collectDistFromSandbox,
   prepareFixedTemplateDist,
@@ -22,7 +22,6 @@ import {
 } from "./dist-collector.js";
 import { getSandboxProviderByName } from "../sandbox/sandbox.factory.js";
 import { setProjectStatus, updateProject } from "../projects/project.repository.js";
-import { deployWalrusSite } from "../walrus/sites.client.js";
 import { logger } from "../../shared/logger.js";
 import type { SandboxProviderName } from "../sandbox/sandbox.provider.js";
 
@@ -39,16 +38,6 @@ function formatDeployError(error: unknown): { message: string; logTail: string }
     const record = details as Record<string, unknown>;
     if (typeof record.stderr === "string") stderr = record.stderr.trim();
     if (typeof record.stdout === "string") stdout = record.stdout.trim();
-  }
-
-  const suiBalanceMatch = stderr.match(
-    /could not find SUI coins with sufficient balance[^\n]*/i,
-  );
-  if (suiBalanceMatch) {
-    return {
-      message: "Insufficient testnet SUI for Walrus publish gas — request more from faucet.sui.io",
-      logTail: suiBalanceMatch[0],
-    };
   }
 
   const logTail = stderr || stdout || error.message;
@@ -96,14 +85,12 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
 
     const rawArtifactFiles = await listArtifactFiles(project.id, job.artifact_revision);
     if (!isFixedTemplate(project.template) && rawArtifactFiles.length === 0) {
-      throw new AppError(400, "ARTIFACT_MISSING", "Custom deploy requires artifact source files");
+      throw new AppError(400, "ARTIFACT_MISSING", "Custom build requires artifact source files");
     }
 
     const artifactFiles = ensureAppEntry(
       rawArtifactFiles.map((file) => ({ path: file.path, content: file.content })),
     ).map((file) => ({ path: file.path, content: file.content }));
-
-    let distDir: string;
 
     if (providerName === "none") {
       await logStep(jobId, "sandbox", "Using pre-built template dist (no sandbox)");
@@ -116,7 +103,6 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
         tagline: project.tagline,
         accent: project.accent,
       });
-      distDir = tempDistDir;
     } else if (!sandboxProvider) {
       throw new AppError(500, "SANDBOX_PROVIDER_MISSING", "Sandbox provider is not configured");
     } else {
@@ -158,7 +144,6 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
         const distFiles = await collectDistFromSandbox(sandboxProvider, handleId);
         tempDistDir = await mkdtemp(join(tmpdir(), "radiant-dist-"));
         await writeDistFilesToDir(distFiles, tempDistDir);
-        distDir = tempDistDir;
       } finally {
         sandboxSeconds = Math.max(1, Math.ceil((Date.now() - sandboxStarted) / 1000));
         await logStep(jobId, "sandbox", "Killing sandbox");
@@ -167,39 +152,14 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
       }
     }
 
-    await logStep(jobId, "walrus", "Uploading dist to Walrus Sites");
-    const walrus = await deployWalrusSite(distDir, {
-      site_name: project.name,
-      description: project.tagline,
-    });
-
-    if (walrus.mock_deploy) {
-      await logStep(
-        jobId,
-        "finalize",
-        "Mock Walrus deploy (WALRUS_DEPLOY_MOCK=true) — no real site URL. See docs/walrus-local-setup.md",
-      );
-      await updateProject(project.id, {
-        status: "draft",
-        walrus_url: null,
-      });
-      await completeDeployJob(jobId, { sandboxSeconds });
-      await logStep(
-        jobId,
-        "done",
-        "Build succeeded but Walrus publish was skipped (mock mode). Set WALRUS_DEPLOY_MOCK=false and run local portal for testnet.",
-      );
-      return;
-    }
-
-    await logStep(jobId, "finalize", "Updating project record");
+    await logStep(jobId, "finalize", "Marking app ready in Radiant");
     await updateProject(project.id, {
       status: "live",
-      walrus_url: walrus.walrus_url,
+      walrus_url: null,
     });
 
     await completeDeployJob(jobId, { sandboxSeconds });
-    await logStep(jobId, "done", `Deploy complete: ${walrus.walrus_url}`);
+    await logStep(jobId, "done", "Build verified — open this app from Projects or chat in Radiant");
   } catch (error) {
     const { message, logTail } = formatDeployError(error);
 

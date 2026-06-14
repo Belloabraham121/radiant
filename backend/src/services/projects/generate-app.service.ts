@@ -7,6 +7,7 @@ import {
   bumpArtifactRevision,
   createProject,
   findProjectByIdForUser,
+  setProjectStatus,
   updateProject,
 } from "./project.repository.js";
 import type { GenerateAppInput, GenerateAppResult } from "./project.types.js";
@@ -66,6 +67,7 @@ export async function generateAppForUser(
 
   const revision = project.artifact_revision;
   await upsertArtifactFiles(project.id, revision, normalizedFiles);
+  await setProjectStatus(project.id, "live");
 
   const clientFiles = normalizedFiles.map((file) => ({
     path: file.path.replace(/^\/workspace\//, ""),

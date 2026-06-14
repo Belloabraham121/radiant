@@ -5,12 +5,13 @@ export const DEPLOY_APP_TOOL_NAME = "deploy_app" as const;
 export const deployAppToolDefinition = {
   name: DEPLOY_APP_TOOL_NAME,
   description:
-    "Deploy a project to Walrus Sites and return a permanent URL. " +
-    "Use when the user wants to publish or deploy their app. Requires an existing project_id.",
+    "Verify a project builds in the sandbox and mark it ready in Radiant. " +
+    "Apps run inside Radiant only (Projects or chat preview) — not as external URLs. " +
+    "Usually unnecessary after generate_app, which already saves the app. Requires project_id.",
   input_schema: {
     type: "object" as const,
     properties: {
-      project_id: { type: "string", description: "Project UUID to deploy." },
+      project_id: { type: "string", description: "Project UUID to verify." },
     },
     required: ["project_id"],
     additionalProperties: false,

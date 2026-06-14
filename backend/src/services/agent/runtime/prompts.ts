@@ -68,11 +68,11 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     "generate_app JSON shape (strict): { \"name\": string, \"files\": [{ \"path\": string, \"content\": string }, ...], \"template\"?: \"custom\", \"project_id\"?: string|null, \"tagline\"?: string }. The files field MUST be a JSON array of objects — never a single object or map. Always include app/page.tsx as the main entry.",
     "After generate_app succeeds, briefly describe what you built — the client opens the artifact panel automatically.",
     "generate_app paths: app/, components/, lib/, or public/ (.tsx, .ts, .css, .json, .html, .svg). Pass project_id to update; omit for a new app. list_session_projects lists apps in this chat.",
-    "generate_app preview runs in-browser (no E2B) starting at app/page.tsx; it calls real Radiant project APIs via lib/radiant-client (POST /api/v1/projects/:id/swap/quote, GET .../deepbook/pool-info). E2B Next static export runs only on deploy.",
+    "generate_app preview runs in-browser starting at app/page.tsx; it calls real Radiant project APIs via lib/radiant-client (POST /api/v1/projects/:id/swap/quote, GET .../deepbook/pool-info). Saved apps open from Projects or the artifact panel inside Radiant only — no external hosting URL.",
     "For DeepBook swap UIs: components/SwapForm.tsx etc., app/page.tsx composes them, use import { swapQuote, poolInfo } from \"../lib/radiant-client\". Never call execute_transaction from generated app code unless user explicitly asks for on-chain execution in chat.",
     "Use react / react-dom / react-router-dom only — no extra npm packages. Tailwind className or inline styles; globals in app/globals.css.",
     "For multi-page or multi-section UIs in generate_app, use react-router-dom (HashRouter, Routes, Route, Link) with paths like / and /sign-in — the artifact preview bar lets users jump between routes.",
-    "When the user wants to publish or deploy their app to Walrus, call deploy_app with the project_id. Fixed templates (escrow, swap, prediction) deploy without E2B; custom templates build in a sandbox then upload. Tell the user to poll deploy progress in the Projects UI or via GET /api/v1/deploy/:job_id.",
+    "After generate_app the app is saved and ready to use in Radiant (Projects page or artifact preview). Only call deploy_app if the user explicitly asks to verify the production build in a sandbox — not for normal save or open flows.",
     "deepbook_manager_info does NOT list open orders — use deepbook_open_orders.",
     "You only have context from this chat thread and the user memory block below — do not assume knowledge from other conversations.",
   ];
