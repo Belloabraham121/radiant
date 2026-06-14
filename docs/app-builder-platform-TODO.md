@@ -193,7 +193,8 @@ Public discovery **inside Radiant** — not Walrus URLs.
 | [ ] | Installation-scoped platform APIs | Caller wallet + creator fee |
 | [ ] | Explorer UI wired to real API | Replace `explorer-data.ts` mocks |
 | [ ] | “Use this agent” → install + open in Radiant | Not external link |
-| [ ] | Agent tools: `install_app`, `call_app_action` | See [agent-app-actions-TODO.md](./agent-app-actions-TODO.md) Phase 7 |
+| [ ] | Agent tool: `install_app` | See [agent-app-actions-TODO.md](./agent-app-actions-TODO.md) Phase 7 |
+| [x] | Agent tool: `call_app_action` | Shipped — project/installation actions + approval flow |
 | [ ] | Move + on-chain registry (optional) | `package_id`, `registry_object_id` |
 
 ---

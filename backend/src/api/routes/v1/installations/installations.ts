@@ -6,7 +6,11 @@ import {
   listInstallationsForUser,
 } from "../../../../services/apps/app-installation.service.js";
 import {
+  flashLoanQuoteForInstallation,
+  governanceStateForInstallation,
+  openOrdersForInstallation,
   poolInfoForInstallation,
+  stakeBalanceForInstallation,
   swapQuoteForInstallation,
 } from "../../../../services/projects/installation-platform.service.js";
 import { listAppActionsCatalogForProject } from "../../../../services/projects/app-action-catalog.service.js";
@@ -63,6 +67,74 @@ installationsRouter.get(
   async (req, res, next) => {
     try {
       const data = await poolInfoForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.post(
+  "/api/v1/installations/:installationId/deepbook/flash-loan/quote",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await flashLoanQuoteForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.body,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.get(
+  "/api/v1/installations/:installationId/deepbook/open-orders",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await openOrdersForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.get(
+  "/api/v1/installations/:installationId/deepbook/stake-balance",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await stakeBalanceForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.get(
+  "/api/v1/installations/:installationId/deepbook/governance-state",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await governanceStateForInstallation(
         req.user.privyUserId,
         req.params.installationId,
         req.query,

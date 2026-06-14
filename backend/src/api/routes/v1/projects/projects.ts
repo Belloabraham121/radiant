@@ -14,7 +14,11 @@ import {
   restoreProjectRevisionForUser,
 } from "../../../../services/projects/project-artifact.service.js";
 import {
+  flashLoanQuoteForProject,
+  governanceStateForProject,
+  openOrdersForProject,
   poolInfoForProject,
+  stakeBalanceForProject,
   swapQuoteForProject,
 } from "../../../../services/projects/project-platform.service.js";
 import {
@@ -221,6 +225,74 @@ projectsRouter.get(
   async (req, res, next) => {
     try {
       const data = await poolInfoForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.post(
+  "/api/v1/projects/:projectId/deepbook/flash-loan/quote",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await flashLoanQuoteForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.body,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/open-orders",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await openOrdersForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/stake-balance",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await stakeBalanceForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/governance-state",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await governanceStateForProject(
         req.user.privyUserId,
         req.params.projectId,
         req.query,

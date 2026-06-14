@@ -1,7 +1,7 @@
-/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v3 — executeAction helpers. */
-export const RADIANT_CLIENT_TEMPLATE_VERSION = 3;
+/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v4 — query helpers for DeepBook tabs. */
+export const RADIANT_CLIENT_TEMPLATE_VERSION = 4;
 
-export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v3. */
+export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v4. */
 
 export type SwapQuoteParams = {
   amount: number;
@@ -202,6 +202,43 @@ export async function poolInfo(pool_key = "SUI_USDC"): Promise<PoolInfoResult> {
       encodeURIComponent(pool_key),
   );
   return parseEnvelope<PoolInfoResult>(res);
+}
+
+export async function flashLoanQuote(
+  params: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/flash-loan/quote", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function openOrders(pool_key = "SUI_USDC"): Promise<Record<string, unknown>> {
+  const res = await platformFetch(
+    projectApiPrefix() +
+      "/deepbook/open-orders?pool_key=" +
+      encodeURIComponent(pool_key),
+  );
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function stakeBalance(pool_key = "SUI_USDC"): Promise<Record<string, unknown>> {
+  const res = await platformFetch(
+    projectApiPrefix() +
+      "/deepbook/stake-balance?pool_key=" +
+      encodeURIComponent(pool_key),
+  );
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function governanceState(pool_key = "SUI_USDC"): Promise<Record<string, unknown>> {
+  const res = await platformFetch(
+    projectApiPrefix() +
+      "/deepbook/governance-state?pool_key=" +
+      encodeURIComponent(pool_key),
+  );
+  return parseEnvelope<Record<string, unknown>>(res);
 }
 `;
 

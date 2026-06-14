@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { AppError } from "../../errors/app-error.js";
 import { prisma } from "../../infrastructure/postgres/client.js";
-import { APP_CATEGORIES, type PublicAppListing, type PublicAppsCatalog } from "./app-catalog.types.js";
+import { buildProjectActionsCatalogResponse } from "../projects/app-action-schema.service.js";
+import type { ProjectActionSchemaSource } from "../projects/app-action-schema.service.js";
+import {
+  APP_CATEGORIES,
+  type PublicAppActionSummary,
+  type PublicAppListing,
+  type PublicAppsCatalog,
+} from "./app-catalog.types.js";
 
 const listAppsQuerySchema = z.object({
   category: z.enum(APP_CATEGORIES).optional(),
@@ -17,6 +24,15 @@ function truncateCreator(address: string | undefined): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+function publicActionsForProject(project: ProjectActionSchemaSource): PublicAppActionSummary[] {
+  const catalog = buildProjectActionsCatalogResponse(project);
+  return catalog.actions.map((action) => ({
+    name: action.name,
+    description: action.description,
+    category: action.category,
+  }));
+}
+
 function toListing(
   project: {
     id: string;
@@ -28,6 +44,7 @@ function toListing(
     fee_bps: number;
     artifact_revision: number;
     created_at: Date;
+    action_schema?: unknown | null;
     user: { agent_wallets: Array<{ chain_type: string; address: string }> };
   },
   installCount: number,
@@ -46,6 +63,7 @@ function toListing(
     creator: truncateCreator(suiWallet?.address),
     published_at: project.created_at.toISOString(),
     artifact_revision: project.artifact_revision,
+    available_actions: publicActionsForProject(project),
   };
 }
 

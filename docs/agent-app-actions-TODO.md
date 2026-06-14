@@ -478,40 +478,42 @@ See **`docs/protocol-extension-kit.md`** for the full checklist and Polymarket s
 | Status | Task | Detail |
 | ------ | ---- | ------ |
 | [x] | Swap tab wired end-to-end | Phase 1–4 |
-| [ ] | Flash loan tab | quote + execute actions |
-| [ ] | Stake / governance tabs | |
-| [ ] | Open orders view | read via existing query APIs in client |
+| [x] | Flash loan tab | quote + execute actions |
+| [x] | Stake / governance tabs | stake, unstake, submit_proposal, vote |
+| [x] | Open orders view | `openOrders()` + GET .../deepbook/open-orders |
 
 ---
 
-## Phase 11 — External agents & Walrus deploy
+## Phase 11 — Explorer & install alignment
 
-**Goal:** Installed/public apps callable outside Radiant chat; deployed UI uses same runtime.
+**Goal:** Public apps discoverable in Radiant with documented agent-callable actions.
 
-**Exit criteria:** `POST /api/v1/apps/:id/call` documented; Walrus-hosted app uses Radiant API base URL.
+**Exit criteria:** Explorer shows per-app action list; platform TODO aligned.
 
-### 11.1 External call endpoint
+**Note:** Walrus deploy and external `POST /api/v1/apps/:id/call` are **out of scope** — apps run inside Radiant (preview, install, chat `call_app_action`).
 
-| Status | Task | Detail |
-| ------ | ---- | ------ |
-| [ ] | `POST /api/v1/apps/:id/call` | `{ action, params }` + auth |
-| [ ] | Maps to installation execute path | |
-| [ ] | API key or session auth for third-party agents | Future |
-
-### 11.2 Deployed app config
+### 11.1 External call endpoint — **Deferred / N/A**
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Store `api_endpoint` + action schema in project metadata | Not Walrus-only blob required for MVP |
-| [ ] | Walrus deploy injects `NEXT_PUBLIC_RADIANT_API_URL` | build-time or runtime config |
-| [ ] | CORS for Walrus origin → Radiant API | |
+| [-] | `POST /api/v1/apps/:id/call` | Not shipping — use chat `call_app_action` + session auth |
+| [-] | Maps to installation execute path | N/A |
+| [-] | API key or session auth for third-party agents | Future if needed |
+
+### 11.2 Deployed app config — **Deferred / N/A**
+
+| Status | Task | Detail |
+| ------ | ---- | ------ |
+| [-] | Store `api_endpoint` + action schema in project metadata | Preview/runner injects config |
+| [-] | Walrus deploy injects `NEXT_PUBLIC_RADIANT_API_URL` | Not deploying to Walrus |
+| [-] | CORS for Walrus origin → Radiant API | N/A |
 
 ### 11.3 Explorer / install alignment
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Update `app-builder-platform-TODO` workstream 5 | Mark `call_app` when done |
-| [ ] | Explorer app detail: list available actions | |
+| [x] | Update `app-builder-platform-TODO` workstream 5 | Mark `call_app_action` done |
+| [x] | Explorer app detail: list available actions | `GET /api/v1/apps/:id` includes `available_actions` |
 
 ---
 
@@ -560,7 +562,7 @@ Phase 0 (types)
                                     ├── Phase 9 (in-app approval) — after 2–3
                                     └── Phase 8 (live SSE) — after 5 + 7
                                             └── Phase 10 (protocol kit)
-                                                    └── Phase 11 (external + Walrus)
+                                                    └── Phase 11 (explorer + install alignment)
 ```
 
 **Minimum demo (MVP):** Phases **0 → 1 → 2 → 3 → 4** = build Uniswap-like UI, click Swap, agent wallet signs.
@@ -589,7 +591,7 @@ No. Session cookies + Radiant backend + **Privy agent wallet** — same as chat.
 Yes. `call_app_action` is for project-scoped UX; raw execute remains for chat-only trades.
 
 **Walrus vs Radiant preview?**  
-MVP runs in Radiant iframe. Walrus hosts static shell; API calls still go to Radiant backend (Phase 11).
+Apps run inside Radiant (artifact preview, install runner). Walrus deploy is not in scope for app actions.
 
 **Live mode without SSE?**  
 Fallback: chat execution timeline + receipts only (already shipped in chat).

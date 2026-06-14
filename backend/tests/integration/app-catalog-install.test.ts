@@ -115,6 +115,7 @@ describe("explorer catalog + install", () => {
 
     const detail = await getPublicApp(projectId);
     assert.equal(detail.install_count, 0);
+    assert.ok(Array.isArray(detail.available_actions));
   });
 
   it("installs a public app for another user", async () => {

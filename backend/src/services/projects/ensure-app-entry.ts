@@ -7,8 +7,8 @@ import {
 import {
   AGENT_INDICATOR_TSX,
   AGENT_STYLES_CSS,
+  DEX_APP_SCAFFOLD_TSX,
   RADIANT_AGENT_RUNTIME_TS,
-  SWAP_FORM_SCAFFOLD_TSX,
 } from "./radiant-agent-runtime-template.js";
 
 export { RADIANT_CLIENT_TEMPLATE_VERSION };
@@ -31,6 +31,13 @@ function hasSwapFormComponent(files: ArtifactFileInput[]): boolean {
   return files.some((file) => {
     const path = normalizeClientPath(file.path);
     return path.includes("SwapForm") && (path.endsWith(".tsx") || path.endsWith(".jsx"));
+  });
+}
+
+function hasDexAppComponent(files: ArtifactFileInput[]): boolean {
+  return files.some((file) => {
+    const path = normalizeClientPath(file.path);
+    return path.includes("DexApp") && (path.endsWith(".tsx") || path.endsWith(".jsx"));
   });
 }
 
@@ -89,8 +96,8 @@ function injectPlatformFiles(files: ArtifactFileInput[], options: EnsureAppEntry
     next.push({ path: "components/AgentIndicator.tsx", content: AGENT_INDICATOR_TSX });
   }
 
-  if (options.template === "swap" && !hasSwapFormComponent(next)) {
-    next.push({ path: "components/SwapForm.tsx", content: SWAP_FORM_SCAFFOLD_TSX });
+  if (options.template === "swap" && !hasSwapFormComponent(next) && !hasDexAppComponent(next)) {
+    next.push({ path: "components/DexApp.tsx", content: DEX_APP_SCAFFOLD_TSX });
   }
 
   return next;
@@ -128,9 +135,11 @@ export function ensureAppEntry(
   }
 
   const primary =
-    options.template === "swap" && hasPath(next, "components/SwapForm.tsx")
-      ? next.find((file) => normalizeClientPath(file.path) === "components/SwapForm.tsx") ?? null
-      : pickPrimaryComponent(next);
+    options.template === "swap" && hasPath(next, "components/DexApp.tsx")
+      ? (next.find((file) => normalizeClientPath(file.path) === "components/DexApp.tsx") ?? null)
+      : options.template === "swap" && hasPath(next, "components/SwapForm.tsx")
+        ? (next.find((file) => normalizeClientPath(file.path) === "components/SwapForm.tsx") ?? null)
+        : pickPrimaryComponent(next);
   const importPath = primary ? componentImportPath(primary.path) : null;
 
   if (!hasPath(next, "app/layout.tsx")) {

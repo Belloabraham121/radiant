@@ -58,7 +58,7 @@ describe("ensureAppEntry", () => {
     assert.ok(client);
     assert.match(client!.content, /export async function executeAction/);
     assert.match(client!.content, /export async function executeSwap/);
-    assert.match(client!.content, /Template v3/);
+    assert.match(client!.content, /Template v4/);
   });
 
   it("injects agent runtime, indicator, and agent CSS", () => {
@@ -75,15 +75,16 @@ describe("ensureAppEntry", () => {
     assert.match(globals!.content, /\.agent-focused/);
   });
 
-  it("adds SwapForm scaffold when template is swap", () => {
+  it("adds DexApp scaffold when template is swap", () => {
     const result = ensureAppEntry([], { template: "swap" });
-    const swapForm = result.find((f) => f.path === "components/SwapForm.tsx");
+    const dexApp = result.find((f) => f.path === "components/DexApp.tsx");
     const page = result.find((f) => f.path === "app/page.tsx");
-    assert.ok(swapForm);
-    assert.match(swapForm!.content, /agent\.register\("swap"/);
-    assert.match(swapForm!.content, /agent\.execute\(/);
+    assert.ok(dexApp);
+    assert.match(dexApp!.content, /agent\.register\("swap"/);
+    assert.match(dexApp!.content, /flashLoanQuote/);
+    assert.match(dexApp!.content, /openOrders/);
     assert.ok(page);
-    assert.match(page!.content, /SwapForm/);
+    assert.match(page!.content, /DexApp/);
   });
 
   it("injects Tailwind import into globals.css for deploy builds", () => {

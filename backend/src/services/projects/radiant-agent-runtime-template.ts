@@ -389,3 +389,402 @@ export default function SwapForm() {
   );
 }
 `;
+
+export const DEX_APP_SCAFFOLD_TSX = `"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import {
+  flashLoanQuote,
+  governanceState,
+  openOrders,
+  stakeBalance,
+  swapQuote,
+} from "../lib/radiant-client";
+
+type TabId = "swap" | "flash_loan" | "stake" | "governance" | "orders";
+
+const POOL_KEY = "SUI_USDC";
+const TABS: Array<{ id: TabId; label: string }> = [
+  { id: "swap", label: "Swap" },
+  { id: "flash_loan", label: "Flash loan" },
+  { id: "stake", label: "Stake" },
+  { id: "governance", label: "Governance" },
+  { id: "orders", label: "Orders" },
+];
+
+function panelClass() {
+  return "rounded-2xl border-2 border-[var(--hero-ink)] bg-white p-6 shadow-[4px_4px_0_var(--hero-ink)]";
+}
+
+export default function DexApp() {
+  const [tab, setTab] = useState<TabId>("swap");
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const [swapAmount, setSwapAmount] = useState("1");
+  const [swapQuoteLabel, setSwapQuoteLabel] = useState<string | null>(null);
+
+  const [flashAmount, setFlashAmount] = useState("100");
+  const [flashAsset, setFlashAsset] = useState<"base" | "quote">("base");
+  const [flashQuoteLabel, setFlashQuoteLabel] = useState<string | null>(null);
+
+  const [stakeAmount, setStakeAmount] = useState("10");
+  const [stakeInfo, setStakeInfo] = useState<string | null>(null);
+
+  const [govInfo, setGovInfo] = useState<string | null>(null);
+  const [proposalDesc, setProposalDesc] = useState("");
+  const [voteId, setVoteId] = useState("");
+
+  const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
+
+  const refreshSwapQuote = useCallback(async () => {
+    const parsed = Number(swapAmount);
+    if (!Number.isFinite(parsed) || parsed <= 0) return;
+    const quote = await swapQuote({ side: "sell", amount: parsed, pool_key: POOL_KEY });
+    setSwapQuoteLabel("~" + quote.output_amount_display + " " + quote.output_coin);
+  }, [swapAmount]);
+
+  const loadStakeBalance = useCallback(async () => {
+    const data = await stakeBalance(POOL_KEY);
+    const total = typeof data.total_stake === "number" ? data.total_stake : 0;
+    setStakeInfo("Staked DEEP: " + total);
+  }, []);
+
+  const loadGovernance = useCallback(async () => {
+    const data = await governanceState(POOL_KEY);
+    const stakeRequired =
+      typeof data.current_epoch === "object" &&
+      data.current_epoch &&
+      "stake_required" in data.current_epoch
+        ? String((data.current_epoch as { stake_required?: unknown }).stake_required)
+        : "?";
+    setGovInfo("Stake required this epoch: " + stakeRequired);
+  }, []);
+
+  const loadOrders = useCallback(async () => {
+    const data = await openOrders(POOL_KEY);
+    const list = Array.isArray(data.orders) ? (data.orders as Array<Record<string, unknown>>) : [];
+    setOrders(list);
+  }, []);
+
+  useEffect(() => {
+    const agent = typeof window !== "undefined" ? window.__radiantAgent : undefined;
+    if (!agent) return;
+
+    agent.register("swap", async (params, ctx) => {
+      const swapVal = params.amount ?? params.amount_display;
+      if (swapVal != null) {
+        setSwapAmount(String(swapVal));
+        setTab("swap");
+      }
+      ctx.highlight("swap-submit", "agent-clicking");
+    });
+
+    agent.register("flash_loan", async (params, ctx) => {
+      if (params.borrow_amount != null) {
+        setFlashAmount(String(params.borrow_amount));
+        setTab("flash_loan");
+      }
+      ctx.highlight("flash-loan-submit", "agent-clicking");
+    });
+
+    agent.register("stake", async (params, ctx) => {
+      if (params.amount_display != null) {
+        setStakeAmount(String(params.amount_display));
+        setTab("stake");
+      }
+      ctx.highlight("stake-submit", "agent-clicking");
+    });
+
+    const unsubscribe = agent.subscribe((event) => {
+      if (event.type !== "result") return;
+      if (event.result.status === "executed") {
+        setStatus(event.action + " submitted — digest " + event.result.digest);
+        if (event.action === "swap") void refreshSwapQuote();
+        if (event.action === "stake" || event.action === "unstake") void loadStakeBalance();
+      }
+    });
+
+    function onAgentRefresh() {
+      void refreshSwapQuote();
+      void loadOrders();
+    }
+    window.addEventListener("radiant-agent-refresh", onAgentRefresh);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("radiant-agent-refresh", onAgentRefresh);
+    };
+  }, [loadStakeBalance, refreshSwapQuote, loadOrders]);
+
+  useEffect(() => {
+    if (tab === "stake") void loadStakeBalance();
+    if (tab === "governance") void loadGovernance();
+    if (tab === "orders") void loadOrders();
+  }, [tab, loadGovernance, loadOrders, loadStakeBalance]);
+
+  async function runAgentAction(action: string, params: Record<string, unknown>, target?: string) {
+    const agent = typeof window !== "undefined" ? window.__radiantAgent : undefined;
+    if (!agent) {
+      setStatus("Agent runtime not loaded");
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      const result = await agent.execute(action, params, { animate: true, target });
+      if (result.status === "approval_required") {
+        setStatus("Approve the transaction in the bar above");
+      }
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : action + " failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-lg space-y-4 p-4">
+      <nav className="flex flex-wrap gap-2">
+        {TABS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={
+              "rounded-full border-2 border-[var(--hero-ink)] px-3 py-1.5 text-xs font-bold " +
+              (tab === item.id ? "bg-[var(--hero-ink)] text-[var(--hero-bg)]" : "bg-white")
+            }
+            onClick={() => setTab(item.id)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === "swap" ? (
+        <section className={panelClass() + " space-y-4"}>
+          <h1 className="text-xl font-extrabold">Swap</h1>
+          <label className="block text-sm font-semibold">
+            Amount (SUI)
+            <input
+              data-radiant-id="amount-in"
+              className="mt-1 w-full rounded-lg border-2 border-[var(--hero-ink)] px-3 py-2"
+              value={swapAmount}
+              onChange={(event) => setSwapAmount(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-full border-2 border-[var(--hero-ink)] px-4 py-2 text-sm font-bold"
+              onClick={() => void refreshSwapQuote()}
+            >
+              Get quote
+            </button>
+            <button
+              type="button"
+              data-radiant-id="swap-submit"
+              disabled={busy}
+              className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2 text-sm font-bold text-[var(--hero-bg)] disabled:opacity-50"
+              onClick={() =>
+                void runAgentAction("swap", {
+                  side: "sell",
+                  amount: Number(swapAmount),
+                  pool_key: POOL_KEY,
+                })
+              }
+            >
+              Swap
+            </button>
+          </div>
+          {swapQuoteLabel ? (
+            <p className="text-sm font-semibold text-[var(--hero-ink)]/70">{swapQuoteLabel}</p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {tab === "flash_loan" ? (
+        <section className={panelClass() + " space-y-4"}>
+          <h1 className="text-xl font-extrabold">Flash loan</h1>
+          <label className="block text-sm font-semibold">
+            Borrow amount
+            <input
+              className="mt-1 w-full rounded-lg border-2 border-[var(--hero-ink)] px-3 py-2"
+              value={flashAmount}
+              onChange={(event) => setFlashAmount(event.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Asset
+            <select
+              className="mt-1 w-full rounded-lg border-2 border-[var(--hero-ink)] px-3 py-2"
+              value={flashAsset}
+              onChange={(event) => setFlashAsset(event.target.value as "base" | "quote")}
+            >
+              <option value="base">Base</option>
+              <option value="quote">Quote</option>
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-full border-2 border-[var(--hero-ink)] px-4 py-2 text-sm font-bold"
+              onClick={() =>
+                void flashLoanQuote({
+                  pool_key: POOL_KEY,
+                  borrow_amount: Number(flashAmount),
+                  asset: flashAsset,
+                  strategy: "round_trip",
+                }).then((quote) => {
+                  const feasible = quote.repay_feasible === true ? "feasible" : "not feasible";
+                  setFlashQuoteLabel("Repay " + feasible);
+                })
+              }
+            >
+              Get quote
+            </button>
+            <button
+              type="button"
+              data-radiant-id="flash-loan-submit"
+              disabled={busy}
+              className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2 text-sm font-bold text-[var(--hero-bg)] disabled:opacity-50"
+              onClick={() =>
+                void runAgentAction("flash_loan", {
+                  pool_key: POOL_KEY,
+                  borrow_amount: Number(flashAmount),
+                  asset: flashAsset,
+                  strategy: "round_trip",
+                })
+              }
+            >
+              Execute
+            </button>
+          </div>
+          {flashQuoteLabel ? (
+            <p className="text-sm font-semibold text-[var(--hero-ink)]/70">{flashQuoteLabel}</p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {tab === "stake" ? (
+        <section className={panelClass() + " space-y-4"}>
+          <h1 className="text-xl font-extrabold">Stake DEEP</h1>
+          {stakeInfo ? <p className="text-sm font-semibold text-[var(--hero-ink)]/70">{stakeInfo}</p> : null}
+          <label className="block text-sm font-semibold">
+            Amount
+            <input
+              className="mt-1 w-full rounded-lg border-2 border-[var(--hero-ink)] px-3 py-2"
+              value={stakeAmount}
+              onChange={(event) => setStakeAmount(event.target.value)}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              data-radiant-id="stake-submit"
+              disabled={busy}
+              className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2 text-sm font-bold text-[var(--hero-bg)] disabled:opacity-50"
+              onClick={() =>
+                void runAgentAction("stake", {
+                  amount_display: Number(stakeAmount),
+                  pool_key: POOL_KEY,
+                })
+              }
+            >
+              Stake
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded-full border-2 border-[var(--hero-ink)] px-4 py-2 text-sm font-bold"
+              onClick={() => void runAgentAction("unstake", { pool_key: POOL_KEY })}
+            >
+              Unstake all
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "governance" ? (
+        <section className={panelClass() + " space-y-4"}>
+          <h1 className="text-xl font-extrabold">Governance</h1>
+          {govInfo ? <p className="text-sm font-semibold text-[var(--hero-ink)]/70">{govInfo}</p> : null}
+          <label className="block text-sm font-semibold">
+            Proposal description
+            <input
+              className="mt-1 w-full rounded-lg border-2 border-[var(--hero-ink)] px-3 py-2"
+              value={proposalDesc}
+              onChange={(event) => setProposalDesc(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy || !proposalDesc.trim()}
+            className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2 text-sm font-bold text-[var(--hero-bg)] disabled:opacity-50"
+            onClick={() =>
+              void runAgentAction("submit_proposal", {
+                pool_key: POOL_KEY,
+                description: proposalDesc,
+              })
+            }
+          >
+            Submit proposal
+          </button>
+          <label className="block text-sm font-semibold">
+            Proposal ID
+            <input
+              className="mt-1 w-full rounded-lg border-2 border-[var(--hero-ink)] px-3 py-2"
+              value={voteId}
+              onChange={(event) => setVoteId(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy || !voteId.trim()}
+            className="rounded-full border-2 border-[var(--hero-ink)] px-4 py-2 text-sm font-bold"
+            onClick={() =>
+              void runAgentAction("vote", {
+                pool_key: POOL_KEY,
+                proposal_id: voteId,
+                vote: true,
+              })
+            }
+          >
+            Vote yes
+          </button>
+        </section>
+      ) : null}
+
+      {tab === "orders" ? (
+        <section className={panelClass() + " space-y-4"}>
+          <h1 className="text-xl font-extrabold">Open orders</h1>
+          <button
+            type="button"
+            className="rounded-full border-2 border-[var(--hero-ink)] px-4 py-2 text-sm font-bold"
+            onClick={() => void loadOrders()}
+          >
+            Refresh
+          </button>
+          {orders.length === 0 ? (
+            <p className="text-sm font-semibold text-[var(--hero-ink)]/70">No open orders</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {orders.map((order) => (
+                <li
+                  key={String(order.order_id ?? order.client_order_id ?? Math.random())}
+                  className="rounded-lg border border-[var(--hero-ink)]/20 px-3 py-2"
+                >
+                  {String(order.side ?? (order.is_bid ? "buy" : "sell"))} · qty{" "}
+                  {String(order.remaining_quantity ?? order.quantity ?? "?")} @{" "}
+                  {String(order.price ?? "?")}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {status ? <p className="text-sm font-semibold text-[var(--hero-violet)]">{status}</p> : null}
+    </div>
+  );
+}
+`;

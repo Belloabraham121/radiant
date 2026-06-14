@@ -16,6 +16,9 @@ import { InstallAppButton } from "@/components/explorer/InstallAppButton";
 
 export function ExplorerAppDetail({ projectId }: { projectId: string }) {
   const [agent, setAgent] = useState<Agent | null>(null);
+  const [availableActions, setAvailableActions] = useState<
+    Array<{ name: string; description: string; category: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
 
@@ -23,7 +26,10 @@ export function ExplorerAppDetail({ projectId }: { projectId: string }) {
     let cancelled = false;
     void fetchPublicApp(projectId)
       .then((listing) => {
-        if (!cancelled) setAgent(listingToAgent(listing));
+        if (!cancelled) {
+          setAgent(listingToAgent(listing));
+          setAvailableActions(listing.available_actions ?? []);
+        }
       })
       .catch(() => {
         if (!cancelled) setMissing(true);
@@ -113,6 +119,37 @@ export function ExplorerAppDetail({ projectId }: { projectId: string }) {
         <div className="mt-10">
           <ReputationPanel reputation={reputation} />
         </div>
+
+        {availableActions.length > 0 ? (
+          <div className="mt-10">
+            <h2 className="font-heading text-xl font-extrabold tracking-tight">Available actions</h2>
+            <p className="mt-2 max-w-2xl text-sm font-medium text-[var(--hero-ink)]/60">
+              Callable via chat after install — the agent reads this schema with{" "}
+              <span className="font-mono">call_app_action</span>.
+            </p>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              {availableActions.map((action) => (
+                <li
+                  key={action.name}
+                  className="rounded-2xl border-2 border-[var(--hero-ink)] bg-white p-4 shadow-[3px_3px_0_var(--hero-ink)]"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-bold">{action.name}</span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                      style={{ backgroundColor: agent.accent }}
+                    >
+                      {action.category}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-[var(--hero-ink)]/65">
+                    {action.description}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-5">
           {stats.map((stat) => (

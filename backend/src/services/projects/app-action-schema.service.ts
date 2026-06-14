@@ -47,10 +47,13 @@ export const projectActionSchemaSchema = z.object({
 
 const DEFAULT_SWAP_TEMPLATE_ACTIONS: AppActionName[] = [
   "swap",
+  "flash_loan",
   "stake",
   "unstake",
   "deposit",
   "withdraw",
+  "submit_proposal",
+  "vote",
 ];
 
 const EXECUTE_HELPER_PATTERNS: Array<{ pattern: RegExp; action: AppActionName }> = [
@@ -133,8 +136,12 @@ export function detectDefiActionNamesFromArtifact(
     }
   }
 
-  if (/SwapForm|FlashLoan|executeSwap|executeFlashLoan|executeStake|executeUnstake/.test(source)) {
+  if (/SwapForm|DexApp|FlashLoan|executeSwap|executeFlashLoan|executeStake|executeUnstake/.test(source)) {
     detected.add("swap");
+  }
+
+  if (/DexApp|executeFlashLoan|flashLoanQuote/.test(source)) {
+    detected.add("flash_loan");
   }
 
   return [...detected];

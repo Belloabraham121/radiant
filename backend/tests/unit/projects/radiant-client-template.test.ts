@@ -8,12 +8,16 @@ import { RADIANT_AGENT_RUNTIME_TS } from "../../../src/services/projects/radiant
 
 describe("radiant-client template", () => {
   it("is at expected version with execute helpers", () => {
-    assert.equal(RADIANT_CLIENT_TEMPLATE_VERSION, 3);
+    assert.equal(RADIANT_CLIENT_TEMPLATE_VERSION, 4);
     assert.match(RADIANT_CLIENT_TS, /export async function executeAction/);
     assert.match(RADIANT_CLIENT_TS, /export async function executeSwap/);
     assert.match(RADIANT_CLIENT_TS, /export async function executeFlashLoan/);
     assert.match(RADIANT_CLIENT_TS, /export async function executeStake/);
     assert.match(RADIANT_CLIENT_TS, /export async function executeUnstake/);
+    assert.match(RADIANT_CLIENT_TS, /export async function flashLoanQuote/);
+    assert.match(RADIANT_CLIENT_TS, /export async function openOrders/);
+    assert.match(RADIANT_CLIENT_TS, /export async function stakeBalance/);
+    assert.match(RADIANT_CLIENT_TS, /export async function governanceState/);
     assert.match(RADIANT_CLIENT_TS, /__RADIANT_INSTALLATION_ID__/);
     assert.match(RADIANT_CLIENT_TS, /isApprovalRequired/);
     assert.match(RADIANT_CLIENT_TS, /RadiantActionError/);
