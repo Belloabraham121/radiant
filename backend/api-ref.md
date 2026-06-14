@@ -136,6 +136,10 @@ Agent events use the SSE `event:` name as the type:
 
 Comment heartbeats (`: keepalive`) are sent every 25s. When `REDIS_URL` is set, events are published on `radiant:agent-stream:{sessionId}` for multi-instance deploys; otherwise in-memory listeners on the Node process.
 
+**Ordering:** Preview animation is best-effort and may lead or lag the on-chain transaction by ~300ms (SSE + React render). Treat **`agent_done.digest`** and the chat transaction ledger as source of truth — never infer success from animation alone. When `agent_done.refresh` is `true`, generated apps should refetch quotes and balances.
+
+Manual demo: `npx tsx scripts/demo-agent-stream.ts <session-uuid>` (in-process, same Node as API) or `curl -N` against the SSE URL with a valid `privy-token` cookie.
+
 ### Agent transactions
 
 Read-only ledger of on-chain actions initiated by the agent wallet via chat. Requires cookie.

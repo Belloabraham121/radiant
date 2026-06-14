@@ -263,7 +263,7 @@ export const AGENT_STYLES_CSS = `.radiant-agent-indicator {
 
 export const SWAP_FORM_SCAFFOLD_TSX = `"use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { swapQuote } from "../lib/radiant-client";
 
 export default function SwapForm() {
@@ -273,21 +273,44 @@ export default function SwapForm() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const refreshQuote = useCallback(async () => {
+    const parsed = Number(amount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return;
+    }
+    const quote = await swapQuote({ side, amount: parsed, pool_key: "SUI_USDC" });
+    setQuoteLabel("~" + quote.output_amount_display + " " + quote.output_coin);
+  }, [amount, side]);
+
   useEffect(() => {
     const agent = typeof window !== "undefined" ? window.__radiantAgent : undefined;
     if (!agent) return;
     agent.register("swap", async (params, ctx) => {
-      const amount = params.amount ?? params.amount_display;
-      if (amount != null) {
+      const swapAmount = params.amount ?? params.amount_display;
+      if (swapAmount != null) {
         const el = document.querySelector('[data-radiant-id="amount-in"]');
         if (el instanceof HTMLInputElement) {
-          el.value = String(amount);
+          el.value = String(swapAmount);
           el.dispatchEvent(new Event("input", { bubbles: true }));
         }
       }
       ctx.highlight("swap-submit", "agent-clicking");
     });
-  }, []);
+    const unsubscribe = agent.subscribe((event) => {
+      if (event.type !== "result" || event.action !== "swap") return;
+      if (event.result.status === "executed") {
+        setStatus("Submitted — digest " + event.result.digest);
+      }
+    });
+    function onAgentRefresh() {
+      void refreshQuote();
+    }
+    window.addEventListener("radiant-agent-refresh", onAgentRefresh);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("radiant-agent-refresh", onAgentRefresh);
+    };
+  }, [refreshQuote]);
 
   async function handleQuote() {
     setStatus(null);
@@ -296,8 +319,7 @@ export default function SwapForm() {
       setStatus("Enter a valid amount");
       return;
     }
-    const quote = await swapQuote({ side, amount: parsed, pool_key: "SUI_USDC" });
-    setQuoteLabel("~" + quote.output_amount_display + " " + quote.output_coin);
+    await refreshQuote();
   }
 
   async function handleSwap() {

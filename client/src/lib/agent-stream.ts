@@ -62,3 +62,7 @@ export function mapSseAgentEventToPreviewPayload(
 export function agentStreamUrl(sessionId: string): string {
   return `/api/v1/chat/sessions/${encodeURIComponent(sessionId)}/agent-stream`;
 }
+
+/** Preview animation may lead/lag the tx by ~300ms; trust `agent_done.digest` from the backend. */
+export const AGENT_STREAM_ORDERING_NOTE =
+  "Animation is best-effort; agent_done.digest and the chat ledger are source of truth.";

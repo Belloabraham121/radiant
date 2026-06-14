@@ -405,15 +405,17 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Document: animation may lead/lag tx by ~300ms | Backend is source of truth |
-| [ ] | `agent_done` includes digest + refresh flag | UI refetches quotes/balances |
+| [x] | Document: animation may lead/lag tx by ~300ms | Backend is source of truth |
+| [x] | `agent_done` includes digest + refresh flag | UI refetches quotes/balances |
+
+Preview animation is **best-effort** and may lead or lag the on-chain transaction by ~300ms. **`agent_done.digest`** and the chat transaction ledger are authoritative; the iframe must not treat animation alone as success. When `refresh: true` on `agent_done`, generated apps refetch quotes/balances (`radiant-agent-refresh` in swap scaffold).
 
 ### 8.5 Tests
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Integration: emit + SSE client receives | |
-| [ ] | Manual demo script | |
+| [x] | Integration: emit + SSE client receives | `tests/integration/agent-stream-emit-receive.test.ts` |
+| [x] | Manual demo script | `backend/scripts/demo-agent-stream.ts` |
 
 ---
 
@@ -586,12 +588,16 @@ MVP runs in Radiant iframe. Walrus hosts static shell; API calls still go to Rad
 **Live mode without SSE?**  
 Fallback: chat execution timeline + receipts only (already shipped in chat).
 
+**Animation vs on-chain truth?**  
+SSE preview may lead/lag the tx by ~300ms. Use `agent_done.digest` + chat ledger as source of truth; refetch UI when `refresh: true`.
+
 ---
 
 ## Changelog
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 8.4–8.5 | Ordering docs, swap refresh on `agent_done`, emit/receive integration test, demo script |
 | 2026-06-14 | 8.3 | Client `useAgentStream`, iframe relay, runtime animate handler |
 | 2026-06-14 | 8.2 | Stream hooks in execute path: `broadcast` flag, semantic + step events |
 | 2026-06-14 | 8.1 | SSE agent stream route, `emitAgentEvent`, in-memory + Redis pub/sub |
