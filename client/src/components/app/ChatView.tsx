@@ -235,6 +235,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     setActivePath,
     closePanel,
     openArtifact,
+    updateArtifact,
   } = useArtifactSession(artifactKey);
 
   const chatColumnClass =
@@ -463,7 +464,9 @@ export function ChatView({ sessionId }: ChatViewProps) {
           payload={artifactPayload}
           activePath={activePath}
           streaming={artifactStreaming}
+          sessionId={sessionId ?? activeSessionId ?? undefined}
           onActivePathChange={setActivePath}
+          onPayloadChange={(artifact) => updateArtifact(artifact, { open: true })}
           onClose={closePanel}
         />
       ) : null}

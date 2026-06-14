@@ -26,13 +26,17 @@ export function ResizableArtifactPanel({
   payload,
   activePath,
   streaming,
+  sessionId,
   onActivePathChange,
+  onPayloadChange,
   onClose,
 }: {
   payload: ArtifactPayload;
   activePath: string;
   streaming?: boolean;
+  sessionId?: string;
   onActivePathChange: (path: string) => void;
+  onPayloadChange: (payload: ArtifactPayload) => void;
   onClose: () => void;
 }) {
   const [width, setWidth] = useState(DEFAULT_WIDTH);
@@ -103,7 +107,9 @@ export function ResizableArtifactPanel({
         payload={payload}
         activePath={activePath}
         streaming={streaming}
+        sessionId={sessionId}
         onActivePathChange={onActivePathChange}
+        onPayloadChange={onPayloadChange}
         onClose={onClose}
         className="h-full w-full"
       />

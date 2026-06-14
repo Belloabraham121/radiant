@@ -5,6 +5,7 @@ import { Code2, Eye, Rocket, X, type LucideIcon } from "lucide-react";
 import { ArtifactCodeView } from "@/components/app/ArtifactCodeView";
 import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
 import { ArtifactPreview } from "@/components/app/ArtifactPreview";
+import { ArtifactProjectControls } from "@/components/app/ArtifactProjectControls";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 
 type ArtifactTab = "preview" | "code" | "deploy";
@@ -19,14 +20,18 @@ export function ArtifactPanel({
   payload,
   activePath,
   streaming = false,
+  sessionId,
   onActivePathChange,
+  onPayloadChange,
   onClose,
   className = "",
 }: {
   payload: ArtifactPayload;
   activePath: string;
   streaming?: boolean;
+  sessionId?: string;
   onActivePathChange: (path: string) => void;
+  onPayloadChange: (payload: ArtifactPayload) => void;
   onClose: () => void;
   className?: string;
 }) {
@@ -57,6 +62,13 @@ export function ArtifactPanel({
           <X className="size-4" strokeWidth={2.5} />
         </button>
       </div>
+
+      <ArtifactProjectControls
+        sessionId={sessionId}
+        payload={payload}
+        streaming={streaming}
+        onPayloadChange={onPayloadChange}
+      />
 
       <div className="flex gap-1 border-b-2 border-[var(--hero-ink)]/10 px-3 py-2">
         {ARTIFACT_TABS.map(({ id, label, Icon }) => {

@@ -45,6 +45,19 @@ export async function listProjectsByUserId(userId: bigint): Promise<Project[]> {
   });
 }
 
+export async function listProjectsBySessionForUser(
+  userId: bigint,
+  sessionId: string,
+): Promise<Project[]> {
+  return prisma.project.findMany({
+    where: {
+      user_id: userId,
+      session_id: sessionId,
+    },
+    orderBy: { updated_at: "desc" },
+  });
+}
+
 export async function updateProject(
   projectId: string,
   data: Prisma.ProjectUpdateInput,

@@ -22,6 +22,11 @@ import {
   generateAppToolDefinition,
   runGenerateAppTool,
 } from "../projects/generate-app.tool.js";
+import {
+  LIST_SESSION_PROJECTS_TOOL_NAME,
+  listSessionProjectsToolDefinition,
+  runListSessionProjectsTool,
+} from "../projects/list-session-projects.tool.js";
 import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
 import {
   UPDATE_MEMORY_TOOL_NAME,
@@ -62,6 +67,7 @@ export const agentToolDefinitions = [
   executeTransactionToolDefinition,
   queryChainToolDefinition,
   updateMemoryToolDefinition,
+  listSessionProjectsToolDefinition,
   generateAppToolDefinition,
   deployAppToolDefinition,
 ] as const;
@@ -120,6 +126,10 @@ async function dispatchAgentTool(
         );
       case UPDATE_MEMORY_TOOL_NAME:
         return await runUpdateMemoryTool(privyUserId, input as UpdateMemoryInput);
+      case LIST_SESSION_PROJECTS_TOOL_NAME:
+        return await runListSessionProjectsTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+        });
       case GENERATE_APP_TOOL_NAME:
         return await runGenerateAppTool(privyUserId, input, {
           sessionId: options?.sessionId,

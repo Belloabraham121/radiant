@@ -19,6 +19,14 @@ export function mergeArtifactPayload(
     return incoming;
   }
 
+  if (
+    incoming.project_id !== "preview" &&
+    existing.project_id !== "preview" &&
+    incoming.project_id !== existing.project_id
+  ) {
+    return incoming;
+  }
+
   const mergedFiles = mergeArtifactFiles(existing.files, incoming.files);
 
   return {
