@@ -25,9 +25,31 @@ export function isFlashLoanQuoteResult(result: unknown): result is FlashLoanBund
   );
 }
 
+export const FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE = "FLASH_LOAN_QUOTE_INFEASIBLE";
+
+function isInfeasibleQuoteExecuteBlock(result: unknown): boolean {
+  return (
+    isToolErrorResult(result) &&
+    result.error?.code === FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE
+  );
+}
+
 /** True when this turn attempted on-chain flash loan execution (not quote-only research). */
 export function hasFlashLoanExecutionAttempt(toolCalls: ToolCallRecord[]): boolean {
-  return toolCalls.some((call) => call.name === EXECUTE_TRANSACTION_TOOL_NAME);
+  return toolCalls.some((call) => {
+    if (call.name !== EXECUTE_TRANSACTION_TOOL_NAME) {
+      return false;
+    }
+    if (isInfeasibleQuoteExecuteBlock(call.result)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+/** Quote fetched for strategy/feasibility exploration — no execute_transaction in this turn. */
+export function isFlashLoanAdvisoryTurn(toolCalls: ToolCallRecord[]): boolean {
+  return findLatestFlashLoanQuote(toolCalls) !== null && !hasFlashLoanExecutionAttempt(toolCalls);
 }
 
 /** Canned quote text is for blocked or in-flight execution — not advisory research replies. */
@@ -35,6 +57,9 @@ export function shouldUseCannedFlashLoanQuoteReply(
   toolCalls: ToolCallRecord[],
   quote: FlashLoanBundleQuoteResult,
 ): boolean {
+  if (isFlashLoanAdvisoryTurn(toolCalls)) {
+    return false;
+  }
   if (!quote.repay_feasible) {
     return true;
   }
@@ -88,7 +113,7 @@ export function shouldFinalizeFlashLoanQuoteReply(
   toolCalls: ToolCallRecord[],
   hasPending: boolean,
 ): FlashLoanBundleQuoteResult | null {
-  if (hasPending) {
+  if (hasPending || isFlashLoanAdvisoryTurn(toolCalls)) {
     return null;
   }
 
@@ -98,6 +123,19 @@ export function shouldFinalizeFlashLoanQuoteReply(
   }
 
   return null;
+}
+
+export function buildInfeasibleFlashLoanExecuteBlock(
+  quote: FlashLoanBundleQuoteResult,
+): { error: { code: string; message: string } } {
+  return {
+    error: {
+      code: FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE,
+      message:
+        `Flash loan repay is not feasible at quoted minimums (surplus ${quote.estimated_surplus ?? "unknown"} ${quote.coin_key}). ` +
+        "Do not execute — explain the strategy, pools, and quote data to the user.",
+    },
+  };
 }
 
 export function isFlashLoanRepayNotFeasibleError(message: string): boolean {
@@ -177,6 +215,9 @@ export function filterToolCallsForClientDisplay(
 
   return toolCalls.filter((call, index) => {
     if (call.name === EXECUTE_TRANSACTION_TOOL_NAME) {
+      if (isInfeasibleQuoteExecuteBlock(call.result) && isFlashLoanAdvisoryTurn(toolCalls)) {
+        return false;
+      }
       return true;
     }
     if (call.name !== QUERY_CHAIN_TOOL_NAME) {

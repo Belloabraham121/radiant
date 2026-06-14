@@ -31,6 +31,8 @@ import {
   filterToolCallsForClientDisplay,
   formatFlashLoanQuoteReply,
   findLatestFlashLoanQuote,
+  buildInfeasibleFlashLoanExecuteBlock,
+  hasFlashLoanExecutionAttempt,
   isFlashLoanParamValidationError,
   isFlashLoanRepayNotFeasibleError,
   isInfeasibleFlashLoanQuoteResult,
@@ -451,14 +453,22 @@ export const openaiRuntime: AgentRuntime = {
         }
 
         if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
-          emitExecutionProgress({
-            step: {
-              id: "execute",
-              status: "running",
-              label: "Execute bundle",
-              detail: "Validating and preparing transaction…",
-            },
-          });
+          const priorInfeasibleQuote = findLatestFlashLoanQuote(tool_calls);
+          const blockInfeasibleExecute =
+            args.action === "deepbook_flash_loan" &&
+            priorInfeasibleQuote !== null &&
+            !priorInfeasibleQuote.repay_feasible;
+
+          if (!blockInfeasibleExecute) {
+            emitExecutionProgress({
+              step: {
+                id: "execute",
+                status: "running",
+                label: "Execute bundle",
+                detail: "Validating and preparing transaction…",
+              },
+            });
+          }
         }
 
         if (
@@ -491,12 +501,21 @@ export const openaiRuntime: AgentRuntime = {
           });
         }
 
-        const result = await runAgentTool(input.privyUserId, toolCall.function.name, args, {
-          sessionId: input.sessionId,
-          ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
-            ? { rawArguments: toolCall.function.arguments }
-            : {}),
-        });
+        const priorInfeasibleQuote = findLatestFlashLoanQuote(tool_calls);
+        const blockInfeasibleFlashLoanExecute =
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          args.action === "deepbook_flash_loan" &&
+          priorInfeasibleQuote !== null &&
+          !priorInfeasibleQuote.repay_feasible;
+
+        const result = blockInfeasibleFlashLoanExecute
+          ? buildInfeasibleFlashLoanExecuteBlock(priorInfeasibleQuote)
+          : await runAgentTool(input.privyUserId, toolCall.function.name, args, {
+              sessionId: input.sessionId,
+              ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
+                ? { rawArguments: toolCall.function.arguments }
+                : {}),
+            });
         tool_calls.push({
           name: toolCall.function.name,
           ...(toolCall.function.name === QUERY_CHAIN_TOOL_NAME && typeof args.query === "string"
@@ -535,7 +554,7 @@ export const openaiRuntime: AgentRuntime = {
           }
         }
 
-        if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
+        if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME && !blockInfeasibleFlashLoanExecute) {
           emitExecuteProgressFromResult(result);
         }
 
@@ -593,12 +612,16 @@ export const openaiRuntime: AgentRuntime = {
           content: summarizeToolResult(toolCall.function.name, result),
         });
 
-        if (infeasibleFlashLoanQuote && !pending_transaction) {
+        if (infeasibleFlashLoanQuote && !pending_transaction && hasFlashLoanExecutionAttempt(tool_calls)) {
           break;
         }
       }
 
-      if (infeasibleFlashLoanQuote && !pending_transaction) {
+      if (
+        infeasibleFlashLoanQuote &&
+        !pending_transaction &&
+        hasFlashLoanExecutionAttempt(tool_calls)
+      ) {
         reply = formatFlashLoanQuoteReply(infeasibleFlashLoanQuote);
         break;
       }

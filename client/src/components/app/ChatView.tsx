@@ -8,6 +8,7 @@ import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
+import { AgentThinkingDots } from "@/components/app/AgentThinkingDots";
 import { ResizableArtifactPanel } from "@/components/app/ResizableArtifactPanel";
 import { useArtifactSession } from "@/components/app/ArtifactContext";
 import { useChatSession } from "@/hooks/useChatSession";
@@ -150,7 +151,7 @@ function Bubble({
           {isUser ? (
             message.text
           ) : message.streaming && !message.text ? (
-            <span className="text-[var(--hero-ink)]/45">Thinking…</span>
+            <AgentThinkingDots />
           ) : (
             <AgentMessageMarkdown text={message.text} />
           )}
@@ -410,15 +411,6 @@ export function ChatView({ sessionId }: ChatViewProps) {
               />
             ))}
 
-            {typing && !streaming && (
-              <div className="flex justify-start">
-                <div className="hero-blink flex items-center gap-1.5 rounded-3xl rounded-bl-md border-2 border-[var(--hero-ink)] bg-white px-5 py-4 shadow-[4px_4px_0_var(--hero-ink)]">
-                  <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
-                  <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
-                  <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
-                </div>
-              </div>
-            )}
             <div ref={endRef} />
           </div>
         )}

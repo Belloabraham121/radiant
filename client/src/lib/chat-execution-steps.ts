@@ -47,6 +47,22 @@ type ToolErrorResult = {
   error: { code?: string; message?: string };
 };
 
+const FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE = "FLASH_LOAN_QUOTE_INFEASIBLE";
+
+function isBlockedInfeasibleFlashLoanExecute(call: ChatToolCall): boolean {
+  return (
+    call.name === "execute_transaction" &&
+    isToolError(call.result) &&
+    call.result.error.code === FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE
+  );
+}
+
+function hasFlashLoanExecutionAttemptInTurn(toolCalls: ChatToolCall[]): boolean {
+  return toolCalls.some(
+    (call) => call.name === "execute_transaction" && !isBlockedInfeasibleFlashLoanExecute(call),
+  );
+}
+
 export type StreamExecutionStepPayload = {
   id: string;
   status: ExecutionStepStatus;
@@ -435,8 +451,7 @@ export function mapToolCallsToExecutionSteps(
   const flashQuoteIndex = findLatestFlashLoanQuoteIndex(toolCalls);
   if (flashQuoteIndex >= 0) {
     const quote = toolCalls[flashQuoteIndex].result as FlashLoanQuoteResult;
-    const hasExecute = toolCalls.some((call) => call.name === "execute_transaction");
-    if (!hasExecute && quote.repay_feasible) {
+    if (!hasFlashLoanExecutionAttemptInTurn(toolCalls)) {
       return undefined;
     }
     return buildFlashLoanExecutionSteps(toolCalls, flashQuoteIndex, quote);

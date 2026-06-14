@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildReplyAfterToolsNudge,
   hasSuccessfulQueryResults,
   isSuccessfulToolResult,
   shouldNudgeReplyAfterTools,
@@ -62,5 +63,20 @@ describe("turn-reply-flow", () => {
       ]),
       false,
     );
+  });
+
+  it("buildReplyAfterToolsNudge includes flash loan research guidance for quote-only turns", () => {
+    const quote = {
+      strategy: "swap_chain_repay",
+      pool_key: "SUI_USDC",
+      borrow_amount: 10000,
+      coin_key: "USDC",
+      repay_feasible: false,
+      steps: [],
+      warnings: [],
+    };
+    const nudge = buildReplyAfterToolsNudge([{ name: "query_chain", result: quote }]);
+    assert.ok(nudge.includes("exploring flash loans"));
+    assert.ok(nudge.includes("Do not call execute_transaction"));
   });
 });

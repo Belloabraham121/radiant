@@ -4,9 +4,11 @@ import {
   filterToolCallsForClientDisplay,
   formatFlashLoanQuoteReply,
   hasFlashLoanExecutionAttempt,
+  isFlashLoanAdvisoryTurn,
   isInfeasibleFlashLoanQuoteResult,
   shouldFinalizeFlashLoanQuoteReply,
   shouldUseCannedFlashLoanQuoteReply,
+  FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE,
 } from "../../../src/services/agent/deepbook/flash-loan-approval-flow.js";
 
 const infeasibleQuote = {
@@ -79,7 +81,7 @@ describe("flash-loan-approval-flow", () => {
     assert.match(reply, /can't execute this bundle/i);
   });
 
-  it("shouldFinalizeFlashLoanQuoteReply when repay is not feasible", () => {
+  it("shouldFinalizeFlashLoanQuoteReply when repay is not feasible on execution turns", () => {
     const quote = {
       strategy: "swap_chain_repay" as const,
       pool_key: "SUI_USDC",
@@ -96,9 +98,19 @@ describe("flash-loan-approval-flow", () => {
       warnings: [],
     };
 
-    assert.ok(
+    assert.equal(
       shouldFinalizeFlashLoanQuoteReply(
         [{ name: "query_chain", result: quote }],
+        false,
+      ),
+      null,
+    );
+    assert.ok(
+      shouldFinalizeFlashLoanQuoteReply(
+        [
+          { name: "query_chain", result: quote },
+          { name: "execute_transaction", result: { status: "approval_required" } },
+        ],
         false,
       ),
     );
@@ -121,8 +133,34 @@ describe("flash-loan-approval-flow", () => {
       ),
       true,
     );
-    assert.equal(shouldUseCannedFlashLoanQuoteReply([], infeasibleQuote), true);
+    assert.equal(
+      shouldUseCannedFlashLoanQuoteReply([{ name: "query_chain", result: infeasibleQuote }], infeasibleQuote),
+      false,
+    );
+    assert.equal(
+      shouldUseCannedFlashLoanQuoteReply(
+        [
+          { name: "query_chain", result: infeasibleQuote },
+          { name: "execute_transaction", result: { status: "approval_required" } },
+        ],
+        infeasibleQuote,
+      ),
+      true,
+    );
     assert.equal(hasFlashLoanExecutionAttempt([{ name: "execute_transaction", result: {} }]), true);
+    assert.equal(
+      hasFlashLoanExecutionAttempt([
+        {
+          name: "execute_transaction",
+          result: { error: { code: FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE, message: "blocked" } },
+        },
+      ]),
+      false,
+    );
+    assert.equal(
+      isFlashLoanAdvisoryTurn([{ name: "query_chain", result: infeasibleQuote }]),
+      true,
+    );
   });
 
   it("isInfeasibleFlashLoanQuoteResult detects infeasible quotes", () => {
