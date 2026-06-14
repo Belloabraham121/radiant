@@ -231,6 +231,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     panelOpen,
     payload: artifactPayload,
     activePath,
+    streaming: artifactStreaming,
     setActivePath,
     closePanel,
     openArtifact,
@@ -461,6 +462,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
         <ResizableArtifactPanel
           payload={artifactPayload}
           activePath={activePath}
+          streaming={artifactStreaming}
           onActivePathChange={setActivePath}
           onClose={closePanel}
         />

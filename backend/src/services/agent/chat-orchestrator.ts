@@ -123,8 +123,13 @@ export async function runChatTurn(
 
   const runtime = options.forceRuntime ?? getAgentRuntime();
   const result = await runWithExecutionProgress(
-    (event) => {
-      options.onStream?.("step", event);
+    {
+      onProgress: (event) => {
+        options.onStream?.("step", event);
+      },
+      onArtifact: (data) => {
+        options.onStream?.("artifact", data);
+      },
     },
     () =>
       runtime.runTurn({

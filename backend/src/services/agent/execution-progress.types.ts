@@ -1,3 +1,6 @@
+import type { ChatResponse } from "./agent.types.js";
+import type { ArtifactPayload } from "../projects/project.types.js";
+
 export type ExecutionStepStatus =
   | "pending"
   | "running"
@@ -33,6 +36,11 @@ export type ChatStreamDoneEvent = {
 };
 
 export type ChatStreamSender = (
-  event: "step" | "done" | "error",
-  data: ExecutionProgressEvent | ChatStreamDoneEvent | { message: string },
+  event: "step" | "artifact" | "done" | "error",
+  data:
+    | ExecutionProgressEvent
+    | { artifact: ArtifactPayload; streaming: boolean }
+    | ChatStreamDoneEvent
+    | ChatResponse
+    | { message: string },
 ) => void;

@@ -25,11 +25,13 @@ function readStoredWidth(): number {
 export function ResizableArtifactPanel({
   payload,
   activePath,
+  streaming,
   onActivePathChange,
   onClose,
 }: {
   payload: ArtifactPayload;
   activePath: string;
+  streaming?: boolean;
   onActivePathChange: (path: string) => void;
   onClose: () => void;
 }) {
@@ -100,6 +102,7 @@ export function ResizableArtifactPanel({
       <ArtifactPanel
         payload={payload}
         activePath={activePath}
+        streaming={streaming}
         onActivePathChange={onActivePathChange}
         onClose={onClose}
         className="h-full w-full"

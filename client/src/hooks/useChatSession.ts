@@ -62,7 +62,8 @@ function initialChatSessionState(sessionId?: string) {
 export function useChatSession(sessionId?: string) {
   const router = useRouter();
   const { refreshSessions } = useChatSessions();
-  const { openArtifact } = useArtifactContext();
+  const { openArtifact, updateArtifact, setArtifactStreaming, migrateArtifactSession } =
+    useArtifactContext();
   const [boot] = useState(() => initialChatSessionState(sessionId));
 
   const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
@@ -143,6 +144,8 @@ export function useChatSession(sessionId?: string) {
       setStreaming(true);
       setChatError(null);
 
+      const artifactSessionKey = sessionId ?? activeSessionId ?? "new";
+
       try {
         const data = await postChatStream(
           {
@@ -169,6 +172,17 @@ export function useChatSession(sessionId?: string) {
                   };
                 }),
               );
+            },
+            onArtifact: ({ artifact, streaming }) => {
+              const focusPath =
+                artifact.files.find((file) => file.path === "src/App.tsx")?.path ??
+                artifact.files.find((file) => file.path === "src/App.jsx")?.path ??
+                artifact.files[artifact.files.length - 1]?.path;
+              updateArtifact(artifactSessionKey, artifact, {
+                streaming,
+                open: true,
+                activePath: focusPath,
+              });
             },
           },
         );
@@ -211,9 +225,15 @@ export function useChatSession(sessionId?: string) {
         setPendingTx(data.pending_transaction ?? null);
         setPendingClarification(data.pending_clarification ?? null);
 
+        const finalArtifactKey = sessionId ?? data.session_id;
         if (data.artifact) {
-          const artifactSessionKey = sessionId ?? activeSessionId ?? data.session_id;
-          openArtifact(artifactSessionKey, data.artifact);
+          updateArtifact(finalArtifactKey, data.artifact, { streaming: false, open: true });
+        } else {
+          setArtifactStreaming(finalArtifactKey, false);
+        }
+
+        if (!sessionId && data.session_id && artifactSessionKey === "new") {
+          migrateArtifactSession("new", data.session_id);
         }
 
         if (!sessionId && data.session_id) {
@@ -228,11 +248,24 @@ export function useChatSession(sessionId?: string) {
         setMessages((current) =>
           current.filter((entry) => entry.id !== liveAgentId),
         );
+        setArtifactStreaming(artifactSessionKey, false);
       } finally {
         setStreaming(false);
       }
     },
-    [activeSessionId, openArtifact, refreshSessions, router, sessionId, streaming, title, typing],
+    [
+      activeSessionId,
+      migrateArtifactSession,
+      openArtifact,
+      refreshSessions,
+      router,
+      sessionId,
+      setArtifactStreaming,
+      streaming,
+      title,
+      typing,
+      updateArtifact,
+    ],
   );
 
   const approvePending = useCallback(async () => {

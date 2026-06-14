@@ -12,12 +12,14 @@ type ArtifactTab = "preview" | "code" | "deploy";
 export function ArtifactPanel({
   payload,
   activePath,
+  streaming = false,
   onActivePathChange,
   onClose,
   className = "",
 }: {
   payload: ArtifactPayload;
   activePath: string;
+  streaming?: boolean;
   onActivePathChange: (path: string) => void;
   onClose: () => void;
   className?: string;
@@ -63,6 +65,12 @@ export function ArtifactPanel({
             }`}
           >
             {entry}
+            {entry === "code" && streaming ? (
+              <span
+                className="ml-1 inline-block size-1.5 rounded-full bg-[var(--hero-violet)] animate-pulse"
+                aria-hidden
+              />
+            ) : null}
           </button>
         ))}
       </div>
@@ -81,7 +89,11 @@ export function ArtifactPanel({
                 onSelect={onActivePathChange}
               />
             </div>
-            <ArtifactCodeView files={payload.files} activePath={activePath} />
+            <ArtifactCodeView
+              files={payload.files}
+              activePath={activePath}
+              streaming={streaming}
+            />
           </div>
         ) : null}
 

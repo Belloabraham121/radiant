@@ -1,9 +1,11 @@
 import { ApiError } from "@/lib/api";
 import type { ChatRequest, ChatResponse } from "@/lib/chat-api";
+import type { ArtifactPayload } from "@/lib/artifact-types";
 import type { StreamExecutionStepPayload } from "@/lib/chat-execution-steps";
 
 export type ChatStreamHandlers = {
   onStep?: (step: StreamExecutionStepPayload) => void;
+  onArtifact?: (payload: { artifact: ArtifactPayload; streaming: boolean }) => void;
 };
 
 function parseSseBlock(block: string): { event: string; data: string } | null {
@@ -81,6 +83,9 @@ export async function postChatStream(
         if (parsed.event === "step") {
           const step = (payload as { step: StreamExecutionStepPayload }).step;
           handlers.onStep?.(step);
+        } else if (parsed.event === "artifact") {
+          const artifactPayload = payload as { artifact: ArtifactPayload; streaming: boolean };
+          handlers.onArtifact?.(artifactPayload);
         } else if (parsed.event === "done") {
           finalResponse = payload as ChatResponse;
         } else if (parsed.event === "error") {

@@ -14,9 +14,11 @@ import {
 export function ArtifactMonacoEditor({
   files,
   activePath,
+  streaming = false,
 }: {
   files: ArtifactFile[];
   activePath: string;
+  streaming?: boolean;
 }) {
   const monaco = useMonaco();
   const file = files.find((entry) => entry.path === activePath) ?? files[0];
@@ -35,7 +37,10 @@ export function ArtifactMonacoEditor({
   const modelPath = artifactModelPath(activePath || file.path);
 
   return (
-    <Editor
+    <div
+      className={`h-full ${streaming ? "ring-2 ring-inset ring-[var(--hero-violet)]/35 animate-pulse" : ""}`}
+    >
+      <Editor
       path={modelPath}
       defaultLanguage={languageForArtifactPath(normalized)}
       theme="artifact-light"
@@ -76,6 +81,7 @@ export function ArtifactMonacoEditor({
           horizontalScrollbarSize: 8,
         },
       }}
-    />
+      />
+    </div>
   );
 }
