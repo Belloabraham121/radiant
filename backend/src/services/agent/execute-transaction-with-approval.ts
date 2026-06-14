@@ -32,11 +32,30 @@ import {
   preflightDeepBookFlashLoan,
 } from "../defi/deepbook/deepbook-flash-loan.service.js";
 
+type ExecuteWithApprovalHandler = (
+  privyUserId: string,
+  input: ExecuteTransactionInput,
+  options?: AgentToolOptions | boolean,
+) => Promise<ExecuteToolOutcome>;
+
+let executeWithApprovalHandlerForTests: ExecuteWithApprovalHandler | null = null;
+
+/** Test hook — stub on-chain execution for app-action / workflow integration tests. */
+export function setExecuteTransactionWithApprovalHandlerForTests(
+  handler: ExecuteWithApprovalHandler | null,
+): void {
+  executeWithApprovalHandlerForTests = handler;
+}
+
 export async function runExecuteTransactionToolWithApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
   options: AgentToolOptions | boolean = {},
 ): Promise<ExecuteToolOutcome> {
+  if (executeWithApprovalHandlerForTests) {
+    return executeWithApprovalHandlerForTests(privyUserId, input, options);
+  }
+
   const opts = resolveExecuteTransactionOptions(options);
   const approved = opts.approved === true;
   const context = {

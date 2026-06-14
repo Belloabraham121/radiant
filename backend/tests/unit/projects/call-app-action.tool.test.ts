@@ -63,4 +63,14 @@ describe("call_app_action tool", () => {
         Array.isArray((err.details as { allowed_actions?: string[] })?.allowed_actions),
     );
   });
+
+  it("callAppActionInputSchema rejects invalid action names", () => {
+    assert.throws(() =>
+      callAppActionInputSchema.parse({
+        project_id: projectId,
+        action: "not_a_real_action",
+        params: {},
+      }),
+    );
+  });
 });

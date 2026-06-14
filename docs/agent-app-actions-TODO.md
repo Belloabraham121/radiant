@@ -364,8 +364,8 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Unit: tool validates against schema | |
-| [ ] | Integration: call_app_action swap | |
+| [x] | Unit: tool validates against schema | `call-app-action.tool.test.ts` |
+| [x] | Integration: call_app_action swap | `tests/integration/call-app-action.test.ts` |
 
 ---
 
