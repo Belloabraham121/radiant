@@ -297,9 +297,9 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Prisma: `Project.action_schema` JSONB nullable | Or separate `ProjectActionSchema` table |
-| [ ] | Migration | |
-| [ ] | Default schema for DeepBook swap apps | Generated on `generate_app` when template hints DeFi |
+| [x] | Prisma: `Project.action_schema` JSONB nullable | Or separate `ProjectActionSchema` table |
+| [x] | Migration | |
+| [x] | Default schema for DeepBook swap apps | Generated on `generate_app` when template hints DeFi |
 
 ### 6.2 Schema shape
 
@@ -317,17 +317,17 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `buildDefaultDeepBookActionSchema()` | swap, stake, flash_loan, … |
-| [ ] | Persist on `generate_app` when DeFi UI detected | Heuristic: imports radiant-client execute or component names |
-| [ ] | `GET /projects/:id/actions` returns schema | |
-| [ ] | Version field for schema migrations | `schema_version: 1` |
+| [x] | `buildDefaultDeepBookActionSchema()` | swap, stake, flash_loan, … |
+| [x] | Persist on `generate_app` when DeFi UI detected | Heuristic: imports radiant-client execute or component names |
+| [x] | `GET /projects/:id/actions` returns schema | |
+| [x] | Version field for schema migrations | `schema_version: 1` |
 
 ### 6.3 Agent discovery
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `query_chain` → `project_actions` optional query | Or include in `list_session_projects` |
-| [ ] | System prompt: use schema before `call_app_action` | |
+| [x] | `query_chain` → `project_actions` optional query | Or include in `list_session_projects` |
+| [x] | System prompt: use schema before `call_app_action` | |
 
 ---
 

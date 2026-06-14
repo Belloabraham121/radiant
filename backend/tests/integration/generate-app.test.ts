@@ -130,6 +130,15 @@ describe("generateAppForUser", () => {
     assert.ok(project);
     assert.equal(project.session_id, session.id);
     assert.equal(project.artifact_revision, 0);
+    assert.ok(project.action_schema);
+    const actionSchema = project.action_schema as {
+      schema_version: number;
+      protocol: string;
+      actions: Array<{ name: string }>;
+    };
+    assert.equal(actionSchema.schema_version, 1);
+    assert.equal(actionSchema.protocol, "deepbook");
+    assert.ok(actionSchema.actions.some((action) => action.name === "swap"));
 
     const files = await listArtifactFiles(saved.project_id, 0);
     assert.ok(files.length >= 4);

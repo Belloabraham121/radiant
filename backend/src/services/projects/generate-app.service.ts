@@ -5,7 +5,9 @@ import { validateArtifactBatch } from "../sandbox/sandbox-paths.js";
 import { upsertArtifactFiles } from "./artifact.repository.js";
 import { ensureAppEntry } from "./ensure-app-entry.js";
 import { PREVIEW_PROJECT_ID } from "./preview-project.js";
+import { Prisma } from "@prisma/client";
 import type { ArtifactPayload, GenerateAppInput, GenerateAppResult } from "./project.types.js";
+import { coerceAppTemplate } from "./project.types.js";
 import {
   bumpSessionDraftRevision,
   createSessionDraft,
@@ -18,9 +20,16 @@ import {
   bumpArtifactRevision,
   createProject,
   findProjectByIdForUser,
+  setProjectActionSchema,
   setProjectStatus,
   updateProject,
 } from "./project.repository.js";
+import { inferProjectActionSchemaForArtifact } from "./app-action-schema.service.js";
+import type { ProjectActionSchema } from "./app-action-schema.types.js";
+
+function actionSchemaToPrismaJson(schema: ProjectActionSchema): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(schema)) as Prisma.InputJsonValue;
+}
 
 export type GenerateAppContext = {
   sessionId?: string;
@@ -151,6 +160,11 @@ async function persistProject(
     ensureAppEntry(input.files, { template: input.template }),
   );
 
+  const artifactFilesForSchema = normalizedFiles.map((file) => ({
+    path: file.path.replace(/^\/workspace\//, ""),
+    content: file.content,
+  }));
+
   let project =
     input.project_id ? await findProjectByIdForUser(input.project_id, user.id) : null;
 
@@ -166,7 +180,21 @@ async function persistProject(
       tagline: input.tagline,
       template: input.template,
     });
+    const actionSchema = inferProjectActionSchemaForArtifact(project.id, {
+      template: input.template,
+      files: artifactFilesForSchema,
+    });
+    if (actionSchema) {
+      project = await setProjectActionSchema(
+        project.id,
+        actionSchemaToPrismaJson(actionSchema),
+      );
+    }
   } else {
+    const actionSchema = inferProjectActionSchemaForArtifact(project.id, {
+      template: input.template,
+      files: artifactFilesForSchema,
+    });
     project = await updateProject(project.id, {
       name: input.name,
       tagline: input.tagline ?? project.tagline,
@@ -175,6 +203,10 @@ async function persistProject(
         ? { session: { connect: { id: context.sessionId } } }
         : {}),
     });
+    project = await setProjectActionSchema(
+      project.id,
+      actionSchema ? actionSchemaToPrismaJson(actionSchema) : Prisma.DbNull,
+    );
     project = await bumpArtifactRevision(project.id);
   }
 
@@ -241,7 +273,7 @@ export async function saveSessionDraftToProjectForUser(
       project_id: options.project_id,
       name: options.name ?? draft.name,
       tagline: options.tagline ?? draft.tagline,
-      template: draft.template,
+      template: coerceAppTemplate(draft.template),
       save_to_project: true,
       files: files.map((file) => ({
         path: file.path.replace(/^\/workspace\//, ""),

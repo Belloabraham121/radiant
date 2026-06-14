@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { AppError } from "../../../../errors/app-error.js";
 import { requireAuth } from "../../../middleware/auth.js";
 import {
   getInstallationArtifactPayload,
@@ -8,7 +9,9 @@ import {
   poolInfoForInstallation,
   swapQuoteForInstallation,
 } from "../../../../services/projects/installation-platform.service.js";
-import { listAppActionsCatalog } from "../../../../services/projects/app-action-catalog.service.js";
+import { listAppActionsCatalogForProject } from "../../../../services/projects/app-action-catalog.service.js";
+import { findInstallationForUser } from "../../../../services/apps/app-installation.repository.js";
+import { findUserByPrivyId } from "../../../../services/auth/user.repository.js";
 import { parseAppActionName } from "../../../../services/projects/app-action-mapper.js";
 import { executeAppActionForInstallation } from "../../../../services/projects/app-action.service.js";
 import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
@@ -76,8 +79,17 @@ installationsRouter.get(
   requireAuth,
   async (req, res, next) => {
     try {
-      await getInstallationArtifactPayload(req.user.privyUserId, req.params.installationId);
-      return ok(req, res, listAppActionsCatalog());
+      const user = await findUserByPrivyId(req.user.privyUserId);
+      if (!user) {
+        throw new AppError(404, "USER_NOT_FOUND", "User not found");
+      }
+
+      const installation = await findInstallationForUser(req.params.installationId, user.id);
+      if (!installation) {
+        throw new AppError(404, "INSTALLATION_NOT_FOUND", "Installation not found");
+      }
+
+      return ok(req, res, listAppActionsCatalogForProject(installation.source_project));
     } catch (err) {
       next(err);
     }

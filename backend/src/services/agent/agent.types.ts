@@ -141,6 +141,7 @@ const queryChainInputObjectSchema = z.object({
     "deepbook_volume",
     "deepbook_ohlcv",
     "agent_transactions",
+    "project_actions",
   ]),
   params: z
     .object({
@@ -177,6 +178,7 @@ const queryChainInputObjectSchema = z.object({
       category: agentTransactionCategorySchema.optional(),
       session_id: z.string().uuid().optional(),
       transaction_id: z.string().uuid().optional(),
+      project_id: z.string().uuid().optional(),
     })
     .passthrough()
     .optional()

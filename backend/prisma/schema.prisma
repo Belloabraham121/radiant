@@ -225,6 +225,7 @@ model Project {
   fee_bps            Int           @default(0)
   category           String        @default("payments")
   artifact_revision  Int           @default(0)
+  action_schema      Json?
   created_at         DateTime      @default(now())
   updated_at         DateTime      @updatedAt
   files              ArtifactFile[]

@@ -21,7 +21,7 @@ import {
   getProjectPublishStateForUser,
   publishProjectForUser,
 } from "../../../../services/apps/app-installation.service.js";
-import { listAppActionsCatalog } from "../../../../services/projects/app-action-catalog.service.js";
+import { listAppActionsCatalogForProject } from "../../../../services/projects/app-action-catalog.service.js";
 import { parseAppActionName } from "../../../../services/projects/app-action-mapper.js";
 import { executeAppActionForProject } from "../../../../services/projects/app-action.service.js";
 import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
@@ -244,7 +244,7 @@ projectsRouter.get("/api/v1/projects/:projectId/actions", requireAuth, async (re
       throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
     }
 
-    return ok(req, res, listAppActionsCatalog());
+    return ok(req, res, listAppActionsCatalogForProject(project));
   } catch (err) {
     next(err);
   }
