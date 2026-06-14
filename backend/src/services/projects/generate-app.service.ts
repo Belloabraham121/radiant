@@ -92,7 +92,9 @@ async function persistSessionDraft(
 ): Promise<GenerateAppResult> {
   await assertSessionAccess(privyUserId, sessionId);
 
-  const normalizedFiles = validateArtifactBatch(ensureAppEntry(input.files));
+  const normalizedFiles = validateArtifactBatch(
+    ensureAppEntry(input.files, { template: input.template }),
+  );
   let draft = await findSessionDraftBySessionId(sessionId);
 
   if (!draft) {
@@ -145,7 +147,9 @@ async function persistProject(
     }
   }
 
-  const normalizedFiles = validateArtifactBatch(ensureAppEntry(input.files));
+  const normalizedFiles = validateArtifactBatch(
+    ensureAppEntry(input.files, { template: input.template }),
+  );
 
   let project =
     input.project_id ? await findProjectByIdForUser(input.project_id, user.id) : null;

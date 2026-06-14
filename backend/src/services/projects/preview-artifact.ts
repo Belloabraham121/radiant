@@ -22,7 +22,9 @@ export function buildPreviewArtifactPayload(
   }
 
   const mergedFiles = mergeArtifactFiles(existing?.files ?? [], partial.files);
-  const withEntry = ensureAppEntry(mergedFiles);
+  const withEntry = ensureAppEntry(mergedFiles, {
+    template: partial.template ?? existing?.template,
+  });
 
   return {
     project_id: partial.project_id ?? existing?.project_id ?? "preview",

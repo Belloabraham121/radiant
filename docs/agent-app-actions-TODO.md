@@ -225,34 +225,34 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Add `lib/radiant-agent-runtime.ts` to template | Auto-injected like radiant-client |
-| [ ] | `window.__radiantAgent.register(action, handler)` | Handler: `(params, ctx) => Promise<void>` |
-| [ ] | `window.__radiantAgent.execute(action, params, opts?)` | animate → local handler; always → `executeAction` API |
-| [ ] | `ctx.animate`, `ctx.highlight(targetId)` | For live mode |
+| [x] | Add `lib/radiant-agent-runtime.ts` to template | Auto-injected like radiant-client |
+| [x] | `window.__radiantAgent.register(action, handler)` | Handler: `(params, ctx) => Promise<void>` |
+| [x] | `window.__radiantAgent.execute(action, params, opts?)` | animate → local handler; always → `executeAction` API |
+| [x] | `ctx.animate`, `ctx.highlight(targetId)` | For live mode |
 
 ### 4.2 UI components (template)
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `components/AgentIndicator.tsx` | Floating pill when agent active |
-| [ ] | `components/AgentOverlay.tsx` or hook `useRadiantAgent()` | Subscribe to events |
-| [ ] | CSS in `app/globals.css` | `.agent-focused`, `.agent-clicking` |
-| [ ] | `data-radiant-id` convention | Stable targets for animation (`swap-submit`, `amount-in`, …) |
+| [x] | `components/AgentIndicator.tsx` | Floating pill when agent active |
+| [x] | `components/AgentOverlay.tsx` or hook `useRadiantAgent()` | `useRadiantAgent` + `AgentIndicator` in template |
+| [x] | CSS in `app/globals.css` | `.agent-focused`, `.agent-clicking`, indicator pill |
+| [x] | `data-radiant-id` convention | Documented in prompts + SwapForm scaffold |
 
 ### 4.3 Codegen guidance (`prompts.ts` + generate_app)
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Prompt: SwapForm registers `swap` on mount | |
-| [ ] | Prompt: buttons call `__radiantAgent.execute` or `executeSwap` | Not raw SDK |
-| [ ] | Prompt: add `data-radiant-id` on interactive elements | |
-| [ ] | Example scaffold in `template: swap` | Optional starter SwapForm |
+| [x] | Prompt: SwapForm registers `swap` on mount | |
+| [x] | Prompt: buttons call `__radiantAgent.execute` or `executeSwap` | Not raw SDK |
+| [x] | Prompt: add `data-radiant-id` on interactive elements | |
+| [x] | Example scaffold in `template: swap` | `SWAP_FORM_SCAFFOLD` when template swap and no SwapForm |
 
 ### 4.4 Tests
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Unit: runtime register + execute dispatches | Browser-less test of module logic |
+| [x] | Unit: runtime register + execute dispatches | `radiant-agent-runtime.factory.test.ts` |
 | [ ] | Manual: artifact preview swap button → approval or digest | |
 
 ---
@@ -592,6 +592,7 @@ Fallback: chat execution timeline + receipts only (already shipped in chat).
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 4 | `__radiantAgent` runtime, AgentIndicator, swap scaffold, codegen prompts |
 | 2026-06-14 | 3 | `radiant-client` v3: `executeAction`, swap/flash/stake helpers, installation id, preview injection |
 | 2026-06-14 | 2 | HTTP routes: project + installation `GET/POST .../actions`, catalog service, api-ref |
 | 2026-06-14 | 1.3 | UI approval: `POST .../agent/transactions/:id/approve|reject`, `ArtifactPreviewWithApproval`, `useAgentTransactionApproval` |

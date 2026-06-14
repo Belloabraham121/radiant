@@ -206,12 +206,17 @@ export async function poolInfo(pool_key = "SUI_USDC"): Promise<PoolInfoResult> {
 `;
 
 export const NEXT_APP_LAYOUT_TSX = `import "./globals.css";
+import "../lib/radiant-agent-runtime";
 import type { ReactNode } from "react";
+import { AgentIndicator } from "../components/AgentIndicator";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <AgentIndicator />
+      </body>
     </html>
   );
 }

@@ -4,10 +4,20 @@ import {
   RADIANT_CLIENT_TEMPLATE_VERSION,
   RADIANT_CLIENT_TS,
 } from "./radiant-client-template.js";
+import {
+  AGENT_INDICATOR_TSX,
+  AGENT_STYLES_CSS,
+  RADIANT_AGENT_RUNTIME_TS,
+  SWAP_FORM_SCAFFOLD_TSX,
+} from "./radiant-agent-runtime-template.js";
 
 export { RADIANT_CLIENT_TEMPLATE_VERSION };
 
 type ArtifactFileInput = { path: string; content: string };
+
+export type EnsureAppEntryOptions = {
+  template?: string;
+};
 
 function normalizeClientPath(path: string): string {
   return path.replace(/^\/+/, "").replace(/^\/workspace\//, "");
@@ -15,6 +25,13 @@ function normalizeClientPath(path: string): string {
 
 function hasPath(files: ArtifactFileInput[], target: string): boolean {
   return files.some((file) => normalizeClientPath(file.path) === target);
+}
+
+function hasSwapFormComponent(files: ArtifactFileInput[]): boolean {
+  return files.some((file) => {
+    const path = normalizeClientPath(file.path);
+    return path.includes("SwapForm") && (path.endsWith(".tsx") || path.endsWith(".jsx"));
+  });
 }
 
 function pickPrimaryComponent(files: ArtifactFileInput[]): ArtifactFileInput | null {
@@ -43,33 +60,65 @@ export function ensureTailwindInGlobalsCss(css: string): string {
   return `@import "tailwindcss";\n\n${css.trim()}\n`;
 }
 
+/** Append agent highlight / indicator styles when missing from generated globals.css. */
+export function ensureAgentStylesInGlobalsCss(css: string): string {
+  if (css.includes(".radiant-agent-indicator")) return css;
+  return `${css.trim()}\n\n${AGENT_STYLES_CSS}\n`;
+}
+
 function normalizeGlobalsCssFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
   return files.map((file) => {
     if (normalizeClientPath(file.path) !== "app/globals.css") return file;
-    return { ...file, content: ensureTailwindInGlobalsCss(file.content) };
+    return {
+      ...file,
+      content: ensureAgentStylesInGlobalsCss(ensureTailwindInGlobalsCss(file.content)),
+    };
   });
+}
+
+function injectPlatformFiles(files: ArtifactFileInput[], options: EnsureAppEntryOptions): ArtifactFileInput[] {
+  const next = [...files];
+
+  if (!hasPath(next, "lib/radiant-client.ts")) {
+    next.push({ path: "lib/radiant-client.ts", content: RADIANT_CLIENT_TS });
+  }
+  if (!hasPath(next, "lib/radiant-agent-runtime.ts")) {
+    next.push({ path: "lib/radiant-agent-runtime.ts", content: RADIANT_AGENT_RUNTIME_TS });
+  }
+  if (!hasPath(next, "components/AgentIndicator.tsx")) {
+    next.push({ path: "components/AgentIndicator.tsx", content: AGENT_INDICATOR_TSX });
+  }
+
+  if (options.template === "swap" && !hasSwapFormComponent(next)) {
+    next.push({ path: "components/SwapForm.tsx", content: SWAP_FORM_SCAFFOLD_TSX });
+  }
+
+  return next;
+}
+
+function defaultGlobalsCss(): string {
+  return ensureAgentStylesInGlobalsCss(NEXT_APP_GLOBALS_CSS);
 }
 
 /**
  * Next.js App Router artifacts need app/page.tsx + lib/radiant-client.ts.
  * Legacy src/App.tsx is still accepted for older previews.
  */
-export function ensureAppEntry(files: ArtifactFileInput[]): ArtifactFileInput[] {
-  const next: ArtifactFileInput[] = [...files];
+export function ensureAppEntry(
+  files: ArtifactFileInput[],
+  options: EnsureAppEntryOptions = {},
+): ArtifactFileInput[] {
+  let next = injectPlatformFiles(files, options);
 
   const usesLegacy = hasPath(next, "src/App.tsx") || hasPath(next, "src/App.jsx");
   const usesNext = hasPath(next, "app/page.tsx");
-
-  if (!hasPath(next, "lib/radiant-client.ts")) {
-    next.push({ path: "lib/radiant-client.ts", content: RADIANT_CLIENT_TS });
-  }
 
   if (usesNext) {
     if (!hasPath(next, "app/layout.tsx")) {
       next.push({ path: "app/layout.tsx", content: NEXT_APP_LAYOUT_TSX });
     }
     if (!hasPath(next, "app/globals.css")) {
-      next.push({ path: "app/globals.css", content: NEXT_APP_GLOBALS_CSS });
+      next.push({ path: "app/globals.css", content: defaultGlobalsCss() });
     }
     return normalizeGlobalsCssFiles(next);
   }
@@ -78,14 +127,17 @@ export function ensureAppEntry(files: ArtifactFileInput[]): ArtifactFileInput[] 
     return normalizeGlobalsCssFiles(next);
   }
 
-  const primary = pickPrimaryComponent(next);
+  const primary =
+    options.template === "swap" && hasPath(next, "components/SwapForm.tsx")
+      ? next.find((file) => normalizeClientPath(file.path) === "components/SwapForm.tsx") ?? null
+      : pickPrimaryComponent(next);
   const importPath = primary ? componentImportPath(primary.path) : null;
 
   if (!hasPath(next, "app/layout.tsx")) {
     next.push({ path: "app/layout.tsx", content: NEXT_APP_LAYOUT_TSX });
   }
   if (!hasPath(next, "app/globals.css")) {
-    next.push({ path: "app/globals.css", content: NEXT_APP_GLOBALS_CSS });
+    next.push({ path: "app/globals.css", content: defaultGlobalsCss() });
   }
 
   if (importPath) {

@@ -9,8 +9,9 @@ describe("ensureAppEntry", () => {
       { path: "src/components/SwapForm.tsx", content: "export default () => <div />" },
     ];
     const result = ensureAppEntry(files);
-    assert.equal(result.length, 3);
+    assert.ok(result.length >= 3);
     assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
+    assert.ok(result.some((f) => f.path === "lib/radiant-agent-runtime.ts"));
     assert.ok(result.some((f) => f.path === "src/App.tsx"));
   });
 
@@ -58,6 +59,31 @@ describe("ensureAppEntry", () => {
     assert.match(client!.content, /export async function executeAction/);
     assert.match(client!.content, /export async function executeSwap/);
     assert.match(client!.content, /Template v3/);
+  });
+
+  it("injects agent runtime, indicator, and agent CSS", () => {
+    const result = ensureAppEntry([{ path: "app/page.tsx", content: "export default function Page() { return null; }" }]);
+    assert.ok(result.some((f) => f.path === "lib/radiant-agent-runtime.ts"));
+    assert.ok(result.some((f) => f.path === "components/AgentIndicator.tsx"));
+    const layout = result.find((f) => f.path === "app/layout.tsx");
+    assert.ok(layout);
+    assert.match(layout!.content, /AgentIndicator/);
+    assert.match(layout!.content, /radiant-agent-runtime/);
+    const globals = result.find((f) => f.path === "app/globals.css");
+    assert.ok(globals);
+    assert.match(globals!.content, /\.radiant-agent-indicator/);
+    assert.match(globals!.content, /\.agent-focused/);
+  });
+
+  it("adds SwapForm scaffold when template is swap", () => {
+    const result = ensureAppEntry([], { template: "swap" });
+    const swapForm = result.find((f) => f.path === "components/SwapForm.tsx");
+    const page = result.find((f) => f.path === "app/page.tsx");
+    assert.ok(swapForm);
+    assert.match(swapForm!.content, /agent\.register\("swap"/);
+    assert.match(swapForm!.content, /agent\.execute\(/);
+    assert.ok(page);
+    assert.match(page!.content, /SwapForm/);
   });
 
   it("injects Tailwind import into globals.css for deploy builds", () => {

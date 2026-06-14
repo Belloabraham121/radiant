@@ -54,26 +54,26 @@ export function ArtifactPreview({
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewPathRef = useRef("/");
-  const [loading, setLoading] = useState(true);
   const [previewPath, setPreviewPath] = useState("/");
   const [refreshKey, setRefreshKey] = useState(0);
+  const iframeKey = `${revision}-${refreshKey}`;
+  const [readyIframeKey, setReadyIframeKey] = useState<string | null>(null);
+  const loading = readyIframeKey !== iframeKey;
   const routes = useMemo(() => extractArtifactPreviewRoutes(files), [files]);
   const srcdoc = useMemo(
     () => buildArtifactPreviewSrcdoc(files, { projectId, installationId }),
-    [files, projectId, installationId, revision, refreshKey],
+    [files, projectId, installationId],
   );
 
-  previewPathRef.current = previewPath;
+  useEffect(() => {
+    previewPathRef.current = previewPath;
+  }, [previewPath]);
 
   const postNavigate = useCallback((path: string) => {
     const win = iframeRef.current?.contentWindow;
     if (!win) return;
     win.postMessage({ type: PREVIEW_NAVIGATE_TYPE, path }, "*");
   }, []);
-
-  useEffect(() => {
-    setLoading(true);
-  }, [srcdoc]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -138,14 +138,14 @@ export function ArtifactPreview({
       }
 
       if (data.status === "ready" || data.status === "error") {
-        setLoading(false);
+        setReadyIframeKey(iframeKey);
         postNavigate(previewPathRef.current);
       }
     }
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [postNavigate, installationId, projectId, onProxiedApiResponse]);
+  }, [postNavigate, installationId, projectId, onProxiedApiResponse, iframeKey]);
 
   function handlePathChange(path: string) {
     setPreviewPath(path);
@@ -153,7 +153,6 @@ export function ArtifactPreview({
   }
 
   function handleRefresh() {
-    setLoading(true);
     setRefreshKey((key) => key + 1);
   }
 
@@ -170,7 +169,7 @@ export function ArtifactPreview({
         {loading ? <PreviewLoadingOverlay /> : null}
         <iframe
           ref={iframeRef}
-          key={`${revision}-${refreshKey}`}
+          key={iframeKey}
           title="App preview"
           sandbox="allow-scripts"
           srcDoc={srcdoc}
