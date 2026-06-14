@@ -7,13 +7,14 @@ import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.servi
 import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
 import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import { buildFlashLoanPtb, validateFlashLoanBundle } from "./deepbook-flash-loan-bundle.js";
-import { getFlashLoanBundleQuote } from "./deepbook-flash-loan-quote.js";
+import { getFlashLoanBundleQuote, resolveFlashLoanBundleParams } from "./deepbook-flash-loan-quote.js";
 import {
   parseDeepBookFlashLoanParams,
   type DeepBookFlashLoanBundleParams,
   type FlashLoanAsset,
   type FlashLoanBundleQuoteResult,
   type FlashLoanStrategy,
+  type FlashLoanStep,
 } from "./deepbook-flash-loan.types.js";
 import { getSuiDeepBookClient } from "./providers/sui-deepbook.provider.js";
 import type { TxResult } from "../../chains/types.js";
@@ -52,6 +53,26 @@ export function isDeepBookFlashLoanAction(action: string): boolean {
 }
 
 export { parseDeepBookFlashLoanParams };
+
+function withExecutionStepsFromQuote(
+  parsed: DeepBookFlashLoanBundleParams,
+  quote: FlashLoanBundleQuoteResult,
+): DeepBookFlashLoanBundleParams {
+  if (parsed.strategy !== "swap_chain_repay" || quote.steps.length === 0) {
+    return parsed;
+  }
+
+  const executionSteps: FlashLoanStep[] = quote.steps.map((stepQuote, index) => ({
+    pool_key: stepQuote.pool_key,
+    side: stepQuote.side,
+    amount: index === 0 ? parsed.borrow_amount : quote.steps[index - 1].out_est,
+  }));
+
+  return {
+    ...parsed,
+    steps: executionSteps,
+  };
+}
 
 async function resolveSuiAgentWallet(privyUserId: string) {
   const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
@@ -92,9 +113,10 @@ async function buildFlashLoanTransaction(
 }> {
   const mode = options.mode ?? "full";
   await assertFlashLoansEnabled(privyUserId);
-  const parsed = parseDeepBookFlashLoanParams(params);
-  await validateFlashLoanBundle(privyUserId, parsed);
+  const { parsed: resolved } = await resolveFlashLoanBundleParams(privyUserId, params);
+  await validateFlashLoanBundle(privyUserId, resolved);
   const quote = await getFlashLoanBundleQuote(privyUserId, params);
+  const parsed = withExecutionStepsFromQuote(resolved, quote);
 
   const wallet = await resolveSuiAgentWallet(privyUserId);
   const tx = new Transaction();

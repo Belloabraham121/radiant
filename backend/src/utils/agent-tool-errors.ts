@@ -95,7 +95,7 @@ function guidanceForErrorCode(code: string): string {
     case "SIGNING_FAILED":
       return "Explain there was a wallet signing issue and suggest reconnecting or re-registering the agent wallet.";
     case "VALIDATION_ERROR":
-      return "Explain which param was wrong in plain language. For generate_app: name must be a string, files must be an array of { path, content } objects (include app/page.tsx). For deepbook_flash_loan / flash_loan_quote: pool_key is the borrow pool; asset must be base or quote; swap_chain_repay requires steps with pool_key, side buy|sell, amount. Fix params and retry the tool — do not ask the user to confirm in chat when details are already in the thread.";
+      return "Explain which param was wrong in plain language. For generate_app: name must be a string, files must be an array of { path, content } objects (include app/page.tsx). For deepbook_flash_loan / flash_loan_quote: pool_key is the borrow pool; asset must be base or quote; swap_chain_repay steps are optional (auto-routed when omitted). Fix params and retry the tool — do not ask the user to confirm in chat when details are already in the thread.";
     default:
       return "Explain what went wrong in plain language and suggest a practical next step.";
   }

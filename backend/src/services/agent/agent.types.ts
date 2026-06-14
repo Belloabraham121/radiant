@@ -168,7 +168,7 @@ const queryChainInputObjectSchema = z.object({
         .optional(),
       repay_source: z.enum(["swap_output", "wallet", "merged"]).optional(),
       estimated_surplus: z.number().optional(),
-      limit: z.number().int().positive().max(10).optional(),
+      limit: z.number().int().positive().max(500).optional(),
       status: agentTransactionStatusSchema.optional(),
       category: agentTransactionCategorySchema.optional(),
       session_id: z.string().uuid().optional(),
@@ -213,6 +213,23 @@ export const queryChainInputSchema = z.preprocess((input) => {
   const borrowAmount = coercePositiveNumber(params.borrow_amount);
   if (borrowAmount != null) {
     params.borrow_amount = borrowAmount;
+  }
+  const limit = coercePositiveNumber(params.limit);
+  if (limit != null) {
+    params.limit = limit;
+  }
+
+  const queryLimitMax: Partial<Record<string, number>> = {
+    agent_transactions: 10,
+    deepbook_trades: 200,
+    deepbook_ohlcv: 500,
+    deepbook_volume: 365,
+  };
+  if (typeof record.query === "string" && typeof params.limit === "number") {
+    const cap = queryLimitMax[record.query];
+    if (cap != null) {
+      params.limit = Math.min(cap, Math.trunc(params.limit));
+    }
   }
 
   if (record.query === "flash_loan_quote") {
