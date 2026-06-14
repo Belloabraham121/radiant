@@ -1,13 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { Code2, Eye, Rocket, X, type LucideIcon } from "lucide-react";
 import { ArtifactCodeView } from "@/components/app/ArtifactCodeView";
 import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
 import { ArtifactPreview } from "@/components/app/ArtifactPreview";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 
 type ArtifactTab = "preview" | "code" | "deploy";
+
+const ARTIFACT_TABS: { id: ArtifactTab; label: string; Icon: LucideIcon }[] = [
+  { id: "preview", label: "Preview", Icon: Eye },
+  { id: "code", label: "Code", Icon: Code2 },
+  { id: "deploy", label: "Deploy", Icon: Rocket },
+];
 
 export function ArtifactPanel({
   payload,
@@ -53,26 +59,31 @@ export function ArtifactPanel({
       </div>
 
       <div className="flex gap-1 border-b-2 border-[var(--hero-ink)]/10 px-3 py-2">
-        {(["preview", "code", "deploy"] as ArtifactTab[]).map((entry) => (
-          <button
-            key={entry}
-            type="button"
-            onClick={() => setTab(entry)}
-            className={`rounded-full px-3 py-1 text-xs font-bold capitalize transition-colors ${
-              tab === entry
-                ? "bg-[var(--hero-ink)] text-[var(--hero-bg)]"
-                : "text-[var(--hero-ink)]/50 hover:text-[var(--hero-ink)]"
-            }`}
-          >
-            {entry}
-            {entry === "code" && streaming ? (
-              <span
-                className="ml-1 inline-block size-1.5 rounded-full bg-[var(--hero-violet)] animate-pulse"
-                aria-hidden
-              />
-            ) : null}
-          </button>
-        ))}
+        {ARTIFACT_TABS.map(({ id, label, Icon }) => {
+          const active = tab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              aria-label={label}
+              title={label}
+              className={`relative flex size-8 items-center justify-center rounded-full transition-colors ${
+                active
+                  ? "bg-[var(--hero-ink)] text-[var(--hero-bg)]"
+                  : "text-[var(--hero-ink)]/50 hover:bg-[var(--hero-ink)]/5 hover:text-[var(--hero-ink)]"
+              }`}
+            >
+              <Icon className="size-4" strokeWidth={2.5} aria-hidden />
+              {id === "code" && streaming ? (
+                <span
+                  className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-white bg-[var(--hero-violet)] animate-pulse"
+                  aria-hidden
+                />
+              ) : null}
+            </button>
+          );
+        })}
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
