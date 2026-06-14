@@ -8,7 +8,7 @@ import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
-import { ArtifactPanel } from "@/components/app/ArtifactPanel";
+import { ResizableArtifactPanel } from "@/components/app/ResizableArtifactPanel";
 import { useArtifactSession } from "@/components/app/ArtifactContext";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage, Receipt } from "@/lib/chat-messages";
@@ -321,7 +321,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     <div className="flex h-full min-h-0">
       <div
         ref={ref}
-        className={`flex min-h-0 min-w-0 flex-col ${panelOpen && artifactPayload ? "flex-1 lg:w-[55%]" : "flex-1"}`}
+        className={`flex min-h-0 min-w-0 flex-1 flex-col`}
       >
       <header
         className={`${chatColumnClass} flex items-center justify-between gap-3 px-6 py-4`}
@@ -458,8 +458,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       </div>
 
       {panelOpen && artifactPayload ? (
-        <ArtifactPanel
-          className="fixed inset-x-0 bottom-0 z-40 h-[52vh] lg:relative lg:z-0 lg:h-full lg:w-[45%] lg:shrink-0"
+        <ResizableArtifactPanel
           payload={artifactPayload}
           activePath={activePath}
           onActivePathChange={setActivePath}

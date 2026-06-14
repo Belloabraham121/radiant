@@ -1,6 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type { ArtifactFile } from "@/lib/artifact-types";
+
+const ArtifactMonacoEditor = dynamic(
+  () =>
+    import("@/components/app/ArtifactMonacoEditor").then((mod) => mod.ArtifactMonacoEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="p-4 text-xs font-semibold text-[var(--hero-ink)]/45">Loading editor…</p>
+    ),
+  },
+);
 
 export function ArtifactCodeView({
   files,
@@ -10,6 +22,7 @@ export function ArtifactCodeView({
   activePath: string;
 }) {
   const file = files.find((entry) => entry.path === activePath) ?? files[0];
+
   if (!file) {
     return (
       <p className="p-4 text-sm font-semibold text-[var(--hero-ink)]/50">
@@ -23,14 +36,12 @@ export function ArtifactCodeView({
       <div className="border-b-2 border-[var(--hero-ink)]/10 px-3 py-2 text-xs font-bold text-[var(--hero-ink)]/50">
         {file.path}
         <span className="ml-2 font-semibold normal-case text-[var(--hero-ink)]/35">
-          read-only preview — edit via chat (&quot;change the button color&quot;)
+          read-only — TypeScript hints enabled · edit via chat
         </span>
       </div>
-      <pre
-        className="min-h-0 flex-1 overflow-auto p-4 text-xs leading-relaxed font-mono text-[var(--hero-ink)]"
-      >
-        <code>{file.content}</code>
-      </pre>
+      <div className="min-h-0 flex-1">
+        <ArtifactMonacoEditor files={files} activePath={activePath} />
+      </div>
     </div>
   );
 }

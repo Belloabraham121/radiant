@@ -26,7 +26,7 @@ export function ArtifactPanel({
 
   return (
     <aside
-      className={`flex min-h-0 flex-col border-t-2 border-[var(--hero-ink)] bg-white shadow-[-4px_0_0_var(--hero-ink)] lg:border-t-0 lg:border-l-2 ${className}`}
+      className={`flex min-h-0 flex-col border-t border-[var(--hero-ink)]/10 bg-white lg:border-t-0 lg:border-l lg:border-[var(--hero-ink)]/10 ${className}`}
     >
       <div className="flex items-start justify-between gap-3 border-b-2 border-[var(--hero-ink)]/10 px-4 py-3">
         <div className="min-w-0">
