@@ -1,25 +1,25 @@
 "use client";
 
-import { useEffect, type RefObject } from "react";
+import { useCallback, type RefObject } from "react";
 import { postAgentEventToPreviewIframe } from "@/lib/artifact-preview-bridge";
+import { useAgentStream } from "@/hooks/useAgentStream";
 
-/**
- * Placeholder hook for Phase 8 SSE — forwards agent stream events into the preview iframe.
- * Subscribe to your SSE source and call `forward(event)` from the callback.
- */
+/** Forwards live agent SSE events into the preview iframe via postMessage. */
 export function usePreviewAgentEventRelay(
   iframeRef: RefObject<HTMLIFrameElement | null>,
+  sessionId: string | undefined,
   enabled = true,
 ): {
   forward: (event: Parameters<typeof postAgentEventToPreviewIframe>[1]) => void;
 } {
-  useEffect(() => {
-    if (!enabled) return;
-    // Phase 8: EventSource → postAgentEventToPreviewIframe(iframeRef.current, payload)
-    return undefined;
-  }, [enabled, iframeRef]);
+  const forward = useCallback(
+    (event: Parameters<typeof postAgentEventToPreviewIframe>[1]) => {
+      postAgentEventToPreviewIframe(iframeRef.current, event);
+    },
+    [iframeRef],
+  );
 
-  return {
-    forward: (event) => postAgentEventToPreviewIframe(iframeRef.current, event),
-  };
+  useAgentStream(sessionId, forward, enabled && Boolean(sessionId));
+
+  return { forward };
 }

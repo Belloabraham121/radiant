@@ -18,5 +18,7 @@ describe("radiant-client template", () => {
     assert.match(RADIANT_CLIENT_TS, /isApprovalRequired/);
     assert.match(RADIANT_CLIENT_TS, /RadiantActionError/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /handleExternalEvent/);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /data\.animate === true/);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /setFieldValue/);
   });
 });

@@ -69,7 +69,8 @@ export function ArtifactPreview({
     [files, projectId, installationId, sessionId],
   );
 
-  usePreviewAgentEventRelay(iframeRef, Boolean(projectId || installationId));
+  const previewEnabled = Boolean(projectId || installationId);
+  usePreviewAgentEventRelay(iframeRef, sessionId, previewEnabled);
 
   useEffect(() => {
     previewPathRef.current = previewPath;

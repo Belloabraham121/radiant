@@ -31,7 +31,12 @@ export type RadiantAgentStreamEvent = {
   step?: string;
   target?: string;
   digest?: string;
+  refresh?: boolean;
   active?: boolean;
+  animate?: boolean;
+  code?: string;
+  message?: string;
+  value?: unknown;
 };
 
 export function isAppActionApiPath(path: string): boolean {

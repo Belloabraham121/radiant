@@ -46,6 +46,21 @@ function highlightTarget(targetId: string, className = "agent-focused") {
   window.setTimeout(() => el.classList.remove(className), 1200);
 }
 
+function setFieldValue(targetId: string, value: unknown) {
+  if (typeof document === "undefined") return;
+  const el = document.querySelector('[data-radiant-id="' + targetId + '"]');
+  if (!el) return;
+  if (
+    el instanceof HTMLInputElement ||
+    el instanceof HTMLTextAreaElement ||
+    el instanceof HTMLSelectElement
+  ) {
+    el.value = String(value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
 function createContext(animate: boolean): RadiantAgentContext {
   return {
     animate,
@@ -69,6 +84,9 @@ export const radiantAgent = {
     const target = typeof data.target === "string" ? data.target : null;
     if (target) {
       highlightTarget(target, "agent-focused");
+      if (data.value !== undefined && data.value !== null) {
+        setFieldValue(target, data.value);
+      }
     }
     if (data.active === true) {
       emit({ type: "active", active: true });
@@ -77,12 +95,22 @@ export const radiantAgent = {
       emit({ type: "active", active: false });
     }
     const action = typeof data.action === "string" ? data.action : null;
-    if (action && data.step === "executing") {
-      const params =
-        data.params && typeof data.params === "object"
-          ? (data.params as Record<string, unknown>)
-          : {};
+    const params =
+      data.params && typeof data.params === "object"
+        ? (data.params as Record<string, unknown>)
+        : null;
+    if (action && data.animate === true && params) {
+      const handler = handlers.get(action);
+      if (handler) {
+        void handler(params, createContext(true));
+      }
       emit({ type: "executing", action, params });
+    } else if (action && data.step === "executing") {
+      emit({
+        type: "executing",
+        action,
+        params: params ?? {},
+      });
     }
     if (action && data.step === "result" && data.digest && typeof data.digest === "string") {
       emit({
@@ -95,6 +123,9 @@ export const radiantAgent = {
           result: {},
         },
       });
+      if (data.refresh === true && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("radiant-agent-refresh"));
+      }
     }
   },
   async execute(
@@ -245,7 +276,15 @@ export default function SwapForm() {
   useEffect(() => {
     const agent = typeof window !== "undefined" ? window.__radiantAgent : undefined;
     if (!agent) return;
-    agent.register("swap", async (_params, ctx) => {
+    agent.register("swap", async (params, ctx) => {
+      const amount = params.amount ?? params.amount_display;
+      if (amount != null) {
+        const el = document.querySelector('[data-radiant-id="amount-in"]');
+        if (el instanceof HTMLInputElement) {
+          el.value = String(amount);
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      }
       ctx.highlight("swap-submit", "agent-clicking");
     });
   }, []);

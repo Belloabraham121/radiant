@@ -397,9 +397,9 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `useAgentStream(sessionId)` in Radiant shell | ChatView or ArtifactContext |
-| [ ] | Forward to iframe via postMessage | Phase 5.2 |
-| [ ] | `__radiantAgent` handles events | animate → registered handler UI only |
+| [x] | `useAgentStream(sessionId)` in Radiant shell | ChatView or ArtifactContext |
+| [x] | Forward to iframe via postMessage | Phase 5.2 |
+| [x] | `__radiantAgent` handles events | animate → registered handler UI only |
 
 ### 8.4 Ordering guarantee
 
@@ -592,6 +592,7 @@ Fallback: chat execution timeline + receipts only (already shipped in chat).
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 8.3 | Client `useAgentStream`, iframe relay, runtime animate handler |
 | 2026-06-14 | 8.2 | Stream hooks in execute path: `broadcast` flag, semantic + step events |
 | 2026-06-14 | 8.1 | SSE agent stream route, `emitAgentEvent`, in-memory + Redis pub/sub |
 | 2026-06-14 | 5 | Preview bridge: API proxy helper, agent events, session header, ActivePreviewSession |
