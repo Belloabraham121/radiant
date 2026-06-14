@@ -16,9 +16,18 @@ import { healthRouter } from "./api/routes/health.js";
 import { chatRouter } from "./api/routes/v1/chat/chat.js";
 import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
+import { e2bWebhookRouter } from "./api/routes/v1/webhooks/e2b.js";
+import { deployRouter } from "./api/routes/v1/deploy/deploy.js";
+import { projectsRouter } from "./api/routes/v1/projects/projects.js";
+import { appsRouter } from "./api/routes/v1/apps/apps.js";
+import { installationsRouter } from "./api/routes/v1/installations/installations.js";
 import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.js";
 import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
 import { createCorsOptions } from "./config/cors.js";
+import { getInngestConfig } from "./config/inngest.js";
+import { inngest } from "./inngest/client.js";
+import { inngestFunctions } from "./inngest/functions/index.js";
+import { serve } from "inngest/express";
 
 /** Express app without DB connect or workers (for tests and main entry). */
 export function createApp() {
@@ -30,10 +39,26 @@ export function createApp() {
     express.raw({ type: "application/json" }),
     privyWebhookRouter,
   );
-  app.use(express.json());
+  app.use(
+    "/api/v1/webhooks/e2b",
+    express.raw({ type: "application/json" }),
+    e2bWebhookRouter,
+  );
+  app.use(express.json({ limit: "10mb" }));
   app.use(cookieParser());
   app.use(correlationIdMiddleware);
   app.use(requestLoggerMiddleware);
+
+  if (getInngestConfig().enabled) {
+    app.use(
+      "/api/inngest",
+      serve({
+        client: inngest,
+        functions: inngestFunctions,
+      }),
+    );
+  }
+
   app.use(healthRouter);
   app.use(authMeRouter);
   app.use(agentPermissionsRouter);
@@ -47,6 +72,10 @@ export function createApp() {
   app.use(chatSessionsRouter);
   app.use(defiPoolsRouter);
   app.use(defiBalanceManagerRouter);
+  app.use(deployRouter);
+  app.use(projectsRouter);
+  app.use(appsRouter);
+  app.use(installationsRouter);
   app.use(errorHandlerMiddleware);
 
   return app;

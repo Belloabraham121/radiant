@@ -30,6 +30,7 @@ import { queryAgentTransactions } from "../agent-transaction/agent-transaction.s
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import type { BalanceContext } from "../chains/types.js";
+import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
   queryChainInputSchema,
   type QueryChainInput,
@@ -94,12 +95,13 @@ export const queryChainToolDefinition = {
           "Fees default to input token; set pay_with_deep: true only if wallet holds DEEP. " +
           "flash_loan_quote: { pool_key, borrow_amount, asset: base|quote (or coin_key), strategy: round_trip | swap_chain_repay, steps?: [{ pool_key, side: buy|sell, amount }] } — " +
           "quote before swap_chain_repay execute; pool_key is borrow pool; asset base|quote is borrowed side (USDC on SUI_USDC = quote). " +
+          "For swap_chain_repay, steps are optional — omit them to auto-route from live pool quotes. " +
           "deepbook_stake_balance: { pool_key? } — active/inactive DEEP stake for your balance manager on that pool. " +
           "deepbook_stake_required: { pool_key? } — current and next-epoch stake_required and fees for the pool. " +
           "deepbook_governance_state: { pool_key? } — quorum, current/next-epoch trade params, and your stake/vote status for the pool. " +
-          "deepbook_trades: { pool_key?, limit?, start_time?, end_time? } — recent trades from the DeepBook indexer (ms timestamps). " +
+          "deepbook_trades: { pool_key?, limit?, start_time?, end_time? } — recent trades from the DeepBook indexer (ms timestamps). limit defaults to 50, max 200. " +
           "deepbook_volume: { pool_key?, start_time?, end_time?, scope?: pool|manager|all_pools, for_manager?: true, interval? } — 24h/all-time pool volume; manager scope uses your balance manager; start/end sums trades in range. " +
-          "deepbook_ohlcv: { pool_key?, interval?: 1h|1d, limit? } — OHLCV candles from indexer (ohclv endpoint). " +
+          "deepbook_ohlcv: { pool_key?, interval?: 1h|1d, limit? } — OHLCV candles from indexer (ohclv endpoint). limit defaults to 48, max 500. " +
           "May also pass input_coin/from + output_coin/to instead of side for swap_quote. " +
           "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
           "returns recent agent wallet activity; response includes summary (date, amount, status, digest) to quote in chat. " +
@@ -115,6 +117,7 @@ export const queryChainToolDefinition = {
 export async function runQueryChainTool(
   privyUserId: string,
   input: QueryChainInput,
+  options?: Pick<AgentToolOptions, "flashLoanTurnIntent">,
 ): Promise<QueryChainResult> {
   const parsed = queryChainInputSchema.parse(input);
   const wallet = await resolveAgentWalletByPrivyUserId(
@@ -200,7 +203,11 @@ export async function runQueryChainTool(
     }
     case "flash_loan_quote": {
       assertSuiDeepBookQuery(parsed.chain_id);
-      return getFlashLoanBundleQuote(privyUserId, parsed.params);
+      const advisoryQuote = options?.flashLoanTurnIntent === "research";
+      return getFlashLoanBundleQuote(privyUserId, parsed.params, {
+        emitProgress: !advisoryQuote,
+        advisoryQuote,
+      });
     }
     case "deepbook_open_orders": {
       assertSuiDeepBookQuery(parsed.chain_id);

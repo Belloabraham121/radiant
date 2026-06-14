@@ -455,6 +455,26 @@ Phase 0 (infra + dashboard)
 
 ---
 
+## Phase 11 — App builder, artifacts & deploy
+
+> Full checklist: [docs/app-builder-deploy-TODO.md](../../docs/app-builder-deploy-TODO.md). Artifacts in chat, Walrus publish, explorer listings, **E2B Hobby (free) plan optimization**, optional Docker worker at scale.
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [x] | Phase 1 — Artifacts (DB + panel + `generate_app`, **$0 E2B**) | [Both] |
+| [ ] | Phase 2 — `POST /build` preview | [Backend] |
+| [x] | Phase 3 — Template-only Walrus deploy (**backend**; client UI pending) | [Both] |
+| [x] | Phase 4 — E2B scaffold + pipeline + mock tests (credit gate pending) | [Backend] |
+| [ ] | Phase 5 — Move AppRegistry + explorer API | [Both] |
+| [ ] | Phase 6 — Self-hosted Docker worker (when credits exhausted) | [DevOps] |
+| [x] | Phase 7 — E2B webhooks + per-user deploy quota (partial) | [Backend] |
+
+**Hobby constraints:** $100 one-time credits, 10 GB disk, 1 h max runtime, 2 concurrent deploys recommended. See doc optimization playbook.
+
+**Depends on:** Phase 5 (chat + agent tools), Phase 3 (agent wallet signing for Move publish).
+
+---
+
 ## Quick reference: who builds what
 
 | Concern | Backend | Client | Dashboard |

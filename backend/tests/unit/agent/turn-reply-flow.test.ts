@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildReplyAfterToolsNudge,
   hasSuccessfulQueryResults,
   isSuccessfulToolResult,
   shouldNudgeReplyAfterTools,
@@ -37,27 +38,24 @@ describe("turn-reply-flow", () => {
   });
 
   it("shouldNudgeReplyAfterTools when data fetched but no transaction outcome", () => {
-    assert.equal(
-      shouldNudgeReplyAfterTools([
-        {
-          name: "query_chain",
-          result: {
-            pools: [{ pool_key: "SUI_USDC", base_coin: "SUI", quote_coin: "USDC" }],
-            default_pool: "SUI_USDC",
-          },
+    const poolQuery = [
+      {
+        name: "query_chain",
+        result: {
+          pools: [{ pool_key: "SUI_USDC", base_coin: "SUI", quote_coin: "USDC" }],
+          default_pool: "SUI_USDC",
         },
-      ]),
-      true,
+      },
+    ] as const;
+
+    assert.equal(shouldNudgeReplyAfterTools([...poolQuery]), true);
+    assert.equal(
+      shouldNudgeReplyAfterTools([...poolQuery], "Here are the pools that support flash loans."),
+      false,
     );
     assert.equal(
       shouldNudgeReplyAfterTools([
-        {
-          name: "query_chain",
-          result: {
-            pools: [{ pool_key: "SUI_USDC", base_coin: "SUI", quote_coin: "USDC" }],
-            default_pool: "SUI_USDC",
-          },
-        },
+        ...poolQuery,
         {
           name: "execute_transaction",
           result: { status: "approval_required", pending: { action: "swap" } },
@@ -65,5 +63,20 @@ describe("turn-reply-flow", () => {
       ]),
       false,
     );
+  });
+
+  it("buildReplyAfterToolsNudge includes flash loan research guidance for quote-only turns", () => {
+    const quote = {
+      strategy: "swap_chain_repay",
+      pool_key: "SUI_USDC",
+      borrow_amount: 10000,
+      coin_key: "USDC",
+      repay_feasible: false,
+      steps: [],
+      warnings: [],
+    };
+    const nudge = buildReplyAfterToolsNudge([{ name: "query_chain", result: quote }]);
+    assert.ok(nudge.includes("exploring flash loans"));
+    assert.ok(nudge.includes("Do not call execute_transaction"));
   });
 });

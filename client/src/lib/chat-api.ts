@@ -1,7 +1,9 @@
 import { apiFetch } from "@/lib/api";
+import type { ArtifactPayload } from "@/lib/artifact-types";
 
 export type ChatToolCall = {
   name: string;
+  query?: string;
   result: unknown;
 };
 
@@ -12,6 +14,7 @@ export type PendingTransaction = {
   params: Record<string, unknown>;
   summary: string;
   amount_display: string;
+  quote_expires_at?: string | null;
 };
 
 export type ClarificationInteractionType =
@@ -61,6 +64,7 @@ export type ChatResponse = {
   pending_transaction: PendingTransaction | null;
   pending_clarification: PendingClarification | null;
   message_id: string;
+  artifact: ArtifactPayload | null;
 };
 
 export type ChatRequest = {

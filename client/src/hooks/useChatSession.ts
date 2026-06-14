@@ -12,11 +12,19 @@ import {
 } from "@/lib/chat-api";
 import {
   apiMessagesToChatMessages,
-  mapToolCallsToReceipts,
+  mapToolCallsToMessageExtras,
+  receiptFromExecutionStep,
   type ChatMessage,
 } from "@/lib/chat-messages";
+import {
+  mapStreamStepToExecutionStep,
+  sortExecutionSteps,
+  upsertExecutionStep,
+} from "@/lib/chat-execution-steps";
+import { postChatStream } from "@/lib/chat-stream";
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
+import { useArtifactContext } from "@/components/app/ArtifactContext";
 
 function initialChatSessionState(sessionId?: string) {
   if (!sessionId) {
@@ -55,6 +63,8 @@ function initialChatSessionState(sessionId?: string) {
 export function useChatSession(sessionId?: string) {
   const router = useRouter();
   const { refreshSessions } = useChatSessions();
+  const { openArtifact, updateArtifact, setArtifactStreaming, migrateArtifactSession } =
+    useArtifactContext();
   const [boot] = useState(() => initialChatSessionState(sessionId));
 
   const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
@@ -63,6 +73,7 @@ export function useChatSession(sessionId?: string) {
   const [hydrating, setHydrating] = useState(boot.hydrating);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(
     boot.pending_transaction,
@@ -117,21 +128,94 @@ export function useChatSession(sessionId?: string) {
 
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim() || typing) return;
+      if (!text.trim() || typing || streaming) return;
 
       const optimisticId = `u-${Date.now()}`;
+      const liveAgentId = `a-live-${Date.now()}`;
       setMessages((current) => [
         ...current,
         { id: optimisticId, role: "user", text },
+        {
+          id: liveAgentId,
+          role: "agent",
+          text: "",
+          streaming: true,
+        },
       ]);
-      setTyping(true);
+      setStreaming(true);
       setChatError(null);
 
+      const artifactSessionKey = sessionId ?? activeSessionId ?? "new";
+
       try {
-        const data = await postChat({
-          message: text,
-          session_id: activeSessionId,
-        });
+        const data = await postChatStream(
+          {
+            message: text,
+            session_id: activeSessionId,
+          },
+          {
+            onStep: (step) => {
+              if (step.id === "agent") {
+                return;
+              }
+              setMessages((current) =>
+                current.map((message) => {
+                  if (message.id !== liveAgentId) {
+                    return message;
+                  }
+                  const nextStep = mapStreamStepToExecutionStep(step);
+                  const executionSteps = sortExecutionSteps(
+                    upsertExecutionStep(message.executionSteps ?? [], nextStep),
+                  );
+                  const digestReceipt = receiptFromExecutionStep(nextStep);
+                  return {
+                    ...message,
+                    executionSteps,
+                    ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+                  };
+                }),
+              );
+            },
+            onArtifact: ({ artifact, streaming }) => {
+              const focusPath =
+                artifact.files.find((file) => file.path === "app/page.tsx")?.path ??
+                artifact.files.find((file) => file.path === "src/App.tsx")?.path ??
+                artifact.files.find((file) => file.path === "src/App.jsx")?.path ??
+                artifact.files[artifact.files.length - 1]?.path;
+              updateArtifact(artifactSessionKey, artifact, {
+                streaming,
+                open: true,
+                activePath: focusPath,
+              });
+            },
+            onReplyDelta: (delta) => {
+              setMessages((current) =>
+                current.map((message) => {
+                  if (message.id !== liveAgentId) {
+                    return message;
+                  }
+                  return {
+                    ...message,
+                    text: message.text + delta,
+                  };
+                }),
+              );
+            },
+            onReplyClear: () => {
+              setMessages((current) =>
+                current.map((message) => {
+                  if (message.id !== liveAgentId) {
+                    return message;
+                  }
+                  return {
+                    ...message,
+                    text: "",
+                  };
+                }),
+              );
+            },
+          },
+        );
 
         const nextTitle =
           title === "New chat" ? text.slice(0, 60) : title;
@@ -139,14 +223,21 @@ export function useChatSession(sessionId?: string) {
         setActiveSessionId(data.session_id);
         setTitle(nextTitle);
         setMessages((current) => {
+          const liveMessage = current.find((message) => message.id === liveAgentId);
+          const liveSteps = liveMessage?.executionSteps ?? [];
+          const finalReply = data.reply.trim() || liveMessage?.text.trim() || "";
           const nextMessages: ChatMessage[] = [
-            ...current.filter((message) => message.id !== optimisticId),
+            ...current.filter(
+              (message) => message.id !== optimisticId && message.id !== liveAgentId,
+            ),
             { id: optimisticId, role: "user", text },
             {
               id: data.message_id,
               role: "agent",
-              text: data.reply,
-              receipts: mapToolCallsToReceipts(data.tool_calls),
+              text: finalReply,
+              streaming: false,
+              ...mapToolCallsToMessageExtras(data.tool_calls, liveSteps),
+              ...(data.artifact ? { artifact: data.artifact } : {}),
             },
           ];
 
@@ -165,6 +256,17 @@ export function useChatSession(sessionId?: string) {
         setPendingTx(data.pending_transaction ?? null);
         setPendingClarification(data.pending_clarification ?? null);
 
+        if (!sessionId && data.session_id && artifactSessionKey === "new") {
+          migrateArtifactSession("new", data.session_id);
+        }
+
+        const finalArtifactKey = sessionId ?? data.session_id;
+        if (data.artifact) {
+          updateArtifact(finalArtifactKey, data.artifact, { streaming: false, open: true });
+        } else {
+          setArtifactStreaming(finalArtifactKey, false);
+        }
+
         if (!sessionId && data.session_id) {
           router.replace(`/app/chat/${data.session_id}`);
         }
@@ -174,11 +276,27 @@ export function useChatSession(sessionId?: string) {
         const message =
           err instanceof ApiError ? err.message : "Could not reach your agent. Try again.";
         setChatError(message);
+        setMessages((current) =>
+          current.filter((entry) => entry.id !== liveAgentId),
+        );
+        setArtifactStreaming(artifactSessionKey, false);
       } finally {
-        setTyping(false);
+        setStreaming(false);
       }
     },
-    [activeSessionId, refreshSessions, router, sessionId, title, typing],
+    [
+      activeSessionId,
+      migrateArtifactSession,
+      openArtifact,
+      refreshSessions,
+      router,
+      sessionId,
+      setArtifactStreaming,
+      streaming,
+      title,
+      typing,
+      updateArtifact,
+    ],
   );
 
   const approvePending = useCallback(async () => {
@@ -203,9 +321,14 @@ export function useChatSession(sessionId?: string) {
           id: data.message_id,
           role: "agent",
           text: data.reply,
-          receipts: mapToolCallsToReceipts(data.tool_calls),
+          ...mapToolCallsToMessageExtras(data.tool_calls),
         },
       ]);
+
+      if (data.artifact) {
+        const artifactSessionKey = activeSessionId ?? data.session_id;
+        openArtifact(artifactSessionKey, data.artifact);
+      }
 
       void refreshSessions({ silent: true });
     } catch (err) {
@@ -215,7 +338,7 @@ export function useChatSession(sessionId?: string) {
     } finally {
       setApproving(false);
     }
-  }, [activeSessionId, approving, pendingTx, refreshSessions]);
+  }, [activeSessionId, approving, openArtifact, pendingTx, refreshSessions]);
 
   const rejectPending = useCallback(async () => {
     if (!pendingTx || rejecting || approving) return;
@@ -240,9 +363,14 @@ export function useChatSession(sessionId?: string) {
           id: data.message_id,
           role: "agent",
           text: data.reply,
-          receipts: mapToolCallsToReceipts(data.tool_calls),
+          ...mapToolCallsToMessageExtras(data.tool_calls),
         },
       ]);
+
+      if (data.artifact) {
+        const artifactSessionKey = activeSessionId ?? data.session_id;
+        openArtifact(artifactSessionKey, data.artifact);
+      }
 
       void refreshSessions({ silent: true });
     } catch (err) {
@@ -252,7 +380,7 @@ export function useChatSession(sessionId?: string) {
     } finally {
       setRejecting(false);
     }
-  }, [activeSessionId, approving, pendingTx, refreshSessions, rejecting]);
+  }, [activeSessionId, approving, openArtifact, pendingTx, refreshSessions, rejecting]);
 
   const respondClarification = useCallback(
     async (answer: ClarificationAnswer) => {
@@ -297,9 +425,14 @@ export function useChatSession(sessionId?: string) {
             id: data.message_id,
             role: "agent",
             text: data.reply,
-            receipts: mapToolCallsToReceipts(data.tool_calls),
+            ...mapToolCallsToMessageExtras(data.tool_calls),
           },
         ]);
+
+        if (data.artifact) {
+          const artifactSessionKey = sessionId ?? activeSessionId ?? data.session_id;
+          openArtifact(artifactSessionKey, data.artifact);
+        }
 
         void refreshSessions({ silent: true });
       } catch (err) {
@@ -310,15 +443,17 @@ export function useChatSession(sessionId?: string) {
         setRespondingClarification(false);
       }
     },
-    [activeSessionId, pendingClarification, refreshSessions, respondingClarification],
+    [activeSessionId, openArtifact, pendingClarification, refreshSessions, respondingClarification],
   );
 
   return {
     messages,
     title,
+    activeSessionId,
     hydrating,
     loadError,
     typing,
+    streaming,
     chatError,
     pendingTx,
     pendingClarification,

@@ -1,4 +1,8 @@
 import type { ToolCallRecord } from "./agent.types.js";
+import {
+  findLatestFlashLoanQuote,
+  hasFlashLoanExecutionAttempt,
+} from "./deepbook/flash-loan-approval-flow.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
 import type { AgentToolErrorResult } from "./tools.js";
@@ -6,10 +10,16 @@ import type { AgentToolErrorResult } from "./tools.js";
 export const REPLY_AFTER_TOOLS_NUDGE =
   "You already called tools this turn and have results in the conversation. " +
   "Write a complete reply to the user's latest message using that data. " +
-  "Read their intent: research questions (explore, compare, suggest, explain) should be answered in text — " +
-  "use query_chain only, never execute_transaction unless they clearly want to transact. " +
+  "Read their intent from what they said: research questions (explore, compare, suggest, explain, recommend) should be answered in text — " +
+  "use query_chain only, never execute_transaction unless they clearly want to transact right now. " +
   "Execution requests should use execute_transaction when ready. " +
   "Only call more tools if existing results are insufficient.";
+
+export const FLASH_LOAN_RESEARCH_REPLY_NUDGE =
+  "The user is exploring flash loans (pools, strategy, sizing) — not asking you to execute yet. " +
+  "Write a full advisory reply from your tool results: which pools support flash loans, recommended strategy and why, " +
+  "suggested borrow amount and any upfront capital, trade-offs, and example quotes if you fetched them. " +
+  "Do not call execute_transaction. Invite them to say when they want you to run it.";
 
 export const AGENT_TRANSACTIONS_REPLY_NUDGE =
   "The agent_transactions tool result above includes date, amount, status, and digest for each row. " +
@@ -54,12 +64,32 @@ function hasPendingOrExecutedTransaction(toolCalls: ToolCallRecord[]): boolean {
   });
 }
 
-/** Model fetched data but returned no text — prompt a reply without guessing user intent. */
-export function shouldNudgeReplyAfterTools(toolCalls: ToolCallRecord[]): boolean {
+/** Model fetched data but returned no assistant text — prompt a reply without guessing user intent. */
+export function shouldNudgeReplyAfterTools(
+  toolCalls: ToolCallRecord[],
+  assistantContent?: string | null,
+): boolean {
+  if (assistantContent?.trim()) {
+    return false;
+  }
   if (!hasSuccessfulQueryResults(toolCalls)) {
     return false;
   }
   return !hasPendingOrExecutedTransaction(toolCalls);
+}
+
+export function buildReplyAfterToolsNudge(toolCalls: ToolCallRecord[]): string {
+  const parts = [REPLY_AFTER_TOOLS_NUDGE];
+
+  if (findLatestFlashLoanQuote(toolCalls) && !hasFlashLoanExecutionAttempt(toolCalls)) {
+    parts.push(FLASH_LOAN_RESEARCH_REPLY_NUDGE);
+  }
+
+  if (hasAgentTransactionsQuery(toolCalls)) {
+    parts.push(AGENT_TRANSACTIONS_REPLY_NUDGE);
+  }
+
+  return parts.join("\n\n");
 }
 
 export function findLastToolError(

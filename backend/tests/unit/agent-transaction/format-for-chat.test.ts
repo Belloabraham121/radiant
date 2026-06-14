@@ -42,6 +42,10 @@ describe("formatAgentTransactionsForChat", () => {
     assert.match(summary, /0\.5 SUI → ~1\.2 USDC/);
     assert.match(summary, /Status: Success/);
     assert.match(summary, /Digest: 9GjRb8giW9T2V5JorAeMnpXu66KzzA6m5HeBkqf5EVrm/);
+    assert.match(
+      summary,
+      /Explorer: https:\/\/suiscan\.xyz\/mainnet\/tx\/9GjRb8giW9T2V5JorAeMnpXu66KzzA6m5HeBkqf5EVrm/,
+    );
     assert.match(summary, /Date: June 13, 2026/);
     assert.doesNotMatch(summary, /provide date/i);
   });

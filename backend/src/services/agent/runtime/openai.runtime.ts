@@ -28,18 +28,24 @@ import {
   SWAP_QUOTE_AND_EXECUTE_NUDGE,
 } from "../deepbook/swap-approval-flow.js";
 import {
-  findLatestFlashLoanQuote,
+  filterToolCallsForClientDisplay,
   formatFlashLoanQuoteReply,
-  isFlashLoanRepayNotFeasibleError,
+  findLatestFlashLoanQuote,
+  buildInfeasibleFlashLoanExecuteBlock,
+  buildFlashLoanResearchExecuteBlock,
+  hasFlashLoanExecutionAttempt,
+  isFlashLoanRepayInfeasibleErrorCode,
+  isFlashLoanToolValidationError,
+  isInfeasibleFlashLoanQuoteResult,
   shouldFinalizeFlashLoanQuoteReply,
+  shouldUseCannedFlashLoanQuoteReply,
 } from "../deepbook/flash-loan-approval-flow.js";
+import { classifyFlashLoanTurnIntent } from "../deepbook/flash-loan-turn-intent.js";
 import {
+  buildReplyAfterToolsNudge,
   findLastToolError,
   hasSuccessfulQueryResults,
-  REPLY_AFTER_TOOLS_NUDGE,
   shouldNudgeReplyAfterTools,
-  hasAgentTransactionsQuery,
-  AGENT_TRANSACTIONS_REPLY_NUDGE,
 } from "../turn-reply-flow.js";
 import {
   buildUnsupportedCapabilityNudge,
@@ -56,6 +62,16 @@ import {
   synthesizeTurnReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
+import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
+import { emitArtifactPreview, emitExecutionProgress, emitReplyClear, emitReplyDelta, hasExecutionProgressContext } from "../execution-progress-context.js";
+import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
+import { parsePartialGenerateAppArgs } from "../../projects/parse-partial-generate-app.js";
+import { buildPreviewArtifactPayload } from "../../projects/preview-artifact.js";
+import type { GenerateAppResult } from "../../projects/project.types.js";
+import { streamChatCompletion } from "./openai-stream-completion.js";
+import { openAiMaxOutputTokens } from "./openai-completion-params.js";
+import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.service.js";
 import { transactionContextFromInput } from "../deepbook/transaction-error-context.js";
 import { summarizeToolResult } from "./summarize-tool-result.js";
 import type { AgentRuntime, AgentTurnInput, AgentTurnResult } from "./types.js";
@@ -87,6 +103,127 @@ function mapOpenAiError(err: unknown): AppError {
   return new AppError(500, "OPENAI_UNEXPECTED", "Unexpected OpenAI client error.");
 }
 
+function emitExecuteProgressFromResult(
+  result: unknown,
+  toolInput: Pick<{ action?: string; query?: string }, "action" | "query">,
+): void {
+  if (isAgentToolErrorResult(result)) {
+    const message = result.error.message;
+    if (isFlashLoanToolValidationError(EXECUTE_TRANSACTION_TOOL_NAME, toolInput, result.error.code)) {
+      emitExecutionProgress({
+        step: {
+          id: "quote",
+          status: "failed",
+          label: "Quote flash loan",
+          detail: message,
+        },
+      });
+      emitExecutionProgress({
+        step: {
+          id: "execute",
+          status: "skipped",
+          label: "Execute bundle",
+          detail: "Blocked — fix the flash loan route before executing",
+        },
+      });
+      return;
+    }
+
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "failed",
+        label: "Execute bundle",
+        detail: message,
+      },
+    });
+    return;
+  }
+
+  const outcome = result as ExecuteToolOutcome;
+  if (outcome.status === "approval_required") {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "warning",
+        label: "Execute bundle",
+        detail: "Waiting for your approval in the dialog",
+        agent_transaction_id: outcome.pending?.id,
+        chain_id: outcome.pending?.chain_id,
+      },
+    });
+    return;
+  }
+
+  if (outcome.status === "executed" && outcome.result?.digest) {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "ok",
+        label: "Execute bundle",
+        detail: `Broadcast · ${outcome.result.digest.slice(0, 10)}…`,
+        digest: outcome.result.digest,
+        chain_id: outcome.result.chain_id,
+        agent_transaction_id: outcome.agent_transaction_id,
+      },
+    });
+  }
+}
+
+function emitSwapQuoteProgressFromResult(result: unknown): void {
+  if (isAgentToolErrorResult(result)) {
+    emitExecutionProgress({
+      step: {
+        id: "swap-quote",
+        status: "failed",
+        label: "Swap quote",
+        detail: result.error.message,
+      },
+    });
+    return;
+  }
+
+  const quote = result as DeepBookSwapQuoteResult;
+  if (quote.input_coin && quote.output_amount_display != null) {
+    emitExecutionProgress({
+      step: {
+        id: "swap-quote",
+        status: "ok",
+        label: "Swap quote",
+        detail: `${quote.input_amount_display} ${quote.input_coin} → ~${quote.output_amount_display} ${quote.output_coin}${quote.pool_key ? ` (${quote.pool_key})` : ""}`,
+      },
+    });
+  }
+}
+
+function emitQueryChainFailureProgress(
+  query: unknown,
+  result: AgentToolErrorResult,
+): void {
+  const message = result.error.message;
+
+  if (query === "flash_loan_quote") {
+    emitExecutionProgress({
+      step: {
+        id: "quote",
+        status: "failed",
+        label: "Quote flash loan",
+        detail: message,
+      },
+    });
+    return;
+  }
+
+  emitExecutionProgress({
+    step: {
+      id: `query-${String(query ?? "chain")}`,
+      status: "failed",
+      label: "Query failed",
+      detail: message,
+    },
+  });
+}
+
 export const openaiRuntime: AgentRuntime = {
   id: "openai",
 
@@ -116,30 +253,85 @@ export const openaiRuntime: AgentRuntime = {
     const tool_calls: AgentTurnResult["tool_calls"] = [];
     let pending_transaction: AgentTurnResult["pending_transaction"] = null;
     let reply = "";
+    let streamedReplyAccum = "";
     let lastExecuteInput: ExecuteTransactionInput | null = null;
     const lastUserMessage =
       [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
+    const flashLoanTurnIntent = classifyFlashLoanTurnIntent(lastUserMessage);
+
+    let streamingArtifactPreview: import("../../projects/project.types.js").ArtifactPayload | null =
+      null;
+    let lastStreamedGenerateAppArgsLength = 0;
+
+    const emitGenerateAppPreview = (rawArgs: string, streaming = true) => {
+      const partial = parsePartialGenerateAppArgs(rawArgs);
+      const preview = buildPreviewArtifactPayload(partial, streamingArtifactPreview);
+      if (!preview) return;
+      streamingArtifactPreview = preview;
+      emitArtifactPreview(preview, streaming);
+    };
 
     for (let step = 0; step < maxToolSteps; step += 1) {
-      let completion;
+      let choice;
+      let streamedReplyText = false;
+      streamedReplyAccum = "";
       try {
-        completion = await client.chat.completions.create({
-          model,
-          messages,
-          tools,
-          tool_choice: "auto",
-          max_tokens: 1024,
-        });
+        if (hasExecutionProgressContext()) {
+          choice = await streamChatCompletion(client, {
+            model,
+            messages,
+            tools,
+            max_tokens: 4096,
+          }, {
+            onContentDelta: (delta) => {
+              streamedReplyText = true;
+              streamedReplyAccum += delta;
+              emitReplyDelta(delta);
+            },
+            onToolCallDelta: (toolCall) => {
+              if (toolCall.name !== GENERATE_APP_TOOL_NAME) return;
+              if (lastStreamedGenerateAppArgsLength === 0) {
+                emitExecutionProgress({
+                  step: {
+                    id: "generate-app",
+                    status: "running",
+                    label: "Building app",
+                    detail: "Writing source files…",
+                  },
+                });
+              }
+              if (toolCall.arguments.length <= lastStreamedGenerateAppArgsLength) return;
+              if (toolCall.arguments.length - lastStreamedGenerateAppArgsLength < 24) return;
+              lastStreamedGenerateAppArgsLength = toolCall.arguments.length;
+              emitGenerateAppPreview(toolCall.arguments, true);
+            },
+          });
+        } else {
+          const completion = await client.chat.completions.create({
+            model,
+            messages,
+            tools,
+            tool_choice: "auto",
+            ...openAiMaxOutputTokens(model, 4096),
+          });
+          choice = completion.choices[0]?.message;
+          if (!choice) {
+            throw new AppError(502, "OPENAI_EMPTY_RESPONSE", "OpenAI returned no completion choice.");
+          }
+        }
       } catch (err) {
         throw mapOpenAiError(err);
       }
 
-      const choice = completion.choices[0]?.message;
       if (!choice) {
         throw new AppError(502, "OPENAI_EMPTY_RESPONSE", "OpenAI returned no completion choice.");
       }
 
       const toolCallList = choice.tool_calls ?? [];
+      if (toolCallList.length > 0 && streamedReplyText) {
+        emitReplyClear();
+        streamedReplyAccum = "";
+      }
       if (toolCallList.length === 0) {
         const unsupported = detectUnsupportedCapability(lastUserMessage);
         const lastUserContent =
@@ -209,23 +401,30 @@ export const openaiRuntime: AgentRuntime = {
           continue;
         }
 
-        if (shouldNudgeReplyAfterTools(tool_calls)) {
+        if (shouldNudgeReplyAfterTools(tool_calls, choice.content)) {
           messages.push({
             role: "user",
-            content: hasAgentTransactionsQuery(tool_calls)
-              ? `${REPLY_AFTER_TOOLS_NUDGE}\n\n${AGENT_TRANSACTIONS_REPLY_NUDGE}`
-              : REPLY_AFTER_TOOLS_NUDGE,
+            content: buildReplyAfterToolsNudge(tool_calls),
           });
           continue;
         }
 
-        reply = choice.content?.trim() || "Done.";
+        reply = choice.content?.trim() || streamedReplyAccum.trim() || "Done.";
         break;
       }
 
       messages.push(choice);
 
+      const batchHasExecute = toolCallList.some(
+        (toolCall) =>
+          toolCall.type === "function" &&
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME,
+      );
+      const flashLoanExecutionUi =
+        flashLoanTurnIntent !== "research" && batchHasExecute;
+
       let executeToolError: AgentToolErrorResult | null = null;
+      let infeasibleFlashLoanQuote: FlashLoanBundleQuoteResult | null = null;
 
       for (const toolCall of toolCallList) {
         if (toolCall.type !== "function") continue;
@@ -237,10 +436,168 @@ export const openaiRuntime: AgentRuntime = {
           args = {};
         }
 
-        const result = await runAgentTool(input.privyUserId, toolCall.function.name, args, {
-          sessionId: input.sessionId,
+        if (toolCall.function.name === GENERATE_APP_TOOL_NAME) {
+          emitExecutionProgress({
+            step: {
+              id: "generate-app",
+              status: "running",
+              label: "Building app",
+              detail: "Writing source files…",
+            },
+          });
+          emitGenerateAppPreview(toolCall.function.arguments, true);
+        }
+
+        if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
+          const priorInfeasibleQuote = findLatestFlashLoanQuote(tool_calls);
+          const blockInfeasibleExecute =
+            args.action === "deepbook_flash_loan" &&
+            priorInfeasibleQuote !== null &&
+            !priorInfeasibleQuote.repay_feasible;
+          const blockResearchExecute =
+            args.action === "deepbook_flash_loan" && flashLoanTurnIntent === "research";
+
+          if (!blockInfeasibleExecute && !blockResearchExecute) {
+            emitExecutionProgress({
+              step: {
+                id: "execute",
+                status: "running",
+                label: "Execute bundle",
+                detail: "Validating and preparing transaction…",
+              },
+            });
+          }
+        }
+
+        if (
+          flashLoanExecutionUi &&
+          toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
+          args.query === "flash_loan_quote"
+        ) {
+          emitExecutionProgress({
+            step: {
+              id: "quote",
+              status: "running",
+              label: "Quote flash loan",
+              detail: "Validating route and fetching pool prices…",
+            },
+          });
+        }
+
+        if (
+          batchHasExecute &&
+          toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
+          args.query === "swap_quote"
+        ) {
+          emitExecutionProgress({
+            step: {
+              id: "swap-quote",
+              status: "running",
+              label: "Swap quote",
+              detail: "Fetching pool price…",
+            },
+          });
+        }
+
+        const priorInfeasibleQuote = findLatestFlashLoanQuote(tool_calls);
+        const blockInfeasibleFlashLoanExecute =
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          args.action === "deepbook_flash_loan" &&
+          priorInfeasibleQuote !== null &&
+          !priorInfeasibleQuote.repay_feasible;
+        const blockResearchFlashLoanExecute =
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          args.action === "deepbook_flash_loan" &&
+          flashLoanTurnIntent === "research";
+
+        const result = blockInfeasibleFlashLoanExecute
+          ? buildInfeasibleFlashLoanExecuteBlock(priorInfeasibleQuote)
+          : blockResearchFlashLoanExecute
+            ? buildFlashLoanResearchExecuteBlock()
+          : await runAgentTool(input.privyUserId, toolCall.function.name, args, {
+              sessionId: input.sessionId,
+              flashLoanTurnIntent,
+              ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
+                ? { rawArguments: toolCall.function.arguments }
+                : {}),
+            });
+        tool_calls.push({
+          name: toolCall.function.name,
+          ...(toolCall.function.name === QUERY_CHAIN_TOOL_NAME && typeof args.query === "string"
+            ? { query: args.query }
+            : {}),
+          ...(toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          typeof args.action === "string"
+            ? { action: args.action }
+            : {}),
+          result,
         });
-        tool_calls.push({ name: toolCall.function.name, result });
+
+        if (toolCall.function.name === GENERATE_APP_TOOL_NAME) {
+          if (!isAgentToolErrorResult(result)) {
+            const appResult = result as GenerateAppResult;
+            if (appResult.artifact) {
+              streamingArtifactPreview = appResult.artifact;
+              emitArtifactPreview(appResult.artifact, false);
+            }
+            emitExecutionProgress({
+              step: {
+                id: "generate-app",
+                status: "ok",
+                label: "Building app",
+                detail: `${appResult.files.length} file${appResult.files.length === 1 ? "" : "s"} updated`,
+              },
+            });
+          } else {
+            if (streamingArtifactPreview) {
+              emitArtifactPreview(streamingArtifactPreview, false);
+            }
+            emitExecutionProgress({
+              step: {
+                id: "generate-app",
+                status: "failed",
+                label: "Building app",
+                detail: result.error.message,
+              },
+            });
+          }
+        }
+
+        if (
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          !blockInfeasibleFlashLoanExecute &&
+          !blockResearchFlashLoanExecute
+        ) {
+          emitExecuteProgressFromResult(result, {
+            action: typeof args.action === "string" ? args.action : undefined,
+          });
+        }
+
+        if (
+          batchHasExecute &&
+          toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
+          args.query === "swap_quote"
+        ) {
+          emitSwapQuoteProgressFromResult(result);
+        }
+
+        if (
+          toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
+          isAgentToolErrorResult(result)
+        ) {
+          if (flashLoanExecutionUi && args.query === "flash_loan_quote") {
+            emitQueryChainFailureProgress(args.query, result);
+          } else if (args.query !== "flash_loan_quote") {
+            emitQueryChainFailureProgress(args.query, result);
+          }
+        }
+
+        if (
+          toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
+          isInfeasibleFlashLoanQuoteResult(result)
+        ) {
+          infeasibleFlashLoanQuote = result;
+        }
 
         if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
           lastExecuteInput = args as ExecuteTransactionInput;
@@ -269,6 +626,19 @@ export const openaiRuntime: AgentRuntime = {
           tool_call_id: toolCall.id,
           content: summarizeToolResult(toolCall.function.name, result),
         });
+
+        if (infeasibleFlashLoanQuote && !pending_transaction && hasFlashLoanExecutionAttempt(tool_calls)) {
+          break;
+        }
+      }
+
+      if (
+        infeasibleFlashLoanQuote &&
+        !pending_transaction &&
+        hasFlashLoanExecutionAttempt(tool_calls)
+      ) {
+        reply = formatFlashLoanQuoteReply(infeasibleFlashLoanQuote);
+        break;
       }
 
       if (pending_transaction) {
@@ -295,15 +665,22 @@ export const openaiRuntime: AgentRuntime = {
 
         if (executeToolError.error.code === "VALIDATION_ERROR" && !compoundReply) {
           const quote = findLatestFlashLoanQuote(tool_calls);
-          if (
-            quote &&
-            (!quote.repay_feasible ||
-              isFlashLoanRepayNotFeasibleError(executeToolError.error.message))
-          ) {
+          if (quote && !quote.repay_feasible) {
             reply = formatFlashLoanQuoteReply(quote);
             break;
           }
           continue;
+        }
+
+        if (
+          isFlashLoanRepayInfeasibleErrorCode(executeToolError.error.code) &&
+          !compoundReply
+        ) {
+          const quote = findLatestFlashLoanQuote(tool_calls);
+          if (quote) {
+            reply = formatFlashLoanQuoteReply(quote);
+            break;
+          }
         }
 
         try {
@@ -326,7 +703,7 @@ export const openaiRuntime: AgentRuntime = {
 
     if (!reply) {
       const quote = findLatestFlashLoanQuote(tool_calls);
-      if (quote) {
+      if (quote && shouldUseCannedFlashLoanQuoteReply(tool_calls, quote)) {
         reply = formatFlashLoanQuoteReply(quote);
       } else {
         const lastToolError = findLastToolError(tool_calls);
@@ -344,10 +721,15 @@ export const openaiRuntime: AgentRuntime = {
             throw mapOpenAiError(err);
           }
         } else if (hasSuccessfulQueryResults(tool_calls)) {
-          try {
-            reply = await synthesizeTurnReply({ client, model, messages });
-          } catch (err) {
-            throw mapOpenAiError(err);
+          const streamed = streamedReplyAccum.trim();
+          if (streamed) {
+            reply = streamed;
+          } else {
+            try {
+              reply = await synthesizeTurnReply({ client, model, messages });
+            } catch (err) {
+              throw mapOpenAiError(err);
+            }
           }
         } else {
           reply = "I processed your request.";
@@ -355,6 +737,10 @@ export const openaiRuntime: AgentRuntime = {
       }
     }
 
-    return { reply, tool_calls, pending_transaction };
+    return {
+      reply,
+      tool_calls: filterToolCallsForClientDisplay(tool_calls),
+      pending_transaction,
+    };
   },
 };

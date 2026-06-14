@@ -1,6 +1,16 @@
 import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
-import { chainExplorerTxUrl } from "@/lib/chain-meta";
+import type { ArtifactPayload } from "@/lib/artifact-types";
+import { extractArtifactFromToolCalls } from "@/lib/extract-artifact";
+import { sanitizeToolErrorMessage } from "@/lib/sanitize-tool-error";
+import {
+  mapToolCallsToExecutionSteps,
+  resolveExecutionSteps,
+  shouldSuppressQueryFailureReceipts,
+  type ExecutionStep,
+} from "@/lib/chat-execution-steps";
+
+export type { ExecutionStep };
 
 export type Receipt = {
   label: string;
@@ -16,6 +26,9 @@ export type ChatMessage = {
   role: "user" | "agent";
   text: string;
   receipts?: Receipt[];
+  executionSteps?: ExecutionStep[];
+  artifact?: ArtifactPayload;
+  streaming?: boolean;
   error?: boolean;
 };
 
@@ -33,8 +46,117 @@ export function formatSessionTime(updatedAt: string): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+function isFlashLoanToolCalls(toolCalls: ChatToolCall[]): boolean {
+  return toolCalls.some(
+    (call) =>
+      call.name === "query_chain" &&
+      typeof call.result === "object" &&
+      call.result !== null &&
+      "strategy" in call.result &&
+      "repay_feasible" in call.result &&
+      !("error" in call.result),
+  );
+}
+
+export function formatDigestShort(digest: string): string {
+  return digest.length > 12 ? `${digest.slice(0, 10)}…` : digest;
+}
+
+/** Receipt pill shown when a streamed execution step includes an on-chain digest. */
+export function receiptFromExecutionStep(step: ExecutionStep): Receipt | null {
+  if (!step.digest) {
+    return null;
+  }
+
+  return {
+    label: step.id === "execute" ? "Transaction sent" : "On-chain step",
+    detail: formatDigestShort(step.digest),
+    digest: step.digest,
+    chainId: step.chainId ?? "sui",
+    ...(step.agentTransactionId ? { agentTransactionId: step.agentTransactionId } : {}),
+  };
+}
+
+function resolveTransactionReceipts(
+  toolCalls: ChatToolCall[],
+  executionSteps?: ExecutionStep[],
+): Receipt[] {
+  const actionReceipts = buildActionLinkReceipts(toolCalls, executionSteps);
+  if (actionReceipts.length > 0) {
+    return actionReceipts;
+  }
+
+  return mapToolCallsToReceipts(toolCalls).filter((receipt) => receipt.digest);
+}
+
+/** Compact explorer / activity pills shown under the execution timeline. */
+export function buildActionLinkReceipts(
+  toolCalls: ChatToolCall[],
+  executionSteps?: ExecutionStep[],
+): Receipt[] {
+  const executeStep = executionSteps?.find((step) => step.id === "execute");
+  const flashLoan = isFlashLoanToolCalls(toolCalls);
+
+  if (executeStep?.digest) {
+    const chainId = executeStep.chainId ?? "sui";
+    const executeCall = toolCalls.find((call) => call.name === "execute_transaction");
+    const flashLoanResult = (
+      executeCall?.result as {
+        result?: { deepbook?: { flash_loan?: { borrow_amount?: number; coin_key?: string } } };
+      }
+    )?.result?.deepbook?.flash_loan;
+
+    return [
+      {
+        label: flashLoan ? "Flash loan executed" : "Transaction sent",
+        detail:
+          flashLoan && flashLoanResult?.borrow_amount != null && flashLoanResult.coin_key
+            ? `Borrow ${flashLoanResult.borrow_amount} ${flashLoanResult.coin_key} · ${formatDigestShort(executeStep.digest)}`
+            : formatDigestShort(executeStep.digest),
+        digest: executeStep.digest,
+        chainId,
+      },
+    ];
+  }
+
+  if (executeStep?.agentTransactionId && executeStep.status === "skipped" && flashLoan) {
+    return [];
+  }
+
+  for (const call of toolCalls) {
+    if (call.name !== "execute_transaction") {
+      continue;
+    }
+    const outcome = call.result as {
+      status?: string;
+      agent_transaction_id?: string;
+      result?: { digest?: string; chain_id?: AgentChainId; deepbook?: { flash_loan?: { borrow_amount?: number; coin_key?: string } } };
+    };
+    if (outcome.status !== "executed" || !outcome.result?.digest) {
+      continue;
+    }
+
+    const loan = outcome.result.deepbook?.flash_loan;
+    return [
+      {
+        label: loan ? "Flash loan executed" : "Transaction sent",
+        detail:
+          loan?.borrow_amount != null && loan.coin_key
+            ? `Borrow ${loan.borrow_amount} ${loan.coin_key} · ${formatDigestShort(outcome.result.digest)}`
+            : formatDigestShort(outcome.result.digest),
+        digest: outcome.result.digest,
+        chainId: outcome.result.chain_id ?? "sui",
+      },
+    ];
+  }
+
+  return [];
+}
+
 export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
   const receipts: Receipt[] = [];
+  const suppressQueryFailures = shouldSuppressQueryFailureReceipts(toolCalls);
+  const hasExecutionTimeline = mapToolCallsToExecutionSteps(toolCalls) !== undefined;
   const executeFailed = toolCalls.some(
     (call) =>
       call.name === "execute_transaction" &&
@@ -84,10 +206,17 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       };
 
       if (result.error?.message) {
+        if (suppressQueryFailures) {
+          continue;
+        }
         receipts.push({
           label: "Query failed",
-          detail: result.error.code?.replace(/_/g, " ").toLowerCase(),
+          detail: sanitizeToolErrorMessage(result.error.message),
         });
+        continue;
+      }
+
+      if (hasExecutionTimeline) {
         continue;
       }
 
@@ -223,12 +352,26 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
               maker_fee?: number | null;
               stake_required?: number | null;
             };
+            flash_loan?: {
+              pool_key?: string;
+              borrow_amount?: number;
+              coin_key?: string;
+              strategy?: string;
+              steps_count?: number;
+              estimated_surplus?: number | null;
+            };
           };
         };
         pending?: { id?: string; chain_id?: AgentChainId; action?: string; amount_display?: string };
       };
 
       if (raw.error?.message) {
+        if (!hasExecutionTimeline) {
+          receipts.push({
+            label: "Transaction failed",
+            detail: sanitizeToolErrorMessage(raw.error.message),
+          });
+        }
         continue;
       }
 
@@ -310,11 +453,18 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             detail: outcome.pending.amount_display,
             ...receiptMeta,
           });
+        } else if (action === "deepbook_flash_loan") {
+          receipts.push({
+            label: "Flash loan approval required",
+            detail: outcome.pending.amount_display,
+            ...receiptMeta,
+          });
         }
       }
 
       if (outcome.status === "executed" && outcome.result?.digest) {
         const digest = outcome.result.digest;
+        const flashLoan = outcome.result.deepbook?.flash_loan;
         const swap = outcome.result.deepbook?.swap;
         const order = outcome.result.deepbook?.order;
         const stake = outcome.result.deepbook?.stake;
@@ -332,6 +482,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const isUnstake = stake?.action === "deepbook_unstake";
         const isSubmitProposal = governance?.action === "deepbook_submit_proposal";
         const isVote = governance?.action === "deepbook_vote";
+        const isFlashLoan = flashLoan?.borrow_amount != null && flashLoan.coin_key;
         const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
         const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer && !isOrder && !isCancel;
@@ -339,6 +490,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         receipts.push({
           label: isSwap
             ? "Swap executed"
+            : isFlashLoan
+              ? "Flash loan executed"
             : isStake
               ? "DEEP staked"
               : isUnstake
@@ -364,6 +517,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
                     : "Transaction sent",
           detail: isSwap
             ? `${swap.in_amount_display} ${swap.input_coin} → ${swap.out_amount_display} ${swap.output_coin} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+            : isFlashLoan && flashLoan
+              ? `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
             : isStake && stake
               ? `${stake.amount_display ?? "?"} DEEP on ${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
               : isUnstake && stake
@@ -401,6 +556,31 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
   return receipts;
 }
 
+/** Map tool calls to execution timeline and/or receipt pills for live chat responses. */
+export function mapToolCallsToMessageExtras(
+  toolCalls: ChatToolCall[],
+  streamedSteps: ExecutionStep[] = [],
+): {
+  executionSteps?: ExecutionStep[];
+  receipts?: Receipt[];
+  artifact?: ArtifactPayload;
+} {
+  const artifact = extractArtifactFromToolCalls(toolCalls);
+  const executionSteps = resolveExecutionSteps(toolCalls, streamedSteps);
+  const transactionReceipts = resolveTransactionReceipts(toolCalls, executionSteps);
+  const artifactField = artifact ? { artifact } : {};
+
+  if (executionSteps) {
+    return {
+      executionSteps,
+      ...artifactField,
+      ...(transactionReceipts.length > 0 ? { receipts: transactionReceipts } : {}),
+    };
+  }
+  const receipts = mapToolCallsToReceipts(toolCalls);
+  return receipts.length > 0 ? { receipts, ...artifactField } : artifactField;
+}
+
 function parseToolCalls(raw: unknown): ChatToolCall[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter(
@@ -418,11 +598,12 @@ export function apiMessageToChatMessage(message: ApiChatMessage): ChatMessage | 
   }
 
   if (message.role === "assistant") {
+    const toolCalls = parseToolCalls(message.tool_calls);
     return {
       id: message.id,
       role: "agent",
       text: message.content,
-      receipts: mapToolCallsToReceipts(parseToolCalls(message.tool_calls)),
+      ...mapToolCallsToMessageExtras(toolCalls),
     };
   }
 

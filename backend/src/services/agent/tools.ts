@@ -13,11 +13,46 @@ import {
   runQueryChainTool,
 } from "./query-chain.tool.js";
 import {
+  DEPLOY_APP_TOOL_NAME,
+  deployAppToolDefinition,
+  runDeployAppTool,
+} from "../projects/deploy-app.tool.js";
+import {
+  GENERATE_APP_TOOL_NAME,
+  generateAppToolDefinition,
+  runGenerateAppTool,
+} from "../projects/generate-app.tool.js";
+import {
+  LIST_SESSION_PROJECTS_TOOL_NAME,
+  listSessionProjectsToolDefinition,
+  runListSessionProjectsTool,
+} from "../projects/list-session-projects.tool.js";
+import {
+  LIST_PUBLIC_APPS_TOOL_NAME,
+  listPublicAppsToolDefinition,
+  runListPublicAppsTool,
+} from "../projects/list-public-apps.tool.js";
+import {
+  INSTALL_APP_TOOL_NAME,
+  installAppToolDefinition,
+  runInstallAppTool,
+} from "../projects/install-app.tool.js";
+import {
+  PUBLISH_APP_TOOL_NAME,
+  publishAppToolDefinition,
+  runPublishAppTool,
+} from "../projects/publish-app.tool.js";
+import {
+  SAVE_PROJECT_TOOL_NAME,
+  saveProjectToolDefinition,
+  runSaveProjectTool,
+} from "../projects/save-project.tool.js";
+import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
+import {
   UPDATE_MEMORY_TOOL_NAME,
   updateMemoryToolDefinition,
   runUpdateMemoryTool,
 } from "./update-memory.tool.js";
-import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
 import {
   createPendingTransaction,
   transferRequiresApproval,
@@ -52,6 +87,13 @@ export const agentToolDefinitions = [
   executeTransactionToolDefinition,
   queryChainToolDefinition,
   updateMemoryToolDefinition,
+  listSessionProjectsToolDefinition,
+  generateAppToolDefinition,
+  deployAppToolDefinition,
+  listPublicAppsToolDefinition,
+  installAppToolDefinition,
+  publishAppToolDefinition,
+  saveProjectToolDefinition,
 ] as const;
 
 export type AgentToolErrorResult = {
@@ -99,7 +141,11 @@ async function dispatchAgentTool(
   try {
     switch (name) {
       case QUERY_CHAIN_TOOL_NAME:
-        return await runQueryChainTool(privyUserId, input as QueryChainInput);
+        return await runQueryChainTool(
+          privyUserId,
+          input as QueryChainInput,
+          options,
+        );
       case EXECUTE_TRANSACTION_TOOL_NAME:
         return await runExecuteTransactionToolWithApproval(
           privyUserId,
@@ -108,6 +154,27 @@ async function dispatchAgentTool(
         );
       case UPDATE_MEMORY_TOOL_NAME:
         return await runUpdateMemoryTool(privyUserId, input as UpdateMemoryInput);
+      case LIST_SESSION_PROJECTS_TOOL_NAME:
+        return await runListSessionProjectsTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+        });
+      case GENERATE_APP_TOOL_NAME:
+        return await runGenerateAppTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+          rawArguments: options?.rawArguments,
+        });
+      case DEPLOY_APP_TOOL_NAME:
+        return await runDeployAppTool(privyUserId, input);
+      case LIST_PUBLIC_APPS_TOOL_NAME:
+        return await runListPublicAppsTool(privyUserId, input);
+      case INSTALL_APP_TOOL_NAME:
+        return await runInstallAppTool(privyUserId, input);
+      case PUBLISH_APP_TOOL_NAME:
+        return await runPublishAppTool(privyUserId, input);
+      case SAVE_PROJECT_TOOL_NAME:
+        return await runSaveProjectTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+        });
       default:
         throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
     }

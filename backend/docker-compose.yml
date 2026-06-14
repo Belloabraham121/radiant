@@ -2,6 +2,9 @@
 #   docker compose up -d
 #   docker compose down
 #
+# Optional E2B orphan cleanup loop (dev/staging). Requires E2B_API_KEY on host.
+#   cd backend && npm run e2b:cleanup:cron
+#
 # See api-ref.md for DATABASE_URL, REDIS_URL, and app env vars.
 
 name: radiant

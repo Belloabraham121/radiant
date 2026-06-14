@@ -25,6 +25,7 @@ import type {
   DeepBookVolumeResult,
 } from "../defi/deepbook/deepbook-indexer-analytics.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
+import type { ArtifactPayload } from "../projects/project.types.js";
 import {
   agentTransactionCategorySchema,
   agentTransactionStatusSchema,
@@ -89,6 +90,10 @@ export type PendingClarification = {
 
 export type ToolCallRecord = {
   name: string;
+  /** Present for query_chain — which read-only query was invoked. */
+  query?: string;
+  /** Present for execute_transaction — which on-chain action was invoked. */
+  action?: string;
   result: unknown;
 };
 
@@ -99,6 +104,8 @@ export type PendingTransaction = {
   params: Record<string, unknown>;
   summary: string;
   amount_display: string;
+  /** ISO timestamp — swap quotes expire; approval is blocked after this time. */
+  quote_expires_at?: string | null;
 };
 
 export type ChatResponse = {
@@ -109,9 +116,11 @@ export type ChatResponse = {
   pending_transaction: PendingTransaction | null;
   pending_clarification: PendingClarification | null;
   message_id: string;
+  /** Set when generate_app succeeds — opens artifact panel on client (Phase 1). */
+  artifact: ArtifactPayload | null;
 };
 
-export const queryChainInputSchema = z.object({
+const queryChainInputObjectSchema = z.object({
   chain_id: chainIdSchema,
   query: z.enum([
     "balance",
@@ -147,7 +156,23 @@ export const queryChainInputSchema = z.object({
       pay_with_deep: z.boolean().optional(),
       slippage_bps: z.number().int().min(0).max(5000).optional(),
       min_out_display: z.number().positive().optional(),
-      limit: z.number().int().positive().max(10).optional(),
+      borrow_amount: z.number().positive().optional(),
+      asset: z.enum(["base", "quote"]).optional(),
+      strategy: z.enum(["round_trip", "swap_chain_repay"]).optional(),
+      steps: z
+        .array(
+          z.object({
+            pool_key: z.string().min(1),
+            side: z.enum(["buy", "sell"]),
+            amount: z.number().positive(),
+            pay_with_deep: z.boolean().optional(),
+            min_out_display: z.number().positive().optional(),
+          }),
+        )
+        .optional(),
+      repay_source: z.enum(["swap_output", "wallet", "merged"]).optional(),
+      estimated_surplus: z.number().optional(),
+      limit: z.number().int().positive().max(500).optional(),
       status: agentTransactionStatusSchema.optional(),
       category: agentTransactionCategorySchema.optional(),
       session_id: z.string().uuid().optional(),
@@ -157,6 +182,69 @@ export const queryChainInputSchema = z.object({
     .optional()
     .default({}),
 });
+
+function coercePositiveNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.trim().replace(/,/g, ""));
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+export const queryChainInputSchema = z.preprocess((input) => {
+  if (typeof input !== "object" || input === null) {
+    return input;
+  }
+  const record = input as Record<string, unknown>;
+  const params =
+    typeof record.params === "object" && record.params !== null
+      ? { ...(record.params as Record<string, unknown>) }
+      : {};
+
+  const amount = coercePositiveNumber(params.amount);
+  if (amount != null) {
+    params.amount = amount;
+  }
+  const amountDisplay = coercePositiveNumber(params.amount_display);
+  if (amountDisplay != null) {
+    params.amount_display = amountDisplay;
+  }
+  const borrowAmount = coercePositiveNumber(params.borrow_amount);
+  if (borrowAmount != null) {
+    params.borrow_amount = borrowAmount;
+  }
+  const limit = coercePositiveNumber(params.limit);
+  if (limit != null) {
+    params.limit = limit;
+  }
+
+  const queryLimitMax: Partial<Record<string, number>> = {
+    agent_transactions: 10,
+    deepbook_trades: 200,
+    deepbook_ohlcv: 500,
+    deepbook_volume: 365,
+  };
+  if (typeof record.query === "string" && typeof params.limit === "number") {
+    const cap = queryLimitMax[record.query];
+    if (cap != null) {
+      params.limit = Math.min(cap, Math.trunc(params.limit));
+    }
+  }
+
+  if (record.query === "flash_loan_quote") {
+    if (params.borrow_amount == null && typeof params.amount === "number" && params.amount > 0) {
+      params.borrow_amount = params.amount;
+    }
+    delete params.amount;
+  }
+
+  return { ...record, params };
+}, queryChainInputObjectSchema);
 
 export type QueryChainInput = z.infer<typeof queryChainInputSchema>;
 

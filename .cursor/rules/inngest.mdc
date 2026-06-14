@@ -1,0 +1,14 @@
+---
+description: Inngest durable execution — deploy queue, functions, and env setup
+globs: backend/src/inngest/**,backend/src/infrastructure/inngest/**,backend/src/config/inngest.ts
+alwaysApply: false
+---
+
+# Inngest (Radiant)
+
+- Upstream skills: `backend/.agents/skills/inngest/` ([inngest-skills](https://github.com/inngest/inngest-skills))
+- Project integration: `backend/.agents/skills/inngest-radiant/SKILL.md`
+- Docs: https://www.inngest.com/llms.txt
+
+Deploy jobs use event `radiant/deploy.requested` → `deploy-app-pipeline` → `runDeployPipeline`.
+Express serve: `/api/inngest`. Never hardcode dev mode; use `INNGEST_DEV=1`.

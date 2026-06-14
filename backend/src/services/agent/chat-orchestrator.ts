@@ -7,6 +7,8 @@ import { touchSession } from "../conversation/session.repository.js";
 import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.service.js";
 import type { ChatRequest, ChatResponse } from "./agent.types.js";
 import { buildAgentContextMessages } from "./context-window.js";
+import { runWithExecutionProgress } from "./execution-progress-context.js";
+import type { ChatStreamSender } from "./execution-progress.types.js";
 import { getAgentRuntime } from "./runtime/index.js";
 import type { AgentRuntime } from "./runtime/types.js";
 import type { TransactionErrorContext } from "./deepbook/transaction-error-context.js";
@@ -23,9 +25,12 @@ import {
 } from "./workflow/workflow-runner.js";
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
+import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
+import { extractArtifactFromToolCalls } from "../projects/extract-artifact.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
+  onStream?: ChatStreamSender;
 };
 
 export async function runChatTurn(
@@ -49,7 +54,22 @@ export async function runChatTurn(
 
   await appendMessage(session.id, "user", request.message);
 
-  if (!isApprovalContinuationMessage(request.message) && !isClarificationContinuationRequest(request)) {
+  const isTransactionContinuation =
+    isApprovalContinuationMessage(request.message) ||
+    isClarificationContinuationRequest(request);
+
+  if (options.onStream && isTransactionContinuation) {
+    options.onStream("step", {
+      step: {
+        id: "agent",
+        status: "running",
+        label: "Radiant",
+        detail: "Planning next steps…",
+      },
+    });
+  }
+
+  if (!isTransactionContinuation) {
     const workflowOutcome = await tryStartWorkflowFromMessage(
       privyUserId,
       session.id,
@@ -102,16 +122,41 @@ export async function runChatTurn(
   ]);
 
   const runtime = options.forceRuntime ?? getAgentRuntime();
-  const result = await runtime.runTurn({
+  const result = await runWithExecutionProgress(
+    {
+      onProgress: (event) => {
+        options.onStream?.("step", event);
+      },
+      onArtifact: (data) => {
+        options.onStream?.("artifact", data);
+      },
+      onReplyDelta: (delta) => {
+        options.onStream?.("reply", { delta });
+      },
+      onReplyClear: () => {
+        options.onStream?.("reply_clear", null);
+      },
+    },
+    () =>
+      runtime.runTurn({
+        privyUserId,
+        sessionId: session.id,
+        messages: contextMessages,
+        memoryBlock,
+        agentPermissions,
+      }),
+  );
+
+  const toolCallsForMessage = await recordInfeasibleFlashLoanQuotesFromToolCalls(
     privyUserId,
-    sessionId: session.id,
-    messages: contextMessages,
-    memoryBlock,
-    agentPermissions,
-  });
+    session.id,
+    result.tool_calls,
+  );
 
   const toolCallsJson: Prisma.InputJsonValue | undefined =
-    result.tool_calls.length > 0 ? (result.tool_calls as Prisma.InputJsonValue) : undefined;
+    toolCallsForMessage.length > 0
+      ? (toolCallsForMessage as Prisma.InputJsonValue)
+      : undefined;
 
   const assistantMessage = await appendMessage(
     session.id,
@@ -120,7 +165,7 @@ export async function runChatTurn(
     toolCallsJson,
   );
 
-  await linkToolCallTransactionsToMessage(result.tool_calls, assistantMessage.id);
+  await linkToolCallTransactionsToMessage(toolCallsForMessage, assistantMessage.id);
 
   const sessionTitle =
     isFirstUserMessage && session.title === "New chat"
@@ -136,10 +181,11 @@ export async function runChatTurn(
     reply: result.reply,
     session_id: session.id,
     mode: options.forceRuntime?.id ?? runtime.id,
-    tool_calls: result.tool_calls,
+    tool_calls: toolCallsForMessage,
     pending_transaction: result.pending_transaction,
     pending_clarification: null,
     message_id: assistantMessage.id,
+    artifact: extractArtifactFromToolCalls(toolCallsForMessage),
   };
 }
 
@@ -200,6 +246,7 @@ export async function persistToolFailureTurn(
     pending_transaction: null,
     pending_clarification: null,
     message_id: assistantMessage.id,
+    artifact: extractArtifactFromToolCalls(toolCalls),
   };
 }
 
@@ -233,19 +280,21 @@ export async function persistApprovalTurn(
     pending_transaction: null,
     pending_clarification: null,
     message_id: assistantMessage.id,
+    artifact: extractArtifactFromToolCalls(toolCalls),
   };
 }
 
 export async function runChatTurnWithFallback(
   privyUserId: string,
   request: ChatRequest,
+  options: Pick<RunChatTurnOptions, "onStream"> = {},
 ): Promise<ChatResponse> {
   try {
-    return await runChatTurn(privyUserId, request);
+    return await runChatTurn(privyUserId, request, options);
   } catch (err) {
     if (getAgentProvider() === "openai" && getOpenAiConfig().fallbackStub) {
       console.warn("OpenAI agent failed; falling back to stub runtime.", err);
-      return runChatTurn(privyUserId, request, { forceRuntime: stubRuntime });
+      return runChatTurn(privyUserId, request, { forceRuntime: stubRuntime, ...options });
     }
     throw err;
   }

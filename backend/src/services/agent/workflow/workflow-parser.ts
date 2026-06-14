@@ -1,59 +1,27 @@
+/**
+ * Classifies a single workflow step segment into a concrete tool input.
+ * Does not decide whether a full user message is multi-step — that is the LLM planner's job.
+ */
 import { getDeepBookEnv } from "../../../config/deepbook.js";
-import { resolvePoolKeyForCoinPair } from "../../defi/deepbook/pool-key.js";
+import {
+  inferSwapSideForPool,
+  normalizePoolKey,
+  resolveSwapPoolKey,
+} from "../../defi/deepbook/pool-key.js";
 import { extractDepositIntent } from "../deepbook/deposit-approval-flow.js";
 import { userAskedMarketPrice } from "../deepbook/compound-request-flow.js";
-import { userRequestedSwap } from "../deepbook/swap-approval-flow.js";
 import { extractWithdrawIntent } from "../deepbook/withdraw-approval-flow.js";
 import type {
   WorkflowAgentStep,
+  WorkflowBuildStep,
   WorkflowExecuteStep,
-  WorkflowPlan,
   WorkflowQueryStep,
   WorkflowStep,
 } from "./workflow.types.js";
 
-const SEQUENTIAL_SPLIT =
-  /\s+(?:and\s+)?(?:when\s+(?:you(?:'re| are)\s+)?done(?:\s+with\s+(?:that|this))?(?:,)?|after\s+(?:that|this|you(?:'re| are)\s+done)(?:,)?|then(?:,)?|next(?:,)?|also(?:,)?|once\s+(?:that(?:'s| is)\s+)?done(?:,)?)\s+/i;
-
-const SEQUENTIAL_MARKER =
-  /\b(when\s+(?:you(?:'re| are)\s+)?done|after\s+(?:that|this|you(?:'re| are)\s+done)|then|next|also|once\s+(?:that(?:'s| is)\s+)?done)\b/i;
-
-const COIN = "SUI|USDC|DEEP|WAL|USDT";
+const COIN = "SUI|USDC|DBUSDC|DEEP|WAL|USDT|DBUSDT";
 const COIN_SUFFIX = "(?:\\s+tokens?)?";
 const SUI_ADDRESS = /0x[a-fA-F0-9]{64}/;
-
-function normalizePoolKey(raw: string): string {
-  return raw
-    .trim()
-    .toUpperCase()
-    .replace(/\s*\/\s*/g, "_")
-    .replace(/\s+/g, "_");
-}
-
-export function splitWorkflowSegments(message: string): string[] {
-  const trimmed = message.trim();
-  if (!trimmed) {
-    return [];
-  }
-
-  const parts = trimmed
-    .split(SEQUENTIAL_SPLIT)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-
-  if (parts.length >= 2) {
-    return parts;
-  }
-
-  return [trimmed];
-}
-
-export function isSequentialWorkflowMessage(message: string): boolean {
-  if (!SEQUENTIAL_MARKER.test(message)) {
-    return false;
-  }
-  return splitWorkflowSegments(message).length >= 2;
-}
 
 function segmentLooksLikeOrder(segment: string): boolean {
   return (
@@ -192,36 +160,24 @@ function parseLimitOrderSegment(segment: string): WorkflowExecuteStep | null {
   return null;
 }
 
-function resolveSwapPoolKey(
+function resolveSwapPoolKeyFromSegment(
   segment: string,
   from: string,
   to: string,
 ): string {
-  const explicit = segment.match(/(SUI[_\s/]*USDC|DEEP[_\s/]*(?:USDC|SUI)|WAL[_\s/]*USDC)/i);
-  if (explicit) {
-    return normalizePoolKey(explicit[0]);
-  }
-  return resolvePoolKeyForCoinPair(from, to) ?? getDeepBookEnv().defaultPool;
+  const explicit = segment.match(/(SUI[_\s/]*(?:USDC|DBUSDC)|DEEP[_\s/]*(?:USDC|DBUSDC|SUI)|WAL[_\s/]*(?:USDC|DBUSDC|SUI))/i);
+  return resolveSwapPoolKey({
+    fromCoin: from,
+    toCoin: to,
+    explicitPoolKey: explicit ? normalizePoolKey(explicit[0]) : null,
+  });
 }
 
 function inferSwapSide(from: string, to: string, poolKey: string): "buy" | "sell" {
-  const { pools } = getDeepBookEnv();
-  const pool = pools[poolKey as keyof typeof pools];
-  if (pool) {
-    const base = pool.baseCoin.toUpperCase();
-    if (from === base) return "sell";
-    if (to === base) return "buy";
-  }
-  if (from === "SUI") return "sell";
-  if (to === "SUI") return "buy";
-  return "sell";
+  return inferSwapSideForPool(from, to, poolKey);
 }
 
 function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
-  if (!userRequestedSwap(segment)) {
-    return null;
-  }
-
   const amountAt = segment.match(
     new RegExp(
       `(?:swap|convert|trade|exchange)\\s+([\\d.,]+)\\s*(${COIN})${COIN_SUFFIX}\\s+at\\s+(${COIN})${COIN_SUFFIX}`,
@@ -232,7 +188,7 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
     const amount = Number(amountAt[1].replace(/,/g, ""));
     const from = amountAt[2].toUpperCase();
     const to = amountAt[3].toUpperCase();
-    const poolKey = resolveSwapPoolKey(segment, from, to);
+    const poolKey = resolveSwapPoolKeyFromSegment(segment, from, to);
     const side = inferSwapSide(from, to, poolKey);
     return {
       kind: "execute",
@@ -261,7 +217,7 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
     const amount = Number(amountSide[1].replace(/,/g, ""));
     const from = amountSide[2].toUpperCase();
     const to = amountSide[3].toUpperCase();
-    const poolKey = resolveSwapPoolKey(segment, from, to);
+    const poolKey = resolveSwapPoolKeyFromSegment(segment, from, to);
     const side = inferSwapSide(from, to, poolKey);
     return {
       kind: "execute",
@@ -306,10 +262,6 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
 /** Parse a single-swap message (not multi-step) into an execute step when params are complete. */
 export function parseSingleSwapIntent(message: string): WorkflowExecuteStep | null {
   const trimmed = message.trim();
-  if (!userRequestedSwap(trimmed)) {
-    return null;
-  }
-
   const swap = parseSwapSegment(trimmed);
   if (!swap) {
     return null;
@@ -325,6 +277,11 @@ export function parseSingleSwapIntent(message: string): WorkflowExecuteStep | nu
   }
 
   return swap;
+}
+
+/** True when the message states a concrete on-chain swap (amount + coin pair), not a UI/build request. */
+export function messageHasExecutableSwapIntent(message: string): boolean {
+  return parseSingleSwapIntent(message) !== null;
 }
 
 function parseTransferSegment(segment: string): WorkflowExecuteStep | null {
@@ -405,7 +362,7 @@ function parseQuerySegment(segment: string): WorkflowQueryStep | null {
     };
   }
 
-  if (userAskedMarketPrice(segment) && !userRequestedSwap(segment)) {
+  if (userAskedMarketPrice(segment) && parseSwapSegment(segment) === null) {
     const pool = segment.match(/(SUI[_\s/]*USDC|DEEP[_\s/]*USDC)/i);
     return {
       kind: "query",
@@ -418,7 +375,7 @@ function parseQuerySegment(segment: string): WorkflowQueryStep | null {
     };
   }
 
-  if (userRequestedSwap(segment) && /\b(quote|price|rate)\b/i.test(segment)) {
+  if (parseSwapSegment(segment) !== null && /\b(quote|price|rate)\b/i.test(segment)) {
     const amountMatch = segment.match(new RegExp(`([\\d.,]+)\\s*(${COIN})`, "i"));
     if (amountMatch) {
       return {
@@ -450,7 +407,42 @@ function parseQuerySegment(segment: string): WorkflowQueryStep | null {
     };
   }
 
+  if (
+    /\b(wallet\s+)?balance/i.test(segment) ||
+    (/\b(tell\s+me|show\s+me|check|what(?:'s| is))\b/i.test(segment) &&
+      /\b(balance|balances|wallet|portfolio|holdings)\b/i.test(segment))
+  ) {
+    return {
+      kind: "query",
+      label: "Wallet token balances",
+      input: {
+        chain_id: "sui",
+        query: "token_balances",
+        params: { include_zero: false },
+      },
+    };
+  }
+
   return null;
+}
+
+function parseBuildSegment(segment: string): WorkflowBuildStep | null {
+  if (!/\b(build|create|make|design|develop|implement)\b/i.test(segment)) {
+    return null;
+  }
+
+  if (
+    /^\s*swap\b/i.test(segment.trim()) &&
+    !/\b(ui|app|interface|dashboard|page|widget|uniswap|like)\b/i.test(segment)
+  ) {
+    return null;
+  }
+
+  return {
+    kind: "build",
+    label: segment.length > 60 ? `${segment.slice(0, 57)}…` : segment,
+    instruction: segment,
+  };
 }
 
 export function classifyWorkflowSegment(segment: string): WorkflowStep {
@@ -517,32 +509,13 @@ export function classifyWorkflowSegment(segment: string): WorkflowStep {
   const query = parseQuerySegment(segment);
   if (query) return query;
 
+  const build = parseBuildSegment(segment);
+  if (build) return build;
+
   const agentStep: WorkflowAgentStep = {
     kind: "agent",
     label: segment.length > 60 ? `${segment.slice(0, 57)}…` : segment,
     instruction: segment,
   };
   return agentStep;
-}
-
-export function parseWorkflowPlan(message: string): WorkflowPlan | null {
-  if (!isSequentialWorkflowMessage(message)) {
-    return null;
-  }
-
-  const segments = splitWorkflowSegments(message);
-  if (segments.length < 2) {
-    return null;
-  }
-
-  const steps = segments.map((segment) => classifyWorkflowSegment(segment));
-  const actionable = steps.filter((step) => step.kind !== "agent").length;
-  if (actionable === 0 && steps.every((step) => step.kind === "agent")) {
-    return null;
-  }
-
-  return {
-    originalMessage: message,
-    steps,
-  };
 }

@@ -3,7 +3,11 @@ import type { ToolCallRecord } from "../agent.types.js";
 import type { AgentToolErrorResult } from "../tools.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
-import { findLatestSwapQuote, hasExecuteTransactionAttempt, userRequestedSwap } from "./swap-approval-flow.js";
+import {
+  findLatestSwapQuote,
+  hasExecuteTransactionAttempt,
+} from "./swap-approval-flow.js";
+import { messageHasExecutableSwapIntent } from "../workflow/workflow-parser.js";
 
 export function userAskedMarketPrice(message: string): boolean {
   return (
@@ -13,7 +17,7 @@ export function userAskedMarketPrice(message: string): boolean {
 }
 
 export function isCompoundMarketAndSwapRequest(message: string): boolean {
-  return userAskedMarketPrice(message) && userRequestedSwap(message);
+  return userAskedMarketPrice(message) && messageHasExecutableSwapIntent(message);
 }
 
 function isPoolInfoResult(result: unknown): result is DeepBookPoolInfo {

@@ -30,12 +30,25 @@ describe("deepbook config", () => {
 
   it("uses testnet defaults when DEEPBOOK_ENV=testnet", () => {
     process.env.DEEPBOOK_ENV = "testnet";
+    delete process.env.SUI_NETWORK;
 
     const env = getDeepBookEnv();
     assert.equal(env.env, "testnet");
     assert.equal(env.defaultPool, "SUI_DBUSDC");
     assert.ok(env.pools.SUI_DBUSDC);
     assert.equal(env.indexerUrl, "https://deepbook-indexer.testnet.mystenlabs.com");
+  });
+
+  it("prefers SUI_NETWORK over DEEPBOOK_ENV for pool maps", () => {
+    process.env.DEEPBOOK_ENV = "mainnet";
+    process.env.SUI_NETWORK = "testnet";
+    process.env.DEEPBOOK_DEFAULT_POOL = "SUI_USDC";
+
+    const env = getDeepBookEnv();
+    assert.equal(env.env, "testnet");
+    assert.equal(env.defaultPool, "SUI_DBUSDC");
+    assert.ok(env.pools.SUI_DBUSDC);
+    assert.equal(env.pools.SUI_USDC, undefined);
   });
 
   it("honors DEEPBOOK_DEFAULT_POOL override", () => {

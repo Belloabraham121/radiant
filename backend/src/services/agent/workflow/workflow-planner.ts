@@ -51,7 +51,7 @@ async function planWorkflowWithOpenAi(message: string): Promise<PlannerOutput | 
           role: "user",
           content:
             `Parse this message into a workflow plan JSON:\n\n${message}\n\n` +
-            `Schema: { is_multi_step, steps: [{ action, label, params }], assumptions: [], confidence: 0-1, needs_clarification, clarification?: { question, step_index?, kind } }`,
+            `Schema: { is_multi_step, steps: [{ action, label, params, depends_on?: { after_step_index, only_if_success?, only_if_condition? } }], assumptions: [], confidence: 0-1, needs_clarification, clarification?: { question, step_index?, kind } }`,
         },
       ],
     });
@@ -72,16 +72,22 @@ async function planWorkflowWithOpenAi(message: string): Promise<PlannerOutput | 
 }
 
 export async function planWorkflowMessage(message: string): Promise<PlannerOutput | null> {
-  if (!looksLikeWorkflowMessage(message)) {
-    return null;
-  }
-
   if (plannerHandlerForTests) {
     return plannerHandlerForTests(message);
   }
 
+  // Compound intents (swap + balance, swap + build, flash loan gates) are resolved by the
+  // LLM planner — not regex on user text. Heuristic fallback handles explicit multi-action
+  // chains only (e.g. "swap X, then deposit Y").
   if (getAgentProvider() === "openai" && getOpenAiConfig().apiKey) {
-    return planWorkflowWithOpenAi(message);
+    const llmPlan = await planWorkflowWithOpenAi(message);
+    if (llmPlan) {
+      return llmPlan;
+    }
+  }
+
+  if (!looksLikeWorkflowMessage(message)) {
+    return null;
   }
 
   return planWorkflowHeuristic(message);

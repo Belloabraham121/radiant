@@ -30,13 +30,30 @@ describe("query_chain agent_transactions", () => {
     assert.equal(parsed.params.transaction_id, "00000000-0000-4000-8000-000000000099");
   });
 
-  it("rejects limit above 10 for agent_transactions params", () => {
-    assert.throws(() =>
-      queryChainInputSchema.parse({
-        chain_id: "sui",
-        query: "agent_transactions",
-        params: { limit: 25 },
-      }),
-    );
+  it("clamps limit to 10 for agent_transactions params", () => {
+    const parsed = queryChainInputSchema.parse({
+      chain_id: "sui",
+      query: "agent_transactions",
+      params: { limit: 25 },
+    });
+    assert.equal(parsed.params.limit, 10);
+  });
+
+  it("allows higher limit for deepbook_trades params", () => {
+    const parsed = queryChainInputSchema.parse({
+      chain_id: "sui",
+      query: "deepbook_trades",
+      params: { pool_key: "SUI_USDC", limit: 100 },
+    });
+    assert.equal(parsed.params.limit, 100);
+  });
+
+  it("clamps excessive limit for deepbook_trades params", () => {
+    const parsed = queryChainInputSchema.parse({
+      chain_id: "sui",
+      query: "deepbook_trades",
+      params: { pool_key: "SUI_USDC", limit: 8000 },
+    });
+    assert.equal(parsed.params.limit, 200);
   });
 });

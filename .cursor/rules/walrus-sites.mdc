@@ -1,0 +1,29 @@
+---
+description: Walrus Sites deploy, site-builder, ws-resources, and testnet portal
+globs: backend/src/services/walrus/**,backend/src/services/deploy/**,backend/src/config/walrus.ts,backend/templates/**,docs/walrus-local-setup.md,docs/app-builder-deploy-TODO.md
+alwaysApply: false
+---
+
+# Walrus Sites (Radiant)
+
+Load these skills before editing deploy or Walrus code:
+
+- `backend/.agents/skills/walrus-sites/SKILL.md` — overview
+- `backend/.agents/skills/walrus-sites/publishing/SKILL.md` — `site-builder`, epochs, `ws-resources.json`
+- `backend/.agents/skills/walrus-sites/portal/SKILL.md` — **testnet local portal** (`wal.app` is mainnet-only)
+
+## Radiant conventions
+
+- Deploy client: `backend/src/services/walrus/sites.client.ts` → `deployWalrusSite()`
+- Always merge SPA fallback in `ws-resources.ts`: `"/*": "/index.html"` (HashRouter / client routes)
+- Default epochs: **30** (`WALRUS_SITE_EPOCHS`); do not use 5 for testnet
+- Mock deploy: `WALRUS_DEPLOY_MOCK=true` default in code; real QA uses `false` + config paths
+- Testnet portal URL: `WALRUS_PORTAL_BASE_URL=http://localhost:3000` (not `wal.app`)
+- Local setup doc: `docs/walrus-local-setup.md`
+- Pipeline: `backend/src/services/deploy/pipeline.ts` — progress markers, none/e2b paths
+
+## Do not
+
+- Use `wal.app` for testnet site URLs
+- Skip `ws-resources.json` routes for apps with react-router HashRouter
+- Commit funded wallet keys or `.env` secrets

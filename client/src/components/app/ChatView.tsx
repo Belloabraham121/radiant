@@ -2,28 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowUp, Check, Copy, ExternalLink, Sparkles } from "lucide-react";
+import { ArrowUp, Check, Copy, ExternalLink, LayoutPanelLeft, Sparkles } from "lucide-react";
+import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
-import { AgentTransactionDetailDialog } from "@/components/app/AgentTransactionDetailDialog";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
+import { AgentThinkingDots } from "@/components/app/AgentThinkingDots";
+import { ResizableArtifactPanel } from "@/components/app/ResizableArtifactPanel";
+import { useArtifactSession } from "@/components/app/ArtifactContext";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage, Receipt } from "@/lib/chat-messages";
+import type { ArtifactPayload } from "@/lib/artifact-types";
 import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
 
-function ReceiptPill({
-  receipt,
-  onViewActivity,
-}: {
-  receipt: Receipt;
-  onViewActivity: (transactionId: string) => void;
-}) {
+function ReceiptPill({ receipt }: { receipt: Receipt }) {
   const explorerUrl =
-    receipt.digest && receipt.chainId
-      ? chainExplorerTxUrl(receipt.chainId, receipt.digest)
+    receipt.digest
+      ? chainExplorerTxUrl(receipt.chainId ?? "sui", receipt.digest)
       : null;
 
   return (
@@ -45,18 +43,9 @@ function ReceiptPill({
           rel="noopener noreferrer"
           className="inline-flex items-center gap-0.5 font-bold text-[var(--hero-blue)] hover:underline"
         >
-          Explorer
+          View on Sui Explorer
           <ExternalLink className="size-3" />
         </a>
-      ) : null}
-      {receipt.agentTransactionId ? (
-        <button
-          type="button"
-          onClick={() => onViewActivity(receipt.agentTransactionId!)}
-          className="font-bold text-[var(--hero-violet)] hover:underline"
-        >
-          View activity
-        </button>
       ) : null}
     </span>
   );
@@ -102,12 +91,31 @@ function MessageCopyButton({
   );
 }
 
+function ArtifactViewButton({
+  artifact,
+  onClick,
+}: {
+  artifact: ArtifactPayload;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex max-w-full items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-4 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+    >
+      <LayoutPanelLeft className="size-4 shrink-0 text-[var(--hero-violet)]" strokeWidth={2.5} />
+      <span className="truncate">View app — {artifact.name}</span>
+    </button>
+  );
+}
+
 function Bubble({
   message,
-  onViewActivity,
+  onViewArtifact,
 }: {
   message: ChatMessage;
-  onViewActivity: (transactionId: string) => void;
+  onViewArtifact?: (artifact: ArtifactPayload) => void;
 }) {
   const isUser = message.role === "user";
   return (
@@ -125,6 +133,14 @@ function Bubble({
             Radiant
           </span>
         )}
+
+        {message.executionSteps && message.executionSteps.length > 0 ? (
+          <ExecutionTimeline
+            steps={message.executionSteps}
+            live={message.streaming === true}
+          />
+        ) : null}
+
         <div
           className={`rounded-3xl border-2 border-(--hero-ink) px-5 py-3.5 text-sm font-medium leading-relaxed ${
             isUser
@@ -132,7 +148,13 @@ function Bubble({
               : "rounded-bl-md bg-white shadow-[4px_4px_0_var(--hero-ink)]"
           }`}
         >
-          {isUser ? message.text : <AgentMessageMarkdown text={message.text} />}
+          {isUser ? (
+            message.text
+          ) : message.streaming && !message.text ? (
+            <AgentThinkingDots />
+          ) : (
+            <AgentMessageMarkdown text={message.text} />
+          )}
         </div>
 
         {message.receipts && message.receipts.length > 0 && (
@@ -141,14 +163,22 @@ function Bubble({
               <ReceiptPill
                 key={`${message.id}-receipt-${index}`}
                 receipt={receipt}
-                onViewActivity={onViewActivity}
               />
             ))}
           </div>
         )}
 
+        {message.artifact && !message.streaming ? (
+          <ArtifactViewButton
+            artifact={message.artifact}
+            onClick={() => onViewArtifact?.(message.artifact!)}
+          />
+        ) : null}
+
         <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-          <MessageCopyButton text={message.text} isUser={isUser} />
+          {!message.streaming ? (
+            <MessageCopyButton text={message.text} isUser={isUser} />
+          ) : null}
         </div>
       </div>
     </div>
@@ -173,25 +203,19 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const ref = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const animatedMessageIdsRef = useRef(new Set<string>());
   const initialBatchDoneRef = useRef(false);
   const [input, setInput] = useState("");
-  const [activityTransactionId, setActivityTransactionId] = useState<
-    string | null
-  >(null);
-  const [activityDetailOpen, setActivityDetailOpen] = useState(false);
-
-  const openActivityDetail = (transactionId: string) => {
-    setActivityTransactionId(transactionId);
-    setActivityDetailOpen(true);
-  };
 
   const {
     messages,
     title,
+    activeSessionId,
     hydrating,
     loadError,
     typing,
+    streaming,
     chatError,
     pendingTx,
     pendingClarification,
@@ -205,9 +229,50 @@ export function ChatView({ sessionId }: ChatViewProps) {
     dismissClarification,
   } = useChatSession(sessionId);
 
+  const artifactKey = sessionId ?? activeSessionId ?? "new";
+  const {
+    panelOpen,
+    payload: artifactPayload,
+    activePath,
+    streaming: artifactStreaming,
+    setActivePath,
+    closePanel,
+    openArtifact,
+    updateArtifact,
+  } = useArtifactSession(artifactKey);
+
+  const chatColumnClass =
+    panelOpen && artifactPayload ? "mx-auto w-full max-w-none px-0" : CHAT_COL;
+
+  useEffect(() => {
+    if (hydrating || panelOpen || artifactPayload) return;
+    const lastWithArtifact = [...messages]
+      .reverse()
+      .find((message) => message.artifact && !message.streaming);
+    if (lastWithArtifact?.artifact) {
+      openArtifact(lastWithArtifact.artifact);
+    }
+  }, [artifactPayload, hydrating, messages, openArtifact, panelOpen]);
+
   useEffect(() => {
     animatedMessageIdsRef.current.clear();
     initialBatchDoneRef.current = false;
+    stickToBottomRef.current = true;
+  }, [sessionId]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      stickToBottomRef.current = distanceFromBottom < 96;
+    };
+
+    container.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => container.removeEventListener("scroll", onScroll);
   }, [sessionId]);
 
   useEffect(() => {
@@ -264,29 +329,36 @@ export function ChatView({ sessionId }: ChatViewProps) {
   }, [hydrating, messages]);
 
   useEffect(() => {
+    if (!stickToBottomRef.current) return;
     const container = scrollRef.current;
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   }, [sessionId]);
 
   useEffect(() => {
+    if (!stickToBottomRef.current) return;
     const container = scrollRef.current;
     if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
-  }, [hydrating, messages, pendingTx, typing]);
+    container.scrollTop = container.scrollHeight;
+  }, [hydrating, messages, pendingTx, typing, streaming]);
 
   const send = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || typing) return;
+    if (!text || typing || streaming) return;
+    stickToBottomRef.current = true;
     setInput("");
     void sendMessage(text);
   };
 
   return (
-    <div ref={ref} className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 overflow-hidden">
+      <div
+        ref={ref}
+        className={`flex min-h-0 min-w-0 flex-1 flex-col`}
+      >
       <header
-        className={`${CHAT_COL} flex items-center justify-between gap-3 px-6 py-4`}
+        className={`${chatColumnClass} flex items-center justify-between gap-3 px-6 py-4`}
       >
         <div className="flex min-w-0 items-center gap-3">
           <SidebarToggle />
@@ -303,14 +375,14 @@ export function ChatView({ sessionId }: ChatViewProps) {
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
         {loadError ? (
           <div
-            className={`${CHAT_COL} flex h-full items-center justify-center`}
+            className={`${chatColumnClass} flex h-full items-center justify-center`}
           >
             <p className="text-center text-sm font-semibold text-[var(--hero-coral)]">
               {loadError}
             </p>
           </div>
         ) : (
-          <div className={`${CHAT_COL} space-y-6`}>
+          <div className={`${chatColumnClass} space-y-6`}>
             {hydrating && messages.length === 0 ? (
               <ChatHydratingIndicator />
             ) : null}
@@ -335,19 +407,10 @@ export function ChatView({ sessionId }: ChatViewProps) {
               <Bubble
                 key={message.id}
                 message={message}
-                onViewActivity={openActivityDetail}
+                onViewArtifact={(artifact) => openArtifact(artifact)}
               />
             ))}
 
-            {typing && (
-              <div className="flex justify-start">
-                <div className="hero-blink flex items-center gap-1.5 rounded-3xl rounded-bl-md border-2 border-[var(--hero-ink)] bg-white px-5 py-4 shadow-[4px_4px_0_var(--hero-ink)]">
-                  <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
-                  <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
-                  <span className="size-2 rounded-full bg-[var(--hero-ink)]/60" />
-                </div>
-              </div>
-            )}
             <div ref={endRef} />
           </div>
         )}
@@ -356,7 +419,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       {chatError ? (
         <p
           role="alert"
-          className={`${CHAT_COL} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
+          className={`${chatColumnClass} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
         >
           {chatError}
         </p>
@@ -365,7 +428,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       <div className="shrink-0 px-6 pb-4">
         {pendingClarification ? (
           <ClarificationBar
-            className={`${CHAT_COL} mb-3`}
+            className={`${chatColumnClass} mb-3`}
             pending={pendingClarification}
             busy={respondingClarification}
             onRespond={(answer) => void respondClarification(answer)}
@@ -374,7 +437,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
         {pendingTx ? (
           <TransactionApprovalBar
-            className={`${CHAT_COL} mb-3`}
+            className={`${chatColumnClass} mb-3`}
             pending={pendingTx}
             busy={approving || rejecting}
             onApprove={() => void approvePending()}
@@ -384,7 +447,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
         <form onSubmit={send}>
           <div
-            className={`${CHAT_COL} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
+            className={`${chatColumnClass} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
           >
             <input
               value={input}
@@ -400,6 +463,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
               disabled={
                 !input.trim() ||
                 typing ||
+                streaming ||
                 Boolean(loadError) ||
                 Boolean(pendingTx) ||
                 Boolean(pendingClarification)
@@ -409,19 +473,26 @@ export function ChatView({ sessionId }: ChatViewProps) {
             </button>
           </div>
           <p
-            className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
+            className={`${chatColumnClass} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
           >
             Radiant signs transactions with your wallet. Big moves always ask
             first.
           </p>
         </form>
       </div>
+      </div>
 
-      <AgentTransactionDetailDialog
-        transactionId={activityTransactionId}
-        open={activityDetailOpen}
-        onOpenChange={setActivityDetailOpen}
-      />
+      {panelOpen && artifactPayload ? (
+        <ResizableArtifactPanel
+          payload={artifactPayload}
+          activePath={activePath}
+          streaming={artifactStreaming}
+          sessionId={sessionId ?? activeSessionId ?? undefined}
+          onActivePathChange={setActivePath}
+          onPayloadChange={(artifact) => updateArtifact(artifact, { open: true })}
+          onClose={closePanel}
+        />
+      ) : null}
     </div>
   );
 }

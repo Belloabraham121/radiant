@@ -9,6 +9,7 @@ import { isMultipleOfStep } from "./order-constraints.js";
 import type { SuiDeepBookExtendedClient } from "./providers/sui-deepbook.provider.js";
 import {
   MAX_FLASH_LOAN_STEPS,
+  FLASH_LOAN_REPAY_INFEASIBLE_CODE,
   resolvePoolCoins,
   validateFlashLoanStructure,
   type DeepBookFlashLoanBundleParams,
@@ -302,7 +303,7 @@ export function buildFlashLoanPtb(
   if (quote.repay_source === "swap_output" && !quote.repay_feasible) {
     throw new AppError(
       400,
-      "VALIDATION_ERROR",
+      FLASH_LOAN_REPAY_INFEASIBLE_CODE,
       "Flash loan repay is not feasible at quoted outputs — adjust steps or amounts",
     );
   }

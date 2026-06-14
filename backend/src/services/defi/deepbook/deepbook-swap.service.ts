@@ -9,7 +9,7 @@ import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import { getAssetDecimals } from "./asset-scalars.js";
 import { getDeepBookPoolInfo } from "./deepbook-pools.service.js";
 import { isMultipleOfStep } from "./order-constraints.js";
-import { normalizePoolKey } from "./pool-key.js";
+import { assertResolvablePoolKey } from "./pool-key.js";
 import {
   getDeepBookClient,
   getSuiDeepBookClient,
@@ -20,6 +20,7 @@ import type { TxResult } from "../../chains/types.js";
 
 const DEFAULT_SLIPPAGE_BPS = 100;
 const DEEP_SCALAR = 1_000_000;
+export const SWAP_QUOTE_TTL_MS = 60_000;
 const SWAP_ACTIONS = new Set(["swap", "deepbook_swap"]);
 
 export type DeepBookSwapParams = {
@@ -73,18 +74,10 @@ let fetchPrivyWallet = async (privyWalletId: string) => {
 };
 
 function assertPoolKey(poolKey: string): PoolCoins {
-  const normalized = normalizePoolKey(poolKey);
+  const resolved = assertResolvablePoolKey(poolKey);
   const { pools } = getDeepBookEnv();
-  const pool = pools[normalized as keyof typeof pools];
-  if (!pool) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      `Unknown DeepBook pool "${poolKey}". Call query_chain deepbook_pools for the full list. ` +
-        `Known pools include ${Object.keys(pools).join(", ")}.`,
-    );
-  }
-  return { pool_key: normalized, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
+  const pool = pools[resolved as keyof typeof pools]!;
+  return { pool_key: resolved, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
 }
 
 function parsePositiveAmount(params: Record<string, unknown>): number {
@@ -428,7 +421,7 @@ export async function getDeepBookSwapQuote(
     output_amount_display: sdkQuote.outDisplay,
     price: sdkQuote.price ?? indexerPrice,
     fee_deep: parsed.pay_with_deep ? sdkQuote.feeDeep : null,
-    expires_at: new Date(Date.now() + 60_000).toISOString(),
+    expires_at: new Date(Date.now() + SWAP_QUOTE_TTL_MS).toISOString(),
     side: parsed.side,
     pay_with_deep: parsed.pay_with_deep,
     slippage_bps: parsed.slippage_bps,

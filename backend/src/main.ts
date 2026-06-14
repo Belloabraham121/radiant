@@ -1,7 +1,9 @@
 import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { getCorsEnv, getServerEnv } from "./config/env.js";
+import { getInngestConfig } from "./config/inngest.js";
 import { prisma } from "./infrastructure/postgres/client.js";
+import { killStaleRadiantSandboxesOnBoot } from "./services/sandbox/e2b-cleanup.service.js";
 import { logger } from "./shared/logger.js";
 
 const app = createApp();
@@ -27,6 +29,14 @@ async function start() {
   await prisma.$connect();
   logger.info("Database connected");
 
+  const cleanup = await killStaleRadiantSandboxesOnBoot();
+  if (cleanup) {
+    logger.info("E2B stale sandbox cleanup on boot", {
+      killed: cleanup.killed.length,
+      failed: cleanup.failed.length,
+    });
+  }
+
   const httpServer = createServer(app);
 
   const server = httpServer.listen(port, () => {
@@ -44,6 +54,8 @@ async function start() {
         "POST /api/v1/auth/logout",
         "GET /api/v1/wallets/balances",
         "POST /api/v1/chat",
+        "POST /api/v1/webhooks/e2b",
+        ...(getInngestConfig().enabled ? ["GET|POST|PUT /api/inngest"] : []),
       ],
     });
   });

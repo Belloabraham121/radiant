@@ -1,10 +1,17 @@
 import { AppError } from "../../../errors/app-error.js";
+import { emitExecutionProgress } from "../../agent/execution-progress-context.js";
 import { getDeepBookSwapQuote } from "./deepbook-swap.service.js";
 import { validateFlashLoanBundle } from "./deepbook-flash-loan-bundle.js";
+import {
+  enumerateFirstSwapStepCandidates,
+  pickBestSwapChainRoute,
+  type SwapChainRouteScore,
+} from "./deepbook-flash-loan-route.js";
 import {
   parseDeepBookFlashLoanParams,
   resolvePoolCoins,
   stepCoins,
+  validateFlashLoanStructure,
   type DeepBookFlashLoanBundleParams,
   type FlashLoanBundleQuoteResult,
   type FlashLoanStep,
@@ -48,7 +55,9 @@ async function quoteSwapStep(
       : {}),
   });
 
-  const minOut = step.min_out_display ?? applySlippage(swapQuote.output_amount_display, slippageBps);
+  const minOut =
+    step.min_out_display ??
+    applySlippage(swapQuote.output_amount_display, slippageBps);
 
   return {
     pool_key: step.pool_key,
@@ -62,7 +71,9 @@ async function quoteSwapStep(
   };
 }
 
-function buildRoundTripQuote(parsed: DeepBookFlashLoanBundleParams): FlashLoanBundleQuoteResult {
+function buildRoundTripQuote(
+  parsed: DeepBookFlashLoanBundleParams,
+): FlashLoanBundleQuoteResult {
   return {
     strategy: "round_trip",
     pool_key: parsed.pool_key,
@@ -88,20 +99,37 @@ function buildWarnings(
 ): string[] {
   const warnings: string[] = [];
 
-  if (parsed.asset === "base" && parsed.steps?.some((s) => s.pool_key === parsed.pool_key)) {
-    warnings.push("Borrowing base and trading on the same pool may fail on-chain.");
+  if (
+    parsed.asset === "base" &&
+    parsed.steps?.some((s) => s.pool_key === parsed.pool_key)
+  ) {
+    warnings.push(
+      "Borrowing base and trading on the same pool may fail on-chain.",
+    );
   }
 
   if (!repayFeasible) {
-    warnings.push("Quoted outputs may not cover the borrow amount for atomic repay.");
+    warnings.push(
+      "Quoted outputs may not cover the borrow amount for atomic repay.",
+    );
   }
 
   if (estimatedSurplus !== null && estimatedSurplus < REPAY_EPSILON) {
-    warnings.push("Estimated surplus is very low — small price moves can revert the transaction.");
+    warnings.push(
+      "Estimated surplus is very low — small price moves can revert the transaction.",
+    );
   }
 
-  if (stepQuotes.some((q) => q.fee_deep > 0 && !parsed.steps?.find((s) => s.pool_key === q.pool_key)?.pay_with_deep)) {
-    warnings.push("Some steps may require DEEP from your wallet for fees when pay_with_deep is false.");
+  if (
+    stepQuotes.some(
+      (q) =>
+        q.fee_deep > 0 &&
+        !parsed.steps?.find((s) => s.pool_key === q.pool_key)?.pay_with_deep,
+    )
+  ) {
+    warnings.push(
+      "Some steps may require DEEP from your wallet for fees when pay_with_deep is false.",
+    );
   }
 
   if (parsed.slippage_bps > 200) {
@@ -111,10 +139,68 @@ function buildWarnings(
   return warnings;
 }
 
+function emitRepayProgress(
+  parsed: DeepBookFlashLoanBundleParams,
+  lastQuote: FlashLoanStepQuote,
+  repayFeasible: boolean,
+  estimatedSurplus: number | null,
+  progress: (step: Parameters<typeof emitExecutionProgress>[0]["step"]) => void,
+  options?: { showExecuteBlocked?: boolean },
+): void {
+  const repayDetail = `Need ${parsed.borrow_amount} ${parsed.coin_key}; last min out ~${lastQuote.min_out} ${lastQuote.output_coin}`;
+  let detail: string;
+  if (estimatedSurplus != null) {
+    const surplusLabel =
+      estimatedSurplus >= 0
+        ? `surplus ~${estimatedSurplus} ${parsed.coin_key}`
+        : `shortfall ~${Math.abs(estimatedSurplus)} ${parsed.coin_key}`;
+    detail = `${repayDetail} — ${surplusLabel}`;
+  } else {
+    detail = repayFeasible
+      ? `${repayDetail} — feasible at quoted minimums`
+      : `${repayDetail} — not feasible at quoted minimums`;
+  }
+
+  progress({
+    id: "repay",
+    status: repayFeasible ? "ok" : "failed",
+    label: "Repay check",
+    detail,
+  });
+
+  if (!repayFeasible && options?.showExecuteBlocked !== false) {
+    progress({
+      id: "execute",
+      status: "skipped",
+      label: "Execute bundle",
+      detail:
+        "Blocked — swap outputs would not cover the borrow for atomic repay",
+    });
+  }
+}
+
 async function buildSwapChainQuote(
   privyUserId: string,
   parsed: DeepBookFlashLoanBundleParams,
+  options?: { emitProgress?: boolean; advisoryQuote?: boolean },
 ): Promise<FlashLoanBundleQuoteResult> {
+  const emitProgress = options?.emitProgress !== false;
+  const showExecuteBlocked = options?.advisoryQuote !== true;
+  const progress = (
+    step: Parameters<typeof emitExecutionProgress>[0]["step"],
+  ) => {
+    if (emitProgress) {
+      emitExecutionProgress({ step });
+    }
+  };
+
+  progress({
+    id: "quote",
+    status: "running",
+    label: "Quote flash loan",
+    detail: `Borrow ${parsed.borrow_amount} ${parsed.coin_key} from ${parsed.pool_key}`,
+  });
+
   const steps: FlashLoanStep[] = [...(parsed.steps ?? [])];
   const stepQuotes: FlashLoanStepQuote[] = [];
 
@@ -132,7 +218,10 @@ async function buildSwapChainQuote(
       );
     }
 
-    if (i === 0 && Math.abs(step.amount - parsed.borrow_amount) > REPAY_EPSILON) {
+    if (
+      i === 0 &&
+      Math.abs(step.amount - parsed.borrow_amount) > REPAY_EPSILON
+    ) {
       throw new AppError(
         400,
         "VALIDATION_ERROR",
@@ -148,27 +237,77 @@ async function buildSwapChainQuote(
       }
     }
 
+    const swapId = `swap-${stepQuotes.length + 1}`;
+    progress({
+      id: swapId,
+      status: "running",
+      label: `Swap ${stepQuotes.length + 1}`,
+      detail: `${step.side} on ${step.pool_key}…`,
+    });
+
     const quoted = await quoteSwapStep(privyUserId, step, parsed.slippage_bps);
     stepQuotes.push(quoted);
     runningCoin = quoted.output_coin;
+
+    progress({
+      id: swapId,
+      status: "ok",
+      label: `Swap ${stepQuotes.length}`,
+      detail: `${quoted.side} ${quoted.in_amount} ${quoted.input_coin} → ~${quoted.out_est} ${quoted.output_coin} on ${quoted.pool_key}`,
+    });
   }
 
   if (runningCoin !== parsed.coin_key && stepQuotes.length > 0) {
     const lastQuote = stepQuotes[stepQuotes.length - 1];
     const returnPool = resolvePoolCoins(steps[0].pool_key);
-    const returnSide = returnPool.base_coin === lastQuote.output_coin ? "sell" : "buy";
+    const returnSide =
+      returnPool.base_coin === lastQuote.output_coin ? "sell" : "buy";
     const returnStep: FlashLoanStep = {
       pool_key: steps[0].pool_key,
       side: returnSide,
       amount: lastQuote.out_est,
     };
     steps.push(returnStep);
-    const returnQuote = await quoteSwapStep(privyUserId, returnStep, parsed.slippage_bps);
+
+    const swapId = `swap-${stepQuotes.length + 1}`;
+    progress({
+      id: swapId,
+      status: "running",
+      label: `Swap ${stepQuotes.length + 1}`,
+      detail: `${returnSide} on ${returnStep.pool_key}…`,
+    });
+
+    const returnQuote = await quoteSwapStep(
+      privyUserId,
+      returnStep,
+      parsed.slippage_bps,
+    );
     stepQuotes.push(returnQuote);
     runningCoin = returnQuote.output_coin;
+
+    progress({
+      id: swapId,
+      status: "ok",
+      label: `Swap ${stepQuotes.length}`,
+      detail: `${returnQuote.side} ${returnQuote.in_amount} ${returnQuote.input_coin} → ~${returnQuote.out_est} ${returnQuote.output_coin} on ${returnQuote.pool_key}`,
+    });
   }
 
+  progress({
+    id: "quote",
+    status: "ok",
+    label: "Quote flash loan",
+    detail: `Borrow ${parsed.borrow_amount} ${parsed.coin_key} from ${parsed.pool_key} (${parsed.strategy})`,
+  });
+
   const lastQuote = stepQuotes[stepQuotes.length - 1];
+  progress({
+    id: "repay",
+    status: "running",
+    label: "Repay check",
+    detail: "Checking whether swap outputs cover the borrow…",
+  });
+
   const repayFeasible = computeBundleRepayFeasibility(
     lastQuote.min_out,
     parsed.borrow_amount,
@@ -179,6 +318,15 @@ async function buildSwapChainQuote(
     parsed.repay_source === "swap_output" && lastQuote
       ? Number((lastQuote.out_est - parsed.borrow_amount).toFixed(9))
       : null;
+
+  emitRepayProgress(
+    parsed,
+    lastQuote,
+    repayFeasible,
+    estimatedSurplus,
+    progress,
+    { showExecuteBlocked },
+  );
 
   const requiresManualApproval =
     parsed.repay_source === "wallet" || parsed.repay_source === "merged";
@@ -196,20 +344,108 @@ async function buildSwapChainQuote(
     estimated_surplus: estimatedSurplus,
     requires_manual_approval: requiresManualApproval,
     steps: stepQuotes,
-    warnings: buildWarnings(parsed, stepQuotes, repayFeasible, estimatedSurplus),
+    warnings: buildWarnings(
+      parsed,
+      stepQuotes,
+      repayFeasible,
+      estimatedSurplus,
+    ),
   };
 }
+
+async function discoverSwapChainSteps(
+  privyUserId: string,
+  parsed: DeepBookFlashLoanBundleParams,
+): Promise<FlashLoanStep[]> {
+  const candidates = enumerateFirstSwapStepCandidates(parsed);
+  if (candidates.length === 0) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      `No DeepBook pool can spend borrowed ${parsed.coin_key} for swap_chain_repay.`,
+    );
+  }
+
+  const scores: SwapChainRouteScore[] = [];
+
+  for (const firstStep of candidates) {
+    const trial: DeepBookFlashLoanBundleParams = {
+      ...parsed,
+      steps: [firstStep],
+    };
+
+    try {
+      validateFlashLoanStructure(trial, { allowIncompleteRoute: true });
+      await validateFlashLoanBundle(privyUserId, trial, { quoteMode: true });
+      const quote = await buildSwapChainQuote(privyUserId, trial, {
+        emitProgress: false,
+      });
+      scores.push({
+        steps: [firstStep],
+        repay_feasible: quote.repay_feasible,
+        estimated_surplus: quote.estimated_surplus,
+      });
+    } catch {
+      // Try the next candidate pool/side.
+    }
+  }
+
+  return pickBestSwapChainRoute(scores);
+}
+
+export async function resolveFlashLoanBundleParams(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<{
+  parsed: DeepBookFlashLoanBundleParams;
+  routeAutoDiscovered: boolean;
+}> {
+  let parsed = parseDeepBookFlashLoanParams(params, {
+    allowMissingSwapSteps: true,
+  });
+  let routeAutoDiscovered = false;
+
+  if (
+    parsed.strategy === "swap_chain_repay" &&
+    (parsed.steps?.length ?? 0) === 0
+  ) {
+    parsed = {
+      ...parsed,
+      steps: await discoverSwapChainSteps(privyUserId, parsed),
+    };
+    routeAutoDiscovered = true;
+    validateFlashLoanStructure(parsed, { allowIncompleteRoute: true });
+  }
+
+  return { parsed, routeAutoDiscovered };
+}
+
+export type FlashLoanQuoteOptions = {
+  emitProgress?: boolean;
+  /** Strategy/feasibility turn — omit execution-style "Execute bundle blocked" progress. */
+  advisoryQuote?: boolean;
+};
 
 export async function getFlashLoanBundleQuote(
   privyUserId: string,
   params: Record<string, unknown>,
+  options?: FlashLoanQuoteOptions,
 ): Promise<FlashLoanBundleQuoteResult> {
-  const parsed = parseDeepBookFlashLoanParams(params);
+  const { parsed, routeAutoDiscovered } = await resolveFlashLoanBundleParams(
+    privyUserId,
+    params,
+  );
   await validateFlashLoanBundle(privyUserId, parsed, { quoteMode: true });
 
   if (parsed.strategy === "round_trip") {
     return buildRoundTripQuote(parsed);
   }
 
-  return buildSwapChainQuote(privyUserId, parsed);
+  const quote = await buildSwapChainQuote(privyUserId, parsed, options);
+  if (routeAutoDiscovered) {
+    quote.warnings.unshift(
+      "Swap route was auto-selected from live pool quotes because no steps were provided.",
+    );
+  }
+  return quote;
 }

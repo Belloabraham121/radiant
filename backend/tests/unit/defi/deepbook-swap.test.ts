@@ -142,10 +142,13 @@ describe("swap approval", () => {
         amount: 30,
         side: "sell",
         estimated_out_display: 60,
+        quote_expires_at: new Date(Date.now() + 60_000).toISOString(),
       },
     });
     assert.match(pending.summary, /Swap on DeepBook/);
     assert.match(pending.amount_display, /30/);
+    assert.match(pending.amount_display, /~60/);
     assert.match(pending.amount_display, /USDC/);
+    assert.ok(pending.quote_expires_at);
   });
 });

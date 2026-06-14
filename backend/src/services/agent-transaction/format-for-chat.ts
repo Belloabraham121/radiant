@@ -2,6 +2,7 @@ import type {
   AgentTransactionListItem,
   AgentTransactionStatus,
 } from "./agent-transaction.types.js";
+import { buildExplorerTxUrl } from "./explorer-url.js";
 
 export function formatAgentTransactionStatus(
   status: AgentTransactionStatus,
@@ -55,6 +56,12 @@ function formatTransactionBlock(
 
   if (item.digest) {
     lines.push(`   Digest: ${item.digest}`);
+    const explorerUrl = buildExplorerTxUrl(item.chain_id, item.digest);
+    if (explorerUrl) {
+      lines.push(`   Explorer: ${explorerUrl}`);
+    }
+  } else if (item.status === "failure") {
+    lines.push("   Digest: (not broadcast — blocked before on-chain execution)");
   }
 
   return lines.join("\n");

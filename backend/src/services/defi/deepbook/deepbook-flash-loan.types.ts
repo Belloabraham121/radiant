@@ -1,10 +1,12 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { AppError } from "../../../errors/app-error.js";
-import { normalizePoolKey } from "./pool-key.js";
+import { normalizePoolKey, resolvePoolKeyAlias } from "./pool-key.js";
 import type { SwapSide } from "./types.js";
 
 export const FLASH_LOAN_STRATEGIES = ["round_trip", "swap_chain_repay"] as const;
 export type FlashLoanStrategy = (typeof FLASH_LOAN_STRATEGIES)[number];
+
+export const FLASH_LOAN_REPAY_INFEASIBLE_CODE = "FLASH_LOAN_REPAY_INFEASIBLE";
 
 export type FlashLoanAsset = "base" | "quote";
 export type FlashLoanRepaySource = "swap_output" | "wallet" | "merged";
@@ -66,9 +68,10 @@ export type PoolCoins = {
 };
 
 export function resolvePoolCoins(poolKey: string): PoolCoins {
-  const normalized = normalizePoolKey(poolKey);
   const { pools } = getDeepBookEnv();
-  const pool = pools[normalized as keyof typeof pools];
+  const resolved =
+    resolvePoolKeyAlias(poolKey, pools) ?? normalizePoolKey(poolKey);
+  const pool = pools[resolved as keyof typeof pools];
   if (!pool) {
     throw new AppError(
       400,
@@ -77,7 +80,7 @@ export function resolvePoolCoins(poolKey: string): PoolCoins {
         `Known pools include ${Object.keys(pools).join(", ")}.`,
     );
   }
-  return { pool_key: normalized, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
+  return { pool_key: resolved, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
 }
 
 export function stepCoins(side: SwapSide, pool: PoolCoins): { input: string; output: string } {
@@ -202,7 +205,11 @@ function parseFlashLoanStep(raw: unknown, index: number): FlashLoanStep {
   return parsed;
 }
 
-function parseSteps(params: Record<string, unknown>, strategy: FlashLoanStrategy): FlashLoanStep[] {
+function parseSteps(
+  params: Record<string, unknown>,
+  strategy: FlashLoanStrategy,
+  options?: { allowMissingSteps?: boolean },
+): FlashLoanStep[] {
   if (strategy === "round_trip") {
     if (params.steps !== undefined) {
       throw new AppError(
@@ -215,6 +222,9 @@ function parseSteps(params: Record<string, unknown>, strategy: FlashLoanStrategy
   }
 
   if (!Array.isArray(params.steps) || params.steps.length === 0) {
+    if (options?.allowMissingSteps) {
+      return [];
+    }
     throw new AppError(
       400,
       "VALIDATION_ERROR",
@@ -250,6 +260,7 @@ function resolveFlashLoanStrategy(params: Record<string, unknown>): FlashLoanStr
 
 export function parseDeepBookFlashLoanParams(
   params: Record<string, unknown>,
+  options?: { allowMissingSwapSteps?: boolean },
 ): DeepBookFlashLoanBundleParams {
   const poolKey =
     typeof params.pool_key === "string" && params.pool_key.length > 0
@@ -260,7 +271,9 @@ export function parseDeepBookFlashLoanParams(
   const asset = resolveFlashLoanAsset(params, pool);
   const borrow_amount = parseBorrowAmount(params);
   const coin_key = asset === "base" ? pool.base_coin : pool.quote_coin;
-  const steps = parseSteps(params, strategy);
+  const steps = parseSteps(params, strategy, {
+    allowMissingSteps: options?.allowMissingSwapSteps === true,
+  });
   const slippage_bps = parseSlippageBps(params);
   const repay_source = parseRepaySource(params, strategy);
 

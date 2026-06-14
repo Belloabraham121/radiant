@@ -8,13 +8,22 @@ const CHAT_UPSTREAM_TIMEOUT_MS = 5 * 60 * 1000;
 export async function POST(request: Request): Promise<Response> {
   const body = await request.text();
   const cookie = request.headers.get("cookie");
+  const url = new URL(request.url);
+  const stream = url.searchParams.get("stream") === "1";
+  const accept = request.headers.get("accept") ?? "";
+  const upstreamUrl = stream
+    ? `${API_BASE_URL}/api/v1/chat?stream=1`
+    : `${API_BASE_URL}/api/v1/chat`;
 
   let upstream: Response;
   try {
-    upstream = await fetch(`${API_BASE_URL}/api/v1/chat`, {
+    upstream = await fetch(upstreamUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(stream || accept.includes("text/event-stream")
+          ? { Accept: "text/event-stream" }
+          : {}),
         ...(cookie ? { cookie } : {}),
       },
       body,
@@ -37,6 +46,17 @@ export async function POST(request: Request): Promise<Response> {
       },
       { status: timedOut ? 504 : 502 },
     );
+  }
+
+  if (stream) {
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: {
+        "Content-Type": upstream.headers.get("Content-Type") ?? "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
   }
 
   const text = await upstream.text();

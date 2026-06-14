@@ -5,8 +5,10 @@ import {
   persistToolFailureTurn,
   runChatTurnWithFallback,
 } from "./chat-orchestrator.js";
+import type { ChatStreamSender } from "./execution-progress.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { approvePendingTransaction, rejectPendingTransaction } from "./transaction-approval.service.js";
+import { buildExplorerTxUrl } from "../agent-transaction/explorer-url.js";
 import {
   buildTransactionErrorUserContext,
   transactionContextFromPending,
@@ -108,7 +110,10 @@ export async function handleChatMessage(
         }
       }
 
-      const reply = `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
+      const explorerUrl = buildExplorerTxUrl(outcome.result.chain_id, outcome.result.digest);
+      const reply = explorerUrl
+        ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [View on Sui Explorer](${explorerUrl}) — Digest: ${outcome.result.digest}`
+        : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
 
       return persistApprovalTurn(privyUserId, request, reply, [
         {
@@ -138,4 +143,32 @@ export async function handleChatMessage(
   }
 
   return runChatTurnWithFallback(privyUserId, request);
+}
+
+export async function handleChatMessageStream(
+  privyUserId: string,
+  request: ChatRequest,
+  send: ChatStreamSender,
+): Promise<ChatResponse> {
+  if (
+    request.approve_transaction_id ||
+    request.reject_transaction_id ||
+    request.clarification_id
+  ) {
+    const data = await handleChatMessage(privyUserId, request);
+    send("done", data);
+    return data;
+  }
+
+  try {
+    const data = await runChatTurnWithFallback(privyUserId, request, {
+      onStream: send,
+    });
+    send("done", data);
+    return data;
+  } catch (err) {
+    const message = err instanceof AppError ? err.message : "Agent request failed.";
+    send("error", { message });
+    throw err;
+  }
 }

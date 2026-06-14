@@ -94,7 +94,10 @@ export function Sidebar() {
             const active =
               href === "/app"
                 ? pathname === "/app" || pathname.startsWith("/app/chat/")
-                : pathname.startsWith(href);
+                : href === "/app/projects"
+                  ? pathname.startsWith("/app/projects") ||
+                    pathname.startsWith("/app/installed")
+                  : pathname.startsWith(href);
             return (
               <Link
                 key={href}

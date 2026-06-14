@@ -1,6 +1,7 @@
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { parseChainId } from "../chains/registry.js";
+import { readQuoteExpiresAt } from "../agent/deepbook/swap-quote-enrichment.js";
 import type { ChainId, ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "../agent/agent.types.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
@@ -97,13 +98,15 @@ function toDetail(row: AgentTransactionRecord): AgentTransactionDetail {
 }
 
 export function pendingTransactionFromRecord(row: AgentTransactionRecord): PendingTransaction {
+  const params = row.params as Record<string, unknown>;
   return {
     id: row.id,
     chain_id: parseChainId(row.chain_id),
     action: row.action,
-    params: row.params as Record<string, unknown>,
+    params,
     amount_display: row.amount_display,
     summary: row.title,
+    quote_expires_at: readQuoteExpiresAt(params),
   };
 }
 
