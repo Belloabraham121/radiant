@@ -130,6 +130,12 @@ export async function runChatTurn(
       onArtifact: (data) => {
         options.onStream?.("artifact", data);
       },
+      onReplyDelta: (delta) => {
+        options.onStream?.("reply", { delta });
+      },
+      onReplyClear: () => {
+        options.onStream?.("reply_clear", null);
+      },
     },
     () =>
       runtime.runTurn({

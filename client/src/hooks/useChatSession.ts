@@ -184,6 +184,32 @@ export function useChatSession(sessionId?: string) {
                 activePath: focusPath,
               });
             },
+            onReplyDelta: (delta) => {
+              setMessages((current) =>
+                current.map((message) => {
+                  if (message.id !== liveAgentId) {
+                    return message;
+                  }
+                  return {
+                    ...message,
+                    text: message.text + delta,
+                  };
+                }),
+              );
+            },
+            onReplyClear: () => {
+              setMessages((current) =>
+                current.map((message) => {
+                  if (message.id !== liveAgentId) {
+                    return message;
+                  }
+                  return {
+                    ...message,
+                    text: "",
+                  };
+                }),
+              );
+            },
           },
         );
 

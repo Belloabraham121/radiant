@@ -6,6 +6,8 @@ import type { StreamExecutionStepPayload } from "@/lib/chat-execution-steps";
 export type ChatStreamHandlers = {
   onStep?: (step: StreamExecutionStepPayload) => void;
   onArtifact?: (payload: { artifact: ArtifactPayload; streaming: boolean }) => void;
+  onReplyDelta?: (delta: string) => void;
+  onReplyClear?: () => void;
 };
 
 function parseSseBlock(block: string): { event: string; data: string } | null {
@@ -83,6 +85,13 @@ export async function postChatStream(
         if (parsed.event === "step") {
           const step = (payload as { step: StreamExecutionStepPayload }).step;
           handlers.onStep?.(step);
+        } else if (parsed.event === "reply") {
+          const delta = (payload as { delta?: string }).delta;
+          if (delta) {
+            handlers.onReplyDelta?.(delta);
+          }
+        } else if (parsed.event === "reply_clear") {
+          handlers.onReplyClear?.();
         } else if (parsed.event === "artifact") {
           const artifactPayload = payload as { artifact: ArtifactPayload; streaming: boolean };
           handlers.onArtifact?.(artifactPayload);

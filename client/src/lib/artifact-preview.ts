@@ -1,24 +1,12 @@
 import type { ArtifactFile } from "@/lib/artifact-types";
+import {
+  buildModuleSourceMap,
+  normalizeArtifactPath,
+  pickAppModulePath,
+} from "@/lib/artifact-preview-modules";
 
 function escapeStyleClose(css: string): string {
   return css.replace(/<\/style/gi, "<\\/style");
-}
-
-function normalizeArtifactPath(path: string): string {
-  return path.replace(/^\/+/, "").replace(/^\/workspace\//, "");
-}
-
-function buildFileMap(files: ArtifactFile[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const file of files) {
-    map.set(normalizeArtifactPath(file.path), file.content);
-  }
-  return map;
-}
-
-function pickAppSource(files: ArtifactFile[]): string {
-  const byPath = buildFileMap(files);
-  return byPath.get("src/App.tsx") ?? byPath.get("src/App.jsx") ?? "";
 }
 
 function collectCss(files: ArtifactFile[]): string {
@@ -42,12 +30,21 @@ export function prepareAppSourceForPreview(source: string): string {
   return stripCssImports(source);
 }
 
+function prepareModuleMap(files: ArtifactFile[]): Record<string, string> {
+  const raw = buildModuleSourceMap(files);
+  const prepared: Record<string, string> = {};
+  for (const [path, source] of Object.entries(raw)) {
+    prepared[path] = prepareAppSourceForPreview(source);
+  }
+  return prepared;
+}
+
 /** Client-side preview HTML — no E2B. Uses CDN React + Babel in iframe srcdoc. */
 export function buildArtifactPreviewSrcdoc(files: ArtifactFile[]): string {
-  const rawAppSource = pickAppSource(files);
-  const appSource = prepareAppSourceForPreview(rawAppSource);
+  const entry = pickAppModulePath(files);
+  const modules = prepareModuleMap(files);
   const css = escapeStyleClose(collectCss(files));
-  const payload = JSON.stringify({ app: appSource });
+  const payload = JSON.stringify({ entry, modules });
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -55,7 +52,7 @@ export function buildArtifactPreviewSrcdoc(files: ArtifactFile[]): string {
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Radiant preview</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.tailwindcss.com"><\/script>
 <style>
 :root {
   --hero-bg: #f5f0e8;
@@ -98,6 +95,8 @@ ${css}
 (function () {
   const payload = ${payload};
   const errEl = document.getElementById("error");
+  const SOURCE_EXTS = [".tsx", ".ts", ".jsx", ".js"];
+
   function hideLoader() {
     const loader = document.getElementById("preview-loader");
     if (loader) loader.remove();
@@ -243,13 +242,48 @@ ${css}
     errEl.hidden = false;
     errEl.textContent = msg;
   }
-  if (!payload.app) {
-    showError("No src/App.tsx found — ask your agent to add one.");
-    return;
+
+  function stripExt(path) {
+    for (var i = 0; i < SOURCE_EXTS.length; i++) {
+      var ext = SOURCE_EXTS[i];
+      if (path.endsWith(ext)) return path.slice(0, -ext.length);
+    }
+    return path;
   }
-  function createPreviewRequire() {
-    var routerDom = createPreviewRouterDom(React);
-    const registry = {
+  function resolveRelativeImport(fromPath, request) {
+    var baseDir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/")) : "";
+    var joined;
+    if (request.indexOf("./") === 0) {
+      joined = baseDir ? baseDir + "/" + request.slice(2) : request.slice(2);
+    } else if (request.indexOf("../") === 0) {
+      var parts = baseDir.split("/");
+      var rest = request;
+      while (rest.indexOf("../") === 0) {
+        if (!parts.length) return null;
+        parts.pop();
+        rest = rest.slice(3);
+      }
+      joined = parts.length ? parts.join("/") + "/" + rest : rest;
+    } else if (request.indexOf("/") === 0) {
+      joined = request.slice(1);
+    } else {
+      return null;
+    }
+    if (joined.indexOf("src/") !== 0) joined = "src/" + joined;
+    var candidates = [joined];
+    for (var j = 0; j < SOURCE_EXTS.length; j++) {
+      candidates.push(stripExt(joined) + SOURCE_EXTS[j]);
+    }
+    for (var k = 0; k < candidates.length; k++) {
+      if (payload.modules[candidates[k]]) return candidates[k];
+    }
+    return null;
+  }
+
+  var npmRegistry = null;
+  function createNpmRegistry() {
+  var routerDom = createPreviewRouterDom(React);
+    return {
       react: React,
       "react-dom": ReactDOM,
       "react-dom/client": { createRoot: ReactDOM.createRoot.bind(ReactDOM) },
@@ -269,33 +303,54 @@ ${css}
         useLocation: routerDom.useLocation,
       },
     };
-    return function previewRequire(name) {
-      if (registry[name]) return registry[name];
-      if (name.endsWith(".css") || name.endsWith(".scss")) {
-        return {};
-      }
-      throw new Error(
-        "Preview cannot load module: " + name + " (chat preview supports React only — put styles in src/*.css or inline styles; no lucide/npm imports)",
-      );
-    };
   }
-  try {
-    const transformed = Babel.transform(payload.app, {
+
+  var moduleCache = {};
+  function loadModule(moduleId) {
+    if (moduleCache[moduleId]) return moduleCache[moduleId];
+    var source = payload.modules[moduleId];
+    if (!source) {
+      throw new Error("Missing module: " + moduleId);
+    }
+    var transformed = Babel.transform(source, {
       presets: [
         ["env", { modules: "commonjs" }],
         ["react", { runtime: "classic" }],
         "typescript",
       ],
-      filename: "App.tsx",
+      filename: moduleId,
     }).code;
-    const module = { exports: {} };
-    const exports = module.exports;
-    const require = createPreviewRequire();
-    const fn = new Function("React", "ReactDOM", "require", "exports", "module", transformed);
-    fn(React, ReactDOM, require, exports, module);
-    const App = module.exports.default || module.exports;
+    var module = { exports: {} };
+    var exports = module.exports;
+    var registry = npmRegistry || createNpmRegistry();
+    function localRequire(request) {
+      if (registry[request]) return registry[request];
+      if (request.endsWith(".css") || request.endsWith(".scss")) return {};
+      var resolved = resolveRelativeImport(moduleId, request);
+      if (!resolved) {
+        throw new Error(
+          "Preview cannot load module: " + request + " (from " + moduleId + "). Use src/ paths and react / react-dom / react-router-dom only for npm.",
+        );
+      }
+      return loadModule(resolved);
+    }
+    var fn = new Function("React", "ReactDOM", "require", "exports", "module", transformed);
+    fn(React, ReactDOM, localRequire, exports, module);
+    moduleCache[moduleId] = module.exports;
+    return module.exports;
+  }
+
+  if (!payload.entry || !payload.modules[payload.entry]) {
+    showError("No src/App.tsx found — ask your agent to add an entry file that composes your components.");
+    return;
+  }
+
+  try {
+    npmRegistry = createNpmRegistry();
+    var entryExports = loadModule(payload.entry);
+    var App = entryExports.default || entryExports;
     if (typeof App !== "function") {
-      throw new Error("App.tsx must default-export a React component.");
+      throw new Error("src/App.tsx must default-export a React component.");
     }
     ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
     bindPreviewNavigation();
@@ -310,3 +365,13 @@ ${css}
 </body>
 </html>`;
 }
+
+/** @deprecated use pickAppModulePath — kept for tests */
+export function pickAppSource(files: ArtifactFile[]): string {
+  const entry = pickAppModulePath(files);
+  if (!entry) return "";
+  const map = buildModuleSourceMap(files);
+  return map[entry] ?? "";
+}
+
+export { normalizeArtifactPath };

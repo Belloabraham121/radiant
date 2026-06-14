@@ -61,12 +61,13 @@ import {
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
-import { emitArtifactPreview, emitExecutionProgress, hasExecutionProgressContext } from "../execution-progress-context.js";
+import { emitArtifactPreview, emitExecutionProgress, emitReplyClear, emitReplyDelta, hasExecutionProgressContext } from "../execution-progress-context.js";
 import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
 import { parsePartialGenerateAppArgs } from "../../projects/parse-partial-generate-app.js";
 import { buildPreviewArtifactPayload } from "../../projects/preview-artifact.js";
 import type { GenerateAppResult } from "../../projects/project.types.js";
 import { streamChatCompletion } from "./openai-stream-completion.js";
+import { openAiMaxOutputTokens } from "./openai-completion-params.js";
 import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.service.js";
 import { transactionContextFromInput } from "../deepbook/transaction-error-context.js";
 import { summarizeToolResult } from "./summarize-tool-result.js";
@@ -276,6 +277,7 @@ export const openaiRuntime: AgentRuntime = {
 
     for (let step = 0; step < maxToolSteps; step += 1) {
       let choice;
+      let streamedReplyText = false;
       try {
         if (hasExecutionProgressContext()) {
           choice = await streamChatCompletion(client, {
@@ -284,6 +286,10 @@ export const openaiRuntime: AgentRuntime = {
             tools,
             max_tokens: 1024,
           }, {
+            onContentDelta: (delta) => {
+              streamedReplyText = true;
+              emitReplyDelta(delta);
+            },
             onToolCallDelta: (toolCall) => {
               if (toolCall.name !== GENERATE_APP_TOOL_NAME) return;
               if (lastStreamedGenerateAppArgsLength === 0) {
@@ -308,7 +314,7 @@ export const openaiRuntime: AgentRuntime = {
             messages,
             tools,
             tool_choice: "auto",
-            max_tokens: 1024,
+            ...openAiMaxOutputTokens(model, 1024),
           });
           choice = completion.choices[0]?.message;
           if (!choice) {
@@ -324,6 +330,9 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       const toolCallList = choice.tool_calls ?? [];
+      if (toolCallList.length > 0 && streamedReplyText) {
+        emitReplyClear();
+      }
       if (toolCallList.length === 0) {
         const unsupported = detectUnsupportedCapability(lastUserMessage);
         const lastUserContent =

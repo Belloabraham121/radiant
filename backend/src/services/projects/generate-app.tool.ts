@@ -7,8 +7,11 @@ export const generateAppToolDefinition = {
   name: GENERATE_APP_TOOL_NAME,
   description:
     "Create or update a user app project with React source files for the artifact panel. " +
-    "Paths must be under src/ or public/ (e.g. src/App.tsx). Total source ≤512 KB. " +
-    "Use when the user wants a UI built or updated — not for on-chain execution.",
+    "Paths must be under src/ or public/ (e.g. src/App.tsx, src/components/SwapForm.tsx). Total source ≤512 KB. " +
+    "ALWAYS include src/App.tsx as the entry file (default export) that imports and composes your components. " +
+    "Chat preview is React-in-browser (not Vite/Next.js) but loads all src/**/*.tsx modules. " +
+    "Use when the user wants a UI built or updated — swap/DEX interfaces like Uniswap, dashboards, forms. " +
+    "Not for on-chain swaps from the user's wallet (use execute_transaction only when they ask to trade a specific amount).",
   input_schema: {
     type: "object" as const,
     properties: {

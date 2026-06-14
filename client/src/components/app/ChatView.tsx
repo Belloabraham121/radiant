@@ -142,7 +142,7 @@ function Bubble({
           {isUser ? (
             message.text
           ) : message.streaming && !message.text ? (
-            <span className="text-[var(--hero-ink)]/45">Working on your request…</span>
+            <span className="text-[var(--hero-ink)]/45">Thinking…</span>
           ) : (
             <AgentMessageMarkdown text={message.text} />
           )}

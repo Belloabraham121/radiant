@@ -36,11 +36,13 @@ export type ChatStreamDoneEvent = {
 };
 
 export type ChatStreamSender = (
-  event: "step" | "artifact" | "done" | "error",
+  event: "step" | "artifact" | "reply" | "reply_clear" | "done" | "error",
   data:
     | ExecutionProgressEvent
     | { artifact: ArtifactPayload; streaming: boolean }
+    | { delta: string }
     | ChatStreamDoneEvent
     | ChatResponse
-    | { message: string },
+    | { message: string }
+    | null,
 ) => void;

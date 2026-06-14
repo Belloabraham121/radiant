@@ -5,6 +5,8 @@ import type { ExecutionProgressEvent } from "./execution-progress.types.js";
 type ProgressStore = {
   onProgress: (event: ExecutionProgressEvent) => void;
   onArtifact?: (data: { artifact: ArtifactPayload; streaming: boolean }) => void;
+  onReplyDelta?: (delta: string) => void;
+  onReplyClear?: () => void;
 };
 
 const storage = new AsyncLocalStorage<ProgressStore>();
@@ -12,6 +14,8 @@ const storage = new AsyncLocalStorage<ProgressStore>();
 export type ExecutionProgressCallbacks = {
   onProgress: (event: ExecutionProgressEvent) => void;
   onArtifact?: (data: { artifact: ArtifactPayload; streaming: boolean }) => void;
+  onReplyDelta?: (delta: string) => void;
+  onReplyClear?: () => void;
 };
 
 export function runWithExecutionProgress<T>(
@@ -22,6 +26,8 @@ export function runWithExecutionProgress<T>(
     {
       onProgress: callbacks.onProgress,
       onArtifact: callbacks.onArtifact,
+      onReplyDelta: callbacks.onReplyDelta,
+      onReplyClear: callbacks.onReplyClear,
     },
     fn,
   );
@@ -33,6 +39,15 @@ export function emitExecutionProgress(event: ExecutionProgressEvent): void {
 
 export function emitArtifactPreview(artifact: ArtifactPayload, streaming = true): void {
   storage.getStore()?.onArtifact?.({ artifact, streaming });
+}
+
+export function emitReplyDelta(delta: string): void {
+  if (!delta) return;
+  storage.getStore()?.onReplyDelta?.(delta);
+}
+
+export function emitReplyClear(): void {
+  storage.getStore()?.onReplyClear?.();
 }
 
 export function hasExecutionProgressContext(): boolean {

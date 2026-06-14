@@ -5,7 +5,6 @@ import { isCompoundMarketAndSwapRequest } from "./compound-request-flow.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { runExecuteTransactionToolWithApproval } from "../tools.js";
-import { userRequestedSwap } from "./swap-approval-flow.js";
 import { looksLikeWorkflowMessage } from "../workflow/heuristic-planner.js";
 import { parseSingleSwapIntent } from "../workflow/workflow-parser.js";
 
@@ -23,9 +22,6 @@ export async function tryExecuteSingleSwapFromMessage(
   message: string,
   sessionId?: string,
 ): Promise<SingleSwapOutcome | null> {
-  if (!userRequestedSwap(message)) {
-    return null;
-  }
   if (looksLikeWorkflowMessage(message)) {
     return null;
   }

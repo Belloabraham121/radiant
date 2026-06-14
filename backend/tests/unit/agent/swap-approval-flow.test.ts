@@ -5,6 +5,7 @@ import {
   shouldNudgeSwapExecute,
   shouldNudgeSwapQuoteAndExecute,
 } from "../../../src/services/agent/deepbook/swap-approval-flow.js";
+import { messageHasExecutableSwapIntent } from "../../../src/services/agent/workflow/workflow-parser.js";
 
 describe("swap-approval-flow", () => {
   it("shouldNudgeSwapExecute when quote exists without execute", () => {
@@ -45,6 +46,25 @@ describe("swap-approval-flow", () => {
       ),
       false,
     );
+  });
+
+  it("should not nudge for build-a-swap UI requests without trade params", () => {
+    assert.equal(
+      shouldNudgeSwapQuoteAndExecute([], "build a swap like uniswap with different components"),
+      false,
+    );
+    assert.equal(
+      shouldNudgeSwapExecute(
+        [{ name: "query_chain", result: { input_amount_display: 1, output_amount_display: 0.7 } }],
+        "create a swap app similar to Uniswap",
+      ),
+      false,
+    );
+  });
+
+  it("messageHasExecutableSwapIntent distinguishes UI vs trade", () => {
+    assert.equal(messageHasExecutableSwapIntent("build swap like uniswap"), false);
+    assert.equal(messageHasExecutableSwapIntent("swap 10 SUI to USDC"), true);
   });
 
   it("findLatestSwapQuote returns the most recent quote", () => {

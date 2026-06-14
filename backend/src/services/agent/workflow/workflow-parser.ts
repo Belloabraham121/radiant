@@ -2,7 +2,6 @@ import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { resolvePoolKeyForCoinPair } from "../../defi/deepbook/pool-key.js";
 import { extractDepositIntent } from "../deepbook/deposit-approval-flow.js";
 import { userAskedMarketPrice } from "../deepbook/compound-request-flow.js";
-import { userRequestedSwap } from "../deepbook/swap-approval-flow.js";
 import { extractWithdrawIntent } from "../deepbook/withdraw-approval-flow.js";
 import type {
   WorkflowAgentStep,
@@ -218,10 +217,6 @@ function inferSwapSide(from: string, to: string, poolKey: string): "buy" | "sell
 }
 
 function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
-  if (!userRequestedSwap(segment)) {
-    return null;
-  }
-
   const amountAt = segment.match(
     new RegExp(
       `(?:swap|convert|trade|exchange)\\s+([\\d.,]+)\\s*(${COIN})${COIN_SUFFIX}\\s+at\\s+(${COIN})${COIN_SUFFIX}`,
@@ -306,10 +301,6 @@ function parseSwapSegment(segment: string): WorkflowExecuteStep | null {
 /** Parse a single-swap message (not multi-step) into an execute step when params are complete. */
 export function parseSingleSwapIntent(message: string): WorkflowExecuteStep | null {
   const trimmed = message.trim();
-  if (!userRequestedSwap(trimmed)) {
-    return null;
-  }
-
   const swap = parseSwapSegment(trimmed);
   if (!swap) {
     return null;
@@ -325,6 +316,11 @@ export function parseSingleSwapIntent(message: string): WorkflowExecuteStep | nu
   }
 
   return swap;
+}
+
+/** True when the message states a concrete on-chain swap (amount + coin pair), not a UI/build request. */
+export function messageHasExecutableSwapIntent(message: string): boolean {
+  return parseSingleSwapIntent(message) !== null;
 }
 
 function parseTransferSegment(segment: string): WorkflowExecuteStep | null {
@@ -405,7 +401,7 @@ function parseQuerySegment(segment: string): WorkflowQueryStep | null {
     };
   }
 
-  if (userAskedMarketPrice(segment) && !userRequestedSwap(segment)) {
+  if (userAskedMarketPrice(segment) && parseSwapSegment(segment) === null) {
     const pool = segment.match(/(SUI[_\s/]*USDC|DEEP[_\s/]*USDC)/i);
     return {
       kind: "query",
@@ -418,7 +414,7 @@ function parseQuerySegment(segment: string): WorkflowQueryStep | null {
     };
   }
 
-  if (userRequestedSwap(segment) && /\b(quote|price|rate)\b/i.test(segment)) {
+  if (parseSwapSegment(segment) !== null && /\b(quote|price|rate)\b/i.test(segment)) {
     const amountMatch = segment.match(new RegExp(`([\\d.,]+)\\s*(${COIN})`, "i"));
     if (amountMatch) {
       return {

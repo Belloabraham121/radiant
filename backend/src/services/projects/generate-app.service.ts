@@ -10,6 +10,7 @@ import {
   updateProject,
 } from "./project.repository.js";
 import type { GenerateAppInput, GenerateAppResult } from "./project.types.js";
+import { ensureAppEntry } from "./ensure-app-entry.js";
 
 export type GenerateAppContext = {
   sessionId?: string;
@@ -32,7 +33,7 @@ export async function generateAppForUser(
     }
   }
 
-  const normalizedFiles = validateArtifactBatch(input.files);
+  const normalizedFiles = validateArtifactBatch(ensureAppEntry(input.files));
 
   let project =
     input.project_id

@@ -1,6 +1,7 @@
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 import type { ChatCompletionMessage } from "openai/resources/chat/completions.js";
+import { openAiMaxOutputTokens } from "./openai-completion-params.js";
 
 type AccumulatedToolCall = {
   id: string;
@@ -28,7 +29,7 @@ export async function streamChatCompletion(
     messages: params.messages,
     tools: params.tools,
     tool_choice: "auto",
-    max_tokens: params.max_tokens,
+    ...openAiMaxOutputTokens(params.model, params.max_tokens ?? 1024),
     stream: true,
   });
 
