@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,17 +5,15 @@ import { spawn } from "node:child_process";
 import { getWalrusConfig } from "../../config/walrus.js";
 import { AppError } from "../../errors/app-error.js";
 import { mergeWsResourcesJson } from "./ws-resources.js";
+import { resolveWalrusPortalUrl } from "./walrus-portal-url.js";
+import { siteBuilderGlobalArgs } from "./site-builder-args.js";
 
 export type WalrusSiteDeployResult = {
-  walrus_url: string;
+  walrus_url: string | null;
   site_object_id: string | null;
   raw_output: string;
+  mock_deploy: boolean;
 };
-
-function buildMockWalrusUrl(): string {
-  const id = randomBytes(16).toString("hex");
-  return `https://${id}.walrus.site`;
-}
 
 async function readExistingWsResources(distDir: string): Promise<Record<string, unknown> | undefined> {
   try {
@@ -30,27 +27,32 @@ async function readExistingWsResources(distDir: string): Promise<Record<string, 
 async function prepareDistWithWsResources(
   distDir: string,
   metadata?: Record<string, string>,
-): Promise<string> {
+): Promise<{ tempDir: string; existingSiteId: string | null }> {
   const tempDir = await mkdtemp(join(tmpdir(), "radiant-walrus-"));
   await cp(distDir, tempDir, { recursive: true });
 
   const existing = await readExistingWsResources(distDir);
+  const existingSiteId =
+    typeof existing?.object_id === "string" && existing.object_id.startsWith("0x")
+      ? existing.object_id
+      : null;
+
   await writeFile(
     join(tempDir, "ws-resources.json"),
     JSON.stringify(mergeWsResourcesJson(existing, metadata), null, 2),
     "utf8",
   );
 
-  return tempDir;
+  return { tempDir, existingSiteId };
 }
 
-async function runSiteBuilder(distDir: string): Promise<WalrusSiteDeployResult> {
+async function runSiteBuilder(
+  distDir: string,
+  existingSiteId: string | null,
+): Promise<WalrusSiteDeployResult> {
   const config = getWalrusConfig();
-  const args = ["deploy", "--epochs", config.epochs, distDir];
-
-  if (config.sitesConfigPath) {
-    args.unshift("--sites-config", config.sitesConfigPath);
-  }
+  const command = existingSiteId ? "update" : "publish";
+  const args = [...siteBuilderGlobalArgs(config), command, "--epochs", config.epochs, distDir];
 
   const env = { ...process.env };
   if (config.walrusConfigPath) {
@@ -78,7 +80,7 @@ async function runSiteBuilder(distDir: string): Promise<WalrusSiteDeployResult> 
     child.on("close", (code) => {
       if (code !== 0) {
         reject(
-          new AppError(500, "WALRUS_DEPLOY_FAILED", "site-builder deploy failed", {
+          new AppError(500, "WALRUS_DEPLOY_FAILED", `site-builder ${command} failed`, {
             exitCode: code,
             stderr: err,
             stdout: out,
@@ -91,15 +93,21 @@ async function runSiteBuilder(distDir: string): Promise<WalrusSiteDeployResult> 
   });
 
   const objectMatch = stdout.match(/0x[a-fA-F0-9]{64}/);
-  const siteObjectId = objectMatch?.[0] ?? null;
-  const walrusUrl = siteObjectId
-    ? `${config.portalBaseUrl.replace(/\/$/, "")}/object/${siteObjectId}`
-    : buildMockWalrusUrl();
+  const siteObjectId = objectMatch?.[0] ?? existingSiteId;
+  const walrusUrl = await resolveWalrusPortalUrl(stdout, siteObjectId, config);
+
+  if (!walrusUrl) {
+    throw new AppError(500, "WALRUS_URL_RESOLVE_FAILED", "Could not resolve Walrus portal URL", {
+      site_object_id: siteObjectId,
+      stdout,
+    });
+  }
 
   return {
     walrus_url: walrusUrl,
     site_object_id: siteObjectId,
     raw_output: stdout,
+    mock_deploy: false,
   };
 }
 
@@ -112,16 +120,18 @@ export async function deployWalrusSite(
 
   if (config.mockDeploy) {
     return {
-      walrus_url: buildMockWalrusUrl(),
+      walrus_url: null,
       site_object_id: null,
       raw_output: "WALRUS_DEPLOY_MOCK=true",
+      mock_deploy: true,
     };
   }
 
   let tempDir: string | null = null;
   try {
-    tempDir = await prepareDistWithWsResources(distDir, metadata);
-    return await runSiteBuilder(tempDir);
+    const prepared = await prepareDistWithWsResources(distDir, metadata);
+    tempDir = prepared.tempDir;
+    return await runSiteBuilder(tempDir, prepared.existingSiteId);
   } finally {
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });

@@ -88,6 +88,31 @@ projectsRouter.post("/api/v1/projects/:projectId/restore", requireAuth, async (r
   }
 });
 
+projectsRouter.get("/api/v1/projects/:projectId/meta", requireAuth, async (req, res, next) => {
+  try {
+    const user = await findUserByPrivyId(req.user.privyUserId);
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    const project = await findProjectByIdForUser(req.params.projectId, user.id);
+    if (!project) {
+      throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+    }
+
+    return ok(req, res, {
+      id: project.id,
+      name: project.name,
+      status: project.status,
+      walrus_url: project.walrus_url,
+      artifact_revision: project.artifact_revision,
+      updated_at: project.updated_at.toISOString(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 projectsRouter.get("/api/v1/projects/:projectId", requireAuth, async (req, res, next) => {
   try {
     const query = getProjectQuerySchema.parse(req.query);

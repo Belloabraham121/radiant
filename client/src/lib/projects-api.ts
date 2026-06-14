@@ -33,6 +33,15 @@ export async function fetchSessionProjects(sessionId: string): Promise<ProjectSu
   return data.projects;
 }
 
+export type ProjectMeta = Pick<
+  ProjectSummary,
+  "id" | "name" | "status" | "walrus_url" | "artifact_revision" | "updated_at"
+>;
+
+export async function fetchProjectMeta(projectId: string): Promise<ProjectMeta> {
+  return apiFetch(`/api/v1/projects/${encodeURIComponent(projectId)}/meta`);
+}
+
 export async function fetchProjectRevisions(projectId: string): Promise<{
   project_id: string;
   current_revision: number;

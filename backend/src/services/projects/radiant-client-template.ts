@@ -96,7 +96,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 }
 `;
 
-export const NEXT_APP_GLOBALS_CSS = `:root {
+export const NEXT_APP_GLOBALS_CSS = `@import "tailwindcss";
+
+:root {
   --hero-bg: #f5f0e8;
   --hero-ink: #1a1a1a;
   --hero-amber: #ffb01f;

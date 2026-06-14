@@ -242,6 +242,16 @@ export function ChatView({ sessionId }: ChatViewProps) {
     panelOpen && artifactPayload ? "mx-auto w-full max-w-none px-0" : CHAT_COL;
 
   useEffect(() => {
+    if (hydrating || panelOpen || artifactPayload) return;
+    const lastWithArtifact = [...messages]
+      .reverse()
+      .find((message) => message.artifact && !message.streaming);
+    if (lastWithArtifact?.artifact) {
+      openArtifact(lastWithArtifact.artifact);
+    }
+  }, [artifactPayload, hydrating, messages, openArtifact, panelOpen]);
+
+  useEffect(() => {
     animatedMessageIdsRef.current.clear();
     initialBatchDoneRef.current = false;
   }, [sessionId]);

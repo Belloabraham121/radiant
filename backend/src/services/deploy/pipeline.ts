@@ -5,6 +5,7 @@ import { prisma } from "../../infrastructure/postgres/client.js";
 import { getSandboxConfig } from "../../config/sandbox.js";
 import { AppError } from "../../errors/app-error.js";
 import { listArtifactFiles } from "../projects/artifact.repository.js";
+import { ensureAppEntry } from "../projects/ensure-app-entry.js";
 import {
   appendDeployJobLog,
   completeDeployJob,
@@ -24,6 +25,40 @@ import { setProjectStatus, updateProject } from "../projects/project.repository.
 import { deployWalrusSite } from "../walrus/sites.client.js";
 import { logger } from "../../shared/logger.js";
 import type { SandboxProviderName } from "../sandbox/sandbox.provider.js";
+
+function formatDeployError(error: unknown): { message: string; logTail: string } {
+  if (!(error instanceof AppError)) {
+    const message = error instanceof Error ? error.message : "Deploy pipeline failed";
+    return { message, logTail: message };
+  }
+
+  const details = error.details;
+  let stderr = "";
+  let stdout = "";
+  if (details && typeof details === "object") {
+    const record = details as Record<string, unknown>;
+    if (typeof record.stderr === "string") stderr = record.stderr.trim();
+    if (typeof record.stdout === "string") stdout = record.stdout.trim();
+  }
+
+  const suiBalanceMatch = stderr.match(
+    /could not find SUI coins with sufficient balance[^\n]*/i,
+  );
+  if (suiBalanceMatch) {
+    return {
+      message: "Insufficient testnet SUI for Walrus publish gas — request more from faucet.sui.io",
+      logTail: suiBalanceMatch[0],
+    };
+  }
+
+  const logTail = stderr || stdout || error.message;
+  const message =
+    logTail.length > 0 && logTail !== error.message
+      ? `${error.message}: ${logTail.split("\n").slice(-3).join(" ")}`
+      : error.message;
+
+  return { message: message.slice(0, 500), logTail: logTail.slice(0, 4000) };
+}
 
 async function logStep(jobId: string, step: DeployPipelineStep, message: string): Promise<void> {
   const pct = DEPLOY_PROGRESS_PCT[step];
@@ -59,10 +94,14 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
     await logStep(jobId, "load", "Loading project and artifact files");
     await setProjectStatus(project.id, "deploying");
 
-    const artifactFiles = await listArtifactFiles(project.id, job.artifact_revision);
-    if (!isFixedTemplate(project.template) && artifactFiles.length === 0) {
+    const rawArtifactFiles = await listArtifactFiles(project.id, job.artifact_revision);
+    if (!isFixedTemplate(project.template) && rawArtifactFiles.length === 0) {
       throw new AppError(400, "ARTIFACT_MISSING", "Custom deploy requires artifact source files");
     }
+
+    const artifactFiles = ensureAppEntry(
+      rawArtifactFiles.map((file) => ({ path: file.path, content: file.content })),
+    ).map((file) => ({ path: file.path, content: file.content }));
 
     let distDir: string;
 
@@ -134,6 +173,25 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
       description: project.tagline,
     });
 
+    if (walrus.mock_deploy) {
+      await logStep(
+        jobId,
+        "finalize",
+        "Mock Walrus deploy (WALRUS_DEPLOY_MOCK=true) — no real site URL. See docs/walrus-local-setup.md",
+      );
+      await updateProject(project.id, {
+        status: "draft",
+        walrus_url: null,
+      });
+      await completeDeployJob(jobId, { sandboxSeconds });
+      await logStep(
+        jobId,
+        "done",
+        "Build succeeded but Walrus publish was skipped (mock mode). Set WALRUS_DEPLOY_MOCK=false and run local portal for testnet.",
+      );
+      return;
+    }
+
     await logStep(jobId, "finalize", "Updating project record");
     await updateProject(project.id, {
       status: "live",
@@ -143,17 +201,15 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
     await completeDeployJob(jobId, { sandboxSeconds });
     await logStep(jobId, "done", `Deploy complete: ${walrus.walrus_url}`);
   } catch (error) {
-    const message =
-      error instanceof AppError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "Deploy pipeline failed";
+    const { message, logTail } = formatDeployError(error);
 
-    logger.error("Deploy pipeline failed", { jobId, message });
+    logger.error("Deploy pipeline failed", { jobId, message, logTail });
     await setProjectStatus(project.id, "failed");
     await failDeployJob(jobId, message, sandboxSeconds);
     await logStep(jobId, "failed", message);
+    if (logTail && logTail !== message) {
+      await appendDeployJobLog(jobId, logTail);
+    }
   } finally {
     if (handleId && sandboxProvider) {
       try {

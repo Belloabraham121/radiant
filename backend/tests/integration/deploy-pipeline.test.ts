@@ -70,14 +70,15 @@ describe("runDeployPipeline (fixed template)", () => {
     await prisma.$disconnect();
   });
 
-  it("deploys a fixed template to mock Walrus and marks project live", async () => {
+  it("deploys a fixed template in mock Walrus mode without a fake URL", async () => {
     await runDeployPipeline(jobId);
 
     const job = await prisma.deployJob.findUnique({ where: { id: jobId } });
     assert.equal(job?.status, "completed");
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
-    assert.equal(project?.status, "live");
-    assert.ok(project?.walrus_url?.includes(".walrus.site"));
+    assert.equal(project?.status, "draft");
+    assert.equal(project?.walrus_url, null);
+    assert.ok(job?.logs.includes("WALRUS_DEPLOY_MOCK"));
   });
 });

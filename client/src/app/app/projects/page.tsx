@@ -7,6 +7,7 @@ import { useGSAP } from "@gsap/react";
 import { ArrowUpRight, ExternalLink, Globe, Hammer, Loader2 } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { fetchAllProjects, type ProjectSummary } from "@/lib/projects-api";
+import { isMockWalrusSiteUrl } from "@/lib/deploy-api";
 
 gsap.registerPlugin(useGSAP);
 
@@ -142,13 +143,17 @@ export default function ProjectsPage() {
                   {formatDate(project.updated_at)}
                 </span>
                 {project.walrus_url ? (
-                  <span
-                    className="inline-flex items-center gap-1 truncate text-[var(--hero-violet)]"
-                    onClick={(e) => e.preventDefault()}
-                  >
-                    <ExternalLink className="size-3 shrink-0" strokeWidth={2.5} aria-hidden />
-                    <span className="truncate">{project.walrus_url}</span>
-                  </span>
+                  isMockWalrusSiteUrl(project.walrus_url) ? (
+                    <span className="text-[var(--hero-amber)]">Mock URL — redeploy with Walrus configured</span>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1 truncate text-[var(--hero-violet)]"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      <ExternalLink className="size-3 shrink-0" strokeWidth={2.5} aria-hidden />
+                      <span className="truncate">{project.walrus_url}</span>
+                    </span>
+                  )
                 ) : (
                   <span className="text-[var(--hero-ink)]/35">Not deployed yet</span>
                 )}

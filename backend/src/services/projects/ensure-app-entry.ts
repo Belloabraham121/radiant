@@ -34,6 +34,19 @@ function componentImportPath(componentPath: string): string {
   return `./${withoutExt.replace(/^src\//, "")}`;
 }
 
+/** Deploy build uses PostCSS Tailwind — preview uses CDN; keep globals in sync. */
+export function ensureTailwindInGlobalsCss(css: string): string {
+  if (/@import\s+["']tailwindcss["']/.test(css)) return css;
+  return `@import "tailwindcss";\n\n${css.trim()}\n`;
+}
+
+function normalizeGlobalsCssFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
+  return files.map((file) => {
+    if (normalizeClientPath(file.path) !== "app/globals.css") return file;
+    return { ...file, content: ensureTailwindInGlobalsCss(file.content) };
+  });
+}
+
 /**
  * Next.js App Router artifacts need app/page.tsx + lib/radiant-client.ts.
  * Legacy src/App.tsx is still accepted for older previews.
@@ -55,11 +68,11 @@ export function ensureAppEntry(files: ArtifactFileInput[]): ArtifactFileInput[] 
     if (!hasPath(next, "app/globals.css")) {
       next.push({ path: "app/globals.css", content: NEXT_APP_GLOBALS_CSS });
     }
-    return next;
+    return normalizeGlobalsCssFiles(next);
   }
 
   if (usesLegacy) {
-    return next;
+    return normalizeGlobalsCssFiles(next);
   }
 
   const primary = pickPrimaryComponent(next);
@@ -97,5 +110,5 @@ export function ensureAppEntry(files: ArtifactFileInput[]): ArtifactFileInput[] 
     });
   }
 
-  return next;
+  return normalizeGlobalsCssFiles(next);
 }

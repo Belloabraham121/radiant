@@ -46,3 +46,13 @@ export async function fetchDeployJob(jobId: string): Promise<DeployJobView> {
 export function isDeployTerminal(status: string): boolean {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
+
+/** Placeholder URL from old mock deploy — not a real on-chain site. */
+export function isMockWalrusSiteUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /^https:\/\/[a-f0-9]{32}\.walrus\.site\/?$/i.test(url);
+}
+
+export function deployLogsIndicateMock(logs: string): boolean {
+  return logs.includes("WALRUS_DEPLOY_MOCK") || logs.includes("mock mode");
+}

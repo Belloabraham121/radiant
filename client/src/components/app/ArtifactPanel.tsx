@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Code2, Eye, Rocket, X, type LucideIcon } from "lucide-react";
 import { ArtifactCodeView } from "@/components/app/ArtifactCodeView";
 import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
 import { ArtifactPreview } from "@/components/app/ArtifactPreview";
 import { ArtifactProjectControls } from "@/components/app/ArtifactProjectControls";
 import { ArtifactDeployPanel } from "@/components/app/ArtifactDeployPanel";
+import { ArtifactLiveSiteBanner } from "@/components/app/ArtifactLiveSiteBanner";
+import { useProjectWalrusUrl } from "@/hooks/useProjectWalrusUrl";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 
 type ArtifactTab = "preview" | "code" | "deploy";
@@ -16,6 +18,23 @@ const ARTIFACT_TABS: { id: ArtifactTab; label: string; Icon: LucideIcon }[] = [
   { id: "code", label: "Code", Icon: Code2 },
   { id: "deploy", label: "Deploy", Icon: Rocket },
 ];
+
+function tabStorageKey(projectId: string): string {
+  return `radiant:artifact-tab:${projectId}`;
+}
+
+function readStoredTab(projectId?: string): ArtifactTab {
+  if (typeof window === "undefined" || !projectId) return "preview";
+  try {
+    const stored = sessionStorage.getItem(tabStorageKey(projectId));
+    if (stored === "preview" || stored === "code" || stored === "deploy") {
+      return stored;
+    }
+  } catch {
+    // ignore
+  }
+  return "preview";
+}
 
 export function ArtifactPanel({
   payload,
@@ -36,7 +55,22 @@ export function ArtifactPanel({
   onClose: () => void;
   className?: string;
 }) {
-  const [tab, setTab] = useState<ArtifactTab>("preview");
+  const projectId = payload.project_id !== "preview" ? payload.project_id : undefined;
+  const { liveUrl } = useProjectWalrusUrl(projectId);
+  const [tab, setTab] = useState<ArtifactTab>(() => readStoredTab(projectId));
+
+  useEffect(() => {
+    setTab(readStoredTab(projectId));
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    try {
+      sessionStorage.setItem(tabStorageKey(projectId), tab);
+    } catch {
+      // ignore
+    }
+  }, [projectId, tab]);
 
   return (
     <aside
@@ -71,6 +105,8 @@ export function ArtifactPanel({
         onPayloadChange={onPayloadChange}
       />
 
+      {liveUrl ? <ArtifactLiveSiteBanner url={liveUrl} /> : null}
+
       <div className="flex gap-1 border-b-2 border-[var(--hero-ink)]/10 px-3 py-2">
         {ARTIFACT_TABS.map(({ id, label, Icon }) => {
           const active = tab === id;
@@ -104,7 +140,7 @@ export function ArtifactPanel({
           <ArtifactPreview
             files={payload.files}
             revision={payload.revision}
-            projectId={payload.project_id}
+            projectId={projectId}
           />
         ) : null}
 
@@ -127,7 +163,7 @@ export function ArtifactPanel({
 
         {tab === "deploy" ? (
           <ArtifactDeployPanel
-            projectId={payload.project_id}
+            projectId={projectId}
             disabled={streaming}
           />
         ) : null}

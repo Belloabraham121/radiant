@@ -1,13 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy, ExternalLink, Loader2, Rocket } from "lucide-react";
+import { Check, Copy, ExternalLink, Globe, Loader2, Rocket } from "lucide-react";
 import {
+  deployLogsIndicateMock,
   fetchDeployJob,
   isDeployTerminal,
+  isMockWalrusSiteUrl,
   startDeploy,
   type DeployJobView,
 } from "@/lib/deploy-api";
+import { useProjectWalrusUrl } from "@/hooks/useProjectWalrusUrl";
 
 const POLL_MS = 2000;
 
@@ -26,6 +29,42 @@ function statusLabel(status: string): string {
   }
 }
 
+function LiveSiteLinks({
+  url,
+  copied,
+  onCopy,
+}: {
+  url: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 rounded-xl border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/20 px-3 py-2 text-sm font-bold text-[var(--hero-ink)] hover:bg-[var(--hero-mint)]/30"
+      >
+        Open site
+        <ExternalLink className="size-3.5" strokeWidth={2.5} aria-hidden />
+      </a>
+      <button
+        type="button"
+        onClick={onCopy}
+        className="inline-flex items-center gap-1.5 rounded-xl border-2 border-[var(--hero-ink)]/20 px-3 py-2 text-sm font-bold text-[var(--hero-ink)]/70 hover:border-[var(--hero-ink)]/40"
+      >
+        {copied ? (
+          <Check className="size-3.5" strokeWidth={2.5} aria-hidden />
+        ) : (
+          <Copy className="size-3.5" strokeWidth={2.5} aria-hidden />
+        )}
+        {copied ? "Copied" : "Copy URL"}
+      </button>
+    </div>
+  );
+}
+
 export function ArtifactDeployPanel({
   projectId,
   disabled = false,
@@ -34,6 +73,8 @@ export function ArtifactDeployPanel({
   disabled?: boolean;
 }) {
   const [job, setJob] = useState<DeployJobView | null>(null);
+  const { liveUrl, loading: loadingMeta, refresh: refreshLiveUrl, setUrl: setLiveUrl } =
+    useProjectWalrusUrl(projectId);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -51,15 +92,21 @@ export function ArtifactDeployPanel({
       try {
         const next = await fetchDeployJob(jobId);
         setJob(next);
+        if (next.status === "completed" && next.walrus_url && !isMockWalrusSiteUrl(next.walrus_url)) {
+          setLiveUrl(next.walrus_url);
+        }
         if (isDeployTerminal(next.status)) {
           stopPolling();
+          if (next.status === "completed") {
+            void refreshLiveUrl();
+          }
         }
       } catch (err) {
         stopPolling();
         setError(err instanceof Error ? err.message : "Failed to load deploy status");
       }
     },
-    [stopPolling],
+    [refreshLiveUrl, setLiveUrl, stopPolling],
   );
 
   useEffect(() => {
@@ -108,15 +155,22 @@ export function ArtifactDeployPanel({
     }
   };
 
-  const handleCopy = async () => {
-    if (!job?.walrus_url) return;
-    await navigator.clipboard.writeText(job.walrus_url);
+  const handleCopy = async (url: string) => {
+    await navigator.clipboard.writeText(url);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const canDeploy = Boolean(projectId) && !disabled && !starting;
   const running = job != null && !isDeployTerminal(job.status);
+  const mockDeploy =
+    job != null &&
+    (deployLogsIndicateMock(job.logs_tail) ||
+      isMockWalrusSiteUrl(job.walrus_url) ||
+      (job.status === "completed" && !job.walrus_url));
+
+  const displayUrl =
+    job?.status === "completed" && job.walrus_url && !mockDeploy ? job.walrus_url : liveUrl;
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-6">
@@ -136,6 +190,25 @@ export function ArtifactDeployPanel({
         </p>
       ) : null}
 
+      {displayUrl && !running ? (
+        <div className="space-y-3 rounded-2xl border-2 border-[var(--hero-mint)]/30 bg-[var(--hero-mint)]/10 p-4">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--hero-mint)]">
+            <Globe className="size-3.5" strokeWidth={2.5} aria-hidden />
+            Published site
+          </div>
+          <p className="break-all text-xs font-semibold text-[var(--hero-ink)]/70">{displayUrl}</p>
+          <LiveSiteLinks
+            url={displayUrl}
+            copied={copied}
+            onCopy={() => void handleCopy(displayUrl)}
+          />
+        </div>
+      ) : null}
+
+      {loadingMeta && !displayUrl ? (
+        <p className="text-xs font-semibold text-[var(--hero-ink)]/45">Loading deploy status…</p>
+      ) : null}
+
       <button
         type="button"
         onClick={() => void handleDeploy()}
@@ -147,7 +220,7 @@ export function ArtifactDeployPanel({
         ) : (
           <Rocket className="size-4" strokeWidth={2.5} aria-hidden />
         )}
-        {running ? "Deploy in progress…" : "Deploy to Walrus"}
+        {running ? "Deploy in progress…" : displayUrl ? "Redeploy to Walrus" : "Deploy to Walrus"}
       </button>
 
       {error ? (
@@ -194,29 +267,15 @@ export function ArtifactDeployPanel({
             <p className="text-sm font-semibold text-red-700">{job.error_message}</p>
           ) : null}
 
-          {job.status === "completed" && job.walrus_url ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <a
-                href={job.walrus_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/20 px-3 py-2 text-sm font-bold text-[var(--hero-ink)] hover:bg-[var(--hero-mint)]/30"
-              >
-                Open site
-                <ExternalLink className="size-3.5" strokeWidth={2.5} aria-hidden />
-              </a>
-              <button
-                type="button"
-                onClick={() => void handleCopy()}
-                className="inline-flex items-center gap-1.5 rounded-xl border-2 border-[var(--hero-ink)]/20 px-3 py-2 text-sm font-bold text-[var(--hero-ink)]/70 hover:border-[var(--hero-ink)]/40"
-              >
-                {copied ? (
-                  <Check className="size-3.5" strokeWidth={2.5} aria-hidden />
-                ) : (
-                  <Copy className="size-3.5" strokeWidth={2.5} aria-hidden />
-                )}
-                {copied ? "Copied" : "Copy URL"}
-              </button>
+          {mockDeploy ? (
+            <div className="rounded-xl border-2 border-[var(--hero-amber)]/40 bg-[var(--hero-amber)]/10 px-4 py-3 text-sm font-semibold text-[var(--hero-ink)]/80">
+              <p className="font-extrabold text-[var(--hero-ink)]">Walrus publish was skipped (mock mode)</p>
+              <p className="mt-2 font-medium">
+                Set{" "}
+                <code className="rounded bg-white/80 px-1">WALRUS_DEPLOY_MOCK=false</code> in{" "}
+                <code className="rounded bg-white/80 px-1">backend/.env</code>, configure site-builder,
+                run the local portal, then redeploy.
+              </p>
             </div>
           ) : null}
 

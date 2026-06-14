@@ -36,6 +36,7 @@ export const template = Template()
     { src: "scaffold/tsconfig.json", dest: "/opt/radiant-scaffold/tsconfig.json" },
     { src: "scaffold/next.config.ts", dest: "/opt/radiant-scaffold/next.config.ts" },
     { src: "scaffold/next-env.d.ts", dest: "/opt/radiant-scaffold/next-env.d.ts" },
+    { src: "scaffold/postcss.config.mjs", dest: "/opt/radiant-scaffold/postcss.config.mjs" },
     { src: "scaffold/app/", dest: "/opt/radiant-scaffold/app/" },
     { src: "scaffold/lib/", dest: "/opt/radiant-scaffold/lib/" },
     { src: "scaffold/components/", dest: "/opt/radiant-scaffold/components/" },

@@ -12,9 +12,39 @@ Official references:
 
 ## 1. Install CLI tools
 
+### Step 1 — install `suiup` (version manager)
+
+`suiup` is not preinstalled on macOS. Run once:
+
 ```bash
-# Sui + Walrus + site-builder (recommended)
-suiup install sui walrus site-builder
+curl -sSfL https://raw.githubusercontent.com/Mystenlabs/suiup/main/install.sh | sh
+```
+
+Then add it to your PATH (install script usually prints this). On zsh:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Verify: `suiup --version`
+
+### Step 2 — Sui, Walrus, site-builder (one at a time)
+
+`suiup install` takes **one** component per command:
+
+```bash
+suiup install sui@testnet -y
+suiup install walrus -y
+suiup install site-builder -y
+```
+
+Optional: see what’s installed / where binaries live:
+
+```bash
+suiup show
+suiup which
+which sui walrus site-builder
 ```
 
 Verify:
@@ -27,7 +57,36 @@ site-builder --version
 
 ---
 
-## 2. Sui testnet wallet
+## 3. Walrus config files (required)
+
+`suiup install` does **not** create these — download them once:
+
+```bash
+curl --create-dirs https://docs.wal.app/setup/client_config.yaml \
+  -o ~/.config/walrus/client_config.yaml
+
+curl --create-dirs https://raw.githubusercontent.com/MystenLabs/walrus-sites/refs/heads/testnet/sites-config.yaml \
+  -o ~/.config/walrus/sites-config.yaml
+```
+
+Verify Walrus sees testnet:
+
+```bash
+walrus info
+```
+
+You should see testnet epoch info (e.g. epoch duration ~1 day on testnet).
+
+Radiant reads the same paths via `backend/.env`:
+
+```bash
+WALRUS_SITES_CONFIG_PATH=$HOME/.config/walrus/sites-config.yaml
+WALRUS_CONFIG_PATH=$HOME/.config/walrus/client_config.yaml
+```
+
+---
+
+## 4. Sui testnet wallet
 
 ```bash
 sui client new-env --alias testnet --rpc https://fullnode.testnet.sui.io
@@ -37,39 +96,10 @@ sui client faucet
 sui client balance
 ```
 
-You need **SUI** (gas) and **WAL** (blob storage). On testnet, use the Walrus faucet after configuring Walrus (see below).
-
----
-
-## 3. Walrus client config
-
-Walrus reads network config from `client_config.yaml` (path varies by install). Typical location:
-
-```bash
-# Example — adjust to your suiup layout
-export WALRUS_CONFIG_PATH="$HOME/.config/walrus/client_config.yaml"
-```
-
-Ensure the **testnet** context is active in that file. See [Walrus getting started](https://docs.wal.app/docs/getting-started).
-
-Fund WAL on testnet:
+You need **SUI** (gas) and **WAL** (blob storage). After `walrus info` works:
 
 ```bash
 walrus get-wal
-```
-
----
-
-## 4. site-builder / sites config
-
-```bash
-cat ~/.config/walrus/sites-config.yaml
-```
-
-Created automatically by `suiup install site-builder`. Point Radiant at it:
-
-```bash
-export WALRUS_SITES_CONFIG_PATH="$HOME/.config/walrus/sites-config.yaml"
 ```
 
 ---

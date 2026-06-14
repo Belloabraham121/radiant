@@ -92,7 +92,8 @@ describe("runDeployPipeline (custom + mock sandbox)", () => {
     assert.ok(job.logs.includes("mock build complete"));
 
     const project = await prisma.project.findUnique({ where: { id: projectId } });
-    assert.equal(project?.status, "live");
-    assert.ok(project?.walrus_url?.includes(".walrus.site"));
+    assert.equal(project?.status, "draft");
+    assert.equal(project?.walrus_url, null);
+    assert.ok(job?.logs.includes("WALRUS_DEPLOY_MOCK"));
   });
 });
