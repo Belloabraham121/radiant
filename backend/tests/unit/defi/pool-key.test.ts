@@ -1,35 +1,52 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { findPoolByKey } from "../../../src/services/defi/deepbook/indexer/normalize.js";
-import { normalizePoolKey } from "../../../src/services/defi/deepbook/pool-key.js";
-import type { IndexerPoolRecord } from "../../../src/services/defi/deepbook/indexer/indexer.types.js";
+import { afterEach, describe, it } from "node:test";
+import { getDeepBookEnv, resetDeepBookEnvForTests } from "../../../src/config/deepbook.js";
+import {
+  coinsMatchForPool,
+  resolvePoolKeyForCoinPair,
+  resolveSwapPoolKey,
+} from "../../../src/services/defi/deepbook/pool-key.js";
+import { parseSwapExecutionIntent } from "../../../src/services/agent/execution-intent.js";
 
-const POOLS: IndexerPoolRecord[] = [
-  {
-    pool_id: "0x1",
-    pool_name: "DEEP_USDC",
-    base_asset_id: "0xdeep",
-    base_asset_decimals: 6,
-    base_asset_symbol: "DEEP",
-    base_asset_name: "DEEP",
-    quote_asset_id: "0xusdc",
-    quote_asset_decimals: 6,
-    quote_asset_symbol: "USDC",
-    quote_asset_name: "USDC",
-    min_size: 1,
-    lot_size: 1,
-    tick_size: 1,
-  },
-];
+describe("pool-key resolution", () => {
+  const originalEnv = { ...process.env };
 
-describe("pool-key", () => {
-  it("normalizePoolKey converts slashes and spaces", () => {
-    assert.equal(normalizePoolKey("deep/usdc"), "DEEP_USDC");
-    assert.equal(normalizePoolKey(" DEEP USDC "), "DEEP_USDC");
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    resetDeepBookEnvForTests();
   });
 
-  it("findPoolByKey resolves slash-form names", () => {
-    const pool = findPoolByKey(POOLS, "DEEP/USDC");
-    assert.equal(pool?.pool_name, "DEEP_USDC");
+  it("maps USDC to DBUSDC on testnet for SUI pairs", () => {
+    process.env.SUI_NETWORK = "testnet";
+    process.env.DEEPBOOK_DEFAULT_POOL = "SUI_USDC";
+    resetDeepBookEnvForTests();
+
+    assert.equal(coinsMatchForPool("USDC", "DBUSDC"), true);
+    assert.equal(resolvePoolKeyForCoinPair("SUI", "USDC"), "SUI_DBUSDC");
+    assert.equal(
+      resolveSwapPoolKey({ fromCoin: "SUI", toCoin: "USDC" }),
+      "SUI_DBUSDC",
+    );
+  });
+
+  it("falls back from invalid DEEPBOOK_DEFAULT_POOL override on testnet", () => {
+    process.env.SUI_NETWORK = "testnet";
+    process.env.DEEPBOOK_DEFAULT_POOL = "SUI_USDC";
+    resetDeepBookEnvForTests();
+
+    assert.equal(getDeepBookEnv().defaultPool, "SUI_DBUSDC");
+  });
+
+  it("parses swap 1.5 sui to usdc with correct pool on testnet", () => {
+    process.env.SUI_NETWORK = "testnet";
+    resetDeepBookEnvForTests();
+
+    const intent = parseSwapExecutionIntent("swap 1.5 sui to usdc");
+    assert.ok(intent);
+    assert.equal(intent?.amount, 1.5);
+    assert.equal(intent?.from_coin, "SUI");
+    assert.equal(intent?.to_coin, "USDC");
+    assert.equal(intent?.pool_key, "SUI_DBUSDC");
+    assert.equal(intent?.side, "sell");
   });
 });

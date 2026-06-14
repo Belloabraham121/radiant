@@ -40,17 +40,35 @@ function resolveIndexerUrl(env: "mainnet" | "testnet"): string {
 }
 
 function resolveDeepBookNetwork(): DeepBookNetwork {
-  const raw = optional("DEEPBOOK_ENV", "").toLowerCase();
-  if (raw === "testnet") return "testnet";
+  const suiNetwork = optional("SUI_NETWORK", "").toLowerCase();
+  if (suiNetwork === "testnet") return "testnet";
+  if (suiNetwork === "mainnet") return "mainnet";
+
   const rpc = optional("SUI_RPC_URL", "");
   if (rpc.includes("testnet")) return "testnet";
+  if (rpc.includes("mainnet")) return "mainnet";
+
+  const raw = optional("DEEPBOOK_ENV", "").toLowerCase();
+  if (raw === "testnet") return "testnet";
   return "mainnet";
 }
 
-function resolveDefaultPool(env: DeepBookNetwork): string {
+function resolveDefaultPool(env: DeepBookNetwork, pools: PoolMap): string {
+  const networkDefault = env === "testnet" ? DEFAULT_POOL_TESTNET : DEFAULT_POOL_MAINNET;
   const override = optional("DEEPBOOK_DEFAULT_POOL", "");
-  if (override.length > 0) return override;
-  return env === "testnet" ? DEFAULT_POOL_TESTNET : DEFAULT_POOL_MAINNET;
+  if (override.length > 0) {
+    const normalized = override.trim().toUpperCase();
+    if (pools[normalized as keyof typeof pools]) {
+      return normalized;
+    }
+    if (env === "testnet" && normalized === "SUI_USDC" && pools.SUI_DBUSDC) {
+      return "SUI_DBUSDC";
+    }
+    if (env === "testnet" && normalized === "DEEP_USDC" && pools.DEEP_DBUSDC) {
+      return "DEEP_DBUSDC";
+    }
+  }
+  return networkDefault;
 }
 
 function resolveCoinsAndPools(env: DeepBookNetwork): { coins: CoinMap; pools: PoolMap } {
@@ -75,7 +93,7 @@ export function getDeepBookEnv(): DeepBookEnv {
       indexerUrl: resolveIndexerUrl(env),
       popularSymbols,
       catalogRefreshMs: Number(optional("DEEPBOOK_CATALOG_REFRESH_MS", String(60 * 60 * 1000))),
-      defaultPool: resolveDefaultPool(env),
+      defaultPool: resolveDefaultPool(env, pools),
       defaultManagerKey: DEFAULT_BALANCE_MANAGER_KEY,
       coins,
       pools,

@@ -179,6 +179,19 @@ const queryChainInputObjectSchema = z.object({
     .default({}),
 });
 
+function coercePositiveNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value.trim().replace(/,/g, ""));
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 export const queryChainInputSchema = z.preprocess((input) => {
   if (typeof input !== "object" || input === null) {
     return input;
@@ -188,6 +201,19 @@ export const queryChainInputSchema = z.preprocess((input) => {
     typeof record.params === "object" && record.params !== null
       ? { ...(record.params as Record<string, unknown>) }
       : {};
+
+  const amount = coercePositiveNumber(params.amount);
+  if (amount != null) {
+    params.amount = amount;
+  }
+  const amountDisplay = coercePositiveNumber(params.amount_display);
+  if (amountDisplay != null) {
+    params.amount_display = amountDisplay;
+  }
+  const borrowAmount = coercePositiveNumber(params.borrow_amount);
+  if (borrowAmount != null) {
+    params.borrow_amount = borrowAmount;
+  }
 
   if (record.query === "flash_loan_quote") {
     if (params.borrow_amount == null && typeof params.amount === "number" && params.amount > 0) {

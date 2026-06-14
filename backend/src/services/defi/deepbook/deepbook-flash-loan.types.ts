@@ -1,6 +1,6 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { AppError } from "../../../errors/app-error.js";
-import { normalizePoolKey } from "./pool-key.js";
+import { normalizePoolKey, resolvePoolKeyAlias } from "./pool-key.js";
 import type { SwapSide } from "./types.js";
 
 export const FLASH_LOAN_STRATEGIES = ["round_trip", "swap_chain_repay"] as const;
@@ -66,9 +66,10 @@ export type PoolCoins = {
 };
 
 export function resolvePoolCoins(poolKey: string): PoolCoins {
-  const normalized = normalizePoolKey(poolKey);
   const { pools } = getDeepBookEnv();
-  const pool = pools[normalized as keyof typeof pools];
+  const resolved =
+    resolvePoolKeyAlias(poolKey, pools) ?? normalizePoolKey(poolKey);
+  const pool = pools[resolved as keyof typeof pools];
   if (!pool) {
     throw new AppError(
       400,
@@ -77,7 +78,7 @@ export function resolvePoolCoins(poolKey: string): PoolCoins {
         `Known pools include ${Object.keys(pools).join(", ")}.`,
     );
   }
-  return { pool_key: normalized, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
+  return { pool_key: resolved, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
 }
 
 export function stepCoins(side: SwapSide, pool: PoolCoins): { input: string; output: string } {

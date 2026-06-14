@@ -9,7 +9,7 @@ import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import { getAssetDecimals } from "./asset-scalars.js";
 import { getDeepBookPoolInfo } from "./deepbook-pools.service.js";
 import { isMultipleOfStep } from "./order-constraints.js";
-import { normalizePoolKey } from "./pool-key.js";
+import { assertResolvablePoolKey } from "./pool-key.js";
 import {
   getDeepBookClient,
   getSuiDeepBookClient,
@@ -73,18 +73,10 @@ let fetchPrivyWallet = async (privyWalletId: string) => {
 };
 
 function assertPoolKey(poolKey: string): PoolCoins {
-  const normalized = normalizePoolKey(poolKey);
+  const resolved = assertResolvablePoolKey(poolKey);
   const { pools } = getDeepBookEnv();
-  const pool = pools[normalized as keyof typeof pools];
-  if (!pool) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      `Unknown DeepBook pool "${poolKey}". Call query_chain deepbook_pools for the full list. ` +
-        `Known pools include ${Object.keys(pools).join(", ")}.`,
-    );
-  }
-  return { pool_key: normalized, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
+  const pool = pools[resolved as keyof typeof pools]!;
+  return { pool_key: resolved, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
 }
 
 function parsePositiveAmount(params: Record<string, unknown>): number {
