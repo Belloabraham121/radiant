@@ -475,6 +475,31 @@ Phase 0 (infra + dashboard)
 
 ---
 
+## Phase 12 — Agent-controlled app actions
+
+> Full checklist: [docs/agent-app-actions-TODO.md](../../docs/agent-app-actions-TODO.md). Generated apps execute via **agent wallet** (UI click or chat); optional **live SSE** animates preview. DeepBook first; extensible to other protocols.
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [x] | Phase 0 — Action types + mapper | [Backend] |
+| [ ] | Phase 1 — `executeAppAction` service (wraps chat execute path) | [Backend] |
+| [ ] | Phase 2 — `POST .../projects\|installations/.../actions/:action` | [Backend] |
+| [ ] | Phase 3 — `radiant-client` execute helpers | [Both] |
+| [ ] | Phase 4 — `__radiantAgent` runtime + AgentIndicator template | [Both] |
+| [ ] | Phase 5 — Preview postMessage bridge for actions/stream | [Client] |
+| [ ] | Phase 6 — Per-project action schema | [Backend] |
+| [ ] | Phase 7 — `call_app_action` agent tool | [Backend] |
+| [ ] | Phase 8 — Live mode SSE + animation | [Both] |
+| [ ] | Phase 9 — In-app approval UX | [Both] |
+| [ ] | Phase 10 — Protocol extension kit | [Backend] |
+| [ ] | Phase 11 — External `POST /apps/:id/call` + Walrus config | [Both] |
+
+**Already shipped (read-only):** project/installation `swap/quote` + `pool-info`; chat `execute_transaction`; artifact preview API proxy.
+
+**Depends on:** Phase 11 app builder (artifacts), DeepBook execute path, agent transaction ledger.
+
+---
+
 ## Quick reference: who builds what
 
 | Concern | Backend | Client | Dashboard |

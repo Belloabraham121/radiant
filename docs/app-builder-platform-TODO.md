@@ -193,7 +193,7 @@ Public discovery **inside Radiant** — not Walrus URLs.
 | [ ] | Installation-scoped platform APIs | Caller wallet + creator fee |
 | [ ] | Explorer UI wired to real API | Replace `explorer-data.ts` mocks |
 | [ ] | “Use this agent” → install + open in Radiant | Not external link |
-| [ ] | Agent tools: `install_app`, `call_app` | Headless use |
+| [ ] | Agent tools: `install_app`, `call_app_action` | See [agent-app-actions-TODO.md](./agent-app-actions-TODO.md) Phase 7 |
 | [ ] | Move + on-chain registry (optional) | `package_id`, `registry_object_id` |
 
 ---
@@ -239,4 +239,4 @@ No — only when testing optional `deploy_app` build verification. Normal dev: `
 
 ---
 
-Tracked alongside [app-builder-deploy-TODO.md](./app-builder-deploy-TODO.md) and [backend/docs/TODO.md](../backend/docs/TODO.md).
+Tracked alongside [app-builder-deploy-TODO.md](./app-builder-deploy-TODO.md), [agent-app-actions-TODO.md](./agent-app-actions-TODO.md), and [backend/docs/TODO.md](../backend/docs/TODO.md).
