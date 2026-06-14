@@ -27,10 +27,11 @@ function pickPrimaryComponent(files: ArtifactFileInput[]): ArtifactFileInput | n
 
 function componentImportPath(componentPath: string): string {
   const normalized = normalizeClientPath(componentPath);
-  if (normalized.startsWith("components/")) {
-    return `../${normalized.replace(/\.tsx$/, "")}`;
+  const withoutExt = normalized.replace(/\.tsx$/, "").replace(/\.jsx$/, "");
+  if (normalized.startsWith("components/") || normalized.startsWith("src/components/")) {
+    return `../${withoutExt}`;
   }
-  return `./${normalized.replace(/^src\//, "").replace(/\.tsx$/, "")}`;
+  return `./${withoutExt.replace(/^src\//, "")}`;
 }
 
 /**

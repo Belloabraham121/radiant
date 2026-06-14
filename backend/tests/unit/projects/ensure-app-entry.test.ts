@@ -30,6 +30,19 @@ describe("ensureAppEntry", () => {
     assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
   });
 
+  it("imports src/components via parent-relative path from app/page.tsx", () => {
+    const files = [
+      {
+        path: "src/components/SwapForm.tsx",
+        content: "export default function SwapForm() { return null; }",
+      },
+    ];
+    const result = ensureAppEntry(files);
+    const page = result.find((f) => f.path === "app/page.tsx");
+    assert.ok(page);
+    assert.match(page!.content, /from "\.\.\/src\/components\/SwapForm"/);
+  });
+
   it("fills layout and globals when app/page.tsx exists", () => {
     const files = [{ path: "app/page.tsx", content: '"use client";\nexport default function Page() { return null; }' }];
     const result = ensureAppEntry(files);

@@ -284,7 +284,7 @@ export const openaiRuntime: AgentRuntime = {
             model,
             messages,
             tools,
-            max_tokens: 1024,
+            max_tokens: 4096,
           }, {
             onContentDelta: (delta) => {
               streamedReplyText = true;
@@ -314,7 +314,7 @@ export const openaiRuntime: AgentRuntime = {
             messages,
             tools,
             tool_choice: "auto",
-            ...openAiMaxOutputTokens(model, 1024),
+            ...openAiMaxOutputTokens(model, 4096),
           });
           choice = completion.choices[0]?.message;
           if (!choice) {
@@ -487,6 +487,9 @@ export const openaiRuntime: AgentRuntime = {
 
         const result = await runAgentTool(input.privyUserId, toolCall.function.name, args, {
           sessionId: input.sessionId,
+          ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
+            ? { rawArguments: toolCall.function.arguments }
+            : {}),
         });
         tool_calls.push({
           name: toolCall.function.name,
@@ -512,6 +515,9 @@ export const openaiRuntime: AgentRuntime = {
               },
             });
           } else {
+            if (streamingArtifactPreview) {
+              emitArtifactPreview(streamingArtifactPreview, false);
+            }
             emitExecutionProgress({
               step: {
                 id: "generate-app",

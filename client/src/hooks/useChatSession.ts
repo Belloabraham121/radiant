@@ -252,15 +252,15 @@ export function useChatSession(sessionId?: string) {
         setPendingTx(data.pending_transaction ?? null);
         setPendingClarification(data.pending_clarification ?? null);
 
+        if (!sessionId && data.session_id && artifactSessionKey === "new") {
+          migrateArtifactSession("new", data.session_id);
+        }
+
         const finalArtifactKey = sessionId ?? data.session_id;
         if (data.artifact) {
           updateArtifact(finalArtifactKey, data.artifact, { streaming: false, open: true });
         } else {
           setArtifactStreaming(finalArtifactKey, false);
-        }
-
-        if (!sessionId && data.session_id && artifactSessionKey === "new") {
-          migrateArtifactSession("new", data.session_id);
         }
 
         if (!sessionId && data.session_id) {

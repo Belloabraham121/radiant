@@ -139,6 +139,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
         [toKey]: {
           ...fromState,
           panelOpen: fromState.panelOpen || toState.panelOpen,
+          streaming: false,
         },
         [fromKey]: emptyState(),
       };

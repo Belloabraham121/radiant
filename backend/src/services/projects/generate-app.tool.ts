@@ -1,4 +1,5 @@
 import { generateAppForUser } from "./generate-app.service.js";
+import { normalizeGenerateAppInput } from "./normalize-generate-app-input.js";
 import { generateAppInputSchema } from "./project.types.js";
 
 export const GENERATE_APP_TOOL_NAME = "generate_app" as const;
@@ -47,8 +48,9 @@ export const generateAppToolDefinition = {
 export async function runGenerateAppTool(
   privyUserId: string,
   input: Record<string, unknown>,
-  context: { sessionId?: string } = {},
+  context: { sessionId?: string; rawArguments?: string } = {},
 ): Promise<unknown> {
-  const parsed = generateAppInputSchema.parse(input);
+  const normalized = normalizeGenerateAppInput(input, context.rawArguments ?? "");
+  const parsed = generateAppInputSchema.parse(normalized);
   return generateAppForUser(privyUserId, parsed, context);
 }

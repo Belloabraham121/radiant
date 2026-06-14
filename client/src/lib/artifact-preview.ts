@@ -310,7 +310,6 @@ ${css}
     } else {
       return null;
     }
-    if (joined.indexOf("src/") !== 0) joined = "src/" + joined;
     var candidates = [joined];
     for (var j = 0; j < SOURCE_EXTS.length; j++) {
       candidates.push(stripExt(joined) + SOURCE_EXTS[j]);
@@ -370,7 +369,7 @@ ${css}
       var resolved = resolveRelativeImport(moduleId, request);
       if (!resolved) {
         throw new Error(
-          "Preview cannot load module: " + request + " (from " + moduleId + "). Use src/ paths and react / react-dom / react-router-dom only for npm.",
+          "Preview cannot load module: " + request + " (from " + moduleId + "). Use app/, components/, or lib/ paths and react / react-dom / react-router-dom only for npm.",
         );
       }
       return loadModule(resolved);

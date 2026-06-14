@@ -1,5 +1,6 @@
 import type { ArtifactPayload } from "./project.types.js";
 import type { PartialGenerateAppParse } from "./parse-partial-generate-app.js";
+import { ensureAppEntry } from "./ensure-app-entry.js";
 
 export function mergeArtifactFiles(
   base: Array<{ path: string; content: string }>,
@@ -21,6 +22,7 @@ export function buildPreviewArtifactPayload(
   }
 
   const mergedFiles = mergeArtifactFiles(existing?.files ?? [], partial.files);
+  const withEntry = ensureAppEntry(mergedFiles);
 
   return {
     project_id: partial.project_id ?? existing?.project_id ?? "preview",
@@ -28,6 +30,6 @@ export function buildPreviewArtifactPayload(
     tagline: partial.tagline ?? existing?.tagline ?? "",
     template: partial.template ?? existing?.template ?? "custom",
     revision: existing?.revision ?? -1,
-    files: mergedFiles,
+    files: withEntry,
   };
 }

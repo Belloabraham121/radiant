@@ -79,6 +79,7 @@ export function resolveRelativeImport(
 export function pickAppModulePath(files: ArtifactFile[]): string | null {
   const map = buildModuleSourceMap(files);
   if (map["app/page.tsx"]) return "app/page.tsx";
+  if (map["src/app/page.tsx"]) return "src/app/page.tsx";
   if (map["src/App.tsx"]) return "src/App.tsx";
   if (map["src/App.jsx"]) return "src/App.jsx";
   return null;

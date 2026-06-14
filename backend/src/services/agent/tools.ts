@@ -133,6 +133,7 @@ async function dispatchAgentTool(
       case GENERATE_APP_TOOL_NAME:
         return await runGenerateAppTool(privyUserId, input, {
           sessionId: options?.sessionId,
+          rawArguments: options?.rawArguments,
         });
       case DEPLOY_APP_TOOL_NAME:
         return await runDeployAppTool(privyUserId, input);
