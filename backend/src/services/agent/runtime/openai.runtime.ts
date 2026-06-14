@@ -32,13 +32,15 @@ import {
   formatFlashLoanQuoteReply,
   findLatestFlashLoanQuote,
   buildInfeasibleFlashLoanExecuteBlock,
+  buildFlashLoanResearchExecuteBlock,
   hasFlashLoanExecutionAttempt,
-  isFlashLoanParamValidationError,
-  isFlashLoanRepayNotFeasibleError,
+  isFlashLoanRepayInfeasibleErrorCode,
+  isFlashLoanToolValidationError,
   isInfeasibleFlashLoanQuoteResult,
   shouldFinalizeFlashLoanQuoteReply,
   shouldUseCannedFlashLoanQuoteReply,
 } from "../deepbook/flash-loan-approval-flow.js";
+import { classifyFlashLoanTurnIntent } from "../deepbook/flash-loan-turn-intent.js";
 import {
   buildReplyAfterToolsNudge,
   findLastToolError,
@@ -101,10 +103,13 @@ function mapOpenAiError(err: unknown): AppError {
   return new AppError(500, "OPENAI_UNEXPECTED", "Unexpected OpenAI client error.");
 }
 
-function emitExecuteProgressFromResult(result: unknown): void {
+function emitExecuteProgressFromResult(
+  result: unknown,
+  toolInput: Pick<{ action?: string; query?: string }, "action" | "query">,
+): void {
   if (isAgentToolErrorResult(result)) {
     const message = result.error.message;
-    if (isFlashLoanParamValidationError(message)) {
+    if (isFlashLoanToolValidationError(EXECUTE_TRANSACTION_TOOL_NAME, toolInput, result.error.code)) {
       emitExecutionProgress({
         step: {
           id: "quote",
@@ -196,20 +201,8 @@ function emitQueryChainFailureProgress(
   result: AgentToolErrorResult,
 ): void {
   const message = result.error.message;
-  const stepMatch = message.match(/Step (\d+)/i);
 
   if (query === "flash_loan_quote") {
-    if (stepMatch) {
-      const stepNum = stepMatch[1];
-      emitExecutionProgress({
-        step: {
-          id: `swap-${stepNum}`,
-          status: "failed",
-          label: `Swap ${stepNum}`,
-          detail: message,
-        },
-      });
-    }
     emitExecutionProgress({
       step: {
         id: "quote",
@@ -264,6 +257,7 @@ export const openaiRuntime: AgentRuntime = {
     let lastExecuteInput: ExecuteTransactionInput | null = null;
     const lastUserMessage =
       [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
+    const flashLoanTurnIntent = classifyFlashLoanTurnIntent(lastUserMessage);
 
     let streamingArtifactPreview: import("../../projects/project.types.js").ArtifactPayload | null =
       null;
@@ -426,6 +420,8 @@ export const openaiRuntime: AgentRuntime = {
           toolCall.type === "function" &&
           toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME,
       );
+      const flashLoanExecutionUi =
+        flashLoanTurnIntent !== "research" && batchHasExecute;
 
       let executeToolError: AgentToolErrorResult | null = null;
       let infeasibleFlashLoanQuote: FlashLoanBundleQuoteResult | null = null;
@@ -458,8 +454,10 @@ export const openaiRuntime: AgentRuntime = {
             args.action === "deepbook_flash_loan" &&
             priorInfeasibleQuote !== null &&
             !priorInfeasibleQuote.repay_feasible;
+          const blockResearchExecute =
+            args.action === "deepbook_flash_loan" && flashLoanTurnIntent === "research";
 
-          if (!blockInfeasibleExecute) {
+          if (!blockInfeasibleExecute && !blockResearchExecute) {
             emitExecutionProgress({
               step: {
                 id: "execute",
@@ -472,7 +470,7 @@ export const openaiRuntime: AgentRuntime = {
         }
 
         if (
-          batchHasExecute &&
+          flashLoanExecutionUi &&
           toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
           args.query === "flash_loan_quote"
         ) {
@@ -507,11 +505,18 @@ export const openaiRuntime: AgentRuntime = {
           args.action === "deepbook_flash_loan" &&
           priorInfeasibleQuote !== null &&
           !priorInfeasibleQuote.repay_feasible;
+        const blockResearchFlashLoanExecute =
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          args.action === "deepbook_flash_loan" &&
+          flashLoanTurnIntent === "research";
 
         const result = blockInfeasibleFlashLoanExecute
           ? buildInfeasibleFlashLoanExecuteBlock(priorInfeasibleQuote)
+          : blockResearchFlashLoanExecute
+            ? buildFlashLoanResearchExecuteBlock()
           : await runAgentTool(input.privyUserId, toolCall.function.name, args, {
               sessionId: input.sessionId,
+              flashLoanTurnIntent,
               ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
                 ? { rawArguments: toolCall.function.arguments }
                 : {}),
@@ -520,6 +525,10 @@ export const openaiRuntime: AgentRuntime = {
           name: toolCall.function.name,
           ...(toolCall.function.name === QUERY_CHAIN_TOOL_NAME && typeof args.query === "string"
             ? { query: args.query }
+            : {}),
+          ...(toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          typeof args.action === "string"
+            ? { action: args.action }
             : {}),
           result,
         });
@@ -554,8 +563,14 @@ export const openaiRuntime: AgentRuntime = {
           }
         }
 
-        if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME && !blockInfeasibleFlashLoanExecute) {
-          emitExecuteProgressFromResult(result);
+        if (
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          !blockInfeasibleFlashLoanExecute &&
+          !blockResearchFlashLoanExecute
+        ) {
+          emitExecuteProgressFromResult(result, {
+            action: typeof args.action === "string" ? args.action : undefined,
+          });
         }
 
         if (
@@ -570,7 +585,7 @@ export const openaiRuntime: AgentRuntime = {
           toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
           isAgentToolErrorResult(result)
         ) {
-          if (batchHasExecute && args.query === "flash_loan_quote") {
+          if (flashLoanExecutionUi && args.query === "flash_loan_quote") {
             emitQueryChainFailureProgress(args.query, result);
           } else if (args.query !== "flash_loan_quote") {
             emitQueryChainFailureProgress(args.query, result);
@@ -650,15 +665,22 @@ export const openaiRuntime: AgentRuntime = {
 
         if (executeToolError.error.code === "VALIDATION_ERROR" && !compoundReply) {
           const quote = findLatestFlashLoanQuote(tool_calls);
-          if (
-            quote &&
-            (!quote.repay_feasible ||
-              isFlashLoanRepayNotFeasibleError(executeToolError.error.message))
-          ) {
+          if (quote && !quote.repay_feasible) {
             reply = formatFlashLoanQuoteReply(quote);
             break;
           }
           continue;
+        }
+
+        if (
+          isFlashLoanRepayInfeasibleErrorCode(executeToolError.error.code) &&
+          !compoundReply
+        ) {
+          const quote = findLatestFlashLoanQuote(tool_calls);
+          if (quote) {
+            reply = formatFlashLoanQuoteReply(quote);
+            break;
+          }
         }
 
         try {

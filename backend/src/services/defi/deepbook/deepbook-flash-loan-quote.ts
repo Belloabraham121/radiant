@@ -145,6 +145,7 @@ function emitRepayProgress(
   repayFeasible: boolean,
   estimatedSurplus: number | null,
   progress: (step: Parameters<typeof emitExecutionProgress>[0]["step"]) => void,
+  options?: { showExecuteBlocked?: boolean },
 ): void {
   const repayDetail = `Need ${parsed.borrow_amount} ${parsed.coin_key}; last min out ~${lastQuote.min_out} ${lastQuote.output_coin}`;
   let detail: string;
@@ -167,7 +168,7 @@ function emitRepayProgress(
     detail,
   });
 
-  if (!repayFeasible) {
+  if (!repayFeasible && options?.showExecuteBlocked !== false) {
     progress({
       id: "execute",
       status: "skipped",
@@ -181,9 +182,10 @@ function emitRepayProgress(
 async function buildSwapChainQuote(
   privyUserId: string,
   parsed: DeepBookFlashLoanBundleParams,
-  options?: { emitProgress?: boolean },
+  options?: { emitProgress?: boolean; advisoryQuote?: boolean },
 ): Promise<FlashLoanBundleQuoteResult> {
   const emitProgress = options?.emitProgress !== false;
+  const showExecuteBlocked = options?.advisoryQuote !== true;
   const progress = (
     step: Parameters<typeof emitExecutionProgress>[0]["step"],
   ) => {
@@ -323,6 +325,7 @@ async function buildSwapChainQuote(
     repayFeasible,
     estimatedSurplus,
     progress,
+    { showExecuteBlocked },
   );
 
   const requiresManualApproval =
@@ -417,9 +420,16 @@ export async function resolveFlashLoanBundleParams(
   return { parsed, routeAutoDiscovered };
 }
 
+export type FlashLoanQuoteOptions = {
+  emitProgress?: boolean;
+  /** Strategy/feasibility turn — omit execution-style "Execute bundle blocked" progress. */
+  advisoryQuote?: boolean;
+};
+
 export async function getFlashLoanBundleQuote(
   privyUserId: string,
   params: Record<string, unknown>,
+  options?: FlashLoanQuoteOptions,
 ): Promise<FlashLoanBundleQuoteResult> {
   const { parsed, routeAutoDiscovered } = await resolveFlashLoanBundleParams(
     privyUserId,
@@ -431,7 +441,7 @@ export async function getFlashLoanBundleQuote(
     return buildRoundTripQuote(parsed);
   }
 
-  const quote = await buildSwapChainQuote(privyUserId, parsed);
+  const quote = await buildSwapChainQuote(privyUserId, parsed, options);
   if (routeAutoDiscovered) {
     quote.warnings.unshift(
       "Swap route was auto-selected from live pool quotes because no steps were provided.",

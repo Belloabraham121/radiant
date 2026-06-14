@@ -58,8 +58,35 @@ function isFlashLoanToolCalls(toolCalls: ChatToolCall[]): boolean {
   );
 }
 
-function formatDigestShort(digest: string): string {
+export function formatDigestShort(digest: string): string {
   return digest.length > 12 ? `${digest.slice(0, 10)}…` : digest;
+}
+
+/** Receipt pill shown when a streamed execution step includes an on-chain digest. */
+export function receiptFromExecutionStep(step: ExecutionStep): Receipt | null {
+  if (!step.digest) {
+    return null;
+  }
+
+  return {
+    label: step.id === "execute" ? "Transaction sent" : "On-chain step",
+    detail: formatDigestShort(step.digest),
+    digest: step.digest,
+    chainId: step.chainId ?? "sui",
+    ...(step.agentTransactionId ? { agentTransactionId: step.agentTransactionId } : {}),
+  };
+}
+
+function resolveTransactionReceipts(
+  toolCalls: ChatToolCall[],
+  executionSteps?: ExecutionStep[],
+): Receipt[] {
+  const actionReceipts = buildActionLinkReceipts(toolCalls, executionSteps);
+  if (actionReceipts.length > 0) {
+    return actionReceipts;
+  }
+
+  return mapToolCallsToReceipts(toolCalls).filter((receipt) => receipt.digest);
 }
 
 /** Compact explorer / activity pills shown under the execution timeline. */
@@ -540,14 +567,14 @@ export function mapToolCallsToMessageExtras(
 } {
   const artifact = extractArtifactFromToolCalls(toolCalls);
   const executionSteps = resolveExecutionSteps(toolCalls, streamedSteps);
-  const actionReceipts = buildActionLinkReceipts(toolCalls, executionSteps);
+  const transactionReceipts = resolveTransactionReceipts(toolCalls, executionSteps);
   const artifactField = artifact ? { artifact } : {};
 
   if (executionSteps) {
     return {
       executionSteps,
       ...artifactField,
-      ...(actionReceipts.length > 0 ? { receipts: actionReceipts } : {}),
+      ...(transactionReceipts.length > 0 ? { receipts: transactionReceipts } : {}),
     };
   }
   const receipts = mapToolCallsToReceipts(toolCalls);

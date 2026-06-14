@@ -5,10 +5,12 @@ import {
   formatFlashLoanQuoteReply,
   hasFlashLoanExecutionAttempt,
   isFlashLoanAdvisoryTurn,
+  isFlashLoanToolValidationError,
   isInfeasibleFlashLoanQuoteResult,
   shouldFinalizeFlashLoanQuoteReply,
   shouldUseCannedFlashLoanQuoteReply,
   FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE,
+  FLASH_LOAN_RESEARCH_EXECUTE_BLOCK_CODE,
 } from "../../../src/services/agent/deepbook/flash-loan-approval-flow.js";
 
 const infeasibleQuote = {
@@ -158,6 +160,15 @@ describe("flash-loan-approval-flow", () => {
       false,
     );
     assert.equal(
+      hasFlashLoanExecutionAttempt([
+        {
+          name: "execute_transaction",
+          result: { error: { code: FLASH_LOAN_RESEARCH_EXECUTE_BLOCK_CODE, message: "blocked" } },
+        },
+      ]),
+      false,
+    );
+    assert.equal(
       isFlashLoanAdvisoryTurn([{ name: "query_chain", result: infeasibleQuote }]),
       true,
     );
@@ -222,6 +233,7 @@ describe("flash-loan-approval-flow", () => {
     const toolCalls = [
       {
         name: "query_chain",
+        query: "flash_loan_quote",
         result: {
           error: {
             code: "VALIDATION_ERROR",
@@ -231,6 +243,7 @@ describe("flash-loan-approval-flow", () => {
       },
       {
         name: "query_chain",
+        query: "flash_loan_quote",
         result: {
           error: { code: "VALIDATION_ERROR", message: "Another failed query" },
         },
@@ -243,6 +256,7 @@ describe("flash-loan-approval-flow", () => {
     const toolCalls = [
       {
         name: "query_chain",
+        query: "flash_loan_quote",
         result: {
           error: {
             code: "VALIDATION_ERROR",
@@ -262,6 +276,7 @@ describe("flash-loan-approval-flow", () => {
       },
       {
         name: "execute_transaction",
+        action: "deepbook_flash_loan",
         result: {
           error: {
             code: "VALIDATION_ERROR",
@@ -275,5 +290,28 @@ describe("flash-loan-approval-flow", () => {
     assert.equal(filtered.length, 2);
     assert.equal(filtered[0]?.name, "query_chain");
     assert.equal(filtered[1]?.name, "execute_transaction");
+  });
+
+  it("isFlashLoanToolValidationError uses tool context instead of message parsing", () => {
+    assert.equal(
+      isFlashLoanToolValidationError(
+        "query_chain",
+        { query: "flash_loan_quote" },
+        "VALIDATION_ERROR",
+      ),
+      true,
+    );
+    assert.equal(
+      isFlashLoanToolValidationError(
+        "execute_transaction",
+        { action: "deepbook_flash_loan" },
+        "VALIDATION_ERROR",
+      ),
+      true,
+    );
+    assert.equal(
+      isFlashLoanToolValidationError("query_chain", { query: "swap_quote" }, "VALIDATION_ERROR"),
+      false,
+    );
   });
 });

@@ -6,6 +6,8 @@ import type { SwapSide } from "./types.js";
 export const FLASH_LOAN_STRATEGIES = ["round_trip", "swap_chain_repay"] as const;
 export type FlashLoanStrategy = (typeof FLASH_LOAN_STRATEGIES)[number];
 
+export const FLASH_LOAN_REPAY_INFEASIBLE_CODE = "FLASH_LOAN_REPAY_INFEASIBLE";
+
 export type FlashLoanAsset = "base" | "quote";
 export type FlashLoanRepaySource = "swap_output" | "wallet" | "merged";
 

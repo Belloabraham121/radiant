@@ -1,4 +1,5 @@
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
+import { FLASH_LOAN_REPAY_INFEASIBLE_CODE } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import type { ToolCallRecord } from "../agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
@@ -26,6 +27,9 @@ export function isFlashLoanQuoteResult(result: unknown): result is FlashLoanBund
 }
 
 export const FLASH_LOAN_QUOTE_INFEASIBLE_BLOCK_CODE = "FLASH_LOAN_QUOTE_INFEASIBLE";
+export const FLASH_LOAN_RESEARCH_EXECUTE_BLOCK_CODE = "FLASH_LOAN_RESEARCH_EXECUTE";
+
+export { FLASH_LOAN_REPAY_INFEASIBLE_CODE };
 
 function isInfeasibleQuoteExecuteBlock(result: unknown): boolean {
   return (
@@ -34,13 +38,24 @@ function isInfeasibleQuoteExecuteBlock(result: unknown): boolean {
   );
 }
 
+function isResearchExecuteBlock(result: unknown): boolean {
+  return (
+    isToolErrorResult(result) &&
+    result.error?.code === FLASH_LOAN_RESEARCH_EXECUTE_BLOCK_CODE
+  );
+}
+
+function isBlockedFlashLoanExecuteAttempt(result: unknown): boolean {
+  return isInfeasibleQuoteExecuteBlock(result) || isResearchExecuteBlock(result);
+}
+
 /** True when this turn attempted on-chain flash loan execution (not quote-only research). */
 export function hasFlashLoanExecutionAttempt(toolCalls: ToolCallRecord[]): boolean {
   return toolCalls.some((call) => {
     if (call.name !== EXECUTE_TRANSACTION_TOOL_NAME) {
       return false;
     }
-    if (isInfeasibleQuoteExecuteBlock(call.result)) {
+    if (isBlockedFlashLoanExecuteAttempt(call.result)) {
       return false;
     }
     return true;
@@ -138,14 +153,40 @@ export function buildInfeasibleFlashLoanExecuteBlock(
   };
 }
 
-export function isFlashLoanRepayNotFeasibleError(message: string): boolean {
-  return /repay is not feasible|repay_feasible:\s*false/i.test(message);
+export function buildFlashLoanResearchExecuteBlock(): { error: { code: string; message: string } } {
+  return {
+    error: {
+      code: FLASH_LOAN_RESEARCH_EXECUTE_BLOCK_CODE,
+      message:
+        "The user asked for a flash-loan strategy or feasibility analysis — do not execute. " +
+        "Answer in prose with pools, routes, trade-offs, and quote data. Invite them to say when to run it.",
+    },
+  };
 }
 
-export function isFlashLoanParamValidationError(message: string): boolean {
-  return /params\.(steps|amount|borrow_amount)|steps\[\d+\]|swap_chain_repay|borrow_amount|deepbook_flash_loan|must be a positive number|Step \d+ must spend|Final swap must output/i.test(
-    message,
-  );
+export function isFlashLoanRepayInfeasibleErrorCode(code: string | undefined): boolean {
+  return code === FLASH_LOAN_REPAY_INFEASIBLE_CODE;
+}
+
+export function isFlashLoanToolContext(
+  toolName: string,
+  toolInput: Pick<ToolCallRecord, "query" | "action">,
+): boolean {
+  if (toolName === EXECUTE_TRANSACTION_TOOL_NAME && toolInput.action === "deepbook_flash_loan") {
+    return true;
+  }
+  if (toolName === QUERY_CHAIN_TOOL_NAME && toolInput.query === "flash_loan_quote") {
+    return true;
+  }
+  return false;
+}
+
+export function isFlashLoanToolValidationError(
+  toolName: string,
+  toolInput: Pick<ToolCallRecord, "query" | "action">,
+  errorCode: string | undefined,
+): boolean {
+  return errorCode === "VALIDATION_ERROR" && isFlashLoanToolContext(toolName, toolInput);
 }
 
 function isSwapQuoteResult(result: unknown): boolean {
@@ -171,11 +212,10 @@ function findLatestFlashLoanQuoteIndex(toolCalls: ToolCallRecord[]): number {
 
 function hasFlashLoanValidationFailure(toolCalls: ToolCallRecord[]): boolean {
   return toolCalls.some((call) => {
-    if (call.name !== QUERY_CHAIN_TOOL_NAME || !isToolErrorResult(call.result)) {
+    if (!isToolErrorResult(call.result)) {
       return false;
     }
-    const message = call.result.error?.message ?? "";
-    return isFlashLoanParamValidationError(message);
+    return isFlashLoanToolValidationError(call.name, call, call.result.error?.code);
   });
 }
 
@@ -193,7 +233,7 @@ function isFlashLoanFlowContext(toolCalls: ToolCallRecord[]): boolean {
     if (call.name !== EXECUTE_TRANSACTION_TOOL_NAME || !isToolErrorResult(call.result)) {
       return false;
     }
-    return isFlashLoanParamValidationError(call.result.error?.message ?? "");
+    return isFlashLoanToolValidationError(call.name, call, call.result.error?.code);
   });
 }
 
@@ -215,7 +255,7 @@ export function filterToolCallsForClientDisplay(
 
   return toolCalls.filter((call, index) => {
     if (call.name === EXECUTE_TRANSACTION_TOOL_NAME) {
-      if (isInfeasibleQuoteExecuteBlock(call.result) && isFlashLoanAdvisoryTurn(toolCalls)) {
+      if (isBlockedFlashLoanExecuteAttempt(call.result) && isFlashLoanAdvisoryTurn(toolCalls)) {
         return false;
       }
       return true;

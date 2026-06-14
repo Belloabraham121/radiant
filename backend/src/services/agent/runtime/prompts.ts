@@ -31,8 +31,8 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
 
   const flashLoanLine = permissions.allow_flash_loans
     ? permissions.auto_approve_flash_loans
-      ? "Flash loans are ENABLED with auto-approve ON — when the user wants to run a flash loan, call flash_loan_quote then execute_transaction without asking in chat to re-confirm details already in the thread."
-      : "Flash loans are ENABLED — flash loans show the in-app approval dialog unless auto-approve flash loans is on. Never ask in chat to confirm execution — call the tool and let the dialog handle it."
+      ? "Flash loans are ENABLED with auto-approve ON — when the user clearly asks to RUN a flash loan (not strategy research), call flash_loan_quote then execute_transaction with the same params."
+      : "Flash loans are ENABLED — when the user clearly asks to RUN a flash loan (not strategy research), call flash_loan_quote then execute_transaction; the in-app approval dialog handles confirmation unless auto-approve flash loans is on."
     : "Flash loans are DISABLED — tell the user to enable Allow flash loans in Settings before attempting deepbook_flash_loan.";
 
   const governanceLine = permissions.allow_governance

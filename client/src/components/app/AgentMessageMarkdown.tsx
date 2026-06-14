@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import Markdown from "react-markdown";
 import type { Components } from "react-markdown";
+import { linkTransactionDigestsInMarkdown } from "@/lib/link-transaction-digests";
 
 const markdownComponents: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -47,9 +49,11 @@ const markdownComponents: Components = {
 };
 
 export function AgentMessageMarkdown({ text }: { text: string }) {
+  const linkedText = useMemo(() => linkTransactionDigestsInMarkdown(text), [text]);
+
   return (
     <div className="agent-markdown [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-      <Markdown components={markdownComponents}>{text}</Markdown>
+      <Markdown components={markdownComponents}>{linkedText}</Markdown>
     </div>
   );
 }

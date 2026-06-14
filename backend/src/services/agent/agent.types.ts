@@ -92,6 +92,8 @@ export type ToolCallRecord = {
   name: string;
   /** Present for query_chain — which read-only query was invoked. */
   query?: string;
+  /** Present for execute_transaction — which on-chain action was invoked. */
+  action?: string;
   result: unknown;
 };
 

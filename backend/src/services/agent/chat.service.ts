@@ -8,6 +8,7 @@ import {
 import type { ChatStreamSender } from "./execution-progress.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { approvePendingTransaction, rejectPendingTransaction } from "./transaction-approval.service.js";
+import { buildExplorerTxUrl } from "../agent-transaction/explorer-url.js";
 import {
   buildTransactionErrorUserContext,
   transactionContextFromPending,
@@ -109,7 +110,10 @@ export async function handleChatMessage(
         }
       }
 
-      const reply = `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
+      const explorerUrl = buildExplorerTxUrl(outcome.result.chain_id, outcome.result.digest);
+      const reply = explorerUrl
+        ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [View on Sui Explorer](${explorerUrl}) — Digest: ${outcome.result.digest}`
+        : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
 
       return persistApprovalTurn(privyUserId, request, reply, [
         {

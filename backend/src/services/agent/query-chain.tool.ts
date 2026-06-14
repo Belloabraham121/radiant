@@ -30,6 +30,7 @@ import { queryAgentTransactions } from "../agent-transaction/agent-transaction.s
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
 import type { BalanceContext } from "../chains/types.js";
+import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
   queryChainInputSchema,
   type QueryChainInput,
@@ -116,6 +117,7 @@ export const queryChainToolDefinition = {
 export async function runQueryChainTool(
   privyUserId: string,
   input: QueryChainInput,
+  options?: Pick<AgentToolOptions, "flashLoanTurnIntent">,
 ): Promise<QueryChainResult> {
   const parsed = queryChainInputSchema.parse(input);
   const wallet = await resolveAgentWalletByPrivyUserId(
@@ -201,7 +203,11 @@ export async function runQueryChainTool(
     }
     case "flash_loan_quote": {
       assertSuiDeepBookQuery(parsed.chain_id);
-      return getFlashLoanBundleQuote(privyUserId, parsed.params);
+      const advisoryQuote = options?.flashLoanTurnIntent === "research";
+      return getFlashLoanBundleQuote(privyUserId, parsed.params, {
+        emitProgress: !advisoryQuote,
+        advisoryQuote,
+      });
     }
     case "deepbook_open_orders": {
       assertSuiDeepBookQuery(parsed.chain_id);

@@ -141,7 +141,11 @@ async function dispatchAgentTool(
   try {
     switch (name) {
       case QUERY_CHAIN_TOOL_NAME:
-        return await runQueryChainTool(privyUserId, input as QueryChainInput);
+        return await runQueryChainTool(
+          privyUserId,
+          input as QueryChainInput,
+          options,
+        );
       case EXECUTE_TRANSACTION_TOOL_NAME:
         return await runExecuteTransactionToolWithApproval(
           privyUserId,

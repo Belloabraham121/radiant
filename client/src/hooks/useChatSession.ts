@@ -13,6 +13,7 @@ import {
 import {
   apiMessagesToChatMessages,
   mapToolCallsToMessageExtras,
+  receiptFromExecutionStep,
   type ChatMessage,
 } from "@/lib/chat-messages";
 import {
@@ -163,12 +164,14 @@ export function useChatSession(sessionId?: string) {
                     return message;
                   }
                   const nextStep = mapStreamStepToExecutionStep(step);
-                  const executionSteps = message.executionSteps ?? [];
+                  const executionSteps = sortExecutionSteps(
+                    upsertExecutionStep(message.executionSteps ?? [], nextStep),
+                  );
+                  const digestReceipt = receiptFromExecutionStep(nextStep);
                   return {
                     ...message,
-                    executionSteps: sortExecutionSteps(
-                      upsertExecutionStep(executionSteps, nextStep),
-                    ),
+                    executionSteps,
+                    ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
                   };
                 }),
               );
