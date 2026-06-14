@@ -25,6 +25,22 @@ export function isFlashLoanQuoteResult(result: unknown): result is FlashLoanBund
   );
 }
 
+/** True when this turn attempted on-chain flash loan execution (not quote-only research). */
+export function hasFlashLoanExecutionAttempt(toolCalls: ToolCallRecord[]): boolean {
+  return toolCalls.some((call) => call.name === EXECUTE_TRANSACTION_TOOL_NAME);
+}
+
+/** Canned quote text is for blocked or in-flight execution — not advisory research replies. */
+export function shouldUseCannedFlashLoanQuoteReply(
+  toolCalls: ToolCallRecord[],
+  quote: FlashLoanBundleQuoteResult,
+): boolean {
+  if (!quote.repay_feasible) {
+    return true;
+  }
+  return hasFlashLoanExecutionAttempt(toolCalls);
+}
+
 export function findLatestFlashLoanQuote(
   toolCalls: ToolCallRecord[],
 ): FlashLoanBundleQuoteResult | null {

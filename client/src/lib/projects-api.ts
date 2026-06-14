@@ -21,8 +21,36 @@ export type ArtifactRevisionSummary = {
   created_at: string;
 };
 
+export type ProjectsPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+};
+
+export type ProjectsListResult = {
+  projects: ProjectSummary[];
+  pagination?: ProjectsPagination;
+};
+
+export async function fetchProjects(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  scope?: "all" | "saved" | "deployed";
+}): Promise<ProjectsListResult> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.search?.trim()) query.set("search", params.search.trim());
+  if (params?.scope && params.scope !== "all") query.set("scope", params.scope);
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return apiFetch<ProjectsListResult>(`/api/v1/projects${suffix}`);
+}
+
+/** @deprecated Prefer fetchProjects for paginated listing. */
 export async function fetchAllProjects(): Promise<ProjectSummary[]> {
-  const data = await apiFetch<{ projects: ProjectSummary[] }>("/api/v1/projects");
+  const data = await fetchProjects({ limit: 100 });
   return data.projects;
 }
 
@@ -74,4 +102,8 @@ export async function saveSessionDraftToProject(
     method: "POST",
     body: JSON.stringify(body ?? {}),
   });
+}
+
+export async function deleteProject(projectId: string): Promise<{ deleted: boolean; project_id: string }> {
+  return apiFetch(`/api/v1/projects/${projectId}`, { method: "DELETE" });
 }

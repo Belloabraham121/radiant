@@ -53,6 +53,12 @@ export function ArtifactSaveToProjects({
         >
           Open in Radiant
         </Link>
+        <Link
+          href="/app/projects"
+          className="text-xs font-bold text-[var(--hero-ink)]/50 hover:underline"
+        >
+          All projects
+        </Link>
       </div>
     );
   }

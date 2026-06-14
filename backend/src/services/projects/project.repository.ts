@@ -45,6 +45,60 @@ export async function listProjectsByUserId(userId: bigint): Promise<Project[]> {
   });
 }
 
+export type ListProjectsOptions = {
+  page: number;
+  limit: number;
+  search?: string;
+  scope?: "all" | "saved" | "deployed";
+  sessionId?: string;
+};
+
+export async function listProjectsForUserPaginated(
+  userId: bigint,
+  options: ListProjectsOptions,
+): Promise<{ projects: Project[]; total: number }> {
+  const where: Prisma.ProjectWhereInput = {
+    user_id: userId,
+    ...(options.sessionId ? { session_id: options.sessionId } : {}),
+    ...(options.scope === "saved" ? { walrus_url: null } : {}),
+    ...(options.scope === "deployed" ? { walrus_url: { not: null } } : {}),
+    ...(options.search?.trim()
+      ? {
+          OR: [
+            { name: { contains: options.search.trim(), mode: "insensitive" } },
+            { tagline: { contains: options.search.trim(), mode: "insensitive" } },
+            { template: { contains: options.search.trim(), mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  const skip = (options.page - 1) * options.limit;
+
+  const [projects, total] = await prisma.$transaction([
+    prisma.project.findMany({
+      where,
+      orderBy: { updated_at: "desc" },
+      skip,
+      take: options.limit,
+    }),
+    prisma.project.count({ where }),
+  ]);
+
+  return { projects, total };
+}
+
+export async function deleteProjectForUser(projectId: string, userId: bigint): Promise<void> {
+  const project = await findProjectByIdForUser(projectId, userId);
+  if (!project) {
+    return;
+  }
+
+  await prisma.project.delete({
+    where: { id: projectId },
+  });
+}
+
 export async function listProjectsBySessionForUser(
   userId: bigint,
   sessionId: string,

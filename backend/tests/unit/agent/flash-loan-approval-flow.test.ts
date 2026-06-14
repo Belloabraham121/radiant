@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 import {
   filterToolCallsForClientDisplay,
   formatFlashLoanQuoteReply,
+  hasFlashLoanExecutionAttempt,
   isInfeasibleFlashLoanQuoteResult,
   shouldFinalizeFlashLoanQuoteReply,
+  shouldUseCannedFlashLoanQuoteReply,
 } from "../../../src/services/agent/deepbook/flash-loan-approval-flow.js";
 
 const infeasibleQuote = {
@@ -100,6 +102,27 @@ describe("flash-loan-approval-flow", () => {
         false,
       ),
     );
+  });
+
+  it("shouldUseCannedFlashLoanQuoteReply for infeasible or execution attempts only", () => {
+    const feasible = { ...infeasibleQuote, repay_feasible: true };
+
+    assert.equal(
+      shouldUseCannedFlashLoanQuoteReply([{ name: "query_chain", result: feasible }], feasible),
+      false,
+    );
+    assert.equal(
+      shouldUseCannedFlashLoanQuoteReply(
+        [
+          { name: "query_chain", result: feasible },
+          { name: "execute_transaction", result: { status: "approval_required" } },
+        ],
+        feasible,
+      ),
+      true,
+    );
+    assert.equal(shouldUseCannedFlashLoanQuoteReply([], infeasibleQuote), true);
+    assert.equal(hasFlashLoanExecutionAttempt([{ name: "execute_transaction", result: {} }]), true);
   });
 
   it("isInfeasibleFlashLoanQuoteResult detects infeasible quotes", () => {

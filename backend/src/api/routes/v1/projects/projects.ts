@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth.js";
 import { findUserByPrivyId } from "../../../../services/auth/user.repository.js";
 import {
-  listProjectsByUserId,
+  listProjectsForUserPaginated,
+  deleteProjectForUser,
   findProjectByIdForUser,
   listProjectsBySessionForUser,
 } from "../../../../services/projects/project.repository.js";
@@ -25,6 +26,10 @@ import { ok } from "../../../../utils/http-response.js";
 
 const listProjectsQuerySchema = z.object({
   session_id: z.string().uuid().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(12),
+  search: z.string().trim().optional(),
+  scope: z.enum(["all", "saved", "deployed"]).default("all"),
 });
 
 const getProjectQuerySchema = z.object({
@@ -45,12 +50,34 @@ projectsRouter.get("/api/v1/projects", requireAuth, async (req, res, next) => {
       throw new AppError(404, "USER_NOT_FOUND", "User not found");
     }
 
-    const projects = query.session_id
-      ? await listProjectsBySessionForUser(user.id, query.session_id)
-      : await listProjectsByUserId(user.id);
+    if (query.session_id) {
+      const sessionProjects = await listProjectsBySessionForUser(user.id, query.session_id);
+      return ok(req, res, {
+        projects: sessionProjects.map((project) => ({
+          id: project.id,
+          session_id: project.session_id,
+          name: project.name,
+          tagline: project.tagline,
+          template: project.template,
+          status: project.status,
+          accent: project.accent,
+          walrus_url: project.walrus_url,
+          artifact_revision: project.artifact_revision,
+          updated_at: project.updated_at.toISOString(),
+          created_at: project.created_at.toISOString(),
+        })),
+      });
+    }
+
+    const { projects: paginatedProjects, total } = await listProjectsForUserPaginated(user.id, {
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      scope: query.scope,
+    });
 
     return ok(req, res, {
-      projects: projects.map((project) => ({
+      projects: paginatedProjects.map((project) => ({
         id: project.id,
         session_id: project.session_id,
         name: project.name,
@@ -63,6 +90,12 @@ projectsRouter.get("/api/v1/projects", requireAuth, async (req, res, next) => {
         updated_at: project.updated_at.toISOString(),
         created_at: project.created_at.toISOString(),
       })),
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        total_pages: Math.max(1, Math.ceil(total / query.limit)),
+      },
     });
   } catch (err) {
     next(err);
@@ -212,6 +245,25 @@ projectsRouter.post("/api/v1/projects/:projectId/publish", requireAuth, async (r
       req.body,
     );
     return ok(req, res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+projectsRouter.delete("/api/v1/projects/:projectId", requireAuth, async (req, res, next) => {
+  try {
+    const user = await findUserByPrivyId(req.user.privyUserId);
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    const project = await findProjectByIdForUser(req.params.projectId, user.id);
+    if (!project) {
+      throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+    }
+
+    await deleteProjectForUser(project.id, user.id);
+    return ok(req, res, { deleted: true, project_id: project.id });
   } catch (err) {
     next(err);
   }

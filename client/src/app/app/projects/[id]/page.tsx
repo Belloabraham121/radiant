@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
-import { ArrowLeft, ArrowUpRight, Hammer, Loader2, Play } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Hammer, Loader2, Play, Trash2 } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { PublishToExplorerPanel } from "@/components/app/PublishToExplorerPanel";
-import { fetchAllProjects, type ProjectSummary } from "@/lib/projects-api";
+import { DeleteProjectDialog } from "@/components/projects/DeleteProjectDialog";
+import { deleteProject, type ProjectSummary } from "@/lib/projects-api";
+import { apiFetch } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -18,22 +21,48 @@ function formatDate(iso: string): string {
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [missing, setMissing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    void fetchAllProjects()
-      .then((rows) => {
+    void apiFetch<{
+      project: {
+        id: string;
+        session_id: string | null;
+        name: string;
+        tagline: string;
+        template: string;
+        status: string;
+        accent: string;
+        walrus_url: string | null;
+        artifact_revision: number;
+        updated_at: string;
+        created_at: string;
+      };
+    }>(`/api/v1/projects/${id}`)
+      .then((data) => {
         if (cancelled) return;
-        const match = rows.find((row) => row.id === id) ?? null;
-        if (!match) {
-          setMissing(true);
-          return;
-        }
-        setProject(match);
+        const row = data.project;
+        setProject({
+          id: row.id,
+          session_id: row.session_id,
+          name: row.name,
+          tagline: row.tagline,
+          template: row.template,
+          status: row.status,
+          accent: row.accent,
+          walrus_url: row.walrus_url,
+          artifact_revision: row.artifact_revision,
+          updated_at: row.updated_at,
+          created_at: row.created_at,
+        });
       })
       .catch(() => {
         if (!cancelled) setMissing(true);
@@ -46,6 +75,20 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       cancelled = true;
     };
   }, [id]);
+
+  async function confirmDelete() {
+    if (!project) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteProject(project.id);
+      router.push("/app/projects");
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Could not delete project");
+      setDeleting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -130,6 +173,38 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       </p>
 
       <PublishToExplorerPanel projectId={project.id} />
+
+      <DeleteProjectDialog
+        project={project}
+        open={deleteDialogOpen}
+        deleting={deleting}
+        error={deleteError}
+        onOpenChange={(open) => {
+          if (deleting) return;
+          setDeleteDialogOpen(open);
+          if (!open) setDeleteError(null);
+        }}
+        onConfirm={() => void confirmDelete()}
+      />
+
+      <div className="mt-10 border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-8">
+        <h2 className="font-heading text-lg font-extrabold text-red-700">Danger zone</h2>
+        <p className="mt-2 max-w-xl text-sm font-medium text-[var(--hero-ink)]/55">
+          Permanently delete this project and all saved artifact revisions.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setDeleteError(null);
+            setDeleteDialogOpen(true);
+          }}
+          disabled={deleting}
+          className="mt-4 inline-flex items-center gap-2 rounded-full border-2 border-red-300 bg-red-50 px-5 py-2.5 text-sm font-bold text-red-700 transition-colors hover:border-red-500 disabled:opacity-50"
+        >
+          <Trash2 className="size-4" strokeWidth={2.5} aria-hidden />
+          Delete project
+        </button>
+      </div>
     </div>
   );
 }

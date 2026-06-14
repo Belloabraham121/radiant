@@ -435,6 +435,10 @@ export function mapToolCallsToExecutionSteps(
   const flashQuoteIndex = findLatestFlashLoanQuoteIndex(toolCalls);
   if (flashQuoteIndex >= 0) {
     const quote = toolCalls[flashQuoteIndex].result as FlashLoanQuoteResult;
+    const hasExecute = toolCalls.some((call) => call.name === "execute_transaction");
+    if (!hasExecute && quote.repay_feasible) {
+      return undefined;
+    }
     return buildFlashLoanExecutionSteps(toolCalls, flashQuoteIndex, quote);
   }
 

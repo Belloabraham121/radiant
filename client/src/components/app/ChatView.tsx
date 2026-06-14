@@ -132,6 +132,14 @@ function Bubble({
             Radiant
           </span>
         )}
+
+        {message.executionSteps && message.executionSteps.length > 0 ? (
+          <ExecutionTimeline
+            steps={message.executionSteps}
+            live={message.streaming === true}
+          />
+        ) : null}
+
         <div
           className={`rounded-3xl border-2 border-(--hero-ink) px-5 py-3.5 text-sm font-medium leading-relaxed ${
             isUser
@@ -147,13 +155,6 @@ function Bubble({
             <AgentMessageMarkdown text={message.text} />
           )}
         </div>
-
-        {message.executionSteps && message.executionSteps.length > 0 ? (
-          <ExecutionTimeline
-            steps={message.executionSteps}
-            live={message.streaming === true}
-          />
-        ) : null}
 
         {message.receipts && message.receipts.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -201,6 +202,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const ref = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const animatedMessageIdsRef = useRef(new Set<string>());
   const initialBatchDoneRef = useRef(false);
   const [input, setInput] = useState("");
@@ -254,6 +256,22 @@ export function ChatView({ sessionId }: ChatViewProps) {
   useEffect(() => {
     animatedMessageIdsRef.current.clear();
     initialBatchDoneRef.current = false;
+    stickToBottomRef.current = true;
+  }, [sessionId]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const onScroll = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      stickToBottomRef.current = distanceFromBottom < 96;
+    };
+
+    container.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => container.removeEventListener("scroll", onScroll);
   }, [sessionId]);
 
   useEffect(() => {
@@ -310,21 +328,24 @@ export function ChatView({ sessionId }: ChatViewProps) {
   }, [hydrating, messages]);
 
   useEffect(() => {
+    if (!stickToBottomRef.current) return;
     const container = scrollRef.current;
     if (!container) return;
     container.scrollTop = container.scrollHeight;
   }, [sessionId]);
 
   useEffect(() => {
+    if (!stickToBottomRef.current) return;
     const container = scrollRef.current;
     if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    container.scrollTop = container.scrollHeight;
   }, [hydrating, messages, pendingTx, typing, streaming]);
 
   const send = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
     if (!text || typing || streaming) return;
+    stickToBottomRef.current = true;
     setInput("");
     void sendMessage(text);
   };

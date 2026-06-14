@@ -28,21 +28,20 @@ import {
   SWAP_QUOTE_AND_EXECUTE_NUDGE,
 } from "../deepbook/swap-approval-flow.js";
 import {
-  findLatestFlashLoanQuote,
   filterToolCallsForClientDisplay,
   formatFlashLoanQuoteReply,
+  findLatestFlashLoanQuote,
   isFlashLoanParamValidationError,
   isFlashLoanRepayNotFeasibleError,
   isInfeasibleFlashLoanQuoteResult,
   shouldFinalizeFlashLoanQuoteReply,
+  shouldUseCannedFlashLoanQuoteReply,
 } from "../deepbook/flash-loan-approval-flow.js";
 import {
+  buildReplyAfterToolsNudge,
   findLastToolError,
   hasSuccessfulQueryResults,
-  REPLY_AFTER_TOOLS_NUDGE,
   shouldNudgeReplyAfterTools,
-  hasAgentTransactionsQuery,
-  AGENT_TRANSACTIONS_REPLY_NUDGE,
 } from "../turn-reply-flow.js";
 import {
   buildUnsupportedCapabilityNudge,
@@ -330,7 +329,12 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       const toolCallList = choice.tool_calls ?? [];
-      if (toolCallList.length > 0 && streamedReplyText) {
+      const batchHasExecute = toolCallList.some(
+        (toolCall) =>
+          toolCall.type === "function" &&
+          toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME,
+      );
+      if (toolCallList.length > 0 && streamedReplyText && batchHasExecute) {
         emitReplyClear();
       }
       if (toolCallList.length === 0) {
@@ -405,9 +409,7 @@ export const openaiRuntime: AgentRuntime = {
         if (shouldNudgeReplyAfterTools(tool_calls)) {
           messages.push({
             role: "user",
-            content: hasAgentTransactionsQuery(tool_calls)
-              ? `${REPLY_AFTER_TOOLS_NUDGE}\n\n${AGENT_TRANSACTIONS_REPLY_NUDGE}`
-              : REPLY_AFTER_TOOLS_NUDGE,
+            content: buildReplyAfterToolsNudge(tool_calls),
           });
           continue;
         }
@@ -420,7 +422,6 @@ export const openaiRuntime: AgentRuntime = {
 
       let executeToolError: AgentToolErrorResult | null = null;
       let infeasibleFlashLoanQuote: FlashLoanBundleQuoteResult | null = null;
-      let flashLoanFlowActive = false;
 
       for (const toolCall of toolCallList) {
         if (toolCall.type !== "function") continue;
@@ -456,10 +457,10 @@ export const openaiRuntime: AgentRuntime = {
         }
 
         if (
+          batchHasExecute &&
           toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
           args.query === "flash_loan_quote"
         ) {
-          flashLoanFlowActive = true;
           emitExecutionProgress({
             step: {
               id: "quote",
@@ -471,7 +472,7 @@ export const openaiRuntime: AgentRuntime = {
         }
 
         if (
-          !flashLoanFlowActive &&
+          batchHasExecute &&
           toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
           args.query === "swap_quote"
         ) {
@@ -534,7 +535,7 @@ export const openaiRuntime: AgentRuntime = {
         }
 
         if (
-          !flashLoanFlowActive &&
+          batchHasExecute &&
           toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
           args.query === "swap_quote"
         ) {
@@ -545,10 +546,11 @@ export const openaiRuntime: AgentRuntime = {
           toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
           isAgentToolErrorResult(result)
         ) {
-          if (args.query === "flash_loan_quote") {
-            flashLoanFlowActive = true;
+          if (batchHasExecute && args.query === "flash_loan_quote") {
+            emitQueryChainFailureProgress(args.query, result);
+          } else if (args.query !== "flash_loan_quote") {
+            emitQueryChainFailureProgress(args.query, result);
           }
-          emitQueryChainFailureProgress(args.query, result);
         }
 
         if (
@@ -651,7 +653,7 @@ export const openaiRuntime: AgentRuntime = {
 
     if (!reply) {
       const quote = findLatestFlashLoanQuote(tool_calls);
-      if (quote) {
+      if (quote && shouldUseCannedFlashLoanQuoteReply(tool_calls, quote)) {
         reply = formatFlashLoanQuoteReply(quote);
       } else {
         const lastToolError = findLastToolError(tool_calls);

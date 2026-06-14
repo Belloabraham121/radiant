@@ -7,7 +7,6 @@ import {
   ChevronsLeft,
   FolderKanban,
   MessageSquare,
-  PackageOpen,
   PanelLeft,
   Plus,
   Settings,
@@ -26,7 +25,6 @@ const NAV = [
   { href: "/app", label: "Chats", Icon: MessageSquare },
   { href: "/app/activity", label: "Activity", Icon: Activity },
   { href: "/app/projects", label: "Projects", Icon: FolderKanban },
-  { href: "/app/installed", label: "Installed", Icon: PackageOpen },
   { href: "/app/settings", label: "Settings", Icon: Settings },
 ];
 
@@ -96,7 +94,10 @@ export function Sidebar() {
             const active =
               href === "/app"
                 ? pathname === "/app" || pathname.startsWith("/app/chat/")
-                : pathname.startsWith(href);
+                : href === "/app/projects"
+                  ? pathname.startsWith("/app/projects") ||
+                    pathname.startsWith("/app/installed")
+                  : pathname.startsWith(href);
             return (
               <Link
                 key={href}
