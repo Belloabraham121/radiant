@@ -18,11 +18,13 @@ export function ArtifactProjectControls({
   payload,
   streaming,
   onPayloadChange,
+  className = "",
 }: {
   sessionId?: string;
   payload: ArtifactPayload;
   streaming?: boolean;
   onPayloadChange: (artifact: ArtifactPayload) => void;
+  className?: string;
 }) {
   const { ready, authenticated } = usePrivy();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -115,7 +117,7 @@ export function ArtifactProjectControls({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b-2 border-[var(--hero-ink)]/10 px-3 py-2">
+    <div className={`flex flex-wrap items-center justify-end gap-2 ${className}`}>
       {sessionId ? (
         <label className="flex min-w-0 items-center gap-1.5">
           <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-[var(--hero-ink)]/40">

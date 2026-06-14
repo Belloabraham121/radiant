@@ -7,8 +7,6 @@ import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
 import { ArtifactPreview } from "@/components/app/ArtifactPreview";
 import { ArtifactProjectControls } from "@/components/app/ArtifactProjectControls";
 import { ArtifactDeployPanel } from "@/components/app/ArtifactDeployPanel";
-import { ArtifactLiveSiteBanner } from "@/components/app/ArtifactLiveSiteBanner";
-import { useProjectWalrusUrl } from "@/hooks/useProjectWalrusUrl";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 
 type ArtifactTab = "preview" | "code" | "deploy";
@@ -56,7 +54,6 @@ export function ArtifactPanel({
   className?: string;
 }) {
   const projectId = payload.project_id !== "preview" ? payload.project_id : undefined;
-  const { liveUrl } = useProjectWalrusUrl(projectId);
   const [tab, setTab] = useState<ArtifactTab>(() => readStoredTab(projectId));
 
   useEffect(() => {
@@ -98,41 +95,42 @@ export function ArtifactPanel({
         </button>
       </div>
 
-      <ArtifactProjectControls
-        sessionId={sessionId}
-        payload={payload}
-        streaming={streaming}
-        onPayloadChange={onPayloadChange}
-      />
+      <div className="flex items-center gap-2 border-b-2 border-[var(--hero-ink)]/10 px-3 py-2">
+        <div className="flex shrink-0 gap-1">
+          {ARTIFACT_TABS.map(({ id, label, Icon }) => {
+            const active = tab === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                aria-label={label}
+                title={label}
+                className={`relative flex size-8 items-center justify-center rounded-full transition-colors ${
+                  active
+                    ? "bg-[var(--hero-ink)] text-[var(--hero-bg)]"
+                    : "text-[var(--hero-ink)]/50 hover:bg-[var(--hero-ink)]/5 hover:text-[var(--hero-ink)]"
+                }`}
+              >
+                <Icon className="size-4" strokeWidth={2.5} aria-hidden />
+                {id === "code" && streaming ? (
+                  <span
+                    className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-white bg-[var(--hero-violet)] animate-pulse"
+                    aria-hidden
+                  />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
 
-      {liveUrl ? <ArtifactLiveSiteBanner url={liveUrl} /> : null}
-
-      <div className="flex gap-1 border-b-2 border-[var(--hero-ink)]/10 px-3 py-2">
-        {ARTIFACT_TABS.map(({ id, label, Icon }) => {
-          const active = tab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              aria-label={label}
-              title={label}
-              className={`relative flex size-8 items-center justify-center rounded-full transition-colors ${
-                active
-                  ? "bg-[var(--hero-ink)] text-[var(--hero-bg)]"
-                  : "text-[var(--hero-ink)]/50 hover:bg-[var(--hero-ink)]/5 hover:text-[var(--hero-ink)]"
-              }`}
-            >
-              <Icon className="size-4" strokeWidth={2.5} aria-hidden />
-              {id === "code" && streaming ? (
-                <span
-                  className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2 border-white bg-[var(--hero-violet)] animate-pulse"
-                  aria-hidden
-                />
-              ) : null}
-            </button>
-          );
-        })}
+        <ArtifactProjectControls
+          sessionId={sessionId}
+          payload={payload}
+          streaming={streaming}
+          onPayloadChange={onPayloadChange}
+          className="ml-auto min-w-0"
+        />
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
