@@ -5,19 +5,28 @@ import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar"
 import type { ArtifactFile } from "@/lib/artifact-types";
 import { parseAppActionResultFromBody } from "@/lib/app-actions-api";
 import { useAgentTransactionApproval } from "@/hooks/useAgentTransactionApproval";
+import { useActivePreviewSessionRegistration } from "@/lib/active-preview-session";
 
 export function ArtifactPreviewWithApproval({
   files,
   revision,
   projectId,
   installationId,
+  sessionId,
 }: {
   files: ArtifactFile[];
   revision: number;
   projectId?: string;
   installationId?: string;
+  sessionId?: string;
 }) {
   const approval = useAgentTransactionApproval();
+
+  useActivePreviewSessionRegistration(
+    projectId || installationId
+      ? { sessionId, projectId, installationId }
+      : null,
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -49,6 +58,7 @@ export function ArtifactPreviewWithApproval({
           revision={revision}
           projectId={projectId}
           installationId={installationId}
+          sessionId={sessionId}
           onProxiedApiResponse={(_status, body) => {
             approval.handleActionResult(parseAppActionResultFromBody(body));
           }}

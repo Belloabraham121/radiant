@@ -64,6 +64,39 @@ export const radiantAgent = {
   isActive() {
     return activeCount > 0;
   },
+  handleExternalEvent(data: Record<string, unknown>) {
+    if (!data || data.type !== "radiant-agent-event") return;
+    const target = typeof data.target === "string" ? data.target : null;
+    if (target) {
+      highlightTarget(target, "agent-focused");
+    }
+    if (data.active === true) {
+      emit({ type: "active", active: true });
+    }
+    if (data.active === false) {
+      emit({ type: "active", active: false });
+    }
+    const action = typeof data.action === "string" ? data.action : null;
+    if (action && data.step === "executing") {
+      const params =
+        data.params && typeof data.params === "object"
+          ? (data.params as Record<string, unknown>)
+          : {};
+      emit({ type: "executing", action, params });
+    }
+    if (action && data.step === "result" && data.digest && typeof data.digest === "string") {
+      emit({
+        type: "result",
+        action,
+        result: {
+          status: "executed",
+          digest: data.digest,
+          explorer_url: null,
+          result: {},
+        },
+      });
+    }
+  },
   async execute(
     action: string,
     params: Record<string, unknown> = {},

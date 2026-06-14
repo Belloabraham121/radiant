@@ -4,6 +4,7 @@ import {
   RADIANT_CLIENT_TEMPLATE_VERSION,
   RADIANT_CLIENT_TS,
 } from "../../../src/services/projects/radiant-client-template.js";
+import { RADIANT_AGENT_RUNTIME_TS } from "../../../src/services/projects/radiant-agent-runtime-template.js";
 
 describe("radiant-client template", () => {
   it("is at expected version with execute helpers", () => {
@@ -16,5 +17,6 @@ describe("radiant-client template", () => {
     assert.match(RADIANT_CLIENT_TS, /__RADIANT_INSTALLATION_ID__/);
     assert.match(RADIANT_CLIENT_TS, /isApprovalRequired/);
     assert.match(RADIANT_CLIENT_TS, /RadiantActionError/);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /handleExternalEvent/);
   });
 });

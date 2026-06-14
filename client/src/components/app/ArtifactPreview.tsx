@@ -5,11 +5,13 @@ import { ArtifactPreviewNavBar } from "@/components/app/ArtifactPreviewNavBar";
 import { buildArtifactPreviewSrcdoc } from "@/lib/artifact-preview";
 import { extractArtifactPreviewRoutes } from "@/lib/artifact-preview-routes";
 import type { ArtifactFile } from "@/lib/artifact-types";
-
-const PREVIEW_MESSAGE_TYPE = "radiant-artifact-preview";
-const PREVIEW_NAVIGATE_TYPE = "radiant-artifact-preview-navigate";
-const PREVIEW_API_REQUEST = "radiant-preview-api";
-const PREVIEW_API_RESPONSE = "radiant-preview-api-response";
+import {
+  PREVIEW_API_REQUEST,
+  PREVIEW_MESSAGE_TYPE,
+  PREVIEW_NAVIGATE_TYPE,
+  proxyPreviewApiRequest,
+} from "@/lib/artifact-preview-bridge";
+import { usePreviewAgentEventRelay } from "@/hooks/usePreviewAgentEventRelay";
 
 function PreviewLoadingOverlay() {
   return (
@@ -44,12 +46,14 @@ export function ArtifactPreview({
   revision,
   projectId,
   installationId,
+  sessionId,
   onProxiedApiResponse,
 }: {
   files: ArtifactFile[];
   revision: number;
   projectId?: string;
   installationId?: string;
+  sessionId?: string;
   onProxiedApiResponse?: (status: number, body: string, path: string) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -61,9 +65,11 @@ export function ArtifactPreview({
   const loading = readyIframeKey !== iframeKey;
   const routes = useMemo(() => extractArtifactPreviewRoutes(files), [files]);
   const srcdoc = useMemo(
-    () => buildArtifactPreviewSrcdoc(files, { projectId, installationId }),
-    [files, projectId, installationId],
+    () => buildArtifactPreviewSrcdoc(files, { projectId, installationId, sessionId }),
+    [files, projectId, installationId, sessionId],
   );
+
+  usePreviewAgentEventRelay(iframeRef, Boolean(projectId || installationId));
 
   useEffect(() => {
     previewPathRef.current = previewPath;
@@ -89,42 +95,22 @@ export function ArtifactPreview({
       if (data?.type === PREVIEW_API_REQUEST) {
         if (event.source !== iframeRef.current?.contentWindow) return;
         void (async () => {
-          try {
-            let path = data.path ?? "";
-            if (installationId && projectId) {
-              const projectPrefix = `/api/v1/projects/${projectId}/`;
-              const installationPrefix = `/api/v1/installations/${installationId}/`;
-              if (path.startsWith(projectPrefix)) {
-                path = installationPrefix + path.slice(projectPrefix.length);
-              }
-            }
-            const res = await fetch(path, {
-              method: data.method ?? "GET",
+          const { response, path } = await proxyPreviewApiRequest(
+            {
+              type: PREVIEW_API_REQUEST,
+              requestId: data.requestId ?? "",
+              path: data.path ?? "",
+              method: data.method,
               body: data.body,
-              credentials: "include",
-              headers: data.body ? { "Content-Type": "application/json" } : undefined,
-            });
-            const text = await res.text();
-            onProxiedApiResponse?.(res.status, text, path);
-            iframeRef.current?.contentWindow?.postMessage(
-              {
-                type: PREVIEW_API_RESPONSE,
-                requestId: data.requestId,
-                status: res.status,
-                body: text,
-              },
-              "*",
-            );
-          } catch (err) {
-            iframeRef.current?.contentWindow?.postMessage(
-              {
-                type: PREVIEW_API_RESPONSE,
-                requestId: data.requestId,
-                error: err instanceof Error ? err.message : "Request failed",
-              },
-              "*",
-            );
+            },
+            { projectId, installationId, sessionId },
+          );
+
+          if (response.body && response.status != null) {
+            onProxiedApiResponse?.(response.status, response.body, path);
           }
+
+          iframeRef.current?.contentWindow?.postMessage(response, "*");
         })();
         return;
       }
@@ -145,7 +131,14 @@ export function ArtifactPreview({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [postNavigate, installationId, projectId, onProxiedApiResponse, iframeKey]);
+  }, [
+    postNavigate,
+    installationId,
+    projectId,
+    sessionId,
+    onProxiedApiResponse,
+    iframeKey,
+  ]);
 
   function handlePathChange(path: string) {
     setPreviewPath(path);

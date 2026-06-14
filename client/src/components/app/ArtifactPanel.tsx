@@ -147,6 +147,7 @@ export function ArtifactPanel({
             files={payload.files}
             revision={payload.revision}
             projectId={projectId}
+            sessionId={sessionId}
           />
         ) : null}
 

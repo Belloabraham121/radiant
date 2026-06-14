@@ -24,6 +24,7 @@ import {
 import { listAppActionsCatalog } from "../../../../services/projects/app-action-catalog.service.js";
 import { parseAppActionName } from "../../../../services/projects/app-action-mapper.js";
 import { executeAppActionForProject } from "../../../../services/projects/app-action.service.js";
+import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { ok } from "../../../../utils/http-response.js";
 
@@ -255,12 +256,13 @@ projectsRouter.post(
   async (req, res, next) => {
     try {
       const action = parseAppActionName(req.params.actionName);
+      const sessionId = readAppActionSessionId(req);
       const result = await executeAppActionForProject(
         req.user.privyUserId,
         req.params.projectId,
         action,
         req.body,
-        { source: "ui" },
+        { source: "ui", ...(sessionId ? { sessionId } : {}) },
       );
       return ok(req, res, result);
     } catch (err) {

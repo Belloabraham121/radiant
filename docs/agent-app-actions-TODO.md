@@ -267,23 +267,23 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Verify `__RADIANT_PREVIEW_FETCH__` handles `POST .../actions/*` | Extend tests if needed |
-| [ ] | `ArtifactPreview.tsx` installation path rewrite | Already rewrites project → installation prefix |
+| [x] | Verify `__RADIANT_PREVIEW_FETCH__` handles `POST .../actions/*` | `artifact-preview-bridge.ts` + unit tests |
+| [x] | `ArtifactPreview.tsx` installation path rewrite | `rewritePreviewApiPath` shared helper |
 
 ### 5.2 Agent event relay (prep for Phase 8)
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Define `radiant-agent-event` postMessage type | `{ type, action?, params?, step?, target?, digest? }` |
-| [ ] | Parent listener forwards SSE events → iframe | Placeholder hook in `ArtifactPreview` |
-| [ ] | Iframe runtime listens for `radiant-agent-event` | In `radiant-agent-runtime.ts` |
+| [x] | Define `radiant-agent-event` postMessage type | `RadiantAgentStreamEvent` in `artifact-preview-bridge.ts` |
+| [x] | Parent listener forwards SSE events → iframe | `usePreviewAgentEventRelay` placeholder hook |
+| [x] | Iframe runtime listens for `radiant-agent-event` | `handleExternalEvent` in `radiant-agent-runtime.ts` |
 
 ### 5.3 Session ↔ preview linking
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `ActivePreviewSession` registry (client) | `{ sessionId, projectId, installationId }` when panel open |
-| [ ] | Pass `session_id` on action execute from UI | Backend knows which stream to emit to |
+| [x] | `ActivePreviewSession` registry (client) | `active-preview-session.ts` |
+| [x] | Pass `session_id` on action execute from UI | `X-Radiant-Session-Id` header on action POSTs; backend `readAppActionSessionId` |
 
 ---
 
@@ -592,6 +592,7 @@ Fallback: chat execution timeline + receipts only (already shipped in chat).
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 5 | Preview bridge: API proxy helper, agent events, session header, ActivePreviewSession |
 | 2026-06-14 | 4 | `__radiantAgent` runtime, AgentIndicator, swap scaffold, codegen prompts |
 | 2026-06-14 | 3 | `radiant-client` v3: `executeAction`, swap/flash/stake helpers, installation id, preview injection |
 | 2026-06-14 | 2 | HTTP routes: project + installation `GET/POST .../actions`, catalog service, api-ref |

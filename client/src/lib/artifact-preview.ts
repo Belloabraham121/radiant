@@ -1,5 +1,12 @@
 import type { ArtifactFile } from "@/lib/artifact-types";
 import {
+  PREVIEW_API_REQUEST,
+  PREVIEW_API_RESPONSE,
+  PREVIEW_MESSAGE_TYPE,
+  PREVIEW_NAVIGATE_TYPE,
+  RADIANT_AGENT_EVENT_TYPE,
+} from "@/lib/artifact-preview-bridge";
+import {
   buildModuleSourceMap,
   normalizeArtifactPath,
   pickAppModulePath,
@@ -33,6 +40,7 @@ export function prepareAppSourceForPreview(source: string): string {
 export type ArtifactPreviewOptions = {
   projectId?: string;
   installationId?: string;
+  sessionId?: string;
 };
 
 function prepareModuleMap(files: ArtifactFile[]): Record<string, string> {
@@ -57,6 +65,7 @@ export function buildArtifactPreviewSrcdoc(
     modules,
     projectId: options.projectId ?? "",
     installationId: options.installationId ?? "",
+    sessionId: options.sessionId ?? "",
   });
 
   return `<!DOCTYPE html>
@@ -116,12 +125,22 @@ ${css}
   if (payload.installationId) {
     window.__RADIANT_INSTALLATION_ID__ = payload.installationId;
   }
+  if (payload.sessionId) {
+    window.__RADIANT_SESSION_ID__ = payload.sessionId;
+  }
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.type !== "${RADIANT_AGENT_EVENT_TYPE}") return;
+    if (typeof window.__radiantAgent?.handleExternalEvent === "function") {
+      window.__radiantAgent.handleExternalEvent(data);
+    }
+  });
   window.__RADIANT_PREVIEW_FETCH__ = function(path, init) {
     return new Promise(function(resolve, reject) {
       var requestId = "preview-" + Math.random().toString(36).slice(2);
       function onMessage(event) {
         var data = event.data;
-        if (!data || data.type !== "radiant-preview-api-response" || data.requestId !== requestId) return;
+        if (!data || data.type !== "${PREVIEW_API_RESPONSE}" || data.requestId !== requestId) return;
         window.removeEventListener("message", onMessage);
         if (data.error) {
           reject(new Error(data.error));
@@ -134,7 +153,7 @@ ${css}
       }
       window.addEventListener("message", onMessage);
       window.parent.postMessage({
-        type: "radiant-preview-api",
+        type: "${PREVIEW_API_REQUEST}",
         requestId: requestId,
         path: path,
         method: (init && init.method) || "GET",
