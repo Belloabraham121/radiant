@@ -23,6 +23,22 @@ describe("app-action result mapping", () => {
       sessionId: ctx.sessionId,
       messageId: ctx.messageId,
       approved: true,
+      broadcast: false,
+    });
+  });
+
+  it("buildAgentToolOptionsFromContext enables broadcast for agent source", () => {
+    const ctx: AppActionContext = {
+      privyUserId: "did:privy:test",
+      projectId: "00000000-0000-4000-8000-000000000001",
+      sessionId: "00000000-0000-4000-8000-000000000099",
+      source: "agent",
+    };
+    assert.deepEqual(buildAgentToolOptionsFromContext(ctx), {
+      sessionId: ctx.sessionId,
+      messageId: undefined,
+      approved: undefined,
+      broadcast: true,
     });
   });
 

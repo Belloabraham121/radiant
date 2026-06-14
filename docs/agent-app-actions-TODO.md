@@ -388,10 +388,10 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Hook in `executeAppAction` | If stream subscriber + `broadcast: true` |
-| [ ] | Hook in chat `execute_transaction` when preview linked | Same events for chat-only agent path |
-| [ ] | Semantic events first | `{ type: agent_action, action: swap, params, animate: true }` |
-| [ ] | Optional fine-grained steps | `{ type: agent_step, target: amount-in, value: 2 }` |
+| [x] | Hook in `executeAppAction` | If stream subscriber + `broadcast: true` |
+| [x] | Hook in chat `execute_transaction` when preview linked | Same events for chat-only agent path |
+| [x] | Semantic events first | `{ type: agent_action, action: swap, params, animate: true }` |
+| [x] | Optional fine-grained steps | `{ type: agent_step, target: amount-in, value: 2 }` |
 
 ### 8.3 Client SSE consumer
 
@@ -592,6 +592,7 @@ Fallback: chat execution timeline + receipts only (already shipped in chat).
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 8.2 | Stream hooks in execute path: `broadcast` flag, semantic + step events |
 | 2026-06-14 | 8.1 | SSE agent stream route, `emitAgentEvent`, in-memory + Redis pub/sub |
 | 2026-06-14 | 5 | Preview bridge: API proxy helper, agent events, session header, ActivePreviewSession |
 | 2026-06-14 | 4 | `__radiantAgent` runtime, AgentIndicator, swap scaffold, codegen prompts |

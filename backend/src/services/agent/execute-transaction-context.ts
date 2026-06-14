@@ -8,6 +8,8 @@ export type ExecuteTransactionContext = {
 
 export type AgentToolOptions = ExecuteTransactionContext & {
   approved?: boolean;
+  /** When true with sessionId + SSE subscriber, emit live preview animation events. */
+  broadcast?: boolean;
   /** Raw JSON tool arguments — used to recover partial generate_app payloads. */
   rawArguments?: string;
   /** Resolved from the latest user message — gates flash-loan execute vs quote-only UI. */

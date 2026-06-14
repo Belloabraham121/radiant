@@ -128,7 +128,11 @@ async function dispatchAgentTool(
         return await runExecuteTransactionToolWithApproval(
           privyUserId,
           input as ExecuteTransactionInput,
-          options,
+          {
+            sessionId: options?.sessionId,
+            messageId: options?.messageId,
+            broadcast: Boolean(options?.sessionId),
+          },
         );
       case CALL_APP_ACTION_TOOL_NAME:
         return await runCallAppActionTool(privyUserId, input, {

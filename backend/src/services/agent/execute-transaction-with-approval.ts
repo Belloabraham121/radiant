@@ -1,3 +1,10 @@
+import {
+  agentStreamContextFromToolOptions,
+  emitAgentStreamExecutionError,
+  emitAgentStreamExecutionOutcome,
+  emitAgentStreamExecutionStart,
+  resolveAgentStreamAction,
+} from "./agent-stream-execution.js";
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 import type { ExecuteToolOutcome } from "./agent.types.js";
@@ -52,88 +59,104 @@ export async function runExecuteTransactionToolWithApproval(
   input: ExecuteTransactionInput,
   options: AgentToolOptions | boolean = {},
 ): Promise<ExecuteToolOutcome> {
-  if (executeWithApprovalHandlerForTests) {
-    return executeWithApprovalHandlerForTests(privyUserId, input, options);
-  }
-
   const opts = resolveExecuteTransactionOptions(options);
-  const approved = opts.approved === true;
-  const context = {
-    sessionId: opts.sessionId,
-    messageId: opts.messageId,
-    workflowStepIndex: opts.workflowStepIndex,
-  };
+  const streamCtx = agentStreamContextFromToolOptions(opts);
+  const streamAction = resolveAgentStreamAction(input);
+  const streamParams = (input.params ?? {}) as Record<string, unknown>;
 
   validateExecuteTransactionInput(input);
-
-  if (!approved) {
-    const needsApproval = await transferRequiresApproval(privyUserId, input);
-    if (needsApproval) {
-      if (isDeepBookSwapAction(input.action)) {
-        await preflightDeepBookSwap(privyUserId, input.params);
-      }
-      if (input.action === "deepbook_place_limit_order") {
-        await preflightDeepBookPlaceLimitOrder(privyUserId, input.params);
-      }
-      if (input.action === "deepbook_place_market_order") {
-        await preflightDeepBookPlaceMarketOrder(privyUserId, input.params);
-      }
-      if (input.action === "deepbook_modify_order") {
-        await preflightDeepBookModifyOrder(privyUserId, input.params);
-      }
-      if (input.action === "deepbook_withdraw_settled_amounts") {
-        await preflightDeepBookWithdrawSettled(privyUserId, input.params);
-      }
-      if (input.action === "deepbook_withdraw_settled_amounts_permissionless") {
-        await preflightDeepBookWithdrawSettledPermissionless(privyUserId, input.params);
-      }
-      if (input.action === "deepbook_withdraw") {
-        await preflightDeepBookWithdraw(privyUserId, input.params);
-      }
-      if (isDeepBookFlashLoanAction(input.action)) {
-        await preflightDeepBookFlashLoan(privyUserId, input.params);
-      }
-      const pending = await createPendingTransaction(privyUserId, input, context);
-      return {
-        status: "approval_required",
-        pending,
-        agent_transaction_id: pending.id,
-      };
-    }
-  }
-
-  let transactionId: string | undefined;
-  try {
-    const row = await recordAutoExecuted({
-      privyUserId,
-      sessionId: context.sessionId,
-      messageId: context.messageId,
-      workflowStepIndex: context.workflowStepIndex,
-      input,
-    });
-    transactionId = row.id;
-  } catch (err) {
-    console.warn("Failed to record auto-executed agent transaction", err);
-  }
+  emitAgentStreamExecutionStart(streamCtx, streamAction, streamParams);
 
   try {
-    const result = await runExecuteTransactionTool(privyUserId, input);
-    if (transactionId) {
-      await markCompleted(transactionId, { kind: "success", result }).catch(() => undefined);
+    if (executeWithApprovalHandlerForTests) {
+      const outcome = await executeWithApprovalHandlerForTests(privyUserId, input, options);
+      emitAgentStreamExecutionOutcome(streamCtx, streamAction, outcome);
+      return outcome;
     }
-    return {
-      status: "executed",
-      result,
-      ...(transactionId ? { agent_transaction_id: transactionId } : {}),
+
+    const approved = opts.approved === true;
+    const context = {
+      sessionId: opts.sessionId,
+      messageId: opts.messageId,
+      workflowStepIndex: opts.workflowStepIndex,
     };
-  } catch (err) {
-    if (transactionId) {
-      const error = mapAgentToolError(err);
-      await markCompleted(transactionId, {
-        kind: "failure",
-        error: { code: error.code, message: error.message },
-      }).catch(() => undefined);
+
+    if (!approved) {
+      const needsApproval = await transferRequiresApproval(privyUserId, input);
+      if (needsApproval) {
+        if (isDeepBookSwapAction(input.action)) {
+          await preflightDeepBookSwap(privyUserId, input.params);
+        }
+        if (input.action === "deepbook_place_limit_order") {
+          await preflightDeepBookPlaceLimitOrder(privyUserId, input.params);
+        }
+        if (input.action === "deepbook_place_market_order") {
+          await preflightDeepBookPlaceMarketOrder(privyUserId, input.params);
+        }
+        if (input.action === "deepbook_modify_order") {
+          await preflightDeepBookModifyOrder(privyUserId, input.params);
+        }
+        if (input.action === "deepbook_withdraw_settled_amounts") {
+          await preflightDeepBookWithdrawSettled(privyUserId, input.params);
+        }
+        if (input.action === "deepbook_withdraw_settled_amounts_permissionless") {
+          await preflightDeepBookWithdrawSettledPermissionless(privyUserId, input.params);
+        }
+        if (input.action === "deepbook_withdraw") {
+          await preflightDeepBookWithdraw(privyUserId, input.params);
+        }
+        if (isDeepBookFlashLoanAction(input.action)) {
+          await preflightDeepBookFlashLoan(privyUserId, input.params);
+        }
+        const pending = await createPendingTransaction(privyUserId, input, context);
+        const outcome = {
+          status: "approval_required" as const,
+          pending,
+          agent_transaction_id: pending.id,
+        };
+        emitAgentStreamExecutionOutcome(streamCtx, streamAction, outcome);
+        return outcome;
+      }
     }
+
+    let transactionId: string | undefined;
+    try {
+      const row = await recordAutoExecuted({
+        privyUserId,
+        sessionId: context.sessionId,
+        messageId: context.messageId,
+        workflowStepIndex: context.workflowStepIndex,
+        input,
+      });
+      transactionId = row.id;
+    } catch (err) {
+      console.warn("Failed to record auto-executed agent transaction", err);
+    }
+
+    try {
+      const result = await runExecuteTransactionTool(privyUserId, input);
+      if (transactionId) {
+        await markCompleted(transactionId, { kind: "success", result }).catch(() => undefined);
+      }
+      const outcome = {
+        status: "executed" as const,
+        result,
+        ...(transactionId ? { agent_transaction_id: transactionId } : {}),
+      };
+      emitAgentStreamExecutionOutcome(streamCtx, streamAction, outcome);
+      return outcome;
+    } catch (err) {
+      if (transactionId) {
+        const error = mapAgentToolError(err);
+        await markCompleted(transactionId, {
+          kind: "failure",
+          error: { code: error.code, message: error.message },
+        }).catch(() => undefined);
+      }
+      throw err;
+    }
+  } catch (err) {
+    emitAgentStreamExecutionError(streamCtx, streamAction, err);
     throw err;
   }
 }
