@@ -2,6 +2,10 @@
 
 import { Loader2, ShieldAlert } from "lucide-react";
 import type { PendingTransaction } from "@/lib/chat-api";
+import {
+  resolveQuoteExpiresAt,
+  useSwapQuoteCountdown,
+} from "@/hooks/useSwapQuoteCountdown";
 import { formatAmountDisplayText, formatDisplayNumber } from "@/lib/format-display-amount";
 
 export function TransactionApprovalBar({
@@ -44,6 +48,11 @@ export function TransactionApprovalBar({
     ? (pending.params.steps as Array<{ pool_key?: string; side?: string; amount?: number }>)
     : [];
   const isOrder = isLimitOrder || isMarketOrder;
+
+  const quoteExpiresAt = isSwap ? resolveQuoteExpiresAt(pending) : null;
+  const quoteCountdown = useSwapQuoteCountdown(quoteExpiresAt);
+  const quoteExpired = isSwap && quoteCountdown.status === "expired";
+  const approveDisabled = busy || quoteExpired;
 
   return (
     <div
@@ -116,8 +125,14 @@ export function TransactionApprovalBar({
                         : "Review the details, then approve to sign and send."}
           </p>
         </div>
-        <span className="shrink-0 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)]/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-[var(--hero-amber)]">
-          Pending
+        <span
+          className={`shrink-0 rounded-full border-2 border-[var(--hero-ink)] px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+            quoteExpired
+              ? "bg-[var(--hero-coral)]/15 text-[var(--hero-coral)]"
+              : "bg-[var(--hero-amber)]/15 text-[var(--hero-amber)]"
+          }`}
+        >
+          {quoteExpired ? "Quote expired" : "Pending"}
         </span>
       </div>
 
@@ -132,9 +147,32 @@ export function TransactionApprovalBar({
           {pending.chain_id} · {pending.action}
         </p>
         {isSwap ? (
-          <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
-            Estimated output may shift slightly before the transaction lands on chain.
-          </p>
+          <>
+            {typeof pending.params.estimated_out_display === "number" ? (
+              <p className="mt-2 text-sm font-semibold text-[var(--hero-ink)]/70">
+                Estimated receive: ~
+                {formatDisplayNumber(pending.params.estimated_out_display)}{" "}
+                {typeof pending.params.output_coin === "string"
+                  ? pending.params.output_coin
+                  : pending.amount_display.split("→").pop()?.trim().split(/\s+/).pop() ?? ""}
+              </p>
+            ) : null}
+            {quoteCountdown.status === "active" ? (
+              <p className="mt-2 text-[10px] font-semibold tabular-nums text-[var(--hero-blue)]">
+                Quote valid for {quoteCountdown.label}
+              </p>
+            ) : null}
+            {quoteExpired ? (
+              <p className="mt-2 text-[10px] font-semibold text-[var(--hero-coral)]">
+                This quote expired. Cancel and ask again to get a fresh rate — approval is blocked
+                until you refresh.
+              </p>
+            ) : (
+              <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
+                On approve, the swap re-quotes at current market prices with your slippage limit.
+              </p>
+            )}
+          </>
         ) : isFlashLoan ? (
           <>
             {flashSteps.length > 0 ? (
@@ -176,12 +214,12 @@ export function TransactionApprovalBar({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          disabled={busy}
+          disabled={approveDisabled}
           onClick={onApprove}
           className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2.5 text-sm font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-          Approve & send
+          {quoteExpired ? "Quote expired" : "Approve & send"}
         </button>
         <button
           type="button"

@@ -102,6 +102,8 @@ export type PendingTransaction = {
   params: Record<string, unknown>;
   summary: string;
   amount_display: string;
+  /** ISO timestamp — swap quotes expire; approval is blocked after this time. */
+  quote_expires_at?: string | null;
 };
 
 export type ChatResponse = {

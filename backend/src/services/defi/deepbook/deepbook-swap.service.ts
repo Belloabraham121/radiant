@@ -20,6 +20,7 @@ import type { TxResult } from "../../chains/types.js";
 
 const DEFAULT_SLIPPAGE_BPS = 100;
 const DEEP_SCALAR = 1_000_000;
+export const SWAP_QUOTE_TTL_MS = 60_000;
 const SWAP_ACTIONS = new Set(["swap", "deepbook_swap"]);
 
 export type DeepBookSwapParams = {
@@ -420,7 +421,7 @@ export async function getDeepBookSwapQuote(
     output_amount_display: sdkQuote.outDisplay,
     price: sdkQuote.price ?? indexerPrice,
     fee_deep: parsed.pay_with_deep ? sdkQuote.feeDeep : null,
-    expires_at: new Date(Date.now() + 60_000).toISOString(),
+    expires_at: new Date(Date.now() + SWAP_QUOTE_TTL_MS).toISOString(),
     side: parsed.side,
     pay_with_deep: parsed.pay_with_deep,
     slippage_bps: parsed.slippage_bps,

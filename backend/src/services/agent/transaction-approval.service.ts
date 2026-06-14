@@ -40,6 +40,11 @@ import {
 } from "./deepbook/validate-execute-transaction.js";
 import { buildTransactionDisplay } from "../agent-transaction/deepbook/build-display.js";
 import {
+  enrichSwapExecuteInputForApproval,
+  isSwapQuoteExpired,
+  readQuoteExpiresAt,
+} from "./deepbook/swap-quote-enrichment.js";
+import {
   claimPendingApprovalForUser,
   claimPendingRejectionForUser,
   clearPendingApprovalsForTests,
@@ -108,16 +113,21 @@ export async function buildPendingTransactionPreview(
   input: ExecuteTransactionInput,
   id = randomUUID(),
 ): Promise<PendingTransaction> {
-  validateExecuteTransactionInput(input);
-  const { title, amount_display: amountDisplay } = await buildTransactionDisplay(privyUserId, input);
+  const enriched = await enrichSwapExecuteInputForApproval(privyUserId, input);
+  validateExecuteTransactionInput(enriched);
+  const { title, amount_display: amountDisplay } = await buildTransactionDisplay(
+    privyUserId,
+    enriched,
+  );
 
   return {
     id,
-    chain_id: input.chain_id,
-    action: input.action,
-    params: input.params,
+    chain_id: enriched.chain_id,
+    action: enriched.action,
+    params: enriched.params,
     amount_display: amountDisplay,
     summary: title,
+    quote_expires_at: readQuoteExpiresAt(enriched.params),
   };
 }
 
@@ -294,7 +304,11 @@ export async function createPendingTransaction(
     sessionId: context?.sessionId,
     messageId: context?.messageId,
     workflowStepIndex: context?.workflowStepIndex,
-    input,
+    input: {
+      chain_id: pending.chain_id,
+      action: pending.action,
+      params: pending.params,
+    },
     pending,
   });
 
@@ -318,6 +332,19 @@ export async function approvePendingTransaction(
 
   const pending = pendingTransactionFromRecord(claimed);
   const executeInput = executeInputFromRecord(claimed);
+
+  if (isDeepBookSwapAction(executeInput.action) && isSwapQuoteExpired(executeInput.params)) {
+    const error = new AppError(
+      400,
+      "QUOTE_EXPIRED",
+      "This swap quote expired. Cancel and ask again to get a fresh rate before approving.",
+    );
+    await markCompleted(transactionId, {
+      kind: "failure",
+      error: { code: error.code, message: error.message },
+    });
+    return { ok: false, pending, error };
+  }
 
   try {
     const result = await runExecuteTransactionTool(privyUserId, executeInput);

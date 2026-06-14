@@ -14,6 +14,7 @@ export type PendingTransaction = {
   params: Record<string, unknown>;
   summary: string;
   amount_display: string;
+  quote_expires_at?: string | null;
 };
 
 export type ClarificationInteractionType =

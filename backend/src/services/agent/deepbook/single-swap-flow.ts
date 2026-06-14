@@ -66,6 +66,11 @@ export async function tryExecuteSingleSwapFromMessage(
   }
 
   params.estimated_out_display = quote.output_amount_display;
+  params.min_out_display = quote.min_out_display;
+  params.input_coin = quote.input_coin;
+  params.output_coin = quote.output_coin;
+  params.quote_expires_at = quote.expires_at;
+  params.quoted_at = new Date().toISOString();
 
   const tool_calls: ToolCallRecord[] = [
     {
