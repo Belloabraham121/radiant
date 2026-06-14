@@ -6,6 +6,7 @@ Claude-style **artifacts in chat**, **published projects** (shareable Walrus lin
 
 **References**
 
+- [App builder platform TODO](./app-builder-platform-TODO.md) — master roadmap (Option B storage, Inngest, Walrus snapshots)
 - [README — Deploy pipeline](../README.md#deploy-pipeline)
 - [E2B Billing & Plans (Hobby = free tier)](https://e2b.mintlify.app/docs/billing#plans)
 - [E2B Filesystem — 10 GB Hobby disk](https://e2b.mintlify.app/docs/filesystem)
