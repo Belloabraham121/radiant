@@ -1,5 +1,6 @@
 import type { AgentTransactionCategory } from "../agent-transaction/agent-transaction.types.js";
-import type { ChainId } from "../chains/types.js";
+import type { ChainId, TxResult } from "../chains/types.js";
+import type { PendingTransaction } from "../agent/agent.types.js";
 
 /** Canonical app-facing action names (stable API for UI + call_app_action). */
 export const APP_ACTION_NAMES = [
@@ -50,3 +51,46 @@ export type AppActionParamField = {
 export type AppActionParamSchemaDoc = {
   fields: AppActionParamField[];
 };
+
+/** Who initiated the app action (for analytics, live stream, and audit). */
+export type AppActionSource = "ui" | "agent" | "external";
+
+/** Execution context for project/installation-scoped app actions. */
+export type AppActionContext = {
+  privyUserId: string;
+  projectId?: string;
+  installationId?: string;
+  sessionId?: string;
+  messageId?: string;
+  source: AppActionSource;
+  /** Override default chain from action registry. */
+  chainId?: ChainId;
+  /** When true, skip approval gate (e.g. user already approved in chat). */
+  approved?: boolean;
+};
+
+/** Normalized outcome for UI, chat tools, and external callers. Mirrors chat ExecuteToolOutcome + errors. */
+export type AppActionResult =
+  | {
+      status: "executed";
+      action: AppActionName;
+      agent_transaction_id?: string;
+      digest: string;
+      explorer_url: string | null;
+      result: TxResult;
+    }
+  | {
+      status: "approval_required";
+      action: AppActionName;
+      agent_transaction_id: string;
+      pending: PendingTransaction;
+    }
+  | {
+      status: "error";
+      action: AppActionName;
+      error: {
+        code: string;
+        message: string;
+        details?: unknown;
+      };
+    };

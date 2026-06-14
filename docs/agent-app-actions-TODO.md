@@ -83,15 +83,15 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `AppActionResult` type | `{ status: executed \| approval_required \| error, agent_transaction_id?, digest?, pending?, result? }` |
-| [ ] | Mirror chat `ExecuteToolOutcome` | Same shape client already understands |
+| [x] | `AppActionResult` type | `{ status: executed \| approval_required \| error, agent_transaction_id?, digest?, pending?, result? }` |
+| [x] | Mirror chat `ExecuteToolOutcome` | `app-action-result.ts` — map + round-trip helpers |
 
 ### 0.3 Context keys
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `AppActionContext` | `{ privyUserId, projectId?, installationId?, sessionId?, messageId?, source: ui \| agent \| external }` |
-| [ ] | Correlation | Link UI-initiated actions to ledger + optional chat message |
+| [x] | `AppActionContext` | `{ privyUserId, projectId?, installationId?, sessionId?, messageId?, source: ui \| agent \| external }` |
+| [x] | Correlation | `buildAgentToolOptionsFromContext` → ledger via sessionId/messageId |
 
 ---
 
@@ -105,25 +105,27 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Create `services/projects/app-action.service.ts` | Public: `executeAppAction(ctx, action, params)` |
-| [ ] | Resolve wallet + permissions | Reuse `getAgentPermissions`, chain registry |
-| [ ] | Delegate to existing execute pipeline | `runAgentTool` / `runExecuteTransactionToolWithApproval` |
-| [ ] | Record `AgentTransaction` | Same as chat path |
-| [ ] | Return normalized `AppActionResult` | Include `explorer_url` when digest present |
+| [x] | Create `services/projects/app-action.service.ts` | Public: `executeAppAction(ctx, action, params)` |
+| [x] | Resolve wallet + permissions | Via existing `runExecuteTransactionToolWithApproval` |
+| [x] | Delegate to existing execute pipeline | `runExecuteTransactionToolWithApproval` |
+| [x] | Record `AgentTransaction` | Same as chat path (inside approval tool) |
+| [x] | Return normalized `AppActionResult` | Include `explorer_url` when digest present |
 
 ### 1.2 Project vs installation scope
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `executeAppActionForProject(projectId, …)` | Owner's agent wallet |
-| [ ] | `executeAppActionForInstallation(installationId, …)` | **Installer's** agent wallet (mirror `swapQuoteForInstallation`) |
-| [ ] | Auth guards | Same patterns as `project-platform.service.ts` |
+| [x] | `executeAppActionForProject(projectId, …)` | Owner's agent wallet |
+| [x] | `executeAppActionForInstallation(installationId, …)` | **Installer's** agent wallet (mirror `swapQuoteForInstallation`) |
+| [x] | Auth guards | Same patterns as `project-platform.service.ts` |
 
 ### 1.3 Approval from UI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Return `approval_required` without blocking HTTP | `{ status, pending, agent_transaction_id }` |
+| [x] | Return `approval_required` without blocking HTTP | `{ status, pending, agent_transaction_id }` via `AppActionResult` |
+| [ ] | UI polling or chat bridge for approve | Reuse `TransactionApprovalBar` pattern OR in-app modal |
+| [ ] | `POST .../actions/:action/approve` optional | Or approve via existing `POST /chat` with `approve_transaction_id` |
 | [ ] | UI polling or chat bridge for approve | Reuse `TransactionApprovalBar` pattern OR in-app modal |
 | [ ] | `POST .../actions/:action/approve` optional | Or approve via existing `POST /chat` with `approve_transaction_id` |
 
@@ -592,5 +594,6 @@ Fallback: chat execution timeline + receipts only (already shipped in chat).
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 0.2–1.2 | `AppActionResult`, `AppActionContext`, `app-action.service.ts`, result mappers + tests |
 | 2026-06-14 | 0.1 | Action registry: `app-action.types`, `app-action-registry`, `app-action-param-schemas`, `app-action-mapper` + unit tests |
 | 2026-06-14 | — | Initial doc created from architecture review |

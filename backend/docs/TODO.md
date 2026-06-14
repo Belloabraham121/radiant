@@ -482,7 +482,7 @@ Phase 0 (infra + dashboard)
 | Status | Task | Owner |
 | ------ | ---- | ----- |
 | [x] | Phase 0 — Action types + mapper | [Backend] |
-| [ ] | Phase 1 — `executeAppAction` service (wraps chat execute path) | [Backend] |
+| [x] | Phase 1 — `executeAppAction` service (wraps chat execute path) | [Backend] |
 | [ ] | Phase 2 — `POST .../projects\|installations/.../actions/:action` | [Backend] |
 | [ ] | Phase 3 — `radiant-client` execute helpers | [Both] |
 | [ ] | Phase 4 — `__radiantAgent` runtime + AgentIndicator template | [Both] |
