@@ -7,6 +7,7 @@ import {
   ChevronsLeft,
   FolderKanban,
   MessageSquare,
+  PackageOpen,
   PanelLeft,
   Plus,
   Settings,
@@ -25,6 +26,7 @@ const NAV = [
   { href: "/app", label: "Chats", Icon: MessageSquare },
   { href: "/app/activity", label: "Activity", Icon: Activity },
   { href: "/app/projects", label: "Projects", Icon: FolderKanban },
+  { href: "/app/installed", label: "Installed", Icon: PackageOpen },
   { href: "/app/settings", label: "Settings", Icon: Settings },
 ];
 

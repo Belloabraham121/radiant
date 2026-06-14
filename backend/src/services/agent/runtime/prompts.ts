@@ -73,6 +73,7 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     "Use react / react-dom / react-router-dom only — no extra npm packages. Tailwind className or inline styles; globals in app/globals.css.",
     "For multi-page or multi-section UIs in generate_app, use react-router-dom (HashRouter, Routes, Route, Link) with paths like / and /sign-in — the artifact preview bar lets users jump between routes.",
     "After generate_app the app is saved and ready to use in Radiant (Projects page or artifact preview). Only call deploy_app if the user explicitly asks to verify the production build in a sandbox — not for normal save or open flows.",
+    "Explorer / marketplace: list_public_apps browses the public catalog. install_app installs an app for the user (opens in Radiant at /app/installed/:id/run — not an external URL). publish_app lists the owner's live project on the explorer (is_public, fee_bps, category). Installed apps use the installer's agent wallet via installation-scoped APIs.",
     "deepbook_manager_info does NOT list open orders — use deepbook_open_orders.",
     "You only have context from this chat thread and the user memory block below — do not assume knowledge from other conversations.",
   ];

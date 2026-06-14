@@ -63,6 +63,7 @@ model User {
   agent_memory             AgentMemory?
   deepbook_balance_manager DeepBookBalanceManager?
   projects                 Project[]
+  app_installations        AppInstallation[]
 }
 
 model AgentMemory {
@@ -201,9 +202,25 @@ model Project {
   updated_at         DateTime      @updatedAt
   files              ArtifactFile[]
   deploy_jobs        DeployJob[]
+  installations      AppInstallation[] @relation("InstallSource")
 
   @@index([user_id, updated_at(sort: Desc)])
   @@index([is_public, created_at(sort: Desc)])
+}
+
+model AppInstallation {
+  id                String   @id @default(uuid()) @db.Uuid
+  user_id           BigInt
+  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  source_project_id String   @db.Uuid
+  source_project    Project  @relation("InstallSource", fields: [source_project_id], references: [id], onDelete: Cascade)
+  pinned_revision   Int?
+  installed_at      DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  @@unique([user_id, source_project_id])
+  @@index([user_id, installed_at(sort: Desc)])
+  @@index([source_project_id])
 }
 
 model ArtifactFile {

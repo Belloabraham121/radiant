@@ -27,6 +27,21 @@ import {
   listSessionProjectsToolDefinition,
   runListSessionProjectsTool,
 } from "../projects/list-session-projects.tool.js";
+import {
+  INSTALL_APP_TOOL_NAME,
+  installAppToolDefinition,
+  runInstallAppTool,
+} from "../projects/install-app.tool.js";
+import {
+  PUBLISH_APP_TOOL_NAME,
+  publishAppToolDefinition,
+  runPublishAppTool,
+} from "../projects/publish-app.tool.js";
+import {
+  LIST_PUBLIC_APPS_TOOL_NAME,
+  listPublicAppsToolDefinition,
+  runListPublicAppsTool,
+} from "../projects/list-public-apps.tool.js";
 import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
 import {
   UPDATE_MEMORY_TOOL_NAME,
@@ -70,6 +85,9 @@ export const agentToolDefinitions = [
   listSessionProjectsToolDefinition,
   generateAppToolDefinition,
   deployAppToolDefinition,
+  listPublicAppsToolDefinition,
+  installAppToolDefinition,
+  publishAppToolDefinition,
 ] as const;
 
 export type AgentToolErrorResult = {
@@ -137,6 +155,12 @@ async function dispatchAgentTool(
         });
       case DEPLOY_APP_TOOL_NAME:
         return await runDeployAppTool(privyUserId, input);
+      case LIST_PUBLIC_APPS_TOOL_NAME:
+        return await runListPublicAppsTool(privyUserId, input);
+      case INSTALL_APP_TOOL_NAME:
+        return await runInstallAppTool(privyUserId, input);
+      case PUBLISH_APP_TOOL_NAME:
+        return await runPublishAppTool(privyUserId, input);
       default:
         throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
     }

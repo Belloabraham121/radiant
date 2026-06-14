@@ -43,10 +43,12 @@ export function ArtifactPreview({
   files,
   revision,
   projectId,
+  installationId,
 }: {
   files: ArtifactFile[];
   revision: number;
   projectId?: string;
+  installationId?: string;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewPathRef = useRef("/");
@@ -86,7 +88,15 @@ export function ArtifactPreview({
         if (event.source !== iframeRef.current?.contentWindow) return;
         void (async () => {
           try {
-            const res = await fetch(data.path ?? "", {
+            let path = data.path ?? "";
+            if (installationId && projectId) {
+              const projectPrefix = `/api/v1/projects/${projectId}/`;
+              const installationPrefix = `/api/v1/installations/${installationId}/`;
+              if (path.startsWith(projectPrefix)) {
+                path = installationPrefix + path.slice(projectPrefix.length);
+              }
+            }
+            const res = await fetch(path, {
               method: data.method ?? "GET",
               body: data.body,
               credentials: "include",
@@ -132,7 +142,7 @@ export function ArtifactPreview({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [postNavigate]);
+  }, [postNavigate, installationId, projectId]);
 
   function handlePathChange(path: string) {
     setPreviewPath(path);

@@ -16,6 +16,10 @@ import {
   poolInfoForProject,
   swapQuoteForProject,
 } from "../../../../services/projects/project-platform.service.js";
+import {
+  getProjectPublishStateForUser,
+  publishProjectForUser,
+} from "../../../../services/apps/app-installation.service.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { ok } from "../../../../utils/http-response.js";
 
@@ -190,3 +194,25 @@ projectsRouter.get(
     }
   },
 );
+
+projectsRouter.get("/api/v1/projects/:projectId/publish", requireAuth, async (req, res, next) => {
+  try {
+    const data = await getProjectPublishStateForUser(req.user.privyUserId, req.params.projectId);
+    return ok(req, res, data);
+  } catch (err) {
+    next(err);
+  }
+});
+
+projectsRouter.post("/api/v1/projects/:projectId/publish", requireAuth, async (req, res, next) => {
+  try {
+    const data = await publishProjectForUser(
+      req.user.privyUserId,
+      req.params.projectId,
+      req.body,
+    );
+    return ok(req, res, data);
+  } catch (err) {
+    next(err);
+  }
+});

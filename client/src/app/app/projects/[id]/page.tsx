@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { ArrowLeft, ArrowUpRight, Hammer, Loader2, Play } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
+import { PublishToExplorerPanel } from "@/components/app/PublishToExplorerPanel";
 import { fetchAllProjects, type ProjectSummary } from "@/lib/projects-api";
 
 function formatDate(iso: string): string {
@@ -124,9 +125,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       </div>
 
       <p className="mt-6 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
-        This app runs inside Radiant with your agent wallet and platform APIs. It is not published
-        as an external link — open it here or from chat after your agent builds it.
+        This app runs inside Radiant with your agent wallet and platform APIs. Publish it to the
+        explorer when you want other Radiant users to install and run it.
       </p>
+
+      <PublishToExplorerPanel projectId={project.id} />
     </div>
   );
 }

@@ -1,20 +1,21 @@
-# App builder, artifacts & deploy — implementation TODO
+# App builder, artifacts & Radiant runtime — implementation TODO
 
-Claude-style **artifacts in chat**, **published projects** (shareable Walrus links), and **explorer listings**. This doc is the **single source of truth** for what to build, how to set it up, and how to stay within **E2B Hobby (free) plan** limits.
+Claude-style **artifacts in chat**, **Radiant-only personal apps** (no external hosting URLs), and **explorer install** (Phase 5). This doc is the **single source of truth** for E2B build-verify, artifact UI, and Hobby plan limits.
 
-**North star:** User asks agent to build → artifact panel opens with code + preview → deploy → permanent `*.walrus.site` URL → optional public explorer listing with fees.
+**North star:** User asks agent to build → artifact panel opens with preview + code → project saves to Postgres (`status: live`) → user opens app from **Projects** or chat inside Radiant → optional later: **install from explorer** for other Radiant users/agents.
 
 **References**
 
-- [App builder platform TODO](./app-builder-platform-TODO.md) — master roadmap (Option B storage, Inngest, Walrus snapshots)
+- [App builder platform TODO](./app-builder-platform-TODO.md) — master roadmap (Radiant-only runtime, Option B storage, explorer install)
 - [README — Deploy pipeline](../README.md#deploy-pipeline)
 - [E2B Billing & Plans (Hobby = free tier)](https://e2b.mintlify.app/docs/billing#plans)
 - [E2B Filesystem — 10 GB Hobby disk](https://e2b.mintlify.app/docs/filesystem)
 - [E2B Template caching](https://e2b.mintlify.app/docs/template/caching)
 - [E2B Sandbox persistence / pause](https://e2b.mintlify.app/docs/sandbox/persistence)
 - [E2B Usage cost calculator](https://e2b.dev/pricing)
-- [Walrus Sites](https://docs.wal.app/)
 - Client mocks to replace: `client/src/lib/app-data.ts`, `client/src/lib/explorer-data.ts`
+
+> **Walrus Sites removed from app builder (2026-06):** `backend/src/services/walrus/` remains for possible future **blob** snapshots only. The deploy pipeline does **not** upload to Sites; the Deploy tab and `walrus_url` UI are removed.
 
 **Tracked in:** [backend/docs/TODO.md — Phase 11](../backend/docs/TODO.md)
 
@@ -77,7 +78,7 @@ Use the [E2B usage cost calculator](https://e2b.dev/pricing) with your chosen vC
 | `cp scaffold → /workspace` | 1–3 s | Local copy, no network |
 | Write artifact files | 1–5 s | Batch writes; ≤512 KB total |
 | `npm run build` | 15–45 s | Preinstalled deps in template (`npm ci`) |
-| Walrus upload (from sandbox or backend) | 10–30 s | Prefer backend upload of tarball |
+| Mark project `live` (Radiant) | <1 s | No external upload |
 | `sandbox.kill()` | <1 s | **Mandatory** |
 | **Total** | **~30–90 s** | Well under 1 h Hobby limit |
 
@@ -138,20 +139,20 @@ Use the [E2B usage cost calculator](https://e2b.dev/pricing) with your chosen vC
 | # | Rule | Why (Hobby) |
 | - | ---- | ----------- |
 | 22 | **Artifact preview = client iframe (`srcdoc`)** | **Zero E2B** |
-| 23 | **Phase 3 template-only Walrus before E2B** | Real links at $0 sandbox cost |
-| 24 | **Fixed templates skip E2B entirely** | escrow/swap/splitter use pre-built `dist/` |
-| 25 | **E2B only for `template: custom` with edited source** | Custom codegen is the only case worth credits |
+| 23 | **`generate_app` marks project live** | No deploy step for personal apps |
+| 24 | **Fixed templates skip E2B entirely** | escrow/swap use pre-built dist for verify only |
+| 25 | **E2B only for optional `deploy_app` build verify** | Custom codegen when user/agent explicitly verifies build |
 | 26 | **Dedupe deploy jobs** | Same `project_id` + revision → reject if job running |
 | 27 | **Max 2 retries per deploy job** | Failed builds shouldn't loop burn credits |
 
-### Walrus & output (important)
+### Build output (important)
 
 | # | Rule | Why |
 | - | ---- | --- |
-| 28 | **Vite static export only** | Smaller `dist/` than Next.js |
-| 29 | **Compress assets in scaffold** | `vite build` minify + tree-shake |
-| 30 | **Upload `dist/` tarball from backend** | Kill sandbox before Walrus upload if possible |
-| 31 | **Store config JSON in Walrus blob once** | Don't re-upload unchanged config |
+| 28 | **Next static export in E2B scaffold** | Matches artifact `app/` layout |
+| 29 | **Tailwind via PostCSS in scaffold** | Preview uses CDN; deploy build uses real CSS |
+| 30 | **Dist collected only to verify build** | Not uploaded externally |
+| 31 | **Artifact bytes live in Postgres** | Source of truth for Radiant preview/runner |
 
 ---
 
@@ -159,19 +160,20 @@ Use the [E2B usage cost calculator](https://e2b.dev/pricing) with your chosen vC
 
 | Scenario | Expected behavior | Sandbox? |
 | -------- | ----------------- | -------- |
-| User: “Build me a payment splitter” | `select_template` → `generate_app` → panel opens | **No** |
+| User: “Build me a payment splitter” | `generate_app` → panel opens → **`status: live`** | **No** |
 | User edits UI in chat | `generate_app` patches files; preview updates | **No** |
-| User: “Deploy it” (custom template) | Queue E2B job → progress → `walrus_url` | **Yes** (~60–120s) |
-| User: “Deploy it” (fixed template) | Inject config → upload pre-built `dist/` | **No** |
-| User opens **Projects** | Real DB rows; status badges | **No** |
-| User: “List on explorer 0.3% fee” | `register_app` → `/explorer` listing | **No** |
-| Explorer visitor clicks **Use app** | Opens `walrus_url` in new tab | **No** |
-| Deploy fails (OOM / timeout) | Job `failed`; sandbox killed; user sees logs | Kill in `finally` |
-| Credits exhausted | Block E2B deploy; offer template-only path | **No** |
+| User opens app | **Projects → Open** or chat preview | **No** |
+| Agent: `deploy_app` (optional) | E2B build verify → `status: live` | **Yes** (~60–120s) |
+| User opens **Projects** | Real DB rows; **ready** / draft badges | **No** |
+| User: “List on explorer 0.3% fee” | `publish` + install flow (Phase 5) | **No** |
+| Explorer visitor clicks **Use app** | **Install + open in Radiant** (Phase 5) | **No** |
+| Build verify fails (OOM / timeout) | Job `failed`; sandbox killed; logs shown | Kill in `finally` |
+| Credits exhausted | Block E2B verify; apps still usable via preview | **No** |
 
 ### Out of scope (v1)
 
-- Next.js SSR on Walrus
+- External hosting URLs (`*.walrus.site`) for personal apps
+- Walrus Sites deploy in app builder UI
 - Arbitrary npm packages at runtime (whitelist: react, tailwind, lucide-react only)
 - Multi-user artifact editing
 - E2B pause/resume for deploy sessions
@@ -183,14 +185,15 @@ Use the [E2B usage cost calculator](https://e2b.dev/pricing) with your chosen vC
 
 ```text
 Client
-  ChatView.tsx ──────────────► ArtifactPanel.tsx (preview: srcdoc, NO E2B)
+  ChatView.tsx ──────────────► ArtifactPanel.tsx (Preview + Code, NO E2B)
   /app/projects ─────────────► GET /api/v1/projects
-  /explorer ─────────────────► GET /api/v1/apps
+  /app/projects/:id/run ─────► full-screen ArtifactPreview
+  /explorer ─────────────────► GET /api/v1/apps (Phase 5)
             │
             ▼
 Backend API (Express — never spawn E2B in request thread)
-  POST /api/v1/chat ─────────► generate_app | deploy_app tools
-  POST /api/v1/deploy ───────► enqueue BullMQ job → return job_id
+  POST /api/v1/chat ─────────► generate_app | deploy_app (optional verify)
+  POST /api/v1/deploy ───────► enqueue build-verify job (agent-only path)
   GET  /api/v1/deploy/:id ───► status + logs (poll)
             │
             ▼
@@ -199,16 +202,15 @@ workers/deploy.worker.ts (separate process)
             │
             ▼
 services/sandbox/sandbox.provider.ts
-  ├── none.provider.ts      Phase 3 — template-only, $0
-  ├── e2b.provider.ts       Phase 4 — Hobby credits
+  ├── none.provider.ts      fixed template verify, $0
+  ├── e2b.provider.ts       custom build verify, Hobby credits
   └── mock.provider.ts      tests
             │
             ▼
-services/walrus/ + services/deploy/deploy.service.ts
+services/deploy/pipeline.ts → mark Project status=live (no Walrus upload)
             │
             ▼
 Postgres: Project | ArtifactFile | DeployJob
-Walrus Sites: *.walrus.site
 Sui: AppRegistry (Phase 5)
 ```
 
@@ -253,10 +255,9 @@ client/src/
 ├── components/app/ArtifactFileTree.tsx
 ├── components/app/ArtifactCodeView.tsx
 ├── components/app/ArtifactPreview.tsx
-├── components/app/DeployProgress.tsx
 ├── components/app/ArtifactContext.tsx
+├── app/app/projects/[id]/run/page.tsx
 ├── lib/projects-api.ts
-├── lib/deploy-api.ts
 └── lib/artifact-types.ts
 ```
 
@@ -893,7 +894,7 @@ const worker = new Worker("radiant:deploy", processDeployJob, {
 | ------ | ---- | ------ |
 | [x] | Split layout: chat 55% / panel 45% on `lg+` | |
 | [x] | Mobile: panel full-width sheet below chat | |
-| [x] | Tabs: **Preview** \| **Code** \| **Deploy** | Deploy tab polls `GET /api/v1/deploy/:id` |
+| [x] | Tabs: **Preview** \| **Code** only | Deploy tab removed (Radiant-only) |
 | [x] | Close button | |
 | [x] | Match Radiant design tokens (`var(--hero-*)`) | |
 
@@ -907,23 +908,24 @@ const worker = new Worker("radiant:deploy", processDeployJob, {
 | [x] | Refresh on `artifact_revision` change | |
 | [x] | Error boundary for bad JSX | Show friendly message in iframe |
 
-### `DeployProgress.tsx`
+### ~~DeployProgress.tsx~~ (removed)
+
+Deploy tab and Walrus URL UI removed. Apps open via **Projects → Open** or chat preview.
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [x] | Poll `GET /deploy/:jobId` every 2s while running | `ArtifactDeployPanel.tsx` |
-| [x] | Show progress bar + log tail | |
-| [x] | On success: show `walrus_url` + Copy link | |
-| [x] | On failure: show error + Retry button | |
-| [x] | Show `sandbox_seconds` when provider=e2b | When present on job |
+| [x] | Remove `ArtifactDeployPanel` / `deploy-api.ts` | Radiant-only |
+| [x] | `/app/projects/:id/run` full-screen player | `ArtifactPreview` |
+| [ ] | Optional: admin UI for `deploy_app` job polling | Agent tool only |
 
 ### Projects & explorer pages
 
 | Status | Task | File |
 | ------ | ---- | ---- |
 | [x] | `projects-api.ts` | `lib/projects-api.ts` — `fetchAllProjects`, `fetchSessionProjects` |
-| [x] | Replace mock in projects list | `app/app/projects/page.tsx` |
-| [ ] | Replace mock in project detail | `app/app/projects/[id]/page.tsx` |
+| [x] | Replace mock in projects list | `app/app/projects/page.tsx` — Open + Details |
+| [x] | Real project detail + Open in Radiant | `app/app/projects/[id]/page.tsx` |
+| [x] | Full-screen runner | `app/app/projects/[id]/run/page.tsx` |
 | [ ] | Wire explorer grid to API | `components/explorer/AgentGrid.tsx` |
 | [ ] | Wire explorer detail | `app/explorer/[id]/page.tsx` |
 | [ ] | Delete mock `PROJECTS` usage | Keep types only |
@@ -950,11 +952,11 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | `DEPLOY_MAX_DIST_BYTES` | no | `20971520` | `20971520` | 20 MB Vite `dist/` cap |
 | `DEPLOY_MAX_MOVE_BYTES` | no | `1048576` | `1048576` | 1 MB Move sources |
 | `DEPLOY_MAX_MOVE_FILES` | no | `20` | `20` | Move source file count |
-| `WALRUS_PUBLISHER_URL` | yes (deploy) | — | Required for any deploy | |
-| `WALRUS_API_URL` | yes | — | Required | |
-| `SUI_RPC_URL` | yes | — | mainnet URL in prod | Move publish |
+| `SUI_RPC_URL` | yes | — | mainnet URL in prod | Move publish (Phase 5) |
 | `RADIANT_REGISTRY_PACKAGE_ID` | Phase 5 | — | When explorer listing ships | |
 | `REDIS_URL` | yes | `redis://localhost:6380` | Production Redis | BullMQ |
+
+> **Walrus env vars** (`WALRUS_*`, `WALRUS_DEPLOY_MOCK`) — not required for app builder. Keep only if implementing Option B blob snapshots later.
 
 ---
 
@@ -991,28 +993,24 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | [ ] | Return `requires_sandbox: false` for fixed templates | | [Backend] |
 | [ ] | Agent uses build before deploy in chat | | [Backend] |
 
-### Phase 3 — Template-only Walrus deploy (**$0 E2B — ship first real links**)
+### Phase 3 — Radiant-only apps (**$0 E2B for personal use — DONE**)
 
-**Exit criteria:** Fixed template deploy → real `*.walrus.site` URL → appears in Projects.
+**Exit criteria:** `generate_app` saves artifact → `status: live` → user opens from Projects or chat. **No Walrus URL.**
 
 | Status | Task | Implementation detail | Owner |
 | ------ | ---- | --------------------- | ----- |
-| [x] | Pre-build `templates/escrow/dist/` in repo | Static stub in `backend/templates/escrow/dist/` |
-| [x] | Pre-build `templates/swap/dist/` | `backend/templates/swap/dist/` |
-| [x] | Pre-build `templates/prediction/dist/` | `backend/templates/prediction/dist/` |
-| [x] | Config injection script | `prepareFixedTemplateDist()` writes `config.json` |
-| [x] | `NoneSandboxProvider` | No-op sandbox | [Backend] |
-| [x] | `walrus/sites.client.ts` | `deployWalrusSite()` — mock or `site-builder` |
-| [x] | `deploy.service.ts` pipeline | `pipeline.ts` — none + e2b/mock paths |
-| [x] | `DeployJob` + BullMQ queue | `queues.ts` + in-process fallback |
-| [x] | `deploy_app` tool | `deploy-app.tool.ts` |
-| [x] | `POST /api/v1/deploy` | `api/routes/v1/deploy/deploy.ts` |
-| [x] | `GET /api/v1/deploy/:id` | Polling |
-| [x] | `GET /api/v1/projects` | `api/routes/v1/projects/projects.ts` |
-| [x] | Integration test (fixed template) | `tests/integration/deploy-pipeline.test.ts` | [Backend] |
-| [x] | `DeployProgress` UI | `ArtifactDeployPanel.tsx` in Deploy tab |
-| [x] | Projects page real data | `GET /api/v1/projects` + `walrus_url` |
-| [ ] | Manual test: Walrus testnet URL opens | See `docs/walrus-local-setup.md` §9 — set `WALRUS_DEPLOY_MOCK=false` + local portal |
+| [x] | `generate_app` → `setProjectStatus(live)` | After artifact upsert | [Backend] |
+| [x] | Remove Walrus step from `pipeline.ts` | Build verify only | [Backend] |
+| [x] | Remove Deploy tab + Walrus URL UI | Client | [Client] |
+| [x] | Projects page: **Open** + **Details** | No `walrus_url` display | [Client] |
+| [x] | `/app/projects/:id/run` runner | Full-screen preview | [Client] |
+| [x] | `GET /api/v1/projects` | Real list | [Backend] |
+| [x] | Integration test (fixed template verify) | `deploy-pipeline.test.ts` | [Backend] |
+| ~~[ ]~~ | ~~Manual test: Walrus testnet URL opens~~ | **Cancelled** — not app builder |
+
+### ~~Phase 3 (legacy) — Walrus Sites~~
+
+**Cancelled for app builder.** `walrus/sites.client.ts` retained for possible blob work only.
 
 ### Phase 4 — E2B custom builds (Hobby credits — **optimize heavily**)
 
@@ -1035,16 +1033,16 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | [x] | Log `sandbox_seconds` per job | `DeployJob.sandbox_seconds` in pipeline | [Backend] |
 | [ ] | Block deploy when credits low | | [Backend] |
 
-### Phase 5 — Move publish + AppRegistry + Explorer
+### Phase 5 — Move publish + AppRegistry + Explorer **install**
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
+| [ ] | `AppInstallation` model + install API | [Backend] |
+| [ ] | `GET /api/v1/apps` + `POST .../install` | [Backend] |
+| [ ] | Explorer: **Use app** → install + open in Radiant | [Client] |
 | [ ] | Move templates in `packages/move/templates/` | [Move] |
-| [ ] | Publish via agent wallet (may use short E2B or backend CLI on worker) | [Backend] |
-| [ ] | `register_app` tool + onchain tx | [Backend] |
-| [ ] | `GET /api/v1/apps` | [Backend] |
-| [ ] | Explorer pages use API | [Client] |
-| [ ] | Project page “Launch to explorer” | [Client] |
+| [ ] | `register_app` / publish tool + onchain tx | [Backend] |
+| [ ] | Project page “List on explorer” | [Client] |
 
 ### Phase 6 — Self-hosted Docker worker (when credits exhausted or scale)
 
@@ -1097,7 +1095,7 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | Disk full | `node_modules` too big + copy | Shrink deps; one copy only |
 | Deploy stuck `running` | Worker crashed mid-job | Sweeper kills sandbox; mark job failed |
 | Preview blank | Bad JSX in artifact | Error boundary; validate TS optionally |
-| Walrus upload fails | Wrong publisher URL | Check env + CLI version in template |
+| Build verify stuck `running` | Worker crashed mid-job | Sweeper kills sandbox; mark job failed |
 
 ---
 
@@ -1106,14 +1104,14 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 ```text
 Phase 1 (artifacts, $0)
     └── Phase 2 (build preview, $0)
-            └── Phase 3 (template Walrus, $0) ← FIRST REAL LINKS
-                    └── Phase 4 (E2B custom — Hobby credits)
-                            └── Phase 5 (Move + explorer)
+            └── Phase 3 (Radiant-only apps, $0) ← DONE
+                    └── Phase 4 (optional E2B build verify)
+                            └── Phase 5 (explorer install + Move)
                                     └── Phase 6 (Docker worker)
                                             └── Phase 7 (hardening)
 ```
 
-**Recommended order for free tier:** Phase **1 → 2 → 3** before spending E2B credits. Phase 4 only when users need **custom** codegen beyond fixed templates.
+**Recommended order:** Phase **5 (explorer install)** next, then Option B storage. Skip Walrus Sites for app builder.
 
 ---
 
@@ -1122,12 +1120,11 @@ Phase 1 (artifacts, $0)
 | ✅ Do | ❌ Don't |
 | ----- | -------- |
 | Preview in browser iframe | Spin E2B for preview |
-| Template-only Walrus deploy first | Default all deploys to E2B |
-| Preinstall deps in template | `pnpm install` per deploy |
+| `generate_app` → open in Radiant | Publish personal apps to external URLs |
+| Preinstall deps in E2B template | `npm install` per build verify job |
 | `kill()` in `finally` | Rely on timeout to stop billing |
 | `DEPLOY_MAX_CONCURRENT=2` | Use 20 concurrent on Hobby |
-| Fixed templates → `SANDBOX_PROVIDER=none` | Run E2B for escrow/swap templates |
-| Monitor credit balance | Unlimited manual E2B testing |
+| Open apps from Projects / chat | Require Walrus portal for personal apps |
 | Mock provider in CI (`SANDBOX_PROVIDER=mock`) | Real E2B in every PR |
 | Read [Production picker](#production-picker--what-to-use-where) before env changes | Ship `mock` or in-memory code without documenting it |
 

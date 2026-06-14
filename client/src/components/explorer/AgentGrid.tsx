@@ -1,21 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
-import { ArrowUpRight, Search, TrendingUp } from "lucide-react";
+import { ArrowUpRight, Loader2, Search, TrendingUp } from "lucide-react";
 import {
-  AGENTS,
   fmt,
   getAgentReputation,
   makeSeries,
-  searchAgents,
   trendingScore,
+  type Agent,
   type AgentCategory,
   type AgentSort,
 } from "@/lib/explorer-data";
+import { fetchPublicApps, listingToAgent } from "@/lib/apps-api";
 import { Sparkline } from "./Charts";
 import { ReputationBadge } from "./ReputationBadge";
 
@@ -51,8 +51,65 @@ export function AgentGrid() {
   const [category, setCategory] = useState<"all" | AgentCategory>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<AgentSort>("trending");
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const agents = searchAgents(AGENTS, query, category, sort);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setFetchError(null);
+
+    const apiSort =
+      sort === "newest" || sort === "name"
+        ? sort
+        : sort === "users"
+          ? "installs"
+          : "newest";
+
+    void fetchPublicApps({
+      category: category === "all" ? undefined : category,
+      search: query.trim() || undefined,
+      sort: apiSort,
+    })
+      .then((catalog) => {
+        if (cancelled) return;
+        let mapped = catalog.apps.map(listingToAgent);
+        if (sort === "trending") {
+          mapped = [...mapped].sort((a, b) => trendingScore(b) - trendingScore(a));
+        } else if (sort === "reputation") {
+          mapped = [...mapped].sort(
+            (a, b) => getAgentReputation(b).score - getAgentReputation(a).score,
+          );
+        } else if (sort === "volume") {
+          mapped = [...mapped].sort((a, b) => b.volumeSui - a.volumeSui);
+        } else if (sort === "txs") {
+          mapped = [...mapped].sort((a, b) => b.txCount - a.txCount);
+        } else if (sort === "tvl") {
+          mapped = [...mapped].sort((a, b) => b.tvlSui - a.tvlSui);
+        } else if (sort === "users") {
+          mapped = [...mapped].sort((a, b) => b.uses - a.uses);
+        } else if (sort === "name") {
+          mapped = [...mapped].sort((a, b) => a.name.localeCompare(b.name));
+        }
+        setAgents(mapped);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setFetchError(err instanceof Error ? err.message : "Could not load apps");
+          setAgents([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [category, query, sort]);
+
+  const displayAgents = agents;
 
   useGSAP(
     () => {
@@ -87,8 +144,17 @@ export function AgentGrid() {
         tween.kill();
       };
     },
-    { scope: ref, dependencies: [category, query, sort, agents.length] },
+    { scope: ref, dependencies: [category, query, sort, displayAgents.length] },
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-20 text-sm font-semibold text-[var(--hero-ink)]/45">
+        <Loader2 className="size-4 animate-spin" aria-hidden />
+        Loading public apps…
+      </div>
+    );
+  }
 
   return (
     <div ref={ref}>
@@ -144,13 +210,17 @@ export function AgentGrid() {
         ))}
       </div>
 
-      {agents.length === 0 ? (
+      {fetchError ? (
+        <p className="mb-6 text-center text-sm font-semibold text-red-700">{fetchError}</p>
+      ) : null}
+
+      {displayAgents.length === 0 ? (
         <p className="py-16 text-center text-sm font-semibold text-[var(--hero-ink)]/50">
           No agents match your search. Try another keyword or category.
         </p>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {agents.map((agent) => {
+          {displayAgents.map((agent) => {
             const reputation = getAgentReputation(agent);
             const isTrending = sort === "trending" && trendingScore(agent) > 800;
 
