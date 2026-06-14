@@ -379,10 +379,10 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `GET /api/v1/chat/sessions/:sessionId/agent-stream` | SSE (Hono/Express stream) |
-| [ ] | `emitAgentEvent(sessionId, event)` | In-memory Map for dev |
-| [ ] | Production: Redis pub/sub channel per session | Document in Production picker |
-| [ ] | Event types | `agent_thinking`, `agent_action`, `agent_step`, `agent_done`, `agent_error` |
+| [x] | `GET /api/v1/chat/sessions/:sessionId/agent-stream` | SSE (Hono/Express stream) |
+| [x] | `emitAgentEvent(sessionId, event)` | In-memory Map for dev |
+| [x] | Production: Redis pub/sub channel per session | Document in Production picker |
+| [x] | Event types | `agent_thinking`, `agent_action`, `agent_step`, `agent_done`, `agent_error` |
 
 ### 8.2 Emit during execution
 
@@ -565,8 +565,8 @@ Phase 0 (types)
 
 | Component | Dev / MVP | Production |
 | --------- | --------- | ---------- |
-| `activeStreams` Map (SSE) | In-memory on single Node process | Redis pub/sub + sticky session or user channel |
-| Agent event broadcast | Best-effort; skip if no listener | Same; don't fail execute if stream down |
+| `activeStreams` Map (SSE) | In-memory on single Node process | Redis pub/sub channel `radiant:agent-stream:{sessionId}` via `emitAgentEvent` |
+| Agent event broadcast | Best-effort; skip if no listener | Same; Redis publish when `REDIS_URL` set; don't fail execute if stream down |
 | Action schema | JSONB on `Project` | Same; validate on write |
 | Preview postMessage | `*` origin in dev | Narrow target origin in prod |
 
@@ -592,6 +592,7 @@ Fallback: chat execution timeline + receipts only (already shipped in chat).
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 8.1 | SSE agent stream route, `emitAgentEvent`, in-memory + Redis pub/sub |
 | 2026-06-14 | 5 | Preview bridge: API proxy helper, agent events, session header, ActivePreviewSession |
 | 2026-06-14 | 4 | `__radiantAgent` runtime, AgentIndicator, swap scaffold, codegen prompts |
 | 2026-06-14 | 3 | `radiant-client` v3: `executeAction`, swap/flash/stake helpers, installation id, preview injection |

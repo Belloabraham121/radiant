@@ -16,6 +16,7 @@ Backend API and environment checklist. Implementation lives under `src/`.
 | `GET` | `/api/v1/chat/sessions` | List chat threads for the authenticated user |
 | `POST` | `/api/v1/chat/sessions` | Create a new chat thread |
 | `GET` | `/api/v1/chat/sessions/:sessionId/messages` | Load messages for a thread (404 if not owned) |
+| `GET` | `/api/v1/chat/sessions/:sessionId/agent-stream` | SSE live agent events for preview animation (404 if not owned) |
 | `GET` | `/api/v1/chat/sessions/:sessionId/transactions` | Agent transaction history for a thread (404 if not owned) |
 | `GET` | `/api/v1/agent/transactions` | Paginated agent wallet activity for the authenticated user |
 | `GET` | `/api/v1/agent/transactions/:id` | Single transaction detail (params, result, explorer URL) |
@@ -111,6 +112,29 @@ Large transfers return `pending_transaction` instead of broadcasting immediately
 ```
 
 Auto-approve thresholds (env): `AGENT_AUTO_APPROVE_MAX_SUI` (default 25), `AGENT_AUTO_APPROVE_MAX_ETH`, `AGENT_AUTO_APPROVE_MAX_SOL`.
+
+### Live agent stream (SSE)
+
+**`GET /api/v1/chat/sessions/:sessionId/agent-stream`** — requires cookie. Opens a long-lived SSE connection for preview animation while the agent executes app actions.
+
+Initial event:
+
+```
+event: connected
+data: {"session_id":"..."}
+```
+
+Agent events use the SSE `event:` name as the type:
+
+| SSE `event` | Payload fields (JSON) |
+| ----------- | --------------------- |
+| `agent_thinking` | `session_id`, `ts`, `active?` |
+| `agent_action` | `session_id`, `ts`, `action`, `params?`, `animate?` |
+| `agent_step` | `session_id`, `ts`, `target?`, `value?`, `step?` |
+| `agent_done` | `session_id`, `ts`, `digest?`, `refresh?` |
+| `agent_error` | `session_id`, `ts`, `code?`, `message?` |
+
+Comment heartbeats (`: keepalive`) are sent every 25s. When `REDIS_URL` is set, events are published on `radiant:agent-stream:{sessionId}` for multi-instance deploys; otherwise in-memory listeners on the Node process.
 
 ### Agent transactions
 

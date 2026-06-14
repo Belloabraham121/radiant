@@ -11,7 +11,12 @@ import {
 } from "../../../../services/conversation/conversation.service.js";
 import { saveSessionDraftToProjectForUser } from "../../../../services/projects/generate-app.service.js";
 import { listSessionTransactions } from "../../../../services/agent-transaction/agent-transaction.service.js";
+import {
+  requireAgentStreamSession,
+  subscribeAgentStream,
+} from "../../../../services/agent/agent-stream.service.js";
 import { fail, ok } from "../../../../utils/http-response.js";
+import { writeSseComment, writeSseEvent } from "../../../../utils/chat-sse.js";
 
 export const chatSessionsRouter = Router();
 
@@ -76,6 +81,56 @@ chatSessionsRouter.post(
     } catch (err) {
       next(err);
     }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/agent-stream",
+  requireAuth,
+  async (req, res, next) => {
+    const sessionId = req.params.sessionId;
+    if (!sessionId) {
+      return fail(req, res, 400, {
+        code: "VALIDATION_ERROR",
+        message: "sessionId is required",
+      });
+    }
+
+    try {
+      await requireAgentStreamSession(req.user.privyUserId, sessionId);
+    } catch (err) {
+      return next(err);
+    }
+
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    writeSseEvent(res, "connected", { session_id: sessionId });
+
+    const unsubscribe = subscribeAgentStream(sessionId, (event) => {
+      if (res.writableEnded) {
+        return;
+      }
+      const { type, ...data } = event;
+      writeSseEvent(res, type, data);
+    });
+
+    const heartbeat = setInterval(() => {
+      if (res.writableEnded) {
+        return;
+      }
+      writeSseComment(res, "keepalive");
+    }, 25_000);
+
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+      if (!res.writableEnded) {
+        res.end();
+      }
+    });
   },
 );
 
