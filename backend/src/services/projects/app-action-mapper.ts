@@ -88,6 +88,16 @@ export function parseAppActionName(actionName: string): AppActionName {
   return actionName;
 }
 
+/** Map execute_transaction action string to canonical app action when supported. */
+export function mapExecuteActionToAppActionName(executeAction: string): AppActionName | null {
+  for (const name of APP_ACTION_NAMES) {
+    if (getAppActionDefinition(name).execute_action === executeAction) {
+      return name;
+    }
+  }
+  return null;
+}
+
 function formatZodError(error: { issues: Array<{ path: (string | number)[]; message: string }> }): string {
   const first = error.issues[0];
   if (!first) {

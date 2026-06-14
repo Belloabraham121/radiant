@@ -22,6 +22,7 @@ import {
   normalizeExecuteParams,
   validateExecuteStepParams,
 } from "./workflow-param-normalizer.js";
+import { mapExecuteActionToAppActionName, parseAppActionParams } from "../../projects/app-action-mapper.js";
 import type { WorkflowPlan, WorkflowStep } from "./workflow.types.js";
 
 export type PlanValidationResult =
@@ -85,6 +86,28 @@ function plannedToWorkflowStep(
 
   const { flat, unresolved } = flattenParams(step.params, ledger);
 
+  const projectId = step.project_id?.trim();
+  const installationId = step.installation_id?.trim();
+  const hasAppScope = Boolean(projectId) !== Boolean(installationId);
+
+  if (hasAppScope) {
+    const appAction = mapExecuteActionToAppActionName(step.action);
+    if (appAction) {
+      const normalized = normalizeExecuteParams(step.action, flat);
+      return {
+        step: {
+          kind: "app_action",
+          label: step.label,
+          ...(projectId ? { project_id: projectId } : { installation_id: installationId }),
+          action: appAction,
+          params: normalized,
+          depends_on: dependsOn,
+        },
+        unresolved,
+      };
+    }
+  }
+
   const normalized = normalizeExecuteParams(step.action, flat);
 
   const input: ExecuteTransactionInput = {
@@ -113,6 +136,23 @@ function applyDepositIntentFromMessage(
   }
 
   return steps.map((step) => {
+    if (step.kind === "app_action") {
+      const params = step.params;
+      const amount =
+        coercePositiveNumber(params.amount_display) ??
+        coercePositiveNumber(params.amount) ??
+        intent.amount_display;
+      return {
+        ...step,
+        label: `Deposit ${amount} ${intent.coin_key}`,
+        params: {
+          ...params,
+          coin_key: intent.coin_key,
+          amount_display: amount,
+        },
+      };
+    }
+
     if (step.kind !== "execute" || step.input.action !== "deepbook_deposit") {
       return step;
     }
@@ -161,6 +201,15 @@ async function collectConstraintGaps(
 async function preflightStep(
   step: WorkflowStep,
 ): Promise<{ ok: boolean; clarify?: { question: string; kind: ClarificationKind } }> {
+  if (step.kind === "app_action") {
+    try {
+      parseAppActionParams(step.action, step.params);
+    } catch {
+      return { ok: true };
+    }
+    return { ok: true };
+  }
+
   if (step.kind !== "execute") {
     return { ok: true };
   }
@@ -277,8 +326,14 @@ export function applyBindingsToPlan(
 ): WorkflowPlan {
   const steps = plan.steps.map((step, index) => {
     const binding = bindings.find((item) => item.step_index === index);
-    if (!binding || step.kind !== "execute") {
+    if (!binding || (step.kind !== "execute" && step.kind !== "app_action")) {
       return step;
+    }
+    if (step.kind === "app_action") {
+      return {
+        ...step,
+        params: { ...step.params, ...binding.params },
+      };
     }
     return {
       ...step,

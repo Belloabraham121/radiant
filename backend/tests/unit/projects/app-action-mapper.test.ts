@@ -13,6 +13,7 @@ import {
   parseAppActionName,
   parseAppActionParams,
   validateAppActionInput,
+  mapExecuteActionToAppActionName,
 } from "../../../src/services/projects/app-action-mapper.js";
 
 describe("app-action registry", () => {
@@ -99,5 +100,11 @@ describe("app-action mapper", () => {
         err.code === "VALIDATION_ERROR" &&
         Array.isArray((err.details as { known_actions?: string[] })?.known_actions),
     );
+  });
+
+  it("mapExecuteActionToAppActionName maps swap and deepbook_deposit", () => {
+    assert.equal(mapExecuteActionToAppActionName("swap"), "swap");
+    assert.equal(mapExecuteActionToAppActionName("deepbook_deposit"), "deposit");
+    assert.equal(mapExecuteActionToAppActionName("execute_bytes"), null);
   });
 });

@@ -357,8 +357,8 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Step kind `app_action` optional | `{ kind: "app_action", project_id, action, params }` |
-| [ ] | Or map to agent step with explicit tool call | |
+| [x] | Step kind `app_action` optional | `{ kind: "app_action", project_id, action, params }` |
+| [x] | Or map to agent step with explicit tool call | Planner `project_id` / `installation_id` → `app_action` step → `call_app_action` |
 
 ### 7.4 Tests
 

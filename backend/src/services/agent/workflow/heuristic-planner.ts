@@ -143,6 +143,16 @@ function workflowStepToPlanned(
     };
   }
 
+  if (step.kind === "app_action") {
+    return {
+      action: step.action as PlannedStep["action"],
+      label: step.label,
+      params: step.params as Record<string, PlanSlot | string | number | boolean>,
+      ...(step.project_id ? { project_id: step.project_id } : {}),
+      ...(step.installation_id ? { installation_id: step.installation_id } : {}),
+    };
+  }
+
   return null;
 }
 

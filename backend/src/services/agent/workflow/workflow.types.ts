@@ -5,6 +5,7 @@ import type { TxResult } from "../../chains/types.js";
 import type { StepDependency } from "../intent/step-dependency.js";
 import type { ClarificationGap, PendingClarification } from "./clarification.types.js";
 import type { WorkflowLedgerEntry } from "./workflow-ledger.js";
+import type { AppActionName } from "../../projects/app-action.types.js";
 
 type WorkflowStepBase = {
   depends_on?: StepDependency;
@@ -35,11 +36,22 @@ export type WorkflowAgentStep = WorkflowStepBase & {
   instruction: string;
 };
 
+/** Execute a saved or installed app action via call_app_action (Phase 7.3). */
+export type WorkflowAppActionStep = WorkflowStepBase & {
+  kind: "app_action";
+  label: string;
+  project_id?: string;
+  installation_id?: string;
+  action: AppActionName;
+  params: Record<string, unknown>;
+};
+
 export type WorkflowStep =
   | WorkflowQueryStep
   | WorkflowExecuteStep
   | WorkflowBuildStep
-  | WorkflowAgentStep;
+  | WorkflowAgentStep
+  | WorkflowAppActionStep;
 
 export type WorkflowPlan = {
   originalMessage: string;

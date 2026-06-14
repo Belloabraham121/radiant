@@ -23,6 +23,9 @@ export type PlannedStep = {
   label: string;
   params: Record<string, PlanSlot | string | number | boolean>;
   depends_on?: StepDependency;
+  /** When set, on-chain steps run through call_app_action instead of execute_transaction. */
+  project_id?: string;
+  installation_id?: string;
 };
 
 export type PlannerAssumption = {
