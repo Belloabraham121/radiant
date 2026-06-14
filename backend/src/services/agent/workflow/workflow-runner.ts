@@ -32,6 +32,8 @@ import {
   updateSessionWorkflow,
 } from "./session-workflow.store.js";
 import { ledgerEntryFromToolCalls } from "./workflow-ledger.js";
+import { evaluateStepDependency } from "../intent/step-dependency.js";
+import { synthesizeWorkflowCompletionReply } from "./workflow-reply.js";
 import {
   flattenPlannedParams,
   normalizeExecuteParams,
@@ -91,6 +93,39 @@ function buildAgentStepMessage(
   const doneBlock = completed.length > 0 ? `Already completed:\n${completed}\n\n` : "";
 
   return `${header}${doneBlock}Current step: ${step.instruction}`;
+}
+
+async function runBuildWorkflowStep(
+  privyUserId: string,
+  sessionId: string,
+  state: SessionWorkflowState,
+  step: Extract<WorkflowStep, { kind: "build" }>,
+  stepIndex: number,
+  memoryBlock?: string,
+  agentPermissions?: AgentPermissions,
+): Promise<WorkflowStepOutcome> {
+  const runtime = getAgentRuntime();
+  const context = buildAgentStepMessage(state, { kind: "agent", label: step.label, instruction: step.instruction }, stepIndex);
+  const result = await runtime.runTurn({
+    privyUserId,
+    sessionId,
+    messages: [
+      {
+        role: "user",
+        content:
+          `BUILD MODE — create or update a UI in the artifact panel using generate_app only. ` +
+          `Do NOT call execute_transaction.\n\n${context}`,
+      },
+    ],
+    memoryBlock,
+    agentPermissions,
+    workflowMode: true,
+  });
+
+  return {
+    status: "executed",
+    tool_calls: result.tool_calls,
+  };
 }
 
 async function runAgentWorkflowStep(
@@ -191,6 +226,18 @@ async function executeWorkflowStep(
   memoryBlock?: string,
   agentPermissions?: AgentPermissions,
 ): Promise<WorkflowStepOutcome> {
+  if (step.kind === "build") {
+    return runBuildWorkflowStep(
+      privyUserId,
+      sessionId,
+      state,
+      step,
+      stepIndex,
+      memoryBlock,
+      agentPermissions,
+    );
+  }
+
   if (step.kind === "query") {
     const result = await runAgentTool(privyUserId, QUERY_CHAIN_TOOL_NAME, step.input);
     const tool_calls: ToolCallRecord[] = [{ name: QUERY_CHAIN_TOOL_NAME, result }];
@@ -327,6 +374,7 @@ export async function runWorkflowFromStep(
 
   const allToolCalls: ToolCallRecord[] = [];
   let lastReply = "";
+  const skippedSteps: Array<{ index: number; label: string; reason: string }> = [];
 
   for (let index = startIndex; index < state.plan.steps.length; index += 1) {
     const freshState = getSessionWorkflow(sessionId);
@@ -335,6 +383,26 @@ export async function runWorkflowFromStep(
     }
 
     const step = freshState.plan.steps[index];
+
+    if (step.depends_on) {
+      const decision = evaluateStepDependency(freshState.completed, step.depends_on);
+      if (decision.action === "skip") {
+        const skipEntry = {
+          index,
+          label: step.label,
+          tool_calls: [] as ToolCallRecord[],
+          status: "skipped" as const,
+          skip_reason: decision.reason,
+        };
+        skippedSteps.push({ index, label: step.label, reason: decision.reason });
+        updateSessionWorkflow(sessionId, {
+          currentStepIndex: index + 1,
+          completed: [...freshState.completed, skipEntry],
+        });
+        continue;
+      }
+    }
+
     updateSessionWorkflow(sessionId, { currentStepIndex: index, status: "active" });
 
     const outcome = await executeWorkflowStep(
@@ -428,6 +496,7 @@ export async function runWorkflowFromStep(
       label: step.label,
       tool_calls: outcome.tool_calls,
       digest,
+      status: "executed" as const,
     };
 
     const updated = updateSessionWorkflow(sessionId, {
@@ -452,11 +521,15 @@ export async function runWorkflowFromStep(
   }
 
   const finalState = getSessionWorkflow(sessionId);
+  const completionReply = finalState
+    ? synthesizeWorkflowCompletionReply(finalState.completed, skippedSteps)
+    : "Workflow completed.";
+
   updateSessionWorkflow(sessionId, { status: "completed" });
   clearSessionWorkflow(sessionId);
 
   return {
-    reply: lastReply || (finalState ? buildCompletedReply(finalState) : "Workflow completed."),
+    reply: options?.silentIntermediateReplies ? completionReply : lastReply || completionReply,
     tool_calls: allToolCalls,
     pending_transaction: null,
     pending_clarification: null,

@@ -1,7 +1,6 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
 import {
   classifyWorkflowSegment,
-  splitWorkflowSegments,
 } from "./workflow-parser.js";
 import type {
   PlannerOutput,
@@ -16,11 +15,6 @@ const IMPLICIT_REF_PHRASE = /\b(?:it|that|this|them|am|the\s+(?:output|result|sw
 function splitMessageSegments(message: string): string[] {
   const trimmed = message.trim();
   if (!trimmed) return [];
-
-  const sequential = splitWorkflowSegments(trimmed);
-  if (sequential.length >= 2) {
-    return sequential;
-  }
 
   const commaParts = trimmed
     .split(
@@ -141,6 +135,14 @@ function workflowStepToPlanned(
     };
   }
 
+  if (step.kind === "build") {
+    return {
+      action: "build",
+      label: step.label,
+      params: { instruction: step.instruction },
+    };
+  }
+
   return null;
 }
 
@@ -152,8 +154,6 @@ export function looksLikeWorkflowMessage(message: string): boolean {
     /\b(swap|deposit|withdraw|with\s*all|transfer|send|order|buy|sell|cancel|place|click|comot|put)\b/gi;
   const matches = trimmed.match(actionPattern);
   if (matches && matches.length >= 2) return true;
-
-  if (splitWorkflowSegments(trimmed).length >= 2) return true;
 
   const commaParts = trimmed.split(/\s*,\s*/);
   if (commaParts.length >= 2) {
@@ -236,6 +236,22 @@ export function planWorkflowHeuristic(message: string): PlannerOutput | null {
 
     const planned = workflowStepToPlanned(classified, index, normalized);
     if (planned) {
+      if (
+        planned.action === "query" &&
+        planned.params.query === "token_balances" &&
+        steps.length > 0
+      ) {
+        planned.depends_on = {
+          after_step_index: steps.length - 1,
+          only_if_success: true,
+        };
+      }
+      if (planned.action === "build" && steps.length > 0) {
+        planned.depends_on = {
+          after_step_index: steps.length - 1,
+          only_if_success: true,
+        };
+      }
       steps.push(planned);
     }
   }

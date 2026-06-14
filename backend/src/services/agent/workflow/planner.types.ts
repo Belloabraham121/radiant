@@ -3,6 +3,8 @@ export type PlanSlot =
   | { kind: "ref"; step_index: number; field: "output_amount" | "output_coin" }
   | { kind: "missing" };
 
+import type { StepDependency } from "../intent/step-dependency.js";
+
 export type PlannedAction =
   | "deepbook_deposit"
   | "deepbook_withdraw"
@@ -13,12 +15,14 @@ export type PlannedAction =
   | "deepbook_cancel_all_orders"
   | "swap"
   | "transfer_sui"
-  | "query";
+  | "query"
+  | "build";
 
 export type PlannedStep = {
   action: PlannedAction;
   label: string;
   params: Record<string, PlanSlot | string | number | boolean>;
+  depends_on?: StepDependency;
 };
 
 export type PlannerAssumption = {

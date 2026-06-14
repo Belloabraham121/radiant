@@ -1,64 +1,44 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  classifyWorkflowSegment,
-  isSequentialWorkflowMessage,
-  parseWorkflowPlan,
-  splitWorkflowSegments,
-} from "../../../src/services/agent/workflow/workflow-parser.js";
+import { classifyWorkflowSegment } from "../../../src/services/agent/workflow/workflow-parser.js";
 
-describe("workflow-parser", () => {
-  it("detects sequential deposit then order message", () => {
-    const message =
-      "Deposit 1 SUI into my DeepBook balance manager, and when you're done, " +
-      "place a limit order to buy 0.1 SUI at 2 USDC on SUI_USDC";
-    assert.equal(isSequentialWorkflowMessage(message), true);
-    const plan = parseWorkflowPlan(message);
-    assert.ok(plan);
-    assert.equal(plan!.steps.length, 2);
-    assert.equal(plan!.steps[0].kind, "execute");
-    if (plan!.steps[0].kind === "execute") {
-      assert.equal(plan!.steps[0].input.action, "deepbook_deposit");
-    }
-    assert.equal(plan!.steps[1].kind, "execute");
-    if (plan!.steps[1].kind === "execute") {
-      assert.equal(plan!.steps[1].input.action, "deepbook_place_limit_order");
+/** Segment classification only — multi-step message planning is LLM-driven (see workflow-planner). */
+describe("workflow-parser segment classification", () => {
+  it("classifies deposit segment", () => {
+    const step = classifyWorkflowSegment("Deposit 1 SUI into my DeepBook balance manager");
+    assert.equal(step.kind, "execute");
+    if (step.kind === "execute") {
+      assert.equal(step.input.action, "deepbook_deposit");
     }
   });
 
-  it("detects swap then transfer sequence", () => {
-    const message =
-      "Swap 1 SUI to USDC on SUI_USDC, then send 0.5 SUI to 0x" +
-      "b" +
-      "0".repeat(63);
-    const plan = parseWorkflowPlan(message);
-    assert.ok(plan);
-    assert.equal(plan!.steps.length, 2);
-    assert.equal(plan!.steps[0].kind, "execute");
-    assert.equal(plan!.steps[1].kind, "execute");
-    if (plan!.steps[1].kind === "execute") {
-      assert.equal(plan!.steps[1].input.action, "transfer_sui");
+  it("classifies limit order segment", () => {
+    const step = classifyWorkflowSegment(
+      "place a limit order to buy 0.1 SUI at 2 USDC on SUI_USDC",
+    );
+    assert.equal(step.kind, "execute");
+    if (step.kind === "execute") {
+      assert.equal(step.input.action, "deepbook_place_limit_order");
     }
   });
 
-  it("splits segments on then and when you are done", () => {
-    const parts = splitWorkflowSegments("Deposit 1 SUI, then swap 2 SUI to USDC");
-    assert.equal(parts.length, 2);
-    assert.match(parts[0], /deposit/i);
-    assert.match(parts[1], /swap/i);
+  it("classifies transfer segment", () => {
+    const step = classifyWorkflowSegment(
+      "send 0.5 SUI to 0x" + "b" + "0".repeat(63),
+    );
+    assert.equal(step.kind, "execute");
+    if (step.kind === "execute") {
+      assert.equal(step.input.action, "transfer_sui");
+    }
   });
 
-  it("classifies pool price query before swap", () => {
+  it("classifies pool price query", () => {
     const segment = "What's the SUI/USDC price on DeepBook";
     const step = classifyWorkflowSegment(segment);
     assert.equal(step.kind, "query");
     if (step.kind === "query") {
       assert.equal(step.input.query, "deepbook_pool_info");
     }
-  });
-
-  it("returns null for single-step messages", () => {
-    assert.equal(parseWorkflowPlan("Swap 1 SUI to USDC"), null);
   });
 
   it("parses buy at USDC without numeric price as limit order missing price", () => {
@@ -104,6 +84,14 @@ describe("workflow-parser", () => {
       assert.equal(step.input.action, "deepbook_place_limit_order");
       assert.equal(step.input.params.quantity, 0.1);
       assert.equal(step.input.params.price, 2);
+    }
+  });
+
+  it("classifies wallet balance query segment", () => {
+    const step = classifyWorkflowSegment("tell me my wallet balance");
+    assert.equal(step.kind, "query");
+    if (step.kind === "query") {
+      assert.equal(step.input.query, "token_balances");
     }
   });
 });

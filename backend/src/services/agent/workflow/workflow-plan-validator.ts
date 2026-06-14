@@ -52,9 +52,20 @@ function plannedToWorkflowStep(
   step: PlannedStep,
   ledger: WorkflowLedgerEntry[],
 ): { step: WorkflowStep | null; unresolved: string[] } {
-  const { flat, unresolved } = flattenParams(step.params, ledger);
+  const dependsOn = step.depends_on;
+
+  if (step.action === "build") {
+    const instruction =
+      (typeof step.params.instruction === "string" && step.params.instruction) ||
+      step.label;
+    return {
+      step: { kind: "build", label: step.label, instruction, depends_on: dependsOn },
+      unresolved: [],
+    };
+  }
 
   if (step.action === "query") {
+    const { flat, unresolved } = flattenParams(step.params, ledger);
     const query = flat.query as QueryChainInput["query"];
     if (!query) {
       return { step: null, unresolved: ["query"] };
@@ -66,8 +77,13 @@ function plannedToWorkflowStep(
         Object.entries(flat).filter(([key]) => key !== "query"),
       ) as QueryChainInput["params"],
     };
-    return { step: { kind: "query", label: step.label, input }, unresolved };
+    return {
+      step: { kind: "query", label: step.label, input, depends_on: dependsOn },
+      unresolved,
+    };
   }
+
+  const { flat, unresolved } = flattenParams(step.params, ledger);
 
   const normalized = normalizeExecuteParams(step.action, flat);
 
@@ -78,7 +94,7 @@ function plannedToWorkflowStep(
   };
 
   return {
-    step: { kind: "execute", label: step.label, input },
+    step: { kind: "execute", label: step.label, input, depends_on: dependsOn },
     unresolved,
   };
 }

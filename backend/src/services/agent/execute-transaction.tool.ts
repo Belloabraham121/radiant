@@ -67,5 +67,8 @@ export async function runExecuteTransactionTool(
   privyUserId: string,
   input: ExecuteTransactionInput,
 ): Promise<TxResult> {
-  return executeTransactionForUser(privyUserId, executeTransactionInputSchema.parse(input));
+  return executeTransactionForUser(
+    privyUserId,
+    executeTransactionInputSchema.parse(input),
+  );
 }

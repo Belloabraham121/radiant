@@ -55,7 +55,9 @@ async function quoteSwapStep(
       : {}),
   });
 
-  const minOut = step.min_out_display ?? applySlippage(swapQuote.output_amount_display, slippageBps);
+  const minOut =
+    step.min_out_display ??
+    applySlippage(swapQuote.output_amount_display, slippageBps);
 
   return {
     pool_key: step.pool_key,
@@ -69,7 +71,9 @@ async function quoteSwapStep(
   };
 }
 
-function buildRoundTripQuote(parsed: DeepBookFlashLoanBundleParams): FlashLoanBundleQuoteResult {
+function buildRoundTripQuote(
+  parsed: DeepBookFlashLoanBundleParams,
+): FlashLoanBundleQuoteResult {
   return {
     strategy: "round_trip",
     pool_key: parsed.pool_key,
@@ -95,20 +99,37 @@ function buildWarnings(
 ): string[] {
   const warnings: string[] = [];
 
-  if (parsed.asset === "base" && parsed.steps?.some((s) => s.pool_key === parsed.pool_key)) {
-    warnings.push("Borrowing base and trading on the same pool may fail on-chain.");
+  if (
+    parsed.asset === "base" &&
+    parsed.steps?.some((s) => s.pool_key === parsed.pool_key)
+  ) {
+    warnings.push(
+      "Borrowing base and trading on the same pool may fail on-chain.",
+    );
   }
 
   if (!repayFeasible) {
-    warnings.push("Quoted outputs may not cover the borrow amount for atomic repay.");
+    warnings.push(
+      "Quoted outputs may not cover the borrow amount for atomic repay.",
+    );
   }
 
   if (estimatedSurplus !== null && estimatedSurplus < REPAY_EPSILON) {
-    warnings.push("Estimated surplus is very low — small price moves can revert the transaction.");
+    warnings.push(
+      "Estimated surplus is very low — small price moves can revert the transaction.",
+    );
   }
 
-  if (stepQuotes.some((q) => q.fee_deep > 0 && !parsed.steps?.find((s) => s.pool_key === q.pool_key)?.pay_with_deep)) {
-    warnings.push("Some steps may require DEEP from your wallet for fees when pay_with_deep is false.");
+  if (
+    stepQuotes.some(
+      (q) =>
+        q.fee_deep > 0 &&
+        !parsed.steps?.find((s) => s.pool_key === q.pool_key)?.pay_with_deep,
+    )
+  ) {
+    warnings.push(
+      "Some steps may require DEEP from your wallet for fees when pay_with_deep is false.",
+    );
   }
 
   if (parsed.slippage_bps > 200) {
@@ -151,7 +172,8 @@ function emitRepayProgress(
       id: "execute",
       status: "skipped",
       label: "Execute bundle",
-      detail: "Blocked — swap outputs would not cover the borrow for atomic repay",
+      detail:
+        "Blocked — swap outputs would not cover the borrow for atomic repay",
     });
   }
 }
@@ -162,7 +184,9 @@ async function buildSwapChainQuote(
   options?: { emitProgress?: boolean },
 ): Promise<FlashLoanBundleQuoteResult> {
   const emitProgress = options?.emitProgress !== false;
-  const progress = (step: Parameters<typeof emitExecutionProgress>[0]["step"]) => {
+  const progress = (
+    step: Parameters<typeof emitExecutionProgress>[0]["step"],
+  ) => {
     if (emitProgress) {
       emitExecutionProgress({ step });
     }
@@ -192,7 +216,10 @@ async function buildSwapChainQuote(
       );
     }
 
-    if (i === 0 && Math.abs(step.amount - parsed.borrow_amount) > REPAY_EPSILON) {
+    if (
+      i === 0 &&
+      Math.abs(step.amount - parsed.borrow_amount) > REPAY_EPSILON
+    ) {
       throw new AppError(
         400,
         "VALIDATION_ERROR",
@@ -231,7 +258,8 @@ async function buildSwapChainQuote(
   if (runningCoin !== parsed.coin_key && stepQuotes.length > 0) {
     const lastQuote = stepQuotes[stepQuotes.length - 1];
     const returnPool = resolvePoolCoins(steps[0].pool_key);
-    const returnSide = returnPool.base_coin === lastQuote.output_coin ? "sell" : "buy";
+    const returnSide =
+      returnPool.base_coin === lastQuote.output_coin ? "sell" : "buy";
     const returnStep: FlashLoanStep = {
       pool_key: steps[0].pool_key,
       side: returnSide,
@@ -247,7 +275,11 @@ async function buildSwapChainQuote(
       detail: `${returnSide} on ${returnStep.pool_key}…`,
     });
 
-    const returnQuote = await quoteSwapStep(privyUserId, returnStep, parsed.slippage_bps);
+    const returnQuote = await quoteSwapStep(
+      privyUserId,
+      returnStep,
+      parsed.slippage_bps,
+    );
     stepQuotes.push(returnQuote);
     runningCoin = returnQuote.output_coin;
 
@@ -285,7 +317,13 @@ async function buildSwapChainQuote(
       ? Number((lastQuote.out_est - parsed.borrow_amount).toFixed(9))
       : null;
 
-  emitRepayProgress(parsed, lastQuote, repayFeasible, estimatedSurplus, progress);
+  emitRepayProgress(
+    parsed,
+    lastQuote,
+    repayFeasible,
+    estimatedSurplus,
+    progress,
+  );
 
   const requiresManualApproval =
     parsed.repay_source === "wallet" || parsed.repay_source === "merged";
@@ -303,7 +341,12 @@ async function buildSwapChainQuote(
     estimated_surplus: estimatedSurplus,
     requires_manual_approval: requiresManualApproval,
     steps: stepQuotes,
-    warnings: buildWarnings(parsed, stepQuotes, repayFeasible, estimatedSurplus),
+    warnings: buildWarnings(
+      parsed,
+      stepQuotes,
+      repayFeasible,
+      estimatedSurplus,
+    ),
   };
 }
 
@@ -331,7 +374,9 @@ async function discoverSwapChainSteps(
     try {
       validateFlashLoanStructure(trial, { allowIncompleteRoute: true });
       await validateFlashLoanBundle(privyUserId, trial, { quoteMode: true });
-      const quote = await buildSwapChainQuote(privyUserId, trial, { emitProgress: false });
+      const quote = await buildSwapChainQuote(privyUserId, trial, {
+        emitProgress: false,
+      });
       scores.push({
         steps: [firstStep],
         repay_feasible: quote.repay_feasible,
@@ -348,11 +393,19 @@ async function discoverSwapChainSteps(
 export async function resolveFlashLoanBundleParams(
   privyUserId: string,
   params: Record<string, unknown>,
-): Promise<{ parsed: DeepBookFlashLoanBundleParams; routeAutoDiscovered: boolean }> {
-  let parsed = parseDeepBookFlashLoanParams(params, { allowMissingSwapSteps: true });
+): Promise<{
+  parsed: DeepBookFlashLoanBundleParams;
+  routeAutoDiscovered: boolean;
+}> {
+  let parsed = parseDeepBookFlashLoanParams(params, {
+    allowMissingSwapSteps: true,
+  });
   let routeAutoDiscovered = false;
 
-  if (parsed.strategy === "swap_chain_repay" && (parsed.steps?.length ?? 0) === 0) {
+  if (
+    parsed.strategy === "swap_chain_repay" &&
+    (parsed.steps?.length ?? 0) === 0
+  ) {
     parsed = {
       ...parsed,
       steps: await discoverSwapChainSteps(privyUserId, parsed),

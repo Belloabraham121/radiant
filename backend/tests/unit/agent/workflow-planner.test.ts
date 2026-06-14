@@ -32,8 +32,53 @@ describe("workflow planner system", () => {
     assert.equal(looksLikeWorkflowMessage(message), true);
   });
 
+  it("validates LLM planner output for swap plus wallet balance", async () => {
+    const planner: PlannerOutput = {
+      is_multi_step: true,
+      confidence: 0.95,
+      needs_clarification: false,
+      assumptions: [],
+      steps: [
+        {
+          action: "swap",
+          label: "Swap 20 DEEP to USDC",
+          params: {
+            pool_key: "DEEP_USDC",
+            amount: 20,
+            side: "sell",
+            input_coin: "DEEP",
+            output_coin: "USDC",
+          },
+        },
+        {
+          action: "query",
+          label: "Wallet token balances",
+          params: { query: "token_balances" },
+          depends_on: { after_step_index: 0, only_if_success: true },
+        },
+      ],
+    };
+
+    const result = await validatePlannerOutput(
+      planner,
+      "swap 20 DEEP to USDC and tell me my wallet balance",
+    );
+    assert.equal(result.status, "ready");
+    if (result.status === "ready") {
+      assert.equal(result.plan.steps.length, 2);
+      assert.equal(result.plan.steps[1].kind, "query");
+      if (result.plan.steps[1].kind === "query") {
+        assert.equal(result.plan.steps[1].input.query, "token_balances");
+      }
+      assert.deepEqual(result.plan.steps[1].depends_on, {
+        after_step_index: 0,
+        only_if_success: true,
+      });
+    }
+  });
+
   it("heuristic planner maps with all typo to withdraw", async () => {
-    const message = "with all SUI from deepbook, then swap 1.6 SUI to USDC";
+    const message = "with all SUI from deepbook, swap 1.6 SUI to USDC";
     const plan = planWorkflowHeuristic(message);
     assert.ok(plan);
     assert.equal(plan!.steps.length, 2);

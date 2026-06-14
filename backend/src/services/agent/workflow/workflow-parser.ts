@@ -1,3 +1,7 @@
+/**
+ * Classifies a single workflow step segment into a concrete tool input.
+ * Does not decide whether a full user message is multi-step — that is the LLM planner's job.
+ */
 import { getDeepBookEnv } from "../../../config/deepbook.js";
 import {
   inferSwapSideForPool,
@@ -9,46 +13,15 @@ import { userAskedMarketPrice } from "../deepbook/compound-request-flow.js";
 import { extractWithdrawIntent } from "../deepbook/withdraw-approval-flow.js";
 import type {
   WorkflowAgentStep,
+  WorkflowBuildStep,
   WorkflowExecuteStep,
-  WorkflowPlan,
   WorkflowQueryStep,
   WorkflowStep,
 } from "./workflow.types.js";
 
-const SEQUENTIAL_SPLIT =
-  /\s+(?:and\s+)?(?:when\s+(?:you(?:'re| are)\s+)?done(?:\s+with\s+(?:that|this))?(?:,)?|after\s+(?:that|this|you(?:'re| are)\s+done)(?:,)?|then(?:,)?|next(?:,)?|also(?:,)?|once\s+(?:that(?:'s| is)\s+)?done(?:,)?)\s+/i;
-
-const SEQUENTIAL_MARKER =
-  /\b(when\s+(?:you(?:'re| are)\s+)?done|after\s+(?:that|this|you(?:'re| are)\s+done)|then|next|also|once\s+(?:that(?:'s| is)\s+)?done)\b/i;
-
 const COIN = "SUI|USDC|DBUSDC|DEEP|WAL|USDT|DBUSDT";
 const COIN_SUFFIX = "(?:\\s+tokens?)?";
 const SUI_ADDRESS = /0x[a-fA-F0-9]{64}/;
-
-export function splitWorkflowSegments(message: string): string[] {
-  const trimmed = message.trim();
-  if (!trimmed) {
-    return [];
-  }
-
-  const parts = trimmed
-    .split(SEQUENTIAL_SPLIT)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-
-  if (parts.length >= 2) {
-    return parts;
-  }
-
-  return [trimmed];
-}
-
-export function isSequentialWorkflowMessage(message: string): boolean {
-  if (!SEQUENTIAL_MARKER.test(message)) {
-    return false;
-  }
-  return splitWorkflowSegments(message).length >= 2;
-}
 
 function segmentLooksLikeOrder(segment: string): boolean {
   return (
@@ -434,7 +407,42 @@ function parseQuerySegment(segment: string): WorkflowQueryStep | null {
     };
   }
 
+  if (
+    /\b(wallet\s+)?balance/i.test(segment) ||
+    (/\b(tell\s+me|show\s+me|check|what(?:'s| is))\b/i.test(segment) &&
+      /\b(balance|balances|wallet|portfolio|holdings)\b/i.test(segment))
+  ) {
+    return {
+      kind: "query",
+      label: "Wallet token balances",
+      input: {
+        chain_id: "sui",
+        query: "token_balances",
+        params: { include_zero: false },
+      },
+    };
+  }
+
   return null;
+}
+
+function parseBuildSegment(segment: string): WorkflowBuildStep | null {
+  if (!/\b(build|create|make|design|develop|implement)\b/i.test(segment)) {
+    return null;
+  }
+
+  if (
+    /^\s*swap\b/i.test(segment.trim()) &&
+    !/\b(ui|app|interface|dashboard|page|widget|uniswap|like)\b/i.test(segment)
+  ) {
+    return null;
+  }
+
+  return {
+    kind: "build",
+    label: segment.length > 60 ? `${segment.slice(0, 57)}…` : segment,
+    instruction: segment,
+  };
 }
 
 export function classifyWorkflowSegment(segment: string): WorkflowStep {
@@ -501,32 +509,13 @@ export function classifyWorkflowSegment(segment: string): WorkflowStep {
   const query = parseQuerySegment(segment);
   if (query) return query;
 
+  const build = parseBuildSegment(segment);
+  if (build) return build;
+
   const agentStep: WorkflowAgentStep = {
     kind: "agent",
     label: segment.length > 60 ? `${segment.slice(0, 57)}…` : segment,
     instruction: segment,
   };
   return agentStep;
-}
-
-export function parseWorkflowPlan(message: string): WorkflowPlan | null {
-  if (!isSequentialWorkflowMessage(message)) {
-    return null;
-  }
-
-  const segments = splitWorkflowSegments(message);
-  if (segments.length < 2) {
-    return null;
-  }
-
-  const steps = segments.map((segment) => classifyWorkflowSegment(segment));
-  const actionable = steps.filter((step) => step.kind !== "agent").length;
-  if (actionable === 0 && steps.every((step) => step.kind === "agent")) {
-    return null;
-  }
-
-  return {
-    originalMessage: message,
-    steps,
-  };
 }

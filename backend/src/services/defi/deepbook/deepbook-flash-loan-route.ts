@@ -68,7 +68,9 @@ export type SwapChainRouteScore = {
   estimated_surplus: number | null;
 };
 
-export function rankSwapChainRouteScores(scores: SwapChainRouteScore[]): SwapChainRouteScore | null {
+export function rankSwapChainRouteScores(
+  scores: SwapChainRouteScore[],
+): SwapChainRouteScore | null {
   if (scores.length === 0) {
     return null;
   }
@@ -78,12 +80,15 @@ export function rankSwapChainRouteScores(scores: SwapChainRouteScore[]): SwapCha
 
   return pool.reduce((best, current) => {
     const bestSurplus = best.estimated_surplus ?? Number.NEGATIVE_INFINITY;
-    const currentSurplus = current.estimated_surplus ?? Number.NEGATIVE_INFINITY;
+    const currentSurplus =
+      current.estimated_surplus ?? Number.NEGATIVE_INFINITY;
     return currentSurplus > bestSurplus ? current : best;
   });
 }
 
-export function pickBestSwapChainRoute(scores: SwapChainRouteScore[]): FlashLoanStep[] {
+export function pickBestSwapChainRoute(
+  scores: SwapChainRouteScore[],
+): FlashLoanStep[] {
   const best = rankSwapChainRouteScores(scores);
   if (!best) {
     throw new AppError(
