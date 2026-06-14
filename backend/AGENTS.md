@@ -4,6 +4,11 @@ When implementing or modifying anything under `backend/`, **read and follow**:
 
 `backend/.agents/skills/radiant-backend/SKILL.md`
 
+For **Inngest** (deploy queue, durable functions), also read:
+
+- `backend/.agents/skills/inngest-radiant/SKILL.md`
+- Upstream skills in `backend/.agents/skills/inngest/` ([inngest-skills](https://github.com/inngest/inngest-skills))
+
 Key rules:
 
 - Layered architecture: `api/` → `services/` → `infrastructure/`

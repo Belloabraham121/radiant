@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { getCorsEnv, getServerEnv } from "./config/env.js";
+import { getInngestConfig } from "./config/inngest.js";
 import { prisma } from "./infrastructure/postgres/client.js";
 import { killStaleRadiantSandboxesOnBoot } from "./services/sandbox/e2b-cleanup.service.js";
 import { logger } from "./shared/logger.js";
@@ -54,6 +55,7 @@ async function start() {
         "GET /api/v1/wallets/balances",
         "POST /api/v1/chat",
         "POST /api/v1/webhooks/e2b",
+        ...(getInngestConfig().enabled ? ["GET|POST|PUT /api/inngest"] : []),
       ],
     });
   });

@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
+    "dev:inngest": "INNGEST_DEV=1 tsx watch src/main.ts",
+    "inngest:dev": "npx --ignore-scripts=false inngest-cli@latest dev -u http://localhost:${PORT:-3001}/api/inngest",
     "predev": "prisma generate",
     "start": "tsx src/main.ts",
     "start:prod": "npm run db:deploy && tsx src/main.ts",
@@ -39,6 +41,7 @@
     "dotenv": "^16.4.7",
     "e2b": "^2.29.1",
     "express": "^4.21.2",
+    "inngest": "^4.5.1",
     "ioredis": "^5.11.1",
     "openai": "^6.42.0",
     "viem": "^2.52.2",

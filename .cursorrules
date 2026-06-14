@@ -1,0 +1,5 @@
+Load the Inngest skills from `backend/.agents/skills/inngest/` (vendored from https://github.com/inngest/inngest-skills) for building with Inngest's durable execution platform.
+
+For Radiant deploy jobs, also read `backend/.agents/skills/inngest-radiant/SKILL.md`.
+
+When adding or changing Inngest functions, follow `inngest-setup`, `inngest-durable-functions`, and `inngest-events` skills. Official docs: https://www.inngest.com/llms.txt

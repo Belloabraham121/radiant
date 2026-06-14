@@ -22,6 +22,10 @@ import { projectsRouter } from "./api/routes/v1/projects/projects.js";
 import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.js";
 import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
 import { createCorsOptions } from "./config/cors.js";
+import { getInngestConfig } from "./config/inngest.js";
+import { inngest } from "./inngest/client.js";
+import { inngestFunctions } from "./inngest/functions/index.js";
+import { serve } from "inngest/express";
 
 /** Express app without DB connect or workers (for tests and main entry). */
 export function createApp() {
@@ -38,10 +42,21 @@ export function createApp() {
     express.raw({ type: "application/json" }),
     e2bWebhookRouter,
   );
-  app.use(express.json());
+  app.use(express.json({ limit: "10mb" }));
   app.use(cookieParser());
   app.use(correlationIdMiddleware);
   app.use(requestLoggerMiddleware);
+
+  if (getInngestConfig().enabled) {
+    app.use(
+      "/api/inngest",
+      serve({
+        client: inngest,
+        functions: inngestFunctions,
+      }),
+    );
+  }
+
   app.use(healthRouter);
   app.use(authMeRouter);
   app.use(agentPermissionsRouter);

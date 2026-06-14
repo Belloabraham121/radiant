@@ -1,5 +1,7 @@
 import { Queue, Worker, type ConnectionOptions } from "bullmq";
 import { getDeployConfig } from "../../config/deploy.js";
+import { useInngestDeployQueue } from "../../config/inngest.js";
+import { enqueueDeployJobViaInngest } from "../inngest/enqueue-deploy.js";
 import { getRedisClient } from "./client.js";
 import { DEPLOY_QUEUE_NAME, type DeployQueuePayload } from "../../services/deploy/job-types.js";
 import { runDeployPipeline } from "../../services/deploy/pipeline.js";
@@ -25,6 +27,11 @@ export function getDeployQueue(): Queue<DeployQueuePayload> | null {
 }
 
 export async function enqueueDeployJob(jobId: string): Promise<void> {
+  if (useInngestDeployQueue()) {
+    await enqueueDeployJobViaInngest(jobId);
+    return;
+  }
+
   const queue = getDeployQueue();
   if (queue) {
     await queue.add("deploy", { jobId }, {
