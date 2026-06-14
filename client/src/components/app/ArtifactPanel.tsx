@@ -6,6 +6,7 @@ import { ArtifactCodeView } from "@/components/app/ArtifactCodeView";
 import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
 import { ArtifactPreview } from "@/components/app/ArtifactPreview";
 import { ArtifactProjectControls } from "@/components/app/ArtifactProjectControls";
+import { ArtifactSaveToProjects } from "@/components/app/ArtifactSaveToProjects";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 
 type ArtifactTab = "preview" | "code";
@@ -123,13 +124,21 @@ export function ArtifactPanel({
           })}
         </div>
 
-        <ArtifactProjectControls
-          sessionId={sessionId}
-          payload={payload}
-          streaming={streaming}
-          onPayloadChange={onPayloadChange}
-          className="ml-auto min-w-0"
-        />
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          <ArtifactProjectControls
+            sessionId={sessionId}
+            payload={payload}
+            streaming={streaming}
+            onPayloadChange={onPayloadChange}
+            className="min-w-0"
+          />
+          <ArtifactSaveToProjects
+            sessionId={sessionId}
+            payload={payload}
+            streaming={streaming}
+            onSaved={onPayloadChange}
+          />
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">

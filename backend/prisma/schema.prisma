@@ -84,8 +84,35 @@ model ChatSession {
   messages           ChatMessage[]
   agent_transactions AgentTransaction[]
   projects           Project[]
+  draft              ChatSessionDraft?
 
   @@index([user_id, updated_at(sort: Desc)])
+}
+
+model ChatSessionDraft {
+  id         String   @id @default(uuid()) @db.Uuid
+  session_id String   @unique @db.Uuid
+  session    ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  name       String
+  tagline    String   @default("")
+  template   String
+  revision   Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  files      ChatSessionDraftFile[]
+}
+
+model ChatSessionDraftFile {
+  id         String           @id @default(uuid()) @db.Uuid
+  draft_id   String           @db.Uuid
+  draft      ChatSessionDraft @relation(fields: [draft_id], references: [id], onDelete: Cascade)
+  path       String
+  content    String           @db.Text
+  revision   Int
+  created_at DateTime         @default(now())
+
+  @@unique([draft_id, path, revision])
+  @@index([draft_id, revision])
 }
 
 model ChatMessage {

@@ -7,18 +7,22 @@ export const GENERATE_APP_TOOL_NAME = "generate_app" as const;
 export const generateAppToolDefinition = {
   name: GENERATE_APP_TOOL_NAME,
   description:
-    "Create or update a user Next.js app for the artifact panel. " +
-    "JSON input: name (string), files (array of {path, content} — never an object), optional project_id, tagline, template. " +
-    "Paths under app/, components/, lib/, or public/ (e.g. app/page.tsx, components/SwapForm.tsx). " +
-    "Always include app/page.tsx. Use lib/radiant-client.ts for DeepBook swapQuote/poolInfo — platform APIs, not custom swap code. " +
-    "Not for on-chain execution from chat (use execute_transaction when user asks to trade).",
+    "Create or update a UI in the chat artifact panel. By default saves a session draft only (not Projects). " +
+    "JSON input: name (string), files (array of {path, content}), optional project_id, save_to_project, tagline, template. " +
+    "Omit project_id for chat mockups. Pass project_id to update a saved project, or save_to_project: true when the user wants it in Projects. " +
+    "Paths under app/, components/, lib/, or public/. Always include app/page.tsx.",
   input_schema: {
     type: "object" as const,
     properties: {
       project_id: {
         type: "string",
-        description: "Existing project UUID to update, or null to create a new project.",
+        description: "Existing saved project UUID to update.",
         nullable: true,
+      },
+      save_to_project: {
+        type: "boolean",
+        description:
+          "Set true when the user explicitly wants the app saved to Projects. Default false (chat draft only).",
       },
       name: { type: "string", description: "Short project name shown in Projects." },
       tagline: { type: "string", description: "Optional one-line description." },

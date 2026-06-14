@@ -65,3 +65,13 @@ export async function restoreProjectRevision(
   );
   return data.artifact;
 }
+
+export async function saveSessionDraftToProject(
+  sessionId: string,
+  body?: { name?: string; tagline?: string; project_id?: string },
+): Promise<{ artifact: ArtifactPayload; project_id: string; saved_to_project: boolean }> {
+  return apiFetch(`/api/v1/chat/sessions/${sessionId}/draft/save`, {
+    method: "POST",
+    body: JSON.stringify(body ?? {}),
+  });
+}

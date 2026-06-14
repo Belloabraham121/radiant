@@ -9,6 +9,7 @@ import {
   getSessionMessages,
   listUserSessions,
 } from "../../../../services/conversation/conversation.service.js";
+import { saveSessionDraftToProjectForUser } from "../../../../services/projects/generate-app.service.js";
 import { listSessionTransactions } from "../../../../services/agent-transaction/agent-transaction.service.js";
 import { fail, ok } from "../../../../utils/http-response.js";
 
@@ -54,6 +55,23 @@ chatSessionsRouter.get(
       }
 
       const data = await getSessionMessages(req.user.privyUserId, sessionId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.post(
+  "/api/v1/chat/sessions/:sessionId/draft/save",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await saveSessionDraftToProjectForUser(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.body ?? {},
+      );
       return ok(req, res, data);
     } catch (err) {
       next(err);

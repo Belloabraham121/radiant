@@ -7,6 +7,7 @@ export const artifactFileInputSchema = z.object({
 
 export const generateAppInputSchema = z.object({
   project_id: z.string().uuid().nullable().optional(),
+  save_to_project: z.boolean().optional(),
   name: z.string().min(1).max(120),
   tagline: z.string().max(280).optional(),
   template: z.enum(["custom", "escrow", "swap", "prediction"]).default("custom"),
@@ -22,6 +23,7 @@ export type ArtifactPayload = {
   template: string;
   revision: number;
   files: Array<{ path: string; content: string }>;
+  draft_id?: string;
 };
 
 export type GenerateAppResult = {
@@ -32,4 +34,6 @@ export type GenerateAppResult = {
   revision: number;
   files: Array<{ path: string; content: string }>;
   artifact: ArtifactPayload;
+  saved_to_project: boolean;
+  draft_id?: string;
 };

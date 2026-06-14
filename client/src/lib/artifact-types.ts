@@ -10,4 +10,6 @@ export type ArtifactPayload = {
   template: string;
   revision: number;
   files: ArtifactFile[];
+  draft_id?: string;
+  saved_to_project?: boolean;
 };
