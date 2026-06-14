@@ -4,6 +4,7 @@ import {
   hasFlashLoanExecutionAttempt,
 } from "./deepbook/flash-loan-approval-flow.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
+import { CALL_APP_ACTION_TOOL_NAME } from "../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
 import type { AgentToolErrorResult } from "./tools.js";
 
@@ -50,17 +51,23 @@ export function hasAgentTransactionsQuery(toolCalls: ToolCallRecord[]): boolean 
   });
 }
 
+function isPendingOrExecutedOutcome(result: unknown): boolean {
+  if (typeof result !== "object" || result === null || "error" in result) {
+    return false;
+  }
+  const outcome = result as { status?: string };
+  return outcome.status === "approval_required" || outcome.status === "executed";
+}
+
 function hasPendingOrExecutedTransaction(toolCalls: ToolCallRecord[]): boolean {
   return toolCalls.some((call) => {
-    if (call.name !== EXECUTE_TRANSACTION_TOOL_NAME) {
-      return false;
+    if (
+      call.name === EXECUTE_TRANSACTION_TOOL_NAME ||
+      call.name === CALL_APP_ACTION_TOOL_NAME
+    ) {
+      return isPendingOrExecutedOutcome(call.result);
     }
-    const result = call.result;
-    if (typeof result !== "object" || result === null || "error" in result) {
-      return false;
-    }
-    const outcome = result as { status?: string };
-    return outcome.status === "approval_required" || outcome.status === "executed";
+    return false;
   });
 }
 

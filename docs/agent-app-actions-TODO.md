@@ -341,17 +341,17 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `call_app_action.tool.ts` | `{ project_id?, installation_id?, action, params }` |
-| [ ] | Register in `tools.ts` | |
-| [ ] | Run → `executeAppAction` | |
+| [x] | `call_app_action.tool.ts` | `{ project_id?, installation_id?, action, params }` |
+| [x] | Register in `tools.ts` | |
+| [x] | Run → `executeAppAction` | |
 
 ### 7.2 Prompts (`prompts.ts`)
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | When user references open project / saved DEX | Prefer `call_app_action` over raw execute when project context known |
-| [ ] | Still allow direct `execute_transaction` | For chat-only trades without a project |
-| [ ] | BUILD vs ACT split preserved | Build UI ≠ execute unless user asks to trade |
+| [x] | When user references open project / saved DEX | Prefer `call_app_action` over raw execute when project context known |
+| [x] | Still allow direct `execute_transaction` | For chat-only trades without a project |
+| [x] | BUILD vs ACT split preserved | Build UI ≠ execute unless user asks to trade |
 
 ### 7.3 Workflow planner
 

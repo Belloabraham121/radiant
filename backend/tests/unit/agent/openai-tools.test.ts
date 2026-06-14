@@ -18,10 +18,11 @@ describe("toOpenAiTools", () => {
     }
   });
 
-  it("includes query_chain, execute_transaction, and update_memory", () => {
+  it("includes query_chain, execute_transaction, call_app_action, and update_memory", () => {
     const names = toOpenAiTools(agentToolDefinitions).map((tool) => tool.function.name);
     assert.ok(names.includes("query_chain"));
     assert.ok(names.includes("execute_transaction"));
+    assert.ok(names.includes("call_app_action"));
     assert.ok(names.includes("update_memory"));
   });
 });

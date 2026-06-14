@@ -62,7 +62,9 @@ import {
   synthesizeTurnReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
+import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import { emitArtifactPreview, emitExecutionProgress, emitReplyClear, emitReplyDelta, hasExecutionProgressContext } from "../execution-progress-context.js";
 import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
@@ -530,6 +532,10 @@ export const openaiRuntime: AgentRuntime = {
           typeof args.action === "string"
             ? { action: args.action }
             : {}),
+          ...(toolCall.function.name === CALL_APP_ACTION_TOOL_NAME &&
+          typeof args.action === "string"
+            ? { action: args.action }
+            : {}),
           result,
         });
 
@@ -617,6 +623,13 @@ export const openaiRuntime: AgentRuntime = {
             outcome !== null &&
             outcome.status === "approval_required"
           ) {
+            pending_transaction = outcome.pending;
+          }
+        }
+
+        if (toolCall.function.name === CALL_APP_ACTION_TOOL_NAME) {
+          const outcome = result as AppActionResult;
+          if (outcome.status === "approval_required") {
             pending_transaction = outcome.pending;
           }
         }

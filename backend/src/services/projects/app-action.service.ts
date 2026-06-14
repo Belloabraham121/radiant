@@ -1,7 +1,7 @@
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findInstallationForUser } from "../apps/app-installation.repository.js";
-import { runExecuteTransactionToolWithApproval } from "../agent/tools.js";
+import { runExecuteTransactionToolWithApproval } from "../agent/execute-transaction-with-approval.js";
 import { findProjectByIdForUser } from "./project.repository.js";
 import type { AppActionContext, AppActionName, AppActionResult } from "./app-action.types.js";
 import {
