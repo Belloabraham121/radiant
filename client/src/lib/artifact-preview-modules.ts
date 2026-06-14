@@ -2,14 +2,18 @@ import type { ArtifactFile } from "@/lib/artifact-types";
 
 const SOURCE_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"];
 
+const MODULE_ROOTS = ["app/", "components/", "lib/", "src/"] as const;
+
 export function normalizeArtifactPath(path: string): string {
   return path.replace(/^\/+/, "").replace(/^\/workspace\//, "");
 }
 
-/** React/TS source files under src/ that the preview bundler can load. */
+/** React/TS modules the preview bundler can load (Next.js App Router + legacy src/). */
 export function isPreviewModulePath(path: string): boolean {
   const normalized = normalizeArtifactPath(path);
-  if (!normalized.startsWith("src/")) return false;
+  if (!MODULE_ROOTS.some((root) => normalized.startsWith(root))) {
+    return false;
+  }
   return SOURCE_EXTENSIONS.some((ext) => normalized.endsWith(ext));
 }
 
@@ -33,7 +37,11 @@ function stripExtension(path: string): string {
   return path;
 }
 
-/** Resolve a relative import from one artifact file to a module id (e.g. src/components/SwapForm.tsx). */
+function moduleCandidates(joined: string): string[] {
+  return [joined, ...SOURCE_EXTENSIONS.map((ext) => `${stripExtension(joined)}${ext}`)];
+}
+
+/** Resolve a relative import from one artifact file to a module path key. */
 export function resolveRelativeImport(
   fromPath: string,
   request: string,
@@ -60,18 +68,8 @@ export function resolveRelativeImport(
     return null;
   }
 
-  if (!joined.startsWith("src/")) {
-    joined = `src/${joined}`;
-  }
-
-  const candidates = [
-    joined,
-    ...SOURCE_EXTENSIONS.map((ext) => `${stripExtension(joined)}${ext}`),
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate.startsWith("src/")) continue;
-    if (!modules) return `${stripExtension(joined)}.tsx`;
+  for (const candidate of moduleCandidates(joined)) {
+    if (!modules) return candidate;
     if (modules[candidate]) return candidate;
   }
 
@@ -80,6 +78,7 @@ export function resolveRelativeImport(
 
 export function pickAppModulePath(files: ArtifactFile[]): string | null {
   const map = buildModuleSourceMap(files);
+  if (map["app/page.tsx"]) return "app/page.tsx";
   if (map["src/App.tsx"]) return "src/App.tsx";
   if (map["src/App.jsx"]) return "src/App.jsx";
   return null;

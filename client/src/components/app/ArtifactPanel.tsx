@@ -100,7 +100,11 @@ export function ArtifactPanel({
 
       <div className="min-h-0 flex-1 overflow-hidden">
         {tab === "preview" ? (
-          <ArtifactPreview files={payload.files} revision={payload.revision} />
+          <ArtifactPreview
+            files={payload.files}
+            revision={payload.revision}
+            projectId={payload.project_id}
+          />
         ) : null}
 
         {tab === "code" ? (

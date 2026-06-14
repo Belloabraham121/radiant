@@ -6,12 +6,10 @@ export const GENERATE_APP_TOOL_NAME = "generate_app" as const;
 export const generateAppToolDefinition = {
   name: GENERATE_APP_TOOL_NAME,
   description:
-    "Create or update a user app project with React source files for the artifact panel. " +
-    "Paths must be under src/ or public/ (e.g. src/App.tsx, src/components/SwapForm.tsx). Total source ≤512 KB. " +
-    "ALWAYS include src/App.tsx as the entry file (default export) that imports and composes your components. " +
-    "Chat preview is React-in-browser (not Vite/Next.js) but loads all src/**/*.tsx modules. " +
-    "Use when the user wants a UI built or updated — swap/DEX interfaces like Uniswap, dashboards, forms. " +
-    "Not for on-chain swaps from the user's wallet (use execute_transaction only when they ask to trade a specific amount).",
+    "Create or update a user Next.js app for the artifact panel. " +
+    "Paths under app/, components/, lib/, or public/ (e.g. app/page.tsx, components/SwapForm.tsx). " +
+    "Always include app/page.tsx. Use lib/radiant-client.ts for DeepBook swapQuote/poolInfo — platform APIs, not custom swap code. " +
+    "Not for on-chain execution from chat (use execute_transaction when user asks to trade).",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -29,7 +27,7 @@ export const generateAppToolDefinition = {
       },
       files: {
         type: "array",
-        description: "Source files to write (paths relative to src/ or public/).",
+        description: "Source files (Next.js App Router: app/, components/, lib/).",
         items: {
           type: "object",
           properties: {

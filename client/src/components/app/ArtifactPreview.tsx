@@ -8,6 +8,8 @@ import type { ArtifactFile } from "@/lib/artifact-types";
 
 const PREVIEW_MESSAGE_TYPE = "radiant-artifact-preview";
 const PREVIEW_NAVIGATE_TYPE = "radiant-artifact-preview-navigate";
+const PREVIEW_API_REQUEST = "radiant-preview-api";
+const PREVIEW_API_RESPONSE = "radiant-preview-api-response";
 
 function PreviewLoadingOverlay() {
   return (
@@ -40,9 +42,11 @@ function PreviewLoadingOverlay() {
 export function ArtifactPreview({
   files,
   revision,
+  projectId,
 }: {
   files: ArtifactFile[];
   revision: number;
+  projectId?: string;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const previewPathRef = useRef("/");
@@ -50,7 +54,10 @@ export function ArtifactPreview({
   const [previewPath, setPreviewPath] = useState("/");
   const [refreshKey, setRefreshKey] = useState(0);
   const routes = useMemo(() => extractArtifactPreviewRoutes(files), [files]);
-  const srcdoc = useMemo(() => buildArtifactPreviewSrcdoc(files), [files, revision, refreshKey]);
+  const srcdoc = useMemo(
+    () => buildArtifactPreviewSrcdoc(files, { projectId }),
+    [files, projectId, revision, refreshKey],
+  );
 
   previewPathRef.current = previewPath;
 
@@ -70,7 +77,45 @@ export function ArtifactPreview({
         type?: string;
         status?: string;
         path?: string;
+        requestId?: string;
+        method?: string;
+        body?: string;
       } | null;
+
+      if (data?.type === PREVIEW_API_REQUEST) {
+        if (event.source !== iframeRef.current?.contentWindow) return;
+        void (async () => {
+          try {
+            const res = await fetch(data.path ?? "", {
+              method: data.method ?? "GET",
+              body: data.body,
+              credentials: "include",
+              headers: data.body ? { "Content-Type": "application/json" } : undefined,
+            });
+            const text = await res.text();
+            iframeRef.current?.contentWindow?.postMessage(
+              {
+                type: PREVIEW_API_RESPONSE,
+                requestId: data.requestId,
+                status: res.status,
+                body: text,
+              },
+              "*",
+            );
+          } catch (err) {
+            iframeRef.current?.contentWindow?.postMessage(
+              {
+                type: PREVIEW_API_RESPONSE,
+                requestId: data.requestId,
+                error: err instanceof Error ? err.message : "Request failed",
+              },
+              "*",
+            );
+          }
+        })();
+        return;
+      }
+
       if (data?.type !== PREVIEW_MESSAGE_TYPE) return;
       if (event.source !== iframeRef.current?.contentWindow) return;
 

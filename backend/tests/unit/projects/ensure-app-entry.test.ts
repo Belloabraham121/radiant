@@ -3,25 +3,38 @@ import { describe, it } from "node:test";
 import { ensureAppEntry } from "../../../src/services/projects/ensure-app-entry.js";
 
 describe("ensureAppEntry", () => {
-  it("keeps files when App.tsx exists", () => {
+  it("keeps legacy src/App.tsx and adds radiant-client", () => {
     const files = [
       { path: "src/App.tsx", content: "export default () => null;" },
       { path: "src/components/SwapForm.tsx", content: "export default () => <div />" },
     ];
-    assert.deepEqual(ensureAppEntry(files), files);
+    const result = ensureAppEntry(files);
+    assert.equal(result.length, 3);
+    assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
+    assert.ok(result.some((f) => f.path === "src/App.tsx"));
   });
 
-  it("adds App.tsx importing first component when missing", () => {
+  it("adds Next app entry importing first component when missing", () => {
     const files = [
       {
-        path: "src/components/SwapForm.tsx",
+        path: "components/SwapForm.tsx",
         content: "export default function SwapForm() { return null; }",
       },
     ];
     const result = ensureAppEntry(files);
-    assert.equal(result.length, 2);
-    const app = result.find((f) => f.path === "src/App.tsx");
-    assert.ok(app);
-    assert.match(app!.content, /from "\.\/components\/SwapForm"/);
+    const page = result.find((f) => f.path === "app/page.tsx");
+    assert.ok(page);
+    assert.match(page!.content, /from "\.\.\/components\/SwapForm"/);
+    assert.ok(result.some((f) => f.path === "app/layout.tsx"));
+    assert.ok(result.some((f) => f.path === "app/globals.css"));
+    assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
+  });
+
+  it("fills layout and globals when app/page.tsx exists", () => {
+    const files = [{ path: "app/page.tsx", content: '"use client";\nexport default function Page() { return null; }' }];
+    const result = ensureAppEntry(files);
+    assert.ok(result.some((f) => f.path === "app/layout.tsx"));
+    assert.ok(result.some((f) => f.path === "app/globals.css"));
+    assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
   });
 });

@@ -1,7 +1,7 @@
 import { Template } from "e2b";
 
 /**
- * Radiant E2B template — pre-bakes Vite scaffold + node_modules for custom app builds.
+ * Radiant E2B template — pre-bakes Next.js scaffold + node_modules for custom app builds.
  *
  * Rebuild when: package-lock.json changes, Sui/Walrus CLI pins change, or scaffold structure changes.
  * Walrus Sites upload runs from the backend after sandbox kill (no Walrus CLI required at runtime).
@@ -34,10 +34,11 @@ export const template = Template()
     { src: "scaffold/package.json", dest: "/opt/radiant-scaffold/package.json" },
     { src: "scaffold/package-lock.json", dest: "/opt/radiant-scaffold/package-lock.json" },
     { src: "scaffold/tsconfig.json", dest: "/opt/radiant-scaffold/tsconfig.json" },
-    { src: "scaffold/tsconfig.node.json", dest: "/opt/radiant-scaffold/tsconfig.node.json" },
-    { src: "scaffold/vite.config.ts", dest: "/opt/radiant-scaffold/vite.config.ts" },
-    { src: "scaffold/index.html", dest: "/opt/radiant-scaffold/index.html" },
-    { src: "scaffold/src/", dest: "/opt/radiant-scaffold/src/" },
+    { src: "scaffold/next.config.ts", dest: "/opt/radiant-scaffold/next.config.ts" },
+    { src: "scaffold/next-env.d.ts", dest: "/opt/radiant-scaffold/next-env.d.ts" },
+    { src: "scaffold/app/", dest: "/opt/radiant-scaffold/app/" },
+    { src: "scaffold/lib/", dest: "/opt/radiant-scaffold/lib/" },
+    { src: "scaffold/components/", dest: "/opt/radiant-scaffold/components/" },
   ])
   .runCmd("npm ci")
   .runCmd("mkdir -p /workspace && chown -R user:user /workspace", { user: "root" });

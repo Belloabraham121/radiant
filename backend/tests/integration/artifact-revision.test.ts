@@ -108,13 +108,16 @@ describe("project artifact revisions", () => {
       guessing.project_id,
       0,
     );
-    assert.match(oldView.files[0]?.content ?? "", /guess/);
+    const guessApp = oldView.files.find((f) => f.path === "src/App.tsx");
+    assert.match(guessApp?.content ?? "", /guess/);
 
     const restored = await restoreProjectRevisionForUser(privyUserId, guessing.project_id, 0);
     assert.equal(restored.revision, 2);
-    assert.match(restored.files[0]?.content ?? "", /guess/);
+    const restoredApp = restored.files.find((f) => f.path === "src/App.tsx");
+    assert.match(restoredApp?.content ?? "", /guess/);
 
     const head = await getProjectArtifactPayloadForUser(privyUserId, counter.project_id);
-    assert.match(head.files[0]?.content ?? "", /counter/);
+    const counterApp = head.files.find((f) => f.path === "src/App.tsx");
+    assert.match(counterApp?.content ?? "", /counter/);
   });
 });

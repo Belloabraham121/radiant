@@ -175,6 +175,7 @@ export function useChatSession(sessionId?: string) {
             },
             onArtifact: ({ artifact, streaming }) => {
               const focusPath =
+                artifact.files.find((file) => file.path === "app/page.tsx")?.path ??
                 artifact.files.find((file) => file.path === "src/App.tsx")?.path ??
                 artifact.files.find((file) => file.path === "src/App.jsx")?.path ??
                 artifact.files[artifact.files.length - 1]?.path;

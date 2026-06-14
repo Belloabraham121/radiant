@@ -27,8 +27,12 @@ function stripCssImports(source: string): string {
  * Chat preview runs in a browser iframe (not E2B/mock). Strip imports the runtime cannot resolve.
  */
 export function prepareAppSourceForPreview(source: string): string {
-  return stripCssImports(source);
+  return stripCssImports(source).replace(/^["']use client["'];?\s*\n?/m, "");
 }
+
+export type ArtifactPreviewOptions = {
+  projectId?: string;
+};
 
 function prepareModuleMap(files: ArtifactFile[]): Record<string, string> {
   const raw = buildModuleSourceMap(files);
@@ -40,11 +44,18 @@ function prepareModuleMap(files: ArtifactFile[]): Record<string, string> {
 }
 
 /** Client-side preview HTML — no E2B. Uses CDN React + Babel in iframe srcdoc. */
-export function buildArtifactPreviewSrcdoc(files: ArtifactFile[]): string {
+export function buildArtifactPreviewSrcdoc(
+  files: ArtifactFile[],
+  options: ArtifactPreviewOptions = {},
+): string {
   const entry = pickAppModulePath(files);
   const modules = prepareModuleMap(files);
   const css = escapeStyleClose(collectCss(files));
-  const payload = JSON.stringify({ entry, modules });
+  const payload = JSON.stringify({
+    entry,
+    modules,
+    projectId: options.projectId ?? "",
+  });
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -96,6 +107,36 @@ ${css}
   const payload = ${payload};
   const errEl = document.getElementById("error");
   const SOURCE_EXTS = [".tsx", ".ts", ".jsx", ".js"];
+
+  if (payload.projectId) {
+    window.__RADIANT_PROJECT_ID__ = payload.projectId;
+  }
+  window.__RADIANT_PREVIEW_FETCH__ = function(path, init) {
+    return new Promise(function(resolve, reject) {
+      var requestId = "preview-" + Math.random().toString(36).slice(2);
+      function onMessage(event) {
+        var data = event.data;
+        if (!data || data.type !== "radiant-preview-api-response" || data.requestId !== requestId) return;
+        window.removeEventListener("message", onMessage);
+        if (data.error) {
+          reject(new Error(data.error));
+          return;
+        }
+        resolve(new Response(data.body || "", {
+          status: data.status || 200,
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+      window.addEventListener("message", onMessage);
+      window.parent.postMessage({
+        type: "radiant-preview-api",
+        requestId: requestId,
+        path: path,
+        method: (init && init.method) || "GET",
+        body: init && init.body ? String(init.body) : undefined,
+      }, "*");
+    });
+  };
 
   function hideLoader() {
     const loader = document.getElementById("preview-loader");
@@ -341,7 +382,7 @@ ${css}
   }
 
   if (!payload.entry || !payload.modules[payload.entry]) {
-    showError("No src/App.tsx found — ask your agent to add an entry file that composes your components.");
+    showError("No app/page.tsx found — ask your agent to add a Next.js entry that composes your components.");
     return;
   }
 
@@ -350,7 +391,7 @@ ${css}
     var entryExports = loadModule(payload.entry);
     var App = entryExports.default || entryExports;
     if (typeof App !== "function") {
-      throw new Error("src/App.tsx must default-export a React component.");
+      throw new Error("app/page.tsx must default-export a React component.");
     }
     ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
     bindPreviewNavigation();

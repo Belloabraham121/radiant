@@ -111,7 +111,7 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
         });
 
         if (build.exitCode !== 0) {
-          throw new AppError(500, "BUILD_FAILED", "Vite build failed in sandbox", {
+          throw new AppError(500, "BUILD_FAILED", "Production build failed in sandbox", {
             stderr: build.stderr,
           });
         }

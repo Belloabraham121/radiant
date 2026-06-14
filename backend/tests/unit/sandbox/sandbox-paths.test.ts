@@ -20,7 +20,10 @@ describe("sandbox-paths", () => {
     resetSandboxConfigForTests();
   });
 
-  it("normalizes relative src and public paths under /workspace", () => {
+  it("normalizes relative app, src, and public paths under /workspace", () => {
+    assert.equal(normalizeSandboxPath("app/page.tsx"), "/workspace/app/page.tsx");
+    assert.equal(normalizeSandboxPath("components/SwapForm.tsx"), "/workspace/components/SwapForm.tsx");
+    assert.equal(normalizeSandboxPath("lib/radiant-client.ts"), "/workspace/lib/radiant-client.ts");
     assert.equal(normalizeSandboxPath("src/App.tsx"), "/workspace/src/App.tsx");
     assert.equal(normalizeSandboxPath("public/favicon.svg"), "/workspace/public/favicon.svg");
   });

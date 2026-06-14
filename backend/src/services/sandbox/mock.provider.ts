@@ -43,6 +43,7 @@ export class MockSandboxProvider implements SandboxProvider {
       const html =
         "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Radiant mock</title></head>" +
         "<body><h1>Mock build output</h1></body></html>";
+      handle.files.set("/workspace/out/index.html", Buffer.from(html, "utf8"));
       handle.files.set("/workspace/dist/index.html", Buffer.from(html, "utf8"));
       options.onLine?.("mock build complete");
       return {

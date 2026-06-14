@@ -5,9 +5,16 @@ import { getSandboxConfig } from "../../config/sandbox.js";
 export const SANDBOX_PATHS = {
   scaffoldRoot: "/opt/radiant-scaffold",
   workspaceRoot: "/workspace",
-  writePrefixes: ["/workspace/src/", "/workspace/public/"] as const,
+  writePrefixes: [
+    "/workspace/app/",
+    "/workspace/components/",
+    "/workspace/lib/",
+    "/workspace/src/",
+    "/workspace/public/",
+  ] as const,
   movePrefix: "/workspace/move/",
   distPrefix: "/workspace/dist/",
+  outPrefix: "/workspace/out/",
 } as const;
 
 /** Agent artifact writes (`generate_app`, sandbox `writeFiles`). */
@@ -221,7 +228,7 @@ export function validateMoveSourceBatch(files: SandboxArtifactFile[]): SandboxAr
   return normalized;
 }
 
-/** After Vite build — reject oversized `dist/` before Walrus upload. */
+/** After Next/Vite build — reject oversized output before Walrus upload. */
 export function validateDistOutputBytes(totalBytes: number): void {
   const { maxDistBytes } = getSandboxConfig();
   if (totalBytes > maxDistBytes) {

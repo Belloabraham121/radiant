@@ -14,28 +14,32 @@ export async function collectDistFromSandbox(
   provider: SandboxProvider,
   handleId: string,
 ): Promise<DistFile[]> {
-  const paths = await provider.listDir(handleId, SANDBOX_PATHS.distPrefix);
-  const files: DistFile[] = [];
-  let totalBytes = 0;
+  for (const prefix of [SANDBOX_PATHS.outPrefix, SANDBOX_PATHS.distPrefix]) {
+    const paths = await provider.listDir(handleId, prefix);
+    if (paths.length === 0) continue;
 
-  for (const absolutePath of paths) {
-    if (absolutePath.endsWith("/")) continue;
-    const bytes = await provider.readFile(handleId, absolutePath);
-    totalBytes += bytes.length;
-    validateDistOutputBytes(totalBytes);
+    const files: DistFile[] = [];
+    let totalBytes = 0;
 
-    const relativePath = absolutePath.startsWith(SANDBOX_PATHS.distPrefix)
-      ? absolutePath.slice(SANDBOX_PATHS.distPrefix.length)
-      : absolutePath;
+    for (const absolutePath of paths) {
+      if (absolutePath.endsWith("/")) continue;
+      const bytes = await provider.readFile(handleId, absolutePath);
+      totalBytes += bytes.length;
+      validateDistOutputBytes(totalBytes);
 
-    files.push({ relativePath, content: bytes });
+      const relativePath = absolutePath.startsWith(prefix)
+        ? absolutePath.slice(prefix.length)
+        : absolutePath;
+
+      files.push({ relativePath, content: bytes });
+    }
+
+    if (files.length > 0) {
+      return files;
+    }
   }
 
-  if (files.length === 0) {
-    throw new Error("Build produced an empty dist/ directory");
-  }
-
-  return files;
+  throw new Error("Build produced an empty out/ or dist/ directory");
 }
 
 export async function prepareFixedTemplateDist(

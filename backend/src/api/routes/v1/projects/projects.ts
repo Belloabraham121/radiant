@@ -12,6 +12,10 @@ import {
   listProjectRevisionsForUser,
   restoreProjectRevisionForUser,
 } from "../../../../services/projects/project-artifact.service.js";
+import {
+  poolInfoForProject,
+  swapQuoteForProject,
+} from "../../../../services/projects/project-platform.service.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { ok } from "../../../../utils/http-response.js";
 
@@ -127,3 +131,37 @@ projectsRouter.get("/api/v1/projects/:projectId", requireAuth, async (req, res, 
     next(err);
   }
 });
+
+projectsRouter.post(
+  "/api/v1/projects/:projectId/swap/quote",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await swapQuoteForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.body,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/pool-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await poolInfoForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);

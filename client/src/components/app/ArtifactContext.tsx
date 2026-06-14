@@ -48,9 +48,10 @@ function pickActivePath(payload: ArtifactPayload, preferred?: string): string {
     return preferred;
   }
   const appPath =
+    payload.files.find((file) => file.path === "app/page.tsx")?.path ??
     payload.files.find((file) => file.path === "src/App.tsx")?.path ??
     payload.files.find((file) => file.path === "src/App.jsx")?.path;
-  return appPath ?? payload.files[0]?.path ?? "src/App.tsx";
+  return appPath ?? payload.files[0]?.path ?? "app/page.tsx";
 }
 
 export function ArtifactProvider({ children }: { children: ReactNode }) {
