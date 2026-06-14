@@ -100,6 +100,9 @@ describe("generateAppForUser", () => {
     assert.equal(first.revision, 0);
     assert.ok(first.artifact.files.some((f) => f.path === "app/page.tsx"));
     assert.ok(first.artifact.files.some((f) => f.path === "lib/radiant-client.ts"));
+    const radiantClient = first.artifact.files.find((f) => f.path === "lib/radiant-client.ts");
+    assert.ok(radiantClient);
+    assert.match(radiantClient!.content, /export async function executeSwap/);
     assert.deepEqual(first.artifact, {
       project_id: PREVIEW_PROJECT_ID,
       name: "Counter",

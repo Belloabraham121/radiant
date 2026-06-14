@@ -1,4 +1,4 @@
-/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. */
+/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v3. */
 
 export type SwapQuoteParams = {
   amount: number;
@@ -23,9 +23,55 @@ export type PoolInfoResult = {
   ticker?: { last_price?: number };
 };
 
+export type AppActionExecuted = {
+  status: "executed";
+  action?: string;
+  digest: string;
+  explorer_url: string | null;
+  agent_transaction_id?: string;
+  result: Record<string, unknown>;
+};
+
+export type AppActionApprovalRequired = {
+  status: "approval_required";
+  action?: string;
+  agent_transaction_id: string;
+  pending: Record<string, unknown>;
+};
+
+export type AppActionErrorResult = {
+  status: "error";
+  action?: string;
+  error: { code: string; message: string; details?: unknown };
+};
+
+export type AppActionResult =
+  | AppActionExecuted
+  | AppActionApprovalRequired
+  | AppActionErrorResult;
+
+export class RadiantActionError extends Error {
+  code: string;
+  details?: unknown;
+
+  constructor(message: string, code: string, details?: unknown) {
+    super(message);
+    this.name = "RadiantActionError";
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export function isApprovalRequired(
+  result: AppActionResult,
+): result is AppActionApprovalRequired {
+  return result.status === "approval_required";
+}
+
 declare global {
   interface Window {
     __RADIANT_PROJECT_ID__?: string;
+    __RADIANT_INSTALLATION_ID__?: string;
     __RADIANT_PREVIEW_FETCH__?: (path: string, init?: RequestInit) => Promise<Response>;
   }
 }
@@ -35,6 +81,41 @@ function projectId(): string {
     return window.__RADIANT_PROJECT_ID__;
   }
   return process.env.NEXT_PUBLIC_RADIANT_PROJECT_ID ?? "";
+}
+
+function installationId(): string {
+  if (typeof window !== "undefined" && window.__RADIANT_INSTALLATION_ID__) {
+    return window.__RADIANT_INSTALLATION_ID__;
+  }
+  return process.env.NEXT_PUBLIC_RADIANT_INSTALLATION_ID ?? "";
+}
+
+function scopeIds(): { projectId: string; installationId: string | null } {
+  const install = installationId();
+  const project = projectId();
+  if (install) {
+    if (!project) {
+      throw new Error("Missing Radiant project id for installed app");
+    }
+    return { projectId: project, installationId: install };
+  }
+  if (!project) {
+    throw new Error("Missing Radiant project id");
+  }
+  return { projectId: project, installationId: null };
+}
+
+function projectApiPrefix(): string {
+  const { projectId: id } = scopeIds();
+  return "/api/v1/projects/" + id;
+}
+
+function actionApiPath(action: string): string {
+  const { projectId: id, installationId: install } = scopeIds();
+  if (install) {
+    return "/api/v1/installations/" + install + "/actions/" + action;
+  }
+  return "/api/v1/projects/" + id + "/actions/" + action;
 }
 
 async function platformFetch(path: string, init: RequestInit = {}): Promise<Response> {
@@ -52,18 +133,59 @@ async function parseEnvelope<T>(res: Response): Promise<T> {
   const body = (await res.json()) as {
     success?: boolean;
     data?: T;
-    error?: { message?: string };
+    error?: { message?: string; code?: string };
   };
   if (!res.ok || !body.success || body.data === undefined) {
-    throw new Error(body.error?.message ?? "Radiant API request failed");
+    throw new RadiantActionError(
+      body.error?.message ?? "Radiant API request failed",
+      body.error?.code ?? "API_ERROR",
+    );
   }
   return body.data;
 }
 
+async function parseActionResult(res: Response): Promise<AppActionResult> {
+  const result = await parseEnvelope<AppActionResult>(res);
+  if (result.status === "error") {
+    throw new RadiantActionError(result.error.message, result.error.code, result.error.details);
+  }
+  return result;
+}
+
+/** Execute any registered app action via the agent wallet. Returns approval_required without throwing. */
+export async function executeAction(
+  action: string,
+  params: Record<string, unknown> = {},
+): Promise<AppActionResult> {
+  const res = await platformFetch(actionApiPath(action), {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+  return parseActionResult(res);
+}
+
+export async function executeSwap(
+  params: SwapQuoteParams & { slippage_bps?: number; pay_with_deep?: boolean },
+): Promise<AppActionResult> {
+  return executeAction("swap", params);
+}
+
+export async function executeFlashLoan(
+  params: Record<string, unknown>,
+): Promise<AppActionResult> {
+  return executeAction("flash_loan", params);
+}
+
+export async function executeStake(params: Record<string, unknown>): Promise<AppActionResult> {
+  return executeAction("stake", params);
+}
+
+export async function executeUnstake(params: Record<string, unknown>): Promise<AppActionResult> {
+  return executeAction("unstake", params);
+}
+
 export async function swapQuote(params: SwapQuoteParams): Promise<SwapQuoteResult> {
-  const id = projectId();
-  if (!id) throw new Error("Missing Radiant project id");
-  const res = await platformFetch("/api/v1/projects/" + id + "/swap/quote", {
+  const res = await platformFetch(projectApiPrefix() + "/swap/quote", {
     method: "POST",
     body: JSON.stringify(params),
   });
@@ -71,11 +193,8 @@ export async function swapQuote(params: SwapQuoteParams): Promise<SwapQuoteResul
 }
 
 export async function poolInfo(pool_key = "SUI_USDC"): Promise<PoolInfoResult> {
-  const id = projectId();
-  if (!id) throw new Error("Missing Radiant project id");
   const res = await platformFetch(
-    "/api/v1/projects/" +
-      id +
+    projectApiPrefix() +
       "/deepbook/pool-info?pool_key=" +
       encodeURIComponent(pool_key),
   );

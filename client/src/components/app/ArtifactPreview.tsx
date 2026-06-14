@@ -59,8 +59,8 @@ export function ArtifactPreview({
   const [refreshKey, setRefreshKey] = useState(0);
   const routes = useMemo(() => extractArtifactPreviewRoutes(files), [files]);
   const srcdoc = useMemo(
-    () => buildArtifactPreviewSrcdoc(files, { projectId }),
-    [files, projectId, revision, refreshKey],
+    () => buildArtifactPreviewSrcdoc(files, { projectId, installationId }),
+    [files, projectId, installationId, revision, refreshKey],
   );
 
   previewPathRef.current = previewPath;

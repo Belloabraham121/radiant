@@ -1,8 +1,11 @@
 import {
   NEXT_APP_GLOBALS_CSS,
   NEXT_APP_LAYOUT_TSX,
+  RADIANT_CLIENT_TEMPLATE_VERSION,
   RADIANT_CLIENT_TS,
 } from "./radiant-client-template.js";
+
+export { RADIANT_CLIENT_TEMPLATE_VERSION };
 
 type ArtifactFileInput = { path: string; content: string };
 

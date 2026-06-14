@@ -147,38 +147,38 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `POST /api/v1/projects/:projectId/actions/:actionName` | Body = action params JSON |
-| [ ] | `GET /api/v1/projects/:projectId/actions` | List supported actions + JSON Schema (stub until Phase 6) |
-| [ ] | Register in `api/routes/v1/projects/projects.ts` | |
-| [ ] | Rate limit per user | Reuse agent rate-limit patterns |
+| [x] | `POST /api/v1/projects/:projectId/actions/:actionName` | Body = action params JSON |
+| [x] | `GET /api/v1/projects/:projectId/actions` | List supported actions + param field docs (full registry until Phase 6) |
+| [x] | Register in `api/routes/v1/projects/projects.ts` | |
+| [ ] | Rate limit per user | No HTTP rate-limit middleware yet — defer until shared limiter exists |
 
 ### 2.2 Installation routes
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `POST /api/v1/installations/:installationId/actions/:actionName` | |
-| [ ] | `GET /api/v1/installations/:installationId/actions` | |
-| [ ] | Register in `installations.ts` | |
+| [x] | `POST /api/v1/installations/:installationId/actions/:actionName` | |
+| [x] | `GET /api/v1/installations/:installationId/actions` | |
+| [x] | Register in `installations.ts` | |
 
 ### 2.3 DeepBook actions (MVP set)
 
 | Status | Action | Maps to |
 | ------ | ------ | ------- |
-| [ ] | `swap` | `execute_transaction` swap / deepbook_swap |
-| [ ] | `flash_loan` | deepbook_flash_loan (+ quote validation) |
-| [ ] | `stake` | deepbook_stake |
-| [ ] | `unstake` | deepbook_unstake |
-| [ ] | `deposit` | deepbook_deposit |
-| [ ] | `withdraw` | deepbook_withdraw |
-| [ ] | `place_limit_order` | deepbook_place_limit_order |
-| [ ] | `cancel_order` | deepbook_cancel_order |
+| [x] | `swap` | `execute_transaction` swap / deepbook_swap |
+| [x] | `flash_loan` | deepbook_flash_loan (+ quote validation) |
+| [x] | `stake` | deepbook_stake |
+| [x] | `unstake` | deepbook_unstake |
+| [x] | `deposit` | deepbook_deposit |
+| [x] | `withdraw` | deepbook_withdraw |
+| [x] | `place_limit_order` | deepbook_place_limit_order |
+| [x] | `cancel_order` | deepbook_cancel_order |
 
 ### 2.4 API docs
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Update `backend/api-ref.md` | Routes + example bodies |
-| [ ] | Envelope `{ success, data, error }` | Standard Radiant response |
+| [x] | Update `backend/api-ref.md` | Routes + example bodies |
+| [x] | Envelope `{ success, data, error }` | Standard Radiant response |
 
 ---
 
@@ -192,26 +192,26 @@ Live mode (optional) ◄──────────────┘     AgentI
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `executeAction(action, params)` | `POST .../actions/:action` |
-| [ ] | `executeSwap(params)` | Convenience wrapper |
-| [ ] | `executeFlashLoan(params)` | |
-| [ ] | `executeStake` / `executeUnstake` | |
-| [ ] | Handle `approval_required` in client | Throw typed error or return discriminated union |
-| [ ] | Support installation id | Read `__RADIANT_INSTALLATION_ID__` when present |
+| [x] | `executeAction(action, params)` | `POST .../actions/:action` |
+| [x] | `executeSwap(params)` | Convenience wrapper |
+| [x] | `executeFlashLoan(params)` | |
+| [x] | `executeStake` / `executeUnstake` | |
+| [x] | Handle `approval_required` in client | Returns discriminated union; `isApprovalRequired()` helper; throws `RadiantActionError` on `error` |
+| [x] | Support installation id | Read `__RADIANT_INSTALLATION_ID__` when present |
 
 ### 3.2 Preview bootstrap (`artifact-preview.ts`)
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Inject `__RADIANT_INSTALLATION_ID__` when running installed app | Mirror project id injection |
-| [ ] | Route action POSTs through `__RADIANT_PREVIEW_FETCH__` | Already proxies to parent |
+| [x] | Inject `__RADIANT_INSTALLATION_ID__` when running installed app | Mirror project id injection |
+| [x] | Route action POSTs through `__RADIANT_PREVIEW_FETCH__` | Already proxies to parent |
 
 ### 3.3 `ensure-app-entry.ts`
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Bump template version comment | So tests detect template changes |
-| [ ] | Integration test: generated artifact includes execute helpers | Extend `generate-app.test.ts` |
+| [x] | Bump template version comment | `RADIANT_CLIENT_TEMPLATE_VERSION = 3` |
+| [x] | Integration test: generated artifact includes execute helpers | `generate-app.test.ts` + `ensure-app-entry.test.ts` |
 
 ---
 
@@ -592,6 +592,8 @@ Fallback: chat execution timeline + receipts only (already shipped in chat).
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 3 | `radiant-client` v3: `executeAction`, swap/flash/stake helpers, installation id, preview injection |
+| 2026-06-14 | 2 | HTTP routes: project + installation `GET/POST .../actions`, catalog service, api-ref |
 | 2026-06-14 | 1.3 | UI approval: `POST .../agent/transactions/:id/approve|reject`, `ArtifactPreviewWithApproval`, `useAgentTransactionApproval` |
 | 2026-06-14 | 0.2–1.2 | `AppActionResult`, `AppActionContext`, `app-action.service.ts`, result mappers + tests |
 | 2026-06-14 | 0.1 | Action registry: `app-action.types`, `app-action-registry`, `app-action-param-schemas`, `app-action-mapper` + unit tests |

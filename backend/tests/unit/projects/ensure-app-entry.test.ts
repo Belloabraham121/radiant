@@ -51,6 +51,15 @@ describe("ensureAppEntry", () => {
     assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
   });
 
+  it("injects radiant-client template v3 with execute helpers", () => {
+    const result = ensureAppEntry([{ path: "app/page.tsx", content: "export default function Page() { return null; }" }]);
+    const client = result.find((f) => f.path === "lib/radiant-client.ts");
+    assert.ok(client);
+    assert.match(client!.content, /export async function executeAction/);
+    assert.match(client!.content, /export async function executeSwap/);
+    assert.match(client!.content, /Template v3/);
+  });
+
   it("injects Tailwind import into globals.css for deploy builds", () => {
     assert.match(
       ensureTailwindInGlobalsCss(":root { --hero-bg: #fff; }"),

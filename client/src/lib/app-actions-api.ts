@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/api";
 import type { PendingTransaction } from "@/lib/chat-api";
 
 /** Mirrors backend AppActionResult (subset used by preview + approval UI). */
@@ -114,4 +115,46 @@ export function isAppActionApprovalRequired(
   result: AppActionResult,
 ): result is Extract<AppActionResult, { status: "approval_required" }> {
   return result.status === "approval_required";
+}
+
+export type AppActionCatalog = {
+  actions: Array<{
+    name: string;
+    description: string;
+    protocol: string;
+    default_chain_id: string;
+    category: string;
+    execute_action: string;
+    params: { fields: Array<{ name: string; type: string; required?: boolean; description?: string }> };
+  }>;
+};
+
+export async function listProjectActions(projectId: string): Promise<AppActionCatalog> {
+  return apiFetch(`/api/v1/projects/${projectId}/actions`);
+}
+
+export async function executeProjectAction(
+  projectId: string,
+  action: string,
+  params: Record<string, unknown> = {},
+): Promise<AppActionResult> {
+  return apiFetch(`/api/v1/projects/${projectId}/actions/${action}`, {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function listInstallationActions(installationId: string): Promise<AppActionCatalog> {
+  return apiFetch(`/api/v1/installations/${installationId}/actions`);
+}
+
+export async function executeInstallationAction(
+  installationId: string,
+  action: string,
+  params: Record<string, unknown> = {},
+): Promise<AppActionResult> {
+  return apiFetch(`/api/v1/installations/${installationId}/actions/${action}`, {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
 }

@@ -21,6 +21,9 @@ import {
   getProjectPublishStateForUser,
   publishProjectForUser,
 } from "../../../../services/apps/app-installation.service.js";
+import { listAppActionsCatalog } from "../../../../services/projects/app-action-catalog.service.js";
+import { parseAppActionName } from "../../../../services/projects/app-action-mapper.js";
+import { executeAppActionForProject } from "../../../../services/projects/app-action.service.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { ok } from "../../../../utils/http-response.js";
 
@@ -222,6 +225,44 @@ projectsRouter.get(
         req.query,
       );
       return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get("/api/v1/projects/:projectId/actions", requireAuth, async (req, res, next) => {
+  try {
+    const user = await findUserByPrivyId(req.user.privyUserId);
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    const project = await findProjectByIdForUser(req.params.projectId, user.id);
+    if (!project) {
+      throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+    }
+
+    return ok(req, res, listAppActionsCatalog());
+  } catch (err) {
+    next(err);
+  }
+});
+
+projectsRouter.post(
+  "/api/v1/projects/:projectId/actions/:actionName",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const action = parseAppActionName(req.params.actionName);
+      const result = await executeAppActionForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        action,
+        req.body,
+        { source: "ui" },
+      );
+      return ok(req, res, result);
     } catch (err) {
       next(err);
     }

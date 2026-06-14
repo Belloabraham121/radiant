@@ -32,6 +32,7 @@ export function prepareAppSourceForPreview(source: string): string {
 
 export type ArtifactPreviewOptions = {
   projectId?: string;
+  installationId?: string;
 };
 
 function prepareModuleMap(files: ArtifactFile[]): Record<string, string> {
@@ -55,6 +56,7 @@ export function buildArtifactPreviewSrcdoc(
     entry,
     modules,
     projectId: options.projectId ?? "",
+    installationId: options.installationId ?? "",
   });
 
   return `<!DOCTYPE html>
@@ -110,6 +112,9 @@ ${css}
 
   if (payload.projectId) {
     window.__RADIANT_PROJECT_ID__ = payload.projectId;
+  }
+  if (payload.installationId) {
+    window.__RADIANT_INSTALLATION_ID__ = payload.installationId;
   }
   window.__RADIANT_PREVIEW_FETCH__ = function(path, init) {
     return new Promise(function(resolve, reject) {
