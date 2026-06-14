@@ -1,15 +1,12 @@
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findInstallationForUser } from "../apps/app-installation.repository.js";
-import { runExecuteTransactionToolWithApproval } from "../agent/execute-transaction-with-approval.js";
+import { getAppProtocolAdapter } from "../protocols/protocol-adapter-registry.js";
+import { resolveAppProtocolId } from "../protocols/resolve-project-protocol.js";
+import type { ProjectActionSchemaSource } from "./app-action-schema.service.js";
 import { findProjectByIdForUser } from "./project.repository.js";
 import type { AppActionContext, AppActionName, AppActionResult } from "./app-action.types.js";
-import {
-  buildAgentToolOptionsFromContext,
-  mapExecuteOutcomeToAppActionResult,
-  mapThrownErrorToAppActionResult,
-} from "./app-action-result.js";
-import { validateAppActionInput } from "./app-action-mapper.js";
+import { mapThrownErrorToAppActionResult } from "./app-action-result.js";
 
 async function assertProjectAccess(privyUserId: string, projectId: string): Promise<void> {
   const user = await findUserByPrivyId(privyUserId);
@@ -40,9 +37,29 @@ async function assertInstallationAccess(
   }
 }
 
+async function loadProjectSchemaSource(
+  ctx: AppActionContext,
+): Promise<ProjectActionSchemaSource | null> {
+  const user = await findUserByPrivyId(ctx.privyUserId);
+  if (!user) {
+    return null;
+  }
+
+  if (ctx.projectId) {
+    return findProjectByIdForUser(ctx.projectId, user.id);
+  }
+
+  if (ctx.installationId) {
+    const installation = await findInstallationForUser(ctx.installationId, user.id);
+    return installation?.source_project ?? null;
+  }
+
+  return null;
+}
+
 /**
- * Execute a canonical app action via the same path as chat `execute_transaction`.
- * Uses the authenticated user's agent wallet (Privy).
+ * Execute a canonical app action via the protocol adapter registry.
+ * DeepBook today; new protocols register an adapter (see docs/protocol-extension-kit.md).
  */
 export async function executeAppAction(
   ctx: AppActionContext,
@@ -50,13 +67,24 @@ export async function executeAppAction(
   params: unknown,
 ): Promise<AppActionResult> {
   try {
-    const input = validateAppActionInput(action, params, { chain_id: ctx.chainId });
-    const outcome = await runExecuteTransactionToolWithApproval(
-      ctx.privyUserId,
-      input,
-      buildAgentToolOptionsFromContext(ctx),
-    );
-    return mapExecuteOutcomeToAppActionResult(action, outcome);
+    const project = await loadProjectSchemaSource(ctx);
+    const protocolId = resolveAppProtocolId(action, project);
+    const adapter = getAppProtocolAdapter(protocolId);
+
+    if (!adapter.supportsAction(action)) {
+      throw new AppError(
+        400,
+        "ACTION_NOT_SUPPORTED_BY_PROTOCOL",
+        `Action "${action}" is not supported by protocol "${protocolId}".`,
+        {
+          action,
+          protocol: protocolId,
+          supported_actions: [...adapter.supportedActions()],
+        },
+      );
+    }
+
+    return await adapter.execute(action, params, ctx);
   } catch (err) {
     return mapThrownErrorToAppActionResult(action, err);
   }

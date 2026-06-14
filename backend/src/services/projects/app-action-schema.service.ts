@@ -41,7 +41,7 @@ const projectActionSchemaActionSchema = z.object({
 export const projectActionSchemaSchema = z.object({
   schema_version: z.literal(PROJECT_ACTION_SCHEMA_VERSION),
   app_id: z.string().uuid(),
-  protocol: z.enum(["deepbook", "custom"]),
+  protocol: z.enum(["deepbook", "polymarket", "custom"]),
   actions: z.array(projectActionSchemaActionSchema),
 });
 

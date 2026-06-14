@@ -456,26 +456,28 @@ Rationale: parent already proxies API calls with cookies; approval bar above the
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | `AppProtocolAdapter` interface | `supportedActions()`, `execute(action, params, ctx)` |
-| [ ] | `DeepBookAppAdapter` implements | Wraps existing defi services |
-| [ ] | Registry: `protocol` field on project | `deepbook`, `polymarket`, … |
+| [x] | `AppProtocolAdapter` interface | `supportedActions()`, `execute(action, params, ctx)` |
+| [x] | `DeepBookAppAdapter` implements | Wraps existing defi services |
+| [x] | Registry: `protocol` field on project | `deepbook`, `polymarket`, `custom` on `action_schema` |
+
+See **`docs/protocol-extension-kit.md`** for the full checklist and Polymarket stub pattern.
 
 ### 10.2 Per-protocol checklist (template for new protocols)
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Backend adapter in `services/defi/` or `services/protocols/` | |
-| [ ] | Action mapper entries | |
-| [ ] | Default action schema | |
-| [ ] | `radiant-client` helpers | |
-| [ ] | generate_app prompt blurb | |
-| [ ] | Agent tool / execute_transaction actions if chain-specific | |
+| [x] | Backend adapter in `services/defi/` or `services/protocols/` | `backend/src/services/protocols/` |
+| [x] | Action mapper entries | Documented in protocol-extension-kit |
+| [x] | Default action schema | Documented in protocol-extension-kit |
+| [x] | `radiant-client` helpers | Documented in protocol-extension-kit |
+| [x] | generate_app prompt blurb | Documented in protocol-extension-kit |
+| [x] | Agent tool / execute_transaction actions if chain-specific | Documented in protocol-extension-kit |
 
 ### 10.3 DeepBook full UI coverage
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Swap tab wired end-to-end | Phase 1–4 |
+| [x] | Swap tab wired end-to-end | Phase 1–4 |
 | [ ] | Flash loan tab | quote + execute actions |
 | [ ] | Stake / governance tabs | |
 | [ ] | Open orders view | read via existing query APIs in client |
@@ -601,6 +603,7 @@ SSE preview may lead/lag the tx by ~300ms. Use `agent_done.digest` + chat ledger
 
 | Date | Phase | Notes |
 | ---- | ----- | ----- |
+| 2026-06-14 | 10 | Protocol extension kit: adapters, registry, Polymarket stub, checklist doc |
 | 2026-06-14 | 9 | In-app approval UX — Option A artifact shell; approve relays digest to iframe |
 | 2026-06-14 | 8.4–8.5 | Ordering docs, swap refresh on `agent_done`, emit/receive integration test, demo script |
 | 2026-06-14 | 8.3 | Client `useAgentStream`, iframe relay, runtime animate handler |

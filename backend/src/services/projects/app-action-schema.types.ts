@@ -2,7 +2,7 @@ import type { AppActionName, AppActionParamField } from "./app-action.types.js";
 
 export const PROJECT_ACTION_SCHEMA_VERSION = 1 as const;
 
-export type ProjectActionSchemaProtocol = "deepbook" | "custom";
+export type ProjectActionSchemaProtocol = "deepbook" | "polymarket" | "custom";
 
 /** Persisted per-project action schema (Phase 6). */
 export type ProjectActionSchema = {
