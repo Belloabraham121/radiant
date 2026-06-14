@@ -26,7 +26,7 @@ export function getWalrusConfig(): WalrusConfig {
   cached = {
     mockDeploy: parseBool(optional("WALRUS_DEPLOY_MOCK", "true"), true),
     siteBuilderBin: optional("WALRUS_SITE_BUILDER_BIN", "site-builder"),
-    epochs: optional("WALRUS_SITE_EPOCHS", "5"),
+    epochs: optional("WALRUS_SITE_EPOCHS", "30"),
     sitesConfigPath: process.env.WALRUS_SITES_CONFIG_PATH?.trim() || undefined,
     walrusConfigPath: process.env.WALRUS_CONFIG_PATH?.trim() || undefined,
     suiNetwork: optional("WALRUS_SUI_NETWORK", optional("SUI_NETWORK", "testnet")),

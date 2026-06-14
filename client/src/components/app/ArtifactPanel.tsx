@@ -6,6 +6,7 @@ import { ArtifactCodeView } from "@/components/app/ArtifactCodeView";
 import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
 import { ArtifactPreview } from "@/components/app/ArtifactPreview";
 import { ArtifactProjectControls } from "@/components/app/ArtifactProjectControls";
+import { ArtifactDeployPanel } from "@/components/app/ArtifactDeployPanel";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 
 type ArtifactTab = "preview" | "code" | "deploy";
@@ -125,12 +126,10 @@ export function ArtifactPanel({
         ) : null}
 
         {tab === "deploy" ? (
-          <div className="flex h-full items-center justify-center p-6 text-center">
-            <p className="max-w-xs text-sm font-semibold text-[var(--hero-ink)]/55">
-              Deploy to Walrus is coming in the next phase. Your draft is saved — you can keep
-              editing here until publish ships.
-            </p>
-          </div>
+          <ArtifactDeployPanel
+            projectId={payload.project_id}
+            disabled={streaming}
+          />
         ) : null}
       </div>
     </aside>

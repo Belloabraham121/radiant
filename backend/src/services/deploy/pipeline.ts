@@ -102,7 +102,7 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
 
         await logStep(jobId, "build", "Running production build in sandbox");
         const { buildCommandTimeoutMs } = getSandboxConfig();
-        const build = await sandboxProvider.run(handleId, "cd /workspace && pnpm build", {
+        const build = await sandboxProvider.run(handleId, "cd /workspace && npm run build", {
           cwd: "/workspace",
           timeoutMs: buildCommandTimeoutMs,
           onLine: (line) => {

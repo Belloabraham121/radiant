@@ -1,22 +1,54 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { ArrowUpRight, Globe, Hammer, Rocket } from "lucide-react";
+import { ArrowUpRight, ExternalLink, Globe, Hammer, Loader2 } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
-import { PROJECTS } from "@/lib/app-data";
-import { getAgent, fmt } from "@/lib/explorer-data";
+import { fetchAllProjects, type ProjectSummary } from "@/lib/projects-api";
 
 gsap.registerPlugin(useGSAP);
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function ProjectsPage() {
   const ref = useRef<HTMLDivElement>(null);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetchAllProjects()
+      .then((rows) => {
+        if (!cancelled) setProjects(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load projects");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useGSAP(
     () => {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (projects.length === 0) return;
       gsap.from("[data-project-card]", {
         y: 32,
         opacity: 0,
@@ -26,7 +58,7 @@ export default function ProjectsPage() {
         ease: "back.out(1.4)",
       });
     },
-    { scope: ref },
+    { scope: ref, dependencies: [projects.length] },
   );
 
   return (
@@ -38,15 +70,33 @@ export default function ProjectsPage() {
             Your projects
           </h1>
           <p className="mt-2 max-w-xl text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
-            Everything your agent has built for you. It keeps all of these in its memory — new
-            chats can reference, reuse, and extend any of them.
+            Everything your agent has built for you. Deployed apps show a Walrus URL when live.
           </p>
         </div>
       </div>
 
+      {loading ? (
+        <div className="mt-16 flex items-center justify-center gap-2 text-sm font-semibold text-[var(--hero-ink)]/45">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Loading projects…
+        </div>
+      ) : null}
+
+      {error ? (
+        <p className="mt-10 rounded-2xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {error}
+        </p>
+      ) : null}
+
+      {!loading && !error && projects.length === 0 ? (
+        <p className="mt-10 rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/15 bg-[var(--hero-bg)]/40 p-6 text-sm font-semibold text-[var(--hero-ink)]/55">
+          No projects yet. Ask the agent to build an app in chat — it will appear here.
+        </p>
+      ) : null}
+
       <div className="mt-10 grid gap-6 sm:grid-cols-2">
-        {PROJECTS.map((project) => {
-          const agent = project.agentId ? getAgent(project.agentId) : undefined;
+        {projects.map((project) => {
+          const isLive = project.status === "live" || Boolean(project.walrus_url);
           return (
             <Link
               key={project.id}
@@ -59,10 +109,10 @@ export default function ProjectsPage() {
                   className="flex size-12 items-center justify-center rounded-xl border-2 border-[var(--hero-ink)] font-heading text-xl font-extrabold text-white"
                   style={{ backgroundColor: project.accent }}
                 >
-                  {project.name[0]}
+                  {project.name[0]?.toUpperCase() ?? "?"}
                 </span>
                 <span className="flex items-center gap-2">
-                  {project.status === "live" ? (
+                  {isLive ? (
                     <span className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1 text-xs font-bold text-[var(--hero-mint)]">
                       <Globe className="size-3.5" strokeWidth={2.5} />
                       live
@@ -82,19 +132,25 @@ export default function ProjectsPage() {
                   {project.name}
                 </h3>
                 <p className="mt-1 text-sm font-medium text-[var(--hero-ink)]/55">
-                  {project.tagline}
+                  {project.tagline || "No tagline"}
                 </p>
               </div>
 
-              <div className="flex items-center justify-between border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-3 text-xs font-bold text-[var(--hero-ink)]/45">
-                <span>built in “{project.builtIn}”</span>
-                {agent ? (
-                  <span style={{ color: project.accent }}>{fmt(agent.uses)} users</span>
-                ) : (
-                  <span className="flex items-center gap-1" style={{ color: project.accent }}>
-                    <Rocket className="size-3.5" strokeWidth={2.5} />
-                    ready to launch
+              <div className="flex flex-col gap-2 border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-3 text-xs font-bold text-[var(--hero-ink)]/45">
+                <span>
+                  {project.template} · rev {project.artifact_revision} · updated{" "}
+                  {formatDate(project.updated_at)}
+                </span>
+                {project.walrus_url ? (
+                  <span
+                    className="inline-flex items-center gap-1 truncate text-[var(--hero-violet)]"
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    <ExternalLink className="size-3 shrink-0" strokeWidth={2.5} aria-hidden />
+                    <span className="truncate">{project.walrus_url}</span>
                   </span>
+                ) : (
+                  <span className="text-[var(--hero-ink)]/35">Not deployed yet</span>
                 )}
               </div>
             </Link>

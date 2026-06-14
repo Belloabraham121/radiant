@@ -5,6 +5,7 @@ Single roadmap for everything discussed: **Next.js artifacts**, **platform APIs*
 **Companion docs**
 
 - [app-builder-deploy-TODO.md](./app-builder-deploy-TODO.md) — E2B, deploy pipeline, Phase 3–7 detail
+- [walrus-local-setup.md](./walrus-local-setup.md) — testnet CLI, portal, `WALRUS_DEPLOY_MOCK=false`
 - [backend/.agents/skills/walrus-sites/](../backend/.agents/skills/walrus-sites/) — publish + testnet portal
 - [backend/.agents/skills/inngest-radiant/](../backend/.agents/skills/inngest-radiant/SKILL.md) — deploy job queue
 - [Walrus getting started](https://docs.wal.app/docs/getting-started) — blobs vs sites
@@ -114,9 +115,9 @@ flowchart TB
 | Project platform APIs (swap quote, pool info) | ✅ Done | DeepBook on Radiant backend |
 | Inngest deploy queue | ✅ Done | BullMQ fallback; `INNGEST_DEV=1` in `.env` |
 | E2B Next scaffold + `out/` export | ✅ Done | Rebuild template: `npm run e2b:template:build` |
-| Walrus Sites deploy (Phase 3 code) | 🟡 Partial | `WALRUS_DEPLOY_MOCK=true` by default — fake URLs |
-| Real Walrus testnet/mainnet QA | ❌ TODO | See Phase 3 below |
-| Deploy progress UI / Projects page | ❌ TODO | Client |
+| Walrus Sites deploy (Phase 3 code) | 🟡 Partial | Client UI + docs; set `WALRUS_DEPLOY_MOCK=false` for real URLs |
+| Real Walrus testnet/mainnet QA | ❌ TODO | Manual checklist in `docs/walrus-local-setup.md` |
+| Deploy progress UI / Projects page | ✅ Done | Deploy tab polls API; Projects lists `walrus_url` |
 | Option B sql.js + IndexedDB | ❌ TODO | New workstream |
 | Walrus `.sqlite` snapshot API | ❌ TODO | Depends on Option B |
 | Phase 5 Move + AppRegistry + Explorer | ❌ TODO | After Phase 3 stable |
@@ -132,9 +133,9 @@ flowchart TB
 | [x] | `lib/radiant-client.ts` template + preview API proxy | Backend + Client |
 | [x] | `generate_app` arg normalization + higher token limit | Backend |
 | [x] | Streaming artifact state fixes (editing stuck) | Client |
-| [ ] | Agent prompts: always `files[]` array + `app/page.tsx` | Backend |
-| [ ] | Deploy tab: real progress from `GET /api/v1/deploy/:id` | Client |
-| [ ] | Projects page: list projects + `walrus_url` | Client |
+| [x] | Agent prompts: always `files[]` array + `app/page.tsx` | Backend |
+| [x] | Deploy tab: real progress from `GET /api/v1/deploy/:id` | Client |
+| [x] | Projects page: list projects + `walrus_url` | Client |
 
 ---
 
@@ -147,13 +148,13 @@ Use skill: `backend/.agents/skills/walrus-sites/publishing/` and `portal/` for t
 | [x] | `deployWalrusSite()` + pipeline integration | `sites.client.ts` |
 | [x] | Fixed template deploy (no E2B) | `none` provider |
 | [x] | Custom template → E2B → `out/` → Walrus | Phase 4 path |
-| [ ] | **Local Walrus setup** | `suiup install sui walrus`, `client_config.yaml`, funded testnet wallet ([docs](https://docs.wal.app/docs/getting-started)) |
-| [ ] | Set `WALRUS_DEPLOY_MOCK=false` | `.env` + `WALRUS_SITES_CONFIG_PATH`, `WALRUS_CONFIG_PATH` |
-| [ ] | Raise default epochs | Skill: **30+** testnet (config currently `5`) |
-| [ ] | `ws-resources.json` SPA fallback | HashRouter / client routes on Walrus portal |
-| [ ] | Testnet local portal | `walrus-sites/portal` skill — **not** `wal.app` for testnet |
-| [ ] | Manual QA: deploy → URL opens | Mark Phase 3 exit criteria in deploy TODO |
-| [ ] | Cursor rule: load `walrus-sites` skill on deploy/walrus files | `.cursor/rules/` |
+| [x] | **Local Walrus setup** | `docs/walrus-local-setup.md`, `npm run walrus:check` |
+| [x] | Set `WALRUS_DEPLOY_MOCK=false` | `.env.example` + `WALRUS_SITES_CONFIG_PATH`, `WALRUS_CONFIG_PATH` |
+| [x] | Raise default epochs | Default **30** in `walrus.ts` (was 5) |
+| [x] | `ws-resources.json` SPA fallback | `ws-resources.ts` → `"/*": "/index.html"` |
+| [x] | Testnet local portal | Documented in `docs/walrus-local-setup.md` + portal skill |
+| [ ] | Manual QA: deploy → URL opens | Checklist in `docs/walrus-local-setup.md` §9 |
+| [x] | Cursor rule: load `walrus-sites` skill on deploy/walrus files | `.cursor/rules/walrus-sites.mdc` |
 
 ---
 

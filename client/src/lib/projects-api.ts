@@ -21,6 +21,11 @@ export type ArtifactRevisionSummary = {
   created_at: string;
 };
 
+export async function fetchAllProjects(): Promise<ProjectSummary[]> {
+  const data = await apiFetch<{ projects: ProjectSummary[] }>("/api/v1/projects");
+  return data.projects;
+}
+
 export async function fetchSessionProjects(sessionId: string): Promise<ProjectSummary[]> {
   const data = await apiFetch<{ projects: ProjectSummary[] }>(
     `/api/v1/projects?session_id=${encodeURIComponent(sessionId)}`,

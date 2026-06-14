@@ -76,7 +76,7 @@ Use the [E2B usage cost calculator](https://e2b.dev/pricing) with your chosen vC
 | `Sandbox.create` | 2–5 s | Use custom template alias |
 | `cp scaffold → /workspace` | 1–3 s | Local copy, no network |
 | Write artifact files | 1–5 s | Batch writes; ≤512 KB total |
-| `pnpm build` | 15–45 s | Preinstalled deps in template |
+| `npm run build` | 15–45 s | Preinstalled deps in template (`npm ci`) |
 | Walrus upload (from sandbox or backend) | 10–30 s | Prefer backend upload of tarball |
 | `sandbox.kill()` | <1 s | **Mandatory** |
 | **Total** | **~30–90 s** | Well under 1 h Hobby limit |
@@ -583,7 +583,7 @@ deploy.service.ts — runPipeline(job)
        a. create sandbox
        b. try:
             - writeFiles(artifact)
-            - run: pnpm build (timeout 300s)
+            - run: npm run build (timeout 300s)
             - read dist/ OR tar dist/
           finally:
             - kill sandbox  ← ALWAYS
@@ -893,7 +893,7 @@ const worker = new Worker("radiant:deploy", processDeployJob, {
 | ------ | ---- | ------ |
 | [x] | Split layout: chat 55% / panel 45% on `lg+` | |
 | [x] | Mobile: panel full-width sheet below chat | |
-| [x] | Tabs: **Preview** \| **Code** \| **Deploy** | Deploy tab placeholder until Phase 3 |
+| [x] | Tabs: **Preview** \| **Code** \| **Deploy** | Deploy tab polls `GET /api/v1/deploy/:id` |
 | [x] | Close button | |
 | [x] | Match Radiant design tokens (`var(--hero-*)`) | |
 
@@ -911,18 +911,18 @@ const worker = new Worker("radiant:deploy", processDeployJob, {
 
 | Status | Task | Detail |
 | ------ | ---- | ------ |
-| [ ] | Poll `GET /deploy/:jobId` every 2s while running | Stop on completed/failed |
-| [ ] | Show progress bar + log tail | |
-| [ ] | On success: show `walrus_url` + Copy link | |
-| [ ] | On failure: show error + Retry button | |
-| [ ] | Show `sandbox_seconds` when provider=e2b | Transparency for dev |
+| [x] | Poll `GET /deploy/:jobId` every 2s while running | `ArtifactDeployPanel.tsx` |
+| [x] | Show progress bar + log tail | |
+| [x] | On success: show `walrus_url` + Copy link | |
+| [x] | On failure: show error + Retry button | |
+| [x] | Show `sandbox_seconds` when provider=e2b | When present on job |
 
 ### Projects & explorer pages
 
 | Status | Task | File |
 | ------ | ---- | ---- |
-| [ ] | `projects-api.ts` | `lib/projects-api.ts` |
-| [ ] | Replace mock in projects list | `app/app/projects/page.tsx` |
+| [x] | `projects-api.ts` | `lib/projects-api.ts` — `fetchAllProjects`, `fetchSessionProjects` |
+| [x] | Replace mock in projects list | `app/app/projects/page.tsx` |
 | [ ] | Replace mock in project detail | `app/app/projects/[id]/page.tsx` |
 | [ ] | Wire explorer grid to API | `components/explorer/AgentGrid.tsx` |
 | [ ] | Wire explorer detail | `app/explorer/[id]/page.tsx` |
@@ -1010,9 +1010,9 @@ See [Production picker — what to use where](#production-picker--what-to-use-wh
 | [x] | `GET /api/v1/deploy/:id` | Polling |
 | [x] | `GET /api/v1/projects` | `api/routes/v1/projects/projects.ts` |
 | [x] | Integration test (fixed template) | `tests/integration/deploy-pipeline.test.ts` | [Backend] |
-| [ ] | `DeployProgress` UI | | [Client] |
-| [ ] | Projects page real data | | [Client] |
-| [ ] | Manual test: Walrus testnet URL opens | Set `WALRUS_DEPLOY_MOCK=false` + site-builder | [QA] |
+| [x] | `DeployProgress` UI | `ArtifactDeployPanel.tsx` in Deploy tab |
+| [x] | Projects page real data | `GET /api/v1/projects` + `walrus_url` |
+| [ ] | Manual test: Walrus testnet URL opens | See `docs/walrus-local-setup.md` §9 — set `WALRUS_DEPLOY_MOCK=false` + local portal |
 
 ### Phase 4 — E2B custom builds (Hobby credits — **optimize heavily**)
 

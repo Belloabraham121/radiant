@@ -27,6 +27,7 @@
     "e2b:cleanup:cron": "tsx scripts/e2b-cleanup-cron.ts",
     "e2b:cleanup:once": "E2B_CLEANUP_ONCE=true tsx scripts/e2b-cleanup-cron.ts",
     "e2b:webhook:register": "tsx scripts/e2b-register-webhook.ts",
+    "walrus:check": "node scripts/walrus-setup-check.mjs",
     "worker:deploy": "tsx src/workers/deploy.worker.ts"
   },
   "dependencies": {

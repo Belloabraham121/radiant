@@ -1,5 +1,6 @@
 "use client";
 
+import { usePrivy } from "@privy-io/react-auth";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RotateCcw } from "lucide-react";
 import type { ArtifactPayload } from "@/lib/artifact-types";
@@ -23,6 +24,7 @@ export function ArtifactProjectControls({
   streaming?: boolean;
   onPayloadChange: (artifact: ArtifactPayload) => void;
 }) {
+  const { ready, authenticated } = usePrivy();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [revisions, setRevisions] = useState<ArtifactRevisionSummary[]>([]);
   const [headRevision, setHeadRevision] = useState(payload.revision);
@@ -35,7 +37,7 @@ export function ArtifactProjectControls({
     !isPreviewProject && payload.revision < headRevision && payload.revision >= 0;
 
   const loadProjects = useCallback(async () => {
-    if (!sessionId || isPreviewProject) {
+    if (!sessionId || isPreviewProject || !ready || !authenticated) {
       setProjects([]);
       return;
     }
@@ -43,13 +45,15 @@ export function ArtifactProjectControls({
     try {
       const list = await fetchSessionProjects(sessionId);
       setProjects(list);
+    } catch {
+      setProjects([]);
     } finally {
       setLoadingProjects(false);
     }
-  }, [sessionId, isPreviewProject]);
+  }, [authenticated, ready, sessionId, isPreviewProject]);
 
   const loadRevisions = useCallback(async () => {
-    if (isPreviewProject) {
+    if (isPreviewProject || !ready || !authenticated) {
       setRevisions([]);
       setHeadRevision(payload.revision);
       return;
@@ -62,7 +66,7 @@ export function ArtifactProjectControls({
       setRevisions([]);
       setHeadRevision(payload.revision);
     }
-  }, [isPreviewProject, payload.project_id, payload.revision]);
+  }, [authenticated, isPreviewProject, payload.project_id, payload.revision, ready]);
 
   useEffect(() => {
     void loadProjects();

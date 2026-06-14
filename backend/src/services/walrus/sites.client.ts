@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 import { getWalrusConfig } from "../../config/walrus.js";
 import { AppError } from "../../errors/app-error.js";
+import { mergeWsResourcesJson } from "./ws-resources.js";
 
 export type WalrusSiteDeployResult = {
   walrus_url: string;
@@ -15,6 +16,32 @@ export type WalrusSiteDeployResult = {
 function buildMockWalrusUrl(): string {
   const id = randomBytes(16).toString("hex");
   return `https://${id}.walrus.site`;
+}
+
+async function readExistingWsResources(distDir: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    const raw = await readFile(join(distDir, "ws-resources.json"), "utf8");
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+}
+
+async function prepareDistWithWsResources(
+  distDir: string,
+  metadata?: Record<string, string>,
+): Promise<string> {
+  const tempDir = await mkdtemp(join(tmpdir(), "radiant-walrus-"));
+  await cp(distDir, tempDir, { recursive: true });
+
+  const existing = await readExistingWsResources(distDir);
+  await writeFile(
+    join(tempDir, "ws-resources.json"),
+    JSON.stringify(mergeWsResourcesJson(existing, metadata), null, 2),
+    "utf8",
+  );
+
+  return tempDir;
 }
 
 async function runSiteBuilder(distDir: string): Promise<WalrusSiteDeployResult> {
@@ -93,19 +120,8 @@ export async function deployWalrusSite(
 
   let tempDir: string | null = null;
   try {
-    if (metadata && Object.keys(metadata).length > 0) {
-      tempDir = await mkdtemp(join(tmpdir(), "radiant-walrus-"));
-      const { cp } = await import("node:fs/promises");
-      await cp(distDir, tempDir, { recursive: true });
-      await writeFile(
-        join(tempDir, "ws-resources.json"),
-        JSON.stringify({ metadata }, null, 2),
-        "utf8",
-      );
-      return await runSiteBuilder(tempDir);
-    }
-
-    return await runSiteBuilder(distDir);
+    tempDir = await prepareDistWithWsResources(distDir, metadata);
+    return await runSiteBuilder(tempDir);
   } finally {
     if (tempDir) {
       await rm(tempDir, { recursive: true, force: true });

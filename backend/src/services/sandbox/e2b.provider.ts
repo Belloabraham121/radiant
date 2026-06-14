@@ -160,8 +160,17 @@ export class E2bSandboxProvider implements SandboxProvider {
   async listDir(handleId: string, path: string): Promise<string[]> {
     const sandbox = this.getSandbox(handleId);
     const normalized = normalizeSandboxReadPath(path);
-    const entries = await sandbox.files.list(normalized, { depth: 8 });
-    return entries.map((entry) => entry.path).sort();
+    const dir = normalized.replace(/\/$/, "");
+    // files.list includes directories and may omit deep paths — find returns files only.
+    const result = await sandbox.commands.run(`find "${dir}" -type f 2>/dev/null | sort`, {
+      cwd: "/",
+      timeoutMs: 120_000,
+    });
+    if (result.exitCode !== 0) return [];
+    return result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
   }
 
   async kill(handleId: string): Promise<void> {

@@ -10,19 +10,28 @@ export type DistFile = {
   content: Buffer;
 };
 
+/** When listDir returns a mixed flat listing, keep only leaf file paths. */
+export function filePathsFromFlatListing(paths: string[]): string[] {
+  const normalized = paths.filter((path) => path.length > 0 && !path.endsWith("/"));
+  return normalized.filter(
+    (path) =>
+      !normalized.some((other) => other !== path && other.startsWith(`${path}/`)),
+  );
+}
+
 export async function collectDistFromSandbox(
   provider: SandboxProvider,
   handleId: string,
 ): Promise<DistFile[]> {
   for (const prefix of [SANDBOX_PATHS.outPrefix, SANDBOX_PATHS.distPrefix]) {
-    const paths = await provider.listDir(handleId, prefix);
+    const listed = await provider.listDir(handleId, prefix);
+    const paths = filePathsFromFlatListing(listed);
     if (paths.length === 0) continue;
 
     const files: DistFile[] = [];
     let totalBytes = 0;
 
     for (const absolutePath of paths) {
-      if (absolutePath.endsWith("/")) continue;
       const bytes = await provider.readFile(handleId, absolutePath);
       totalBytes += bytes.length;
       validateDistOutputBytes(totalBytes);

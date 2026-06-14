@@ -8,6 +8,7 @@ export const generateAppToolDefinition = {
   name: GENERATE_APP_TOOL_NAME,
   description:
     "Create or update a user Next.js app for the artifact panel. " +
+    "JSON input: name (string), files (array of {path, content} — never an object), optional project_id, tagline, template. " +
     "Paths under app/, components/, lib/, or public/ (e.g. app/page.tsx, components/SwapForm.tsx). " +
     "Always include app/page.tsx. Use lib/radiant-client.ts for DeepBook swapQuote/poolInfo — platform APIs, not custom swap code. " +
     "Not for on-chain execution from chat (use execute_transaction when user asks to trade).",
@@ -28,7 +29,9 @@ export const generateAppToolDefinition = {
       },
       files: {
         type: "array",
-        description: "Source files (Next.js App Router: app/, components/, lib/).",
+        description:
+          "Source files (Next.js App Router: app/, components/, lib/). Must be a JSON array — include app/page.tsx.",
+        minItems: 1,
         items: {
           type: "object",
           properties: {
