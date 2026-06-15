@@ -87,15 +87,16 @@ function injectPlatformFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
   if (!hasPath(next, "lib/radiant-agent-runtime.ts")) {
     next.push({ path: "lib/radiant-agent-runtime.ts", content: RADIANT_AGENT_RUNTIME_TS });
   } else {
-    next = next.map((file) => {
-      if (normalizeClientPath(file.path) !== "lib/radiant-agent-runtime.ts") {
-        return file;
+    for (let index = 0; index < next.length; index += 1) {
+      if (normalizeClientPath(next[index]!.path) !== "lib/radiant-agent-runtime.ts") {
+        continue;
       }
-      if (file.content.includes(`Template v${RADIANT_AGENT_RUNTIME_VERSION}`)) {
-        return file;
+      if (next[index]!.content.includes(`Template v${RADIANT_AGENT_RUNTIME_VERSION}`)) {
+        break;
       }
-      return { ...file, content: RADIANT_AGENT_RUNTIME_TS };
-    });
+      next[index] = { ...next[index]!, content: RADIANT_AGENT_RUNTIME_TS };
+      break;
+    }
   }
   if (!hasPath(next, "components/AgentIndicator.tsx")) {
     next.push({ path: "components/AgentIndicator.tsx", content: AGENT_INDICATOR_TSX });

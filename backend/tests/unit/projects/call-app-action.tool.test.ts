@@ -7,18 +7,38 @@ import {
   callAppActionInputSchema,
 } from "../../../src/services/projects/call-app-action.tool.js";
 import { buildDefaultDeepBookActionSchema } from "../../../src/services/projects/app-action-schema.service.js";
+import {
+  coerceMislabeledAppScopeFields,
+  isUuid,
+} from "../../../src/services/projects/app-scope-resolver.service.js";
 
 const projectId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 describe("call_app_action tool", () => {
-  it("requires exactly one of project_id or installation_id", () => {
-    assert.throws(() =>
-      callAppActionInputSchema.parse({
-        action: "swap",
-        params: { amount: 1, side: "sell" },
-      }),
-    );
+  it("accepts app_name without project_id or installation_id", () => {
+    const parsed = callAppActionInputSchema.parse({
+      app_name: "Uniswap",
+      action: "swap",
+      params: { amount: 1, side: "sell" },
+    });
+    assert.equal(parsed.app_name, "Uniswap");
+    assert.equal(parsed.action, "swap");
+  });
 
+  it("coerces mislabeled app names from project_id to app_name", () => {
+    const coerced = coerceMislabeledAppScopeFields({
+      project_id: "uniswap",
+      action: "swap",
+      params: { amount: 1, side: "sell" },
+    });
+    assert.equal(coerced.app_name, "uniswap");
+    assert.equal(coerced.project_id, undefined);
+
+    const parsed = callAppActionInputSchema.parse(coerced);
+    assert.equal(parsed.app_name, "uniswap");
+  });
+
+  it("rejects both project_id and installation_id", () => {
     assert.throws(() =>
       callAppActionInputSchema.parse({
         project_id: projectId,
@@ -27,14 +47,11 @@ describe("call_app_action tool", () => {
         params: { amount: 1, side: "sell" },
       }),
     );
+  });
 
-    const parsed = callAppActionInputSchema.parse({
-      project_id: projectId,
-      action: "swap",
-      params: { amount: 1, side: "sell" },
-    });
-    assert.equal(parsed.project_id, projectId);
-    assert.equal(parsed.action, "swap");
+  it("isUuid validates project ids", () => {
+    assert.equal(isUuid(projectId), true);
+    assert.equal(isUuid("uniswap"), false);
   });
 
   it("assertActionInProjectSchema allows actions listed in project schema", () => {

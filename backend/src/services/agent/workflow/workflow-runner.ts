@@ -252,7 +252,9 @@ async function executeWorkflowStep(
   }
 
   if (step.kind === "query") {
-    const result = await runAgentTool(privyUserId, QUERY_CHAIN_TOOL_NAME, step.input);
+    const result = await runAgentTool(privyUserId, QUERY_CHAIN_TOOL_NAME, step.input, {
+      sessionId,
+    });
     const tool_calls: ToolCallRecord[] = [{ name: QUERY_CHAIN_TOOL_NAME, result }];
     if (isToolError(result)) {
       return { status: "error", tool_calls, error: result.error };
@@ -301,7 +303,13 @@ async function executeWorkflowStep(
     }
 
     const toolInput = {
-      ...(step.project_id ? { project_id: step.project_id } : { installation_id: step.installation_id }),
+      ...(step.project_id
+        ? { project_id: step.project_id }
+        : step.installation_id
+          ? { installation_id: step.installation_id }
+          : step.app_name
+            ? { app_name: step.app_name }
+            : { use_session_draft: true }),
       action: step.action,
       params: resolved,
     };

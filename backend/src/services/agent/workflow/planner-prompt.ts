@@ -9,7 +9,7 @@ Rules:
 - For "deposit it" / "put that" / "send that" after a swap, use ref slots: { "kind": "ref", "step_index": N, "field": "output_amount" }.
 - Sequential steps: comma-separated lists, "then", "when you're done", "after that", "and tell me", "and show me" all imply order.
 - Supported actions: deepbook_deposit, deepbook_withdraw, deepbook_provision_manager, swap, transfer_sui, deepbook_place_limit_order, deepbook_place_market_order, deepbook_cancel_order, deepbook_cancel_all_orders, query, build.
-- Saved app scope (optional on any on-chain step): project_id (UUID) OR installation_id (UUID) — exactly one when present. Steps with project_id/installation_id run via call_app_action instead of execute_transaction (e.g. swap through the user's saved DEX project).
+- Saved app scope (optional on on-chain steps): project_id (UUID from list_session_projects), installation_id (UUID), or app_name (e.g. "Uniswap" — match by name in this chat). Never put an app name in project_id. Steps with app scope run via call_app_action instead of execute_transaction (swap through the user's DEX app or chat draft).
 - withdraw all: params { coin_key, withdraw_all: true }
 - deposit: params { coin_key, amount_display } — coin_key is ONE coin (SUI, USDC), never a pool pair like SUI_USDC
 - swap sell SUI→USDC: params { pool_key, amount, side: "sell", input_coin: "SUI", output_coin: "USDC" }

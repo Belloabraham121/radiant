@@ -23,6 +23,7 @@ import {
   validateExecuteStepParams,
 } from "./workflow-param-normalizer.js";
 import { mapExecuteActionToAppActionName, parseAppActionParams } from "../../projects/app-action-mapper.js";
+import { isUuid } from "../../projects/app-scope-resolver.service.js";
 import type { WorkflowPlan, WorkflowStep } from "./workflow.types.js";
 
 export type PlanValidationResult =
@@ -86,9 +87,18 @@ function plannedToWorkflowStep(
 
   const { flat, unresolved } = flattenParams(step.params, ledger);
 
-  const projectId = step.project_id?.trim();
+  const rawProjectId = step.project_id?.trim();
   const installationId = step.installation_id?.trim();
-  const hasAppScope = Boolean(projectId) !== Boolean(installationId);
+  let projectId = rawProjectId;
+  let appName = step.app_name?.trim();
+
+  if (rawProjectId && !isUuid(rawProjectId)) {
+    appName = appName ?? rawProjectId;
+    projectId = undefined;
+  }
+
+  const hasAppScope =
+    Boolean(projectId) !== Boolean(installationId) || Boolean(appName);
 
   if (hasAppScope) {
     const appAction = mapExecuteActionToAppActionName(step.action);
@@ -98,7 +108,13 @@ function plannedToWorkflowStep(
         step: {
           kind: "app_action",
           label: step.label,
-          ...(projectId ? { project_id: projectId } : { installation_id: installationId }),
+          ...(projectId
+            ? { project_id: projectId }
+            : installationId
+              ? { installation_id: installationId }
+              : appName
+                ? { app_name: appName }
+                : {}),
           action: appAction,
           params: normalized,
           depends_on: dependsOn,

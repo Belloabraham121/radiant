@@ -26,6 +26,7 @@ export type PlannedStep = {
   /** When set, on-chain steps run through call_app_action instead of execute_transaction. */
   project_id?: string;
   installation_id?: string;
+  app_name?: string;
 };
 
 export type PlannerAssumption = {

@@ -456,6 +456,27 @@ function parseQuerySegment(segment: string): WorkflowQueryStep | null {
   return null;
 }
 
+/** When the user says swap in/through my X app, return X for app_name resolution (not project_id). */
+export function extractAppNameHintFromSegment(segment: string): string | null {
+  const patterns = [
+    /\b(?:in|using|through|via|with)\s+(?:my\s+)?(.+?)\s+(?:app|dex|ui)\b/i,
+    /\b(?:my|the)\s+(.+?)\s+(?:app|dex|ui)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = segment.match(pattern);
+    if (match?.[1]?.trim()) {
+      return match[1].trim();
+    }
+  }
+
+  if (/\buniswap\b/i.test(segment) && /\b(app|dex)\b/i.test(segment)) {
+    return "uniswap";
+  }
+
+  return null;
+}
+
 function parseBuildSegment(segment: string): WorkflowBuildStep | null {
   if (!/\b(build|create|make|design|develop|implement)\b/i.test(segment)) {
     return null;
@@ -516,7 +537,19 @@ export function classifyWorkflowSegment(segment: string): WorkflowStep {
   if (limit) return limit;
 
   const swap = parseSwapSegment(segment);
-  if (swap) return swap;
+  if (swap) {
+    const appName = extractAppNameHintFromSegment(segment);
+    if (appName) {
+      return {
+        kind: "app_action",
+        label: swap.label,
+        app_name: appName,
+        action: "swap",
+        params: swap.input.params as Record<string, unknown>,
+      };
+    }
+    return swap;
+  }
 
   const transfer = parseTransferSegment(segment);
   if (transfer) return transfer;

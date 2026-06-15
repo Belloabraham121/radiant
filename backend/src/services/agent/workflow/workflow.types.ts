@@ -42,6 +42,7 @@ export type WorkflowAppActionStep = WorkflowStepBase & {
   label: string;
   project_id?: string;
   installation_id?: string;
+  app_name?: string;
   action: AppActionName;
   params: Record<string, unknown>;
 };

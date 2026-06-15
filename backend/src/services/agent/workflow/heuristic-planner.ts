@@ -148,6 +148,7 @@ function workflowStepToPlanned(
       params: step.params as Record<string, PlanSlot | string | number | boolean>,
       ...(step.project_id ? { project_id: step.project_id } : {}),
       ...(step.installation_id ? { installation_id: step.installation_id } : {}),
+      ...(step.app_name ? { app_name: step.app_name } : {}),
     };
   }
 
