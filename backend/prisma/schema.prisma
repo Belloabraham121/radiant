@@ -34,6 +34,8 @@ enum AgentTransactionCategory {
   flash_loan
   stake
   governance
+  margin
+  predict
   other
 }
 

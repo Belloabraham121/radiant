@@ -24,6 +24,33 @@ const DEEPBOOK_SETTLED_ACTIONS = new Set([
   "deepbook_withdraw_settled_amounts_permissionless",
 ]);
 
+const MARGIN_BALANCE_ACTIONS = new Set([
+  "deepbook_margin_deposit",
+  "deepbook_margin_withdraw",
+  "deepbook_margin_borrow",
+  "deepbook_margin_repay",
+  "deepbook_margin_supply_pool",
+  "deepbook_margin_withdraw_pool",
+]);
+
+const MARGIN_ORDER_ACTIONS = new Set([
+  "deepbook_margin_place_limit_order",
+  "deepbook_margin_place_market_order",
+]);
+
+const MARGIN_CANCEL_ACTIONS = new Set(["deepbook_margin_cancel_order"]);
+
+const PREDICT_ACTIONS = new Set([
+  "deepbook_predict_deposit",
+  "deepbook_predict_withdraw",
+  "deepbook_predict_mint",
+  "deepbook_predict_redeem",
+  "deepbook_predict_mint_range",
+  "deepbook_predict_redeem_range",
+  "deepbook_predict_supply",
+  "deepbook_predict_lp_withdraw",
+]);
+
 /** High-level execute_transaction action families for approval rules and ledger categories. */
 export type ExecuteActionClass =
   | "transfer"
@@ -37,6 +64,8 @@ export type ExecuteActionClass =
   | "stake"
   | "governance"
   | "flash_loan"
+  | "margin"
+  | "predict"
   | "other";
 
 export function classifyExecuteAction(action: string): ExecuteActionClass {
@@ -84,6 +113,26 @@ export function classifyExecuteAction(action: string): ExecuteActionClass {
     return "governance";
   }
 
+  if (MARGIN_BALANCE_ACTIONS.has(action)) {
+    return "margin";
+  }
+
+  if (MARGIN_ORDER_ACTIONS.has(action)) {
+    return "order";
+  }
+
+  if (MARGIN_CANCEL_ACTIONS.has(action)) {
+    return "cancel";
+  }
+
+  if (action === "deepbook_margin_modify_order") {
+    return "modify";
+  }
+
+  if (PREDICT_ACTIONS.has(action)) {
+    return "predict";
+  }
+
   return "other";
 }
 
@@ -99,6 +148,8 @@ const EXECUTE_CLASS_TO_LEDGER_CATEGORY: Record<ExecuteActionClass, AgentTransact
   flash_loan: "flash_loan",
   stake: "stake",
   governance: "governance",
+  margin: "margin",
+  predict: "predict",
   other: "other",
 };
 

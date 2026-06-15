@@ -184,6 +184,14 @@ const ONCHAIN_ACTIONS = new Set([
   "provision_manager", "place_limit_order", "place_market_order",
   "cancel_order", "cancel_orders", "cancel_all_orders", "modify_order",
   "withdraw_settled", "submit_proposal", "vote", "transfer",
+  // DeepBook Margin
+  "margin_deposit", "margin_withdraw", "margin_borrow", "margin_repay",
+  "margin_place_limit_order", "margin_place_market_order",
+  "margin_cancel_order", "margin_modify_order",
+  "margin_supply_pool", "margin_withdraw_pool",
+  // DeepBook Predict
+  "predict_deposit", "predict_withdraw", "predict_mint", "predict_redeem",
+  "predict_mint_range", "predict_redeem_range", "predict_supply", "predict_lp_withdraw",
 ]);
 
 /**

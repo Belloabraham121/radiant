@@ -8,7 +8,7 @@ export type UnsupportedCapability = {
 export const UNSUPPORTED_CAPABILITIES: UnsupportedCapability[] = [];
 
 export const SUPPORTED_DEEPBOOK_SUMMARY =
-  "swaps, limit/market orders, cancel/modify orders, claim settled proceeds, flash loans (round-trip and multi-step swap_chain_repay bundles — quote via flash_loan_quote, Settings opt-in), DEEP staking and unstaking, governance proposals and votes (Settings opt-in), open orders, balance manager setup, deposits, withdrawals, wallet and manager balances, pool listings, ticker/pool info, swap quotes, and agent transaction history";
+  "swaps, limit/market orders, cancel/modify orders, claim settled proceeds, flash loans (round-trip and multi-step swap_chain_repay bundles — quote via flash_loan_quote, Settings opt-in), DEEP staking and unstaking, governance proposals and votes (Settings opt-in), margin trading (deposit, borrow, leveraged orders, risk ratio monitoring — Settings opt-in), prediction markets (binary positions, ranges, oracle pricing, vault LP — Settings opt-in, testnet), open orders, balance manager setup, deposits, withdrawals, wallet and manager balances, pool listings, ticker/pool info, swap quotes, and agent transaction history";
 
 export function detectUnsupportedCapability(message: string): UnsupportedCapability | null {
   for (const capability of UNSUPPORTED_CAPABILITIES) {

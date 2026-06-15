@@ -118,6 +118,60 @@ export function buildTransactionErrorUserContext(
         ctx.summary ? ctx.summary : "",
       );
       break;
+    case "deepbook_margin_deposit":
+    case "deepbook_margin_withdraw":
+      parts.push(
+        "The user requested a margin manager deposit/withdrawal.",
+        ctx.amount_display ? `Amount: ${ctx.amount_display}.` : "",
+        "If risk ratio is too low for withdrawal, explain the position must be reduced first or collateral added.",
+      );
+      break;
+    case "deepbook_margin_borrow":
+    case "deepbook_margin_repay":
+      parts.push(
+        "The user requested a margin borrow/repay.",
+        ctx.amount_display ? `Amount: ${ctx.amount_display}.` : "",
+        "Borrow failures often mean the risk ratio would drop below the borrow threshold (1.25). Suggest depositing more collateral or borrowing less.",
+      );
+      break;
+    case "deepbook_margin_place_limit_order":
+    case "deepbook_margin_place_market_order":
+      parts.push(
+        "The user requested a leveraged margin order on DeepBook.",
+        ctx.amount_display ? `Order: ${ctx.amount_display}.` : "",
+        "If it fails with risk ratio error, the position would become too leveraged. Suggest reducing size or adding collateral.",
+      );
+      break;
+    case "deepbook_predict_deposit":
+    case "deepbook_predict_withdraw":
+      parts.push(
+        "The user requested a deposit/withdrawal on their Predict manager.",
+        ctx.amount_display ? `Amount: ${ctx.amount_display}.` : "",
+      );
+      break;
+    case "deepbook_predict_mint":
+    case "deepbook_predict_mint_range":
+      parts.push(
+        "The user requested minting a prediction market position.",
+        ctx.summary ? ctx.summary : "",
+        "Failures may be due to: oracle not active, insufficient balance in predict manager, trading paused, or strike/expiry out of bounds.",
+      );
+      break;
+    case "deepbook_predict_redeem":
+    case "deepbook_predict_redeem_range":
+      parts.push(
+        "The user requested redeeming a prediction market position.",
+        ctx.summary ? ctx.summary : "",
+        "If insufficient position quantity, explain they may not have that position or already redeemed it.",
+      );
+      break;
+    case "deepbook_predict_supply":
+    case "deepbook_predict_lp_withdraw":
+      parts.push(
+        "The user requested a Predict vault LP operation (supply/withdraw).",
+        ctx.amount_display ? `Amount: ${ctx.amount_display}.` : "",
+      );
+      break;
     default:
       if (ctx.summary) {
         parts.push(`Transaction: ${ctx.summary}.`);

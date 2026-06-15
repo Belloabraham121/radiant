@@ -304,6 +304,80 @@ export async function governanceState(pool_key = "SUI_USDC"): Promise<Record<str
   return parseEnvelope<Record<string, unknown>>(res);
 }
 
+// --- DeepBook Margin helpers ---
+
+export async function marginManagerInfo(margin_manager_key?: string): Promise<Record<string, unknown>> {
+  const qs = margin_manager_key ? "?margin_manager_key=" + encodeURIComponent(margin_manager_key) : "";
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/margin-manager-info" + qs);
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function marginPoolInfo(pool_key = "SUI_DBUSDC"): Promise<Record<string, unknown>> {
+  const res = await platformFetch(
+    projectApiPrefix() + "/deepbook/margin-pool-info?pool_key=" + encodeURIComponent(pool_key),
+  );
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function marginRiskRatio(margin_manager_key?: string): Promise<Record<string, unknown>> {
+  const qs = margin_manager_key ? "?margin_manager_key=" + encodeURIComponent(margin_manager_key) : "";
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/margin-risk-ratio" + qs);
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+// --- DeepBook Predict helpers ---
+
+export async function predictMarkets(): Promise<Record<string, unknown>> {
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/predict-markets");
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function predictTradeAmounts(params: {
+  oracle_id: string;
+  expiry: number;
+  strike: number;
+  is_up: boolean;
+  quantity: number;
+}): Promise<Record<string, unknown>> {
+  const qs = new URLSearchParams({
+    oracle_id: params.oracle_id,
+    expiry: String(params.expiry),
+    strike: String(params.strike),
+    is_up: String(params.is_up),
+    quantity: String(params.quantity),
+  }).toString();
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/predict-trade-amounts?" + qs);
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function predictRangeAmounts(params: {
+  oracle_id: string;
+  expiry: number;
+  lower_strike: number;
+  higher_strike: number;
+  quantity: number;
+}): Promise<Record<string, unknown>> {
+  const qs = new URLSearchParams({
+    oracle_id: params.oracle_id,
+    expiry: String(params.expiry),
+    lower_strike: String(params.lower_strike),
+    higher_strike: String(params.higher_strike),
+    quantity: String(params.quantity),
+  }).toString();
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/predict-range-amounts?" + qs);
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function predictManagerInfo(): Promise<Record<string, unknown>> {
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/predict-manager-info");
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function predictVaultSummary(): Promise<Record<string, unknown>> {
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/predict-vault-summary");
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
 export type AgentTransactionApprovalResult =
   | {
       status: "executed";

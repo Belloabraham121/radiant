@@ -22,6 +22,26 @@ export const ONCHAIN_ACTION_NAMES = [
   "submit_proposal",
   "vote",
   "transfer",
+  // DeepBook Margin
+  "margin_deposit",
+  "margin_withdraw",
+  "margin_borrow",
+  "margin_repay",
+  "margin_place_limit_order",
+  "margin_place_market_order",
+  "margin_cancel_order",
+  "margin_modify_order",
+  "margin_supply_pool",
+  "margin_withdraw_pool",
+  // DeepBook Predict
+  "predict_deposit",
+  "predict_withdraw",
+  "predict_mint",
+  "predict_redeem",
+  "predict_mint_range",
+  "predict_redeem_range",
+  "predict_supply",
+  "predict_lp_withdraw",
 ] as const;
 
 export type OnchainActionName = (typeof ONCHAIN_ACTION_NAMES)[number];

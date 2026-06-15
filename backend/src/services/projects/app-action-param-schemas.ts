@@ -173,6 +173,163 @@ export const appActionParamSchemas = {
       (value) => value.amount_atomic != null || value.amount_display != null,
       { message: "amount_atomic or amount_display is required" },
     ),
+
+  // DeepBook Margin actions
+  margin_deposit: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      coin_type: z.enum(["base", "quote", "deep"]),
+      amount: positiveNumber,
+    })
+    .passthrough(),
+
+  margin_withdraw: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      coin_type: z.enum(["base", "quote", "deep"]),
+      amount: positiveNumber,
+    })
+    .passthrough(),
+
+  margin_borrow: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      asset: z.enum(["base", "quote"]),
+      amount: positiveNumber,
+    })
+    .passthrough(),
+
+  margin_repay: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      asset: z.enum(["base", "quote"]),
+      amount: positiveNumber.optional(),
+    })
+    .passthrough(),
+
+  margin_place_limit_order: z
+    .object({
+      pool_key: z.string().min(1),
+      margin_manager_key: z.string().min(1),
+      price: positiveNumber,
+      quantity: positiveNumber,
+      is_bid: z.boolean(),
+      pay_with_deep: z.boolean().optional(),
+      client_order_id: z.string().optional(),
+      expiration: z.number().optional(),
+    })
+    .passthrough(),
+
+  margin_place_market_order: z
+    .object({
+      pool_key: z.string().min(1),
+      margin_manager_key: z.string().min(1),
+      quantity: positiveNumber,
+      is_bid: z.boolean(),
+      pay_with_deep: z.boolean().optional(),
+      client_order_id: z.string().optional(),
+    })
+    .passthrough(),
+
+  margin_cancel_order: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      order_id: z.string().min(1),
+    })
+    .passthrough(),
+
+  margin_modify_order: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      order_id: z.string().min(1),
+      new_quantity: positiveNumber,
+    })
+    .passthrough(),
+
+  margin_supply_pool: z
+    .object({
+      coin_type: z.string().min(1),
+      amount: positiveNumber,
+    })
+    .passthrough(),
+
+  margin_withdraw_pool: z
+    .object({
+      coin_type: z.string().min(1),
+      amount: positiveNumber.optional(),
+    })
+    .passthrough(),
+
+  // DeepBook Predict actions
+  predict_deposit: z
+    .object({
+      quote_asset: z.string().min(1).optional(),
+      amount: positiveNumber,
+    })
+    .passthrough(),
+
+  predict_withdraw: z
+    .object({
+      quote_asset: z.string().min(1).optional(),
+      amount: positiveNumber,
+    })
+    .passthrough(),
+
+  predict_mint: z
+    .object({
+      oracle_id: z.string().min(1),
+      expiry: z.number().int().positive(),
+      strike: positiveNumber,
+      is_up: z.boolean(),
+      quantity: positiveNumber,
+      quote_asset: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
+  predict_redeem: z
+    .object({
+      oracle_id: z.string().min(1),
+      expiry: z.number().int().positive(),
+      strike: positiveNumber,
+      is_up: z.boolean(),
+      quantity: positiveNumber,
+    })
+    .passthrough(),
+
+  predict_mint_range: z
+    .object({
+      oracle_id: z.string().min(1),
+      expiry: z.number().int().positive(),
+      lower_strike: positiveNumber,
+      higher_strike: positiveNumber,
+      quantity: positiveNumber,
+      quote_asset: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
+  predict_redeem_range: z
+    .object({
+      oracle_id: z.string().min(1),
+      expiry: z.number().int().positive(),
+      lower_strike: positiveNumber,
+      higher_strike: positiveNumber,
+      quantity: positiveNumber,
+    })
+    .passthrough(),
+
+  predict_supply: z
+    .object({
+      quote_asset: z.string().min(1).optional(),
+      amount: positiveNumber,
+    })
+    .passthrough(),
+
+  predict_lp_withdraw: z
+    .object({
+      quote_asset: z.string().min(1).optional(),
+      plp_amount: positiveNumber,
+    })
+    .passthrough(),
 } satisfies Record<OnchainActionName, z.ZodType<Record<string, unknown>>>;
 
 export type AppActionParamsMap = {
@@ -271,6 +428,140 @@ export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array
       { name: "recipient", type: "string", required: true },
       { name: "amount_display", type: "number" },
       { name: "amount_atomic", type: "string" },
+    ],
+  },
+  // DeepBook Margin
+  margin_deposit: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true, description: "Margin manager identifier" },
+      { name: "coin_type", type: "string", required: true, description: "base | quote | deep" },
+      { name: "amount", type: "number", required: true },
+    ],
+  },
+  margin_withdraw: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "coin_type", type: "string", required: true, description: "base | quote | deep" },
+      { name: "amount", type: "number", required: true },
+    ],
+  },
+  margin_borrow: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "asset", type: "string", required: true, description: "base | quote" },
+      { name: "amount", type: "number", required: true },
+    ],
+  },
+  margin_repay: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "asset", type: "string", required: true, description: "base | quote" },
+      { name: "amount", type: "number", description: "Omit to repay all" },
+    ],
+  },
+  margin_place_limit_order: {
+    fields: [
+      { name: "pool_key", type: "string", required: true },
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "price", type: "number", required: true },
+      { name: "quantity", type: "number", required: true },
+      { name: "is_bid", type: "boolean", required: true, description: "true = buy, false = sell" },
+      { name: "pay_with_deep", type: "boolean" },
+    ],
+  },
+  margin_place_market_order: {
+    fields: [
+      { name: "pool_key", type: "string", required: true },
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "quantity", type: "number", required: true },
+      { name: "is_bid", type: "boolean", required: true },
+      { name: "pay_with_deep", type: "boolean" },
+    ],
+  },
+  margin_cancel_order: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "order_id", type: "string", required: true, description: "Protocol order ID" },
+    ],
+  },
+  margin_modify_order: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "order_id", type: "string", required: true },
+      { name: "new_quantity", type: "number", required: true },
+    ],
+  },
+  margin_supply_pool: {
+    fields: [
+      { name: "coin_type", type: "string", required: true, description: "Coin type to supply (e.g. DBUSDC)" },
+      { name: "amount", type: "number", required: true },
+    ],
+  },
+  margin_withdraw_pool: {
+    fields: [
+      { name: "coin_type", type: "string", required: true },
+      { name: "amount", type: "number", description: "Omit to withdraw all" },
+    ],
+  },
+  // DeepBook Predict
+  predict_deposit: {
+    fields: [
+      { name: "amount", type: "number", required: true },
+      { name: "quote_asset", type: "string", description: "Quote asset type (defaults to DUSDC)" },
+    ],
+  },
+  predict_withdraw: {
+    fields: [
+      { name: "amount", type: "number", required: true },
+      { name: "quote_asset", type: "string" },
+    ],
+  },
+  predict_mint: {
+    fields: [
+      { name: "oracle_id", type: "string", required: true, description: "Oracle object ID" },
+      { name: "expiry", type: "number", required: true, description: "Expiry timestamp" },
+      { name: "strike", type: "number", required: true, description: "Strike price" },
+      { name: "is_up", type: "boolean", required: true, description: "true = pays if above strike" },
+      { name: "quantity", type: "number", required: true },
+    ],
+  },
+  predict_redeem: {
+    fields: [
+      { name: "oracle_id", type: "string", required: true },
+      { name: "expiry", type: "number", required: true },
+      { name: "strike", type: "number", required: true },
+      { name: "is_up", type: "boolean", required: true },
+      { name: "quantity", type: "number", required: true },
+    ],
+  },
+  predict_mint_range: {
+    fields: [
+      { name: "oracle_id", type: "string", required: true },
+      { name: "expiry", type: "number", required: true },
+      { name: "lower_strike", type: "number", required: true },
+      { name: "higher_strike", type: "number", required: true },
+      { name: "quantity", type: "number", required: true },
+    ],
+  },
+  predict_redeem_range: {
+    fields: [
+      { name: "oracle_id", type: "string", required: true },
+      { name: "expiry", type: "number", required: true },
+      { name: "lower_strike", type: "number", required: true },
+      { name: "higher_strike", type: "number", required: true },
+      { name: "quantity", type: "number", required: true },
+    ],
+  },
+  predict_supply: {
+    fields: [
+      { name: "amount", type: "number", required: true, description: "Quote asset amount to supply to vault" },
+      { name: "quote_asset", type: "string" },
+    ],
+  },
+  predict_lp_withdraw: {
+    fields: [
+      { name: "plp_amount", type: "number", required: true, description: "PLP shares to burn" },
+      { name: "quote_asset", type: "string", description: "Quote asset to receive" },
     ],
   },
 };

@@ -121,4 +121,12 @@ export function validateExecuteTransactionInput(input: ExecuteTransactionInput):
     parseDeepBookVoteParams(input.params);
     return;
   }
+
+  if (input.action.startsWith("deepbook_margin_")) {
+    return;
+  }
+
+  if (input.action.startsWith("deepbook_predict_")) {
+    return;
+  }
 }
