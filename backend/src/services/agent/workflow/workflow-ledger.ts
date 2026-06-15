@@ -43,7 +43,8 @@ function isAppActionOutcome(result: unknown): result is AppActionResult {
     result !== null &&
     "status" in result &&
     ((result as AppActionResult).status === "executed" ||
-      (result as AppActionResult).status === "approval_required")
+      (result as AppActionResult).status === "approval_required" ||
+      (result as AppActionResult).status === "preview_delegated")
   );
 }
 
@@ -85,11 +86,11 @@ export function ledgerEntryFromToolCalls(
     let execParams: Record<string, unknown> = params;
     if (isExecuteOutcome(executeCall.result) && executeCall.result.status === "approval_required") {
       execParams = executeCall.result.pending.params;
-    } else if (
-      isAppActionOutcome(executeCall.result) &&
-      executeCall.result.status === "approval_required"
-    ) {
-      execParams = executeCall.result.pending.params;
+    } else {
+      const appResult = executeCall.result as AppActionResult;
+      if (appResult.status === "approval_required") {
+        execParams = appResult.pending.params;
+      }
     }
 
     if (action === "swap") {

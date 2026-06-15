@@ -467,10 +467,11 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
         };
 
         if (outcome.status === "preview_delegated") {
+          const actionName = (executeCall.result as { action?: string })?.action;
           steps.push({
             id: "execute",
             status: "warning",
-            label: executeCall.action ? `Execute ${executeCall.action}` : executeLabel,
+            label: actionName ? `Execute ${actionName}` : executeLabel,
             detail: "Started in app preview — confirm there",
           });
         } else if (outcome.status === "approval_required") {

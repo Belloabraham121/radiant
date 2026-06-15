@@ -1,6 +1,6 @@
 /** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_VERSION = 5;
+export const RADIANT_AGENT_RUNTIME_VERSION = 6;
 
 export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
 import {
@@ -18,12 +18,25 @@ export type RadiantAgentExecuteOptions = {
 export type RadiantAgentContext = {
   animate: boolean;
   highlight: (targetId: string, className?: string) => void;
+  /** Set a field value by data-radiant-id — dispatches React-compatible input + change events. */
+  setField: (targetId: string, value: unknown) => void;
+  /** Pause execution so the user can see each step happening visually. */
+  delay: (ms: number) => Promise<void>;
+  /** Call the backend API to execute the action. Call this from your handler when ready. */
+  executeAction: (action: string, params: Record<string, unknown>) => Promise<AppActionResult>;
+  /** Dispatch a custom event on window for React components listening via useEffect. */
+  dispatchEvent: (name: string, detail?: unknown) => void;
 };
 
+/**
+ * Handler that drives the app UI step-by-step when the agent acts.
+ * Return the final AppActionResult from ctx.executeAction() to complete the flow.
+ * If you return void/undefined, the runtime will call executeAction automatically after the handler.
+ */
 export type RadiantAgentHandler = (
   params: Record<string, unknown>,
   ctx: RadiantAgentContext,
-) => void | Promise<void>;
+) => void | Promise<void | AppActionResult>;
 
 export type RadiantAgentEvent =
   | { type: "active"; active: boolean }
@@ -107,22 +120,110 @@ function fillSwapFields(params: Record<string, unknown>) {
   }
 }
 
-function defaultSwapAgentHandler(
+async function defaultSwapAgentHandler(
   params: Record<string, unknown>,
   ctx: RadiantAgentContext,
-) {
-  fillSwapFields(params);
-  ctx.highlight("amount-in");
+): Promise<AppActionResult> {
+  const amount = params.amount ?? params.amount_display;
+  const side = params.side;
+
+  ctx.dispatchEvent("radiant-agent-action-start", { action: "swap", params });
+
+  if (amount != null) {
+    ctx.setField("amount-in", amount);
+    ctx.setField("amount", amount);
+    ctx.highlight("amount-in");
+    ctx.dispatchEvent("radiant-agent-set-field", { field: "amount", value: amount });
+    await ctx.delay(500);
+  }
+
+  if (side != null) {
+    ctx.setField("side", side);
+    ctx.highlight("side");
+    ctx.dispatchEvent("radiant-agent-set-field", { field: "side", value: side });
+    await ctx.delay(400);
+  }
+
+  ctx.dispatchEvent("radiant-agent-swap", { detail: params });
+  await ctx.delay(300);
+
   ctx.highlight("swap-submit", "agent-clicking");
+  await ctx.delay(600);
+
+  const result = await ctx.executeAction("swap", params as Record<string, unknown>);
+  return result;
 }
 
 handlers.set("swap", defaultSwapAgentHandler);
+
+function agentDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function createContext(animate: boolean): RadiantAgentContext {
   return {
     animate,
     highlight: (targetId, className) => highlightTarget(targetId, className ?? "agent-focused"),
+    setField: (targetId, value) => {
+      setFieldValue(targetId, value);
+      highlightTarget(targetId, "agent-focused");
+    },
+    delay: (ms) => (animate ? agentDelay(ms) : Promise.resolve()),
+    executeAction: (action, params) => executeAction(action, params),
+    dispatchEvent: (name, detail) => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(name, { detail }));
+      }
+    },
   };
+}
+
+/**
+ * Generic fallback: for any action without a registered handler, try to match
+ * each param key to a data-radiant-id element and fill it step by step.
+ * Then find the first submit-like button and highlight it before executing.
+ */
+async function genericFallbackHandler(
+  params: Record<string, unknown>,
+  ctx: RadiantAgentContext,
+): Promise<AppActionResult | void> {
+  const keys = Object.keys(params).filter(
+    (k) => params[k] != null && typeof params[k] !== "object",
+  );
+
+  ctx.dispatchEvent("radiant-agent-action-start", { params });
+
+  let filled = 0;
+  for (const key of keys) {
+    const value = params[key];
+    const kebab = key.replace(/_/g, "-");
+    const el =
+      document.querySelector('[data-radiant-id="' + key + '"]') ??
+      document.querySelector('[data-radiant-id="' + kebab + '"]');
+    if (el) {
+      ctx.setField(key, value);
+      ctx.dispatchEvent("radiant-agent-set-field", { field: key, value });
+      filled++;
+      await ctx.delay(400);
+    } else {
+      ctx.dispatchEvent("radiant-agent-set-field", { field: key, value });
+    }
+  }
+
+  if (filled > 0) {
+    const submitBtn =
+      document.querySelector('[data-radiant-id*="submit"]') ??
+      document.querySelector('[data-radiant-id*="confirm"]') ??
+      document.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      const btnId =
+        submitBtn.getAttribute("data-radiant-id") ?? "submit";
+      ctx.highlight(btnId, "agent-clicking");
+      await ctx.delay(600);
+    }
+  }
+
+  return undefined;
 }
 
 type PendingTx = {
@@ -488,13 +589,14 @@ export const radiantAgent = {
     }
     emit({ type: "executing", action, params });
     try {
+      let result: AppActionResult | void | undefined;
       if (animate) {
-        const handler = handlers.get(action);
-        if (handler) {
-          await handler(params, createContext(true));
-        }
+        const handler = handlers.get(action) ?? genericFallbackHandler;
+        result = await handler(params, createContext(true));
       }
-      let result = await executeAction(action, params);
+      if (!result || typeof result !== "object" || !("status" in result)) {
+        result = await executeAction(action, params);
+      }
       result = await resolveApprovalIfNeeded(action, result);
       emit({ type: "result", action, result });
       return result;

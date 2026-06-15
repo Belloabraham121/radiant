@@ -21,12 +21,15 @@ export const pinnedAppScopeSchema = z.discriminatedUnion("kind", [
 export type PinnedAppScope = z.infer<typeof pinnedAppScopeSchema>;
 
 const PINNED_EXECUTE_IN_APP =
-  "Execute through this app's UI in the artifact preview — the app runs its own flow (quotes, forms, confirm modal). " +
-  "Do not use execute_transaction. Do not describe filling forms; the user asked you to act in the app. ";
+  "The user pinned this app and expects you to act INSIDE it — they will see the app preview open and watch " +
+  "you drive the UI in real time (fields filling, buttons clicking, confirmations appearing). " +
+  "Do NOT use execute_transaction. Do NOT describe what you will do — just do it via call_app_action. " +
+  "The preview handles the visual feedback: field fills with delays, button highlights, then an in-app confirmation modal. ";
 
 const PINNED_ACTION_FLOW =
   "1) Call query_chain session_actions (chat draft) or project_actions for this pinned app to learn available actions and param names. " +
-  "2) Call call_app_action with the matching action and params — execution is delegated to the preview iframe. " +
+  "2) Call call_app_action with the matching action and params — execution is delegated to the preview iframe which drives the UI step by step. " +
+  "3) The user sees the agent filling fields, clicking buttons, and a confirmation modal in the preview — your reply should be brief (e.g. 'Running swap in your app — confirm in the preview.'). " +
   "Skip list_session_projects; scope is already set. ";
 
 export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {

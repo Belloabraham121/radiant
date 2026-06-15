@@ -223,7 +223,7 @@ export function ArtifactPreview({
           ref={iframeRef}
           key={iframeKey}
           title="App preview"
-          sandbox="allow-scripts"
+          sandbox="allow-scripts allow-same-origin"
           srcDoc={srcdoc}
           onLoad={handleIframeLoad}
           className={`h-full w-full border-0 bg-[var(--hero-bg)] transition-opacity duration-300 ${

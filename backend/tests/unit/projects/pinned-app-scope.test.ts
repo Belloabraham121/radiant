@@ -59,9 +59,10 @@ describe("pinned-app-scope", () => {
       kind: "session_draft",
       name: "Uniswap",
     });
-    assert.match(text, /artifact preview/i);
+    assert.match(text, /app preview/i);
     assert.match(text, /session_actions/i);
     assert.match(text, /call_app_action/i);
+    assert.match(text, /drive the UI/i);
     assert.doesNotMatch(text, /animate the form/i);
   });
 });

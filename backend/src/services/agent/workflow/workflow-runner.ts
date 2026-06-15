@@ -66,7 +66,8 @@ function isAppActionOutcome(result: unknown): result is AppActionResult {
     result !== null &&
     "status" in result &&
     ((result as AppActionResult).status === "executed" ||
-      (result as AppActionResult).status === "approval_required")
+      (result as AppActionResult).status === "approval_required" ||
+      (result as AppActionResult).status === "preview_delegated")
   );
 }
 
@@ -339,6 +340,13 @@ async function executeWorkflowStep(
         status: "approval_required",
         tool_calls,
         pendingId: outcome.agent_transaction_id,
+      };
+    }
+    if (outcome.status === "preview_delegated") {
+      return {
+        status: "executed",
+        tool_calls,
+        txResult: undefined,
       };
     }
     return {

@@ -30,12 +30,16 @@ describe("radiant-client template", () => {
     assert.match(RADIANT_CLIENT_TS, /approveAgentTransaction/);
     assert.match(RADIANT_CLIENT_TS, /rejectAgentTransaction/);
     assert.match(RADIANT_CLIENT_TS, /RadiantActionError/);
-    assert.equal(RADIANT_AGENT_RUNTIME_VERSION, 5);
+    assert.equal(RADIANT_AGENT_RUNTIME_VERSION, 6);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /notifyParentExecuteResult/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /showInAppApprovalModal/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /resolveApprovalIfNeeded/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /execute_in_app/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /data\.animate === true/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /setFieldValue/);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /ctx\.executeAction/);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /ctx\.delay/);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /ctx\.setField/);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /radiant-agent-set-field/);
   });
 });
