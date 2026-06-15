@@ -55,6 +55,25 @@ describe("app-action mapper", () => {
     );
   });
 
+  it("parseAppActionParams coerces string estimated_out_display to number", () => {
+    const parsed = parseAppActionParams("swap", {
+      amount: 3.648353,
+      side: "buy",
+      pool_key: "SUI_USDC",
+      estimated_out_display: "4.512",
+    });
+    assert.equal(parsed.estimated_out_display, 4.512);
+    assert.equal(typeof parsed.estimated_out_display, "number");
+  });
+
+  it("parseAppActionParams coerces string amount_display to number", () => {
+    const parsed = parseAppActionParams("swap", {
+      amount_display: "3.648353",
+      side: "buy",
+    });
+    assert.equal(parsed.amount_display, 3.648353);
+  });
+
   it("mapAppActionToExecuteInput passes params through", () => {
     const input = mapAppActionToExecuteInput("swap", {
       amount: 1.5,

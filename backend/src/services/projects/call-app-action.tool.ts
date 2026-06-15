@@ -10,6 +10,7 @@ import {
   type ProjectActionSchemaSource,
 } from "./app-action-schema.service.js";
 import { resolveAppScope, coerceMislabeledAppScopeFields } from "./app-scope-resolver.service.js";
+import { mergePinnedAppScopeIntoCallAppAction } from "./pinned-app-scope.types.js";
 import {
   executeAppActionForInstallation,
   executeAppActionForProject,
@@ -17,6 +18,7 @@ import {
 } from "./app-action.service.js";
 import { listAppActionsCatalogForSession } from "./app-action-catalog.service.js";
 import { findProjectByIdForUser } from "./project.repository.js";
+import type { AgentToolOptions } from "../agent/execute-transaction-context.js";
 
 export const CALL_APP_ACTION_TOOL_NAME = "call_app_action" as const;
 
@@ -121,7 +123,7 @@ export const callAppActionToolDefinition = {
       params: {
         type: "object",
         description:
-          "Action parameters — must match the project action schema. swap: { amount or amount_display, side, pool_key? }. " +
+          "Action parameters — must match the project action schema. swap: { amount or amount_display, side, pool_key? } — omit estimated_out_display (filled at approval) or pass as a JSON number only. " +
           "stake: { amount_display, pool_key? }. flash_loan: { borrow_amount, asset?, strategy?, steps? }.",
         additionalProperties: true,
       },
@@ -139,9 +141,12 @@ export const callAppActionToolDefinition = {
 export async function runCallAppActionTool(
   privyUserId: string,
   input: Record<string, unknown>,
-  context: { sessionId?: string; messageId?: string } = {},
+  context: AgentToolOptions = {},
 ): Promise<AppActionResult> {
-  const parsed = callAppActionInputSchema.parse(input);
+  const parsed = mergePinnedAppScopeIntoCallAppAction(
+    callAppActionInputSchema.parse(input),
+    context.pinnedAppScope,
+  );
   const user = await findUserByPrivyId(privyUserId);
   if (!user) {
     throw new AppError(404, "USER_NOT_FOUND", "User not found");

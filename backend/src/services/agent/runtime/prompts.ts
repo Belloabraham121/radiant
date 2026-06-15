@@ -6,10 +6,13 @@ import {
   approvalThresholdLabel,
 } from "../agent-permissions.service.js";
 import type { AgentPermissions } from "../agent-permissions.types.js";
+import { formatPinnedAppScopeForPrompt } from "../../projects/pinned-app-scope.types.js";
+import type { PinnedAppScope } from "../../projects/pinned-app-scope.types.js";
 
 type BuildSystemPromptInput = {
   memoryBlock?: string;
   agentPermissions?: AgentPermissions;
+  pinnedAppScope?: PinnedAppScope | null;
 };
 
 export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
@@ -57,8 +60,8 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     "When the user asks to withdraw (especially withdraw all), first query_chain deepbook_manager_balance for that coin_key, then execute_transaction deepbook_withdraw. For withdraw all use params { coin_key, withdraw_all: true } — never amount_display: 0 without withdraw_all.",
     "deepbook_deposit and deepbook_withdraw require coin_key. Withdrawals need amount_display or withdraw_all: true.",
     "For token swaps on Sui: when the user also asks for price or market data in the same message, call query_chain deepbook_pool_info (or deepbook_ticker) first so you can answer the price, then swap_quote and execute (execute_transaction or call_app_action). Always answer every part of a multi-part message — report price/market data even if the swap later fails.",
-    "For token swaps on Sui with no saved project context: only when the user explicitly asks to swap from their wallet with a numeric amount and coin pair (e.g. swap 10 SUI to USDC). Call query_chain swap_quote, then execute_transaction in the same turn. swap_quote params.amount must be a JSON number (not a string). Never call flash_loan_quote for a normal swap.",
-    "For token swaps through a saved or installed DEX app OR the open chat artifact: when the user names their project, says swap in my app / use my DEX / swap in my Uniswap app, FIRST call list_session_projects, then query_chain session_actions (chat draft) or project_actions { app_name } — never pass an app name as project_id. Then call_app_action { app_name: \"Uniswap\", action: \"swap\", params } or { use_session_draft: true, action, params } for unsaved chat drafts. Still call swap_quote first when you need estimated_out_display. Use installation_id for installed apps from install_app. Do NOT use execute_transaction when the user explicitly wants the swap through their built app.",
+    "For token swaps on Sui with no saved project context: only when the user explicitly asks to swap from their wallet with a numeric amount and coin pair (e.g. swap 10 SUI to USDC). Call query_chain swap_quote, then execute_transaction in the same turn. swap_quote params.amount must be a JSON number (not a string). Sell-side SUI amounts are auto-rounded down to pool lot_size (0.1 SUI on SUI_USDC) — you may pass wallet-precision amounts. Never call flash_loan_quote for a normal swap.",
+    "For token swaps through a saved or installed DEX app OR the open chat artifact: when the user names their project, says swap in my app / use my DEX / swap in my Uniswap app, FIRST call list_session_projects, then query_chain session_actions (chat draft) or project_actions { app_name } — never pass an app name as project_id. Then call_app_action { app_name: \"Uniswap\", action: \"swap\", params: { amount or amount_display, side, pool_key? } } or { use_session_draft: true, action, params }. Omit estimated_out_display — the platform attaches a fresh quote at approval. If you include it, use a JSON number (e.g. 4.5), never a string. USDC→SUI on SUI_USDC is side buy with the USDC amount; SUI→USDC is side sell — sell amounts auto-round down to lot_size 0.1 SUI. Do NOT use execute_transaction when the user explicitly wants the swap through their built app.",
     "BUILD vs on-chain SWAP: If the user wants a swap app, DEX, DeepBook UI, governance UI, or says like Uniswap / similar to Uniswap, that is BUILD — call generate_app with template: \"custom\" and author all UI files from scratch in files[] (components/*.tsx, app/page.tsx, etc.). There is NO prebuilt swap/DexApp template — never set template to swap for injected scaffolds. Set save_to_project: true when they ask to save to Projects. Do NOT call swap_quote, execute_transaction, or call_app_action unless they clearly ask to trade a specific amount right now.",
     "When the user gives multiple steps in one message (commas, then, when you're done, after that), the app plans and runs them sequentially via a workflow planner. Each on-chain step may need its own approval. After you approve one step, the next continues automatically.",
     "If intent is ambiguous (typos, missing amounts, 'deposit it'), the app shows a Yes/No clarification before executing — answer clearly when asked.",
@@ -86,6 +89,10 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     "deepbook_manager_info does NOT list open orders — use deepbook_open_orders.",
     "You only have context from this chat thread and the user memory block below — do not assume knowledge from other conversations.",
   ];
+
+  if (input.pinnedAppScope) {
+    lines.push("", formatPinnedAppScopeForPrompt(input.pinnedAppScope));
+  }
 
   const memory = input.memoryBlock?.trim();
   if (memory) {

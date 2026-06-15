@@ -244,6 +244,7 @@ export const openaiRuntime: AgentRuntime = {
         content: buildSystemPrompt({
           memoryBlock: input.memoryBlock,
           agentPermissions: input.agentPermissions,
+          pinnedAppScope: input.pinnedAppScope,
         }),
       },
       ...input.messages.map((message) => ({
@@ -519,6 +520,7 @@ export const openaiRuntime: AgentRuntime = {
           : await runAgentTool(input.privyUserId, toolCall.function.name, args, {
               sessionId: input.sessionId,
               flashLoanTurnIntent,
+              pinnedAppScope: input.pinnedAppScope,
               ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
                 ? { rawArguments: toolCall.function.arguments }
                 : {}),

@@ -25,6 +25,7 @@ import { postChatStream } from "@/lib/chat-stream";
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useArtifactContext } from "@/components/app/ArtifactContext";
+import type { ChatAppScope } from "@/lib/chat-app-scope";
 import {
   subscribePreviewApprovalResolution,
   tryRelayPendingApprovalToPreview,
@@ -155,7 +156,7 @@ export function useChatSession(sessionId?: string) {
   }, [boot.skipFetch, sessionId]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, appScope?: ChatAppScope | null) => {
       if (!text.trim() || typing || streaming) return;
 
       const optimisticId = `u-${Date.now()}`;
@@ -180,6 +181,7 @@ export function useChatSession(sessionId?: string) {
           {
             message: text,
             session_id: activeSessionId,
+            ...(appScope ? { app_scope: appScope } : {}),
           },
           {
             onStep: (step) => {

@@ -4,6 +4,7 @@ import { categorizeAgentTransactionAction } from "../agent-transaction/deepbook/
 import type { AgentTransactionCategory } from "../agent-transaction/agent-transaction.types.js";
 import type { ChainId, ExecuteTransactionInput } from "../chains/types.js";
 import { getAppActionParamSchema } from "./app-action-param-schemas.js";
+import { normalizeAppActionParams } from "./app-action-param-coerce.js";
 import {
   APP_ACTION_NAMES,
   getAppActionDefinition,
@@ -23,8 +24,9 @@ export function parseAppActionParams(
   action: AppActionName,
   params: unknown,
 ): Record<string, unknown> {
+  const normalized = normalizeAppActionParams(action, params);
   const schema = getAppActionParamSchema(action);
-  const parsed = schema.safeParse(params ?? {});
+  const parsed = schema.safeParse(normalized);
   if (!parsed.success) {
     throw new AppError(400, "VALIDATION_ERROR", formatZodError(parsed.error), {
       action,

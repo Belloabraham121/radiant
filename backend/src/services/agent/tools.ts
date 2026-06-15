@@ -138,6 +138,7 @@ async function dispatchAgentTool(
         return await runCallAppActionTool(privyUserId, input, {
           sessionId: options?.sessionId,
           messageId: options?.messageId,
+          pinnedAppScope: options?.pinnedAppScope,
         });
       case UPDATE_MEMORY_TOOL_NAME:
         return await runUpdateMemoryTool(privyUserId, input as UpdateMemoryInput);

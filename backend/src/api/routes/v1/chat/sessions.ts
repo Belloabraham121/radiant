@@ -10,6 +10,7 @@ import {
   listUserSessions,
 } from "../../../../services/conversation/conversation.service.js";
 import { saveSessionDraftToProjectForUser } from "../../../../services/projects/generate-app.service.js";
+import { getChatSessionAppScopeForUser } from "../../../../services/projects/chat-app-scope.service.js";
 import { listSessionTransactions } from "../../../../services/agent-transaction/agent-transaction.service.js";
 import {
   listAppActionsCatalogForSession,
@@ -87,6 +88,27 @@ chatSessionsRouter.get(
       }
 
       const data = await getSessionMessages(req.user.privyUserId, sessionId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/app-scope",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const sessionId = req.params.sessionId;
+      if (!sessionId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "sessionId is required",
+        });
+      }
+
+      const data = await getChatSessionAppScopeForUser(req.user.privyUserId, sessionId);
       return ok(req, res, data);
     } catch (err) {
       next(err);

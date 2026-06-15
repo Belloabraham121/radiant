@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import type { ArtifactPayload } from "@/lib/artifact-types";
+import type { ChatAppScope } from "@/lib/chat-app-scope";
 
 export type ChatToolCall = {
   name: string;
@@ -70,6 +71,7 @@ export type ChatResponse = {
 export type ChatRequest = {
   message: string;
   session_id?: string;
+  app_scope?: ChatAppScope;
   approve_transaction_id?: string;
   reject_transaction_id?: string;
   clarification_id?: string;

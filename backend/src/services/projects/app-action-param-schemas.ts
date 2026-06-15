@@ -191,7 +191,7 @@ export const appActionParamSchemaDocs: Record<AppActionName, { fields: Array<{ n
       { name: "amount", type: "number", required: true, description: "Input amount (or use amount_display)" },
       { name: "side", type: "string", required: true, description: "buy | sell" },
       { name: "pool_key", type: "string", description: "DeepBook pool key" },
-      { name: "estimated_out_display", type: "number", description: "From prior swap quote" },
+      { name: "estimated_out_display", type: "number", description: "Optional — platform fills from live quote at approval if omitted" },
     ],
   },
   flash_loan: {

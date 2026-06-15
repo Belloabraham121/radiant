@@ -1,4 +1,5 @@
 import type { FlashLoanTurnIntent } from "./deepbook/flash-loan-turn-intent.js";
+import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 
 export type ExecuteTransactionContext = {
   sessionId?: string;
@@ -14,6 +15,8 @@ export type AgentToolOptions = ExecuteTransactionContext & {
   rawArguments?: string;
   /** Resolved from the latest user message — gates flash-loan execute vs quote-only UI. */
   flashLoanTurnIntent?: FlashLoanTurnIntent | null;
+  /** User-selected app from chat composer — defaults call_app_action scope. */
+  pinnedAppScope?: PinnedAppScope | null;
 };
 
 export function resolveExecuteTransactionOptions(

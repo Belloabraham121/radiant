@@ -144,6 +144,7 @@ export async function runChatTurn(
         messages: contextMessages,
         memoryBlock,
         agentPermissions,
+        pinnedAppScope: request.app_scope ?? null,
       }),
   );
 

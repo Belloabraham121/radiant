@@ -1,5 +1,6 @@
 import type { AgentPermissions } from "../agent-permissions.types.js";
 import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "../agent.types.js";
+import type { PinnedAppScope } from "../../projects/pinned-app-scope.types.js";
 
 export type AgentRuntimeId = "openai" | "stub";
 
@@ -14,6 +15,8 @@ export type AgentTurnInput = {
   messages: AgentTurnMessage[];
   memoryBlock?: string;
   agentPermissions?: AgentPermissions;
+  /** User-pinned app from chat composer — scopes call_app_action. */
+  pinnedAppScope?: PinnedAppScope | null;
   /** When true, invoked from sequential workflow — avoid nested workflow routing. */
   workflowMode?: boolean;
 };

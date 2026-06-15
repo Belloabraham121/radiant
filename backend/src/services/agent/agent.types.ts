@@ -30,11 +30,13 @@ import {
   agentTransactionCategorySchema,
   agentTransactionStatusSchema,
 } from "../agent-transaction/agent-transaction.types.js";
+import { pinnedAppScopeSchema } from "../projects/pinned-app-scope.types.js";
 
 export const chatRequestSchema = z
   .object({
     message: z.string().max(8000).optional().default(""),
     session_id: z.string().uuid().optional(),
+    app_scope: pinnedAppScopeSchema.optional(),
     approve_transaction_id: z.string().uuid().optional(),
     reject_transaction_id: z.string().uuid().optional(),
     clarification_id: z.string().uuid().optional(),
