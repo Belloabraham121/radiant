@@ -13,6 +13,7 @@ import {
   buildPreviewDelegatedResult,
   shouldDelegateAppActionToPreview,
 } from "../../../src/services/projects/pinned-app-preview-delegation.js";
+import { drainPendingExecuteInApp, resetPendingExecuteInAppForTests } from "../../../src/services/agent/agent-stream-pending-execute.js";
 
 const sessionId = "00000000-0000-4000-8000-00000000a003";
 
@@ -51,14 +52,16 @@ describe("emitAgentStreamExecuteInApp", () => {
   before(async () => {
     setRedisClientForTests(null);
     await resetAgentStreamForTests();
+    resetPendingExecuteInAppForTests();
   });
 
   after(async () => {
     await resetAgentStreamForTests();
+    resetPendingExecuteInAppForTests();
     setRedisClientForTests(undefined);
   });
 
-  it("emits execute_in_app agent_action", () => {
+  it("emits execute_in_app agent_action when a subscriber is connected", () => {
     const events: Array<{ type: string; step?: string; action?: string }> = [];
     const unsubscribe = subscribeAgentStream(sessionId, (event) => {
       events.push({
@@ -83,6 +86,17 @@ describe("emitAgentStreamExecuteInApp", () => {
           event.action === "swap",
       ),
     );
+  });
+
+  it("buffers execute_in_app when no subscriber is connected", () => {
+    emitAgentStreamExecuteInApp(
+      { sessionId, broadcast: true },
+      "swap",
+      { amount: 1, side: "sell" },
+    );
+    const pending = drainPendingExecuteInApp(sessionId);
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0]?.action, "swap");
   });
 
   it("shouldBroadcastAgentStream without subscriber when broadcast is true", () => {

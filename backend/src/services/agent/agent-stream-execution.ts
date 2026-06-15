@@ -3,7 +3,8 @@ import type { ExecuteTransactionInput } from "../chains/types.js";
 import { mapExecuteActionToAppActionName } from "../projects/app-action-mapper.js";
 import type { AppActionContext } from "../projects/app-action.types.js";
 import type { ExecuteToolOutcome } from "./agent.types.js";
-import { emitAgentEvent } from "./agent-stream.service.js";
+import { emitAgentEvent, hasAgentStreamSubscribers } from "./agent-stream.service.js";
+import { bufferPendingExecuteInApp } from "./agent-stream-pending-execute.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 
 export type AgentStreamBroadcastContext = {
@@ -67,13 +68,21 @@ export function emitAgentStreamExecuteInApp(
     return;
   }
 
-  emitAgentEvent(ctx.sessionId, "agent_thinking", { active: true, action });
-  emitAgentEvent(ctx.sessionId, "agent_action", {
-    action,
-    params,
-    step: "execute_in_app",
-    animate: true,
-  });
+  const sessionId = ctx.sessionId;
+
+  if (hasAgentStreamSubscribers(sessionId)) {
+    emitAgentEvent(sessionId, "agent_thinking", { active: true, action });
+    emitAgentEvent(sessionId, "agent_action", {
+      action,
+      params,
+      step: "execute_in_app",
+      animate: true,
+    });
+    emitAgentEvent(sessionId, "agent_thinking", { active: false, action });
+    return;
+  }
+
+  bufferPendingExecuteInApp(sessionId, action, params);
 }
 
 export function emitAgentStreamExecutionStart(

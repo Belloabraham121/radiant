@@ -74,6 +74,18 @@ describe("ensureAppEntry", () => {
     assert.doesNotMatch(client!.content, /stale/);
   });
 
+  it("injects agent runtime import into existing app/page.tsx", () => {
+    const result = ensureAppEntry([
+      {
+        path: "app/page.tsx",
+        content: `"use client";\n\nexport default function Page() { return null; }`,
+      },
+    ]);
+    const page = result.find((f) => f.path === "app/page.tsx");
+    assert.ok(page);
+    assert.match(page!.content, /radiant-agent-runtime/);
+  });
+
   it("injects agent runtime, indicator, and agent CSS", () => {
     const result = ensureAppEntry([{ path: "app/page.tsx", content: "export default function Page() { return null; }" }]);
     assert.ok(result.some((f) => f.path === "lib/radiant-agent-runtime.ts"));

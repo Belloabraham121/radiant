@@ -145,6 +145,39 @@ export function sortExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
   );
 }
 
+/** Update the execute step when the preview iframe reports an app action outcome. */
+export function executionStepFromPreviewResult(input: {
+  action: string;
+  status: "executed" | "approval_required" | "error";
+  digest?: string;
+  message?: string;
+}): ExecutionStep {
+  const label = `Execute ${input.action.replace(/_/g, " ")}`;
+  if (input.status === "executed" && input.digest) {
+    return {
+      id: "execute",
+      status: "ok",
+      label,
+      detail: `Broadcast · ${input.digest.slice(0, 10)}…`,
+      digest: input.digest,
+    };
+  }
+  if (input.status === "approval_required") {
+    return {
+      id: "execute",
+      status: "warning",
+      label,
+      detail: "Waiting for your approval in the app",
+    };
+  }
+  return {
+    id: "execute",
+    status: "failed",
+    label,
+    detail: input.message ?? "Action failed in preview",
+  };
+}
+
 export function isFlashLoanParamValidationError(message: string): boolean {
   return /params\.(steps|amount|borrow_amount)|steps\[\d+\]|swap_chain_repay|borrow_amount|deepbook_flash_loan|must be a positive number|Step \d+ must spend|Final swap must output/i.test(
     message,
@@ -436,9 +469,9 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
         if (outcome.status === "preview_delegated") {
           steps.push({
             id: "execute",
-            status: "running",
+            status: "warning",
             label: executeCall.action ? `Execute ${executeCall.action}` : executeLabel,
-            detail: "Running in app preview — confirm there",
+            detail: "Started in app preview — confirm there",
           });
         } else if (outcome.status === "approval_required") {
           steps.push({

@@ -105,6 +105,41 @@ function injectPlatformFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
   return next;
 }
 
+function ensureAgentRuntimeImportInPage(content: string): string {
+  if (/radiant-agent-runtime/.test(content)) {
+    return content;
+  }
+  const importLine = `import "../lib/radiant-agent-runtime";\n`;
+  if (/^["']use client["'];?\s*\n/m.test(content)) {
+    return content.replace(/^["']use client["'];?\s*\n/m, (match) => `${match}${importLine}`);
+  }
+  return `"use client";\n\n${importLine}${content}`;
+}
+
+function ensureAgentRuntimeImportInLegacyApp(content: string): string {
+  if (/radiant-agent-runtime/.test(content)) {
+    return content;
+  }
+  const importLine = `import "../lib/radiant-agent-runtime";\n`;
+  if (/^["']use client["'];?\s*\n/m.test(content)) {
+    return content.replace(/^["']use client["'];?\s*\n/m, (match) => `${match}${importLine}`);
+  }
+  return `${importLine}${content}`;
+}
+
+function patchPageEntryFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
+  return files.map((file) => {
+    const path = normalizeClientPath(file.path);
+    if (path === "app/page.tsx") {
+      return { ...file, content: ensureAgentRuntimeImportInPage(file.content) };
+    }
+    if (path === "src/App.tsx" || path === "src/App.jsx") {
+      return { ...file, content: ensureAgentRuntimeImportInLegacyApp(file.content) };
+    }
+    return file;
+  });
+}
+
 function defaultGlobalsCss(): string {
   return ensureAgentStylesInGlobalsCss(NEXT_APP_GLOBALS_CSS);
 }
@@ -134,11 +169,11 @@ export function ensureAppEntry(
     if (!hasPath(next, "app/globals.css")) {
       next.push({ path: "app/globals.css", content: defaultGlobalsCss() });
     }
-    return normalizeGlobalsCssFiles(next);
+    return normalizeGlobalsCssFiles(patchPageEntryFiles(next));
   }
 
   if (usesLegacy) {
-    return normalizeGlobalsCssFiles(next);
+    return normalizeGlobalsCssFiles(patchPageEntryFiles(next));
   }
 
   const primary = pickPrimaryComponent(next);
@@ -178,5 +213,5 @@ export function ensureAppEntry(
     });
   }
 
-  return normalizeGlobalsCssFiles(next);
+  return normalizeGlobalsCssFiles(patchPageEntryFiles(next));
 }

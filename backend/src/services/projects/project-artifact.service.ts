@@ -1,6 +1,7 @@
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findSessionForUser } from "../conversation/session.repository.js";
+import { ensureAppEntry } from "./ensure-app-entry.js";
 import {
   artifactRevisionExists,
   listArtifactFiles,
@@ -67,7 +68,14 @@ export async function getProjectArtifactPayloadForUser(
   }
 
   const files = await listArtifactFiles(projectId, targetRevision);
-  return toArtifactPayload(project, targetRevision, files);
+  const prepared = ensureAppEntry(
+    files.map((file) => ({
+      path: toClientPath(file.path),
+      content: file.content,
+    })),
+    { template: project.template },
+  );
+  return toArtifactPayload(project, targetRevision, prepared);
 }
 
 export async function listProjectRevisionsForUser(

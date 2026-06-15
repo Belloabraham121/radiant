@@ -8,6 +8,7 @@ import { parseAppActionResultFromBody } from "@/lib/app-actions-api";
 import { useChatAgentStream } from "@/components/app/ChatAgentStreamBridge";
 import { useActivePreviewSessionRegistration } from "@/lib/active-preview-session";
 import { handlePreviewApprovalResolvedMessage } from "@/lib/preview-approval-relay";
+import { handlePreviewExecuteResultMessage } from "@/lib/preview-execute-result";
 
 export function ArtifactPreviewWithApproval({
   files,
@@ -48,6 +49,7 @@ export function ArtifactPreviewWithApproval({
   useEffect(() => {
     function onMessage(event: MessageEvent) {
       if (event.source !== iframeRef.current?.contentWindow) return;
+      handlePreviewExecuteResultMessage(event.data);
       handlePreviewApprovalResolvedMessage(event.data);
     }
 

@@ -215,9 +215,9 @@ function emitAppActionProgressFromResult(result: unknown, action?: string): void
     emitExecutionProgress({
       step: {
         id: "execute",
-        status: "running",
+        status: "warning",
         label: appActionExecuteLabel(action),
-        detail: "Running in app preview — confirm there",
+        detail: "Started in app preview — confirm there",
       },
     });
     return;

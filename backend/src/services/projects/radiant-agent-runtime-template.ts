@@ -1,6 +1,6 @@
 /** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_VERSION = 4;
+export const RADIANT_AGENT_RUNTIME_VERSION = 5;
 
 export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
 import {
@@ -169,6 +169,31 @@ function notifyParentApprovalResolved(
         status,
         digest: extra?.digest,
         errorMessage: extra?.errorMessage,
+      },
+      "*",
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function notifyParentExecuteResult(
+  action: string,
+  result: AppActionResult,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.parent.postMessage(
+      {
+        type: "radiant-preview-execute-result",
+        action,
+        status: result.status,
+        digest: result.status === "executed" ? result.digest : undefined,
+        message: result.status === "error" ? result.error.message : undefined,
+        pending:
+          result.status === "approval_required"
+            ? result.pending
+            : undefined,
       },
       "*",
     );
@@ -388,20 +413,20 @@ export const radiantAgent = {
         .execute(action, params, { animate: true })
         .then((result) => {
           emit({ type: "result", action, result });
+          notifyParentExecuteResult(action, result);
           if (result.status === "executed" && typeof window !== "undefined") {
             window.dispatchEvent(new CustomEvent("radiant-agent-refresh"));
           }
         })
-        .catch(() => {
-          emit({
-            type: "result",
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : "Action failed in preview";
+          const failed: AppActionResult = {
+            status: "error",
             action,
-            result: {
-              status: "error",
-              action,
-              error: { code: "EXECUTE_FAILED", message: "Action failed in preview" },
-            },
-          });
+            error: { code: "EXECUTE_FAILED", message },
+          };
+          emit({ type: "result", action, result: failed });
+          notifyParentExecuteResult(action, failed);
         });
       return;
     }

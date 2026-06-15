@@ -20,6 +20,7 @@ import {
   mapStreamStepToExecutionStep,
   sortExecutionSteps,
   upsertExecutionStep,
+  executionStepFromPreviewResult,
 } from "@/lib/chat-execution-steps";
 import { postChatStream } from "@/lib/chat-stream";
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
@@ -30,6 +31,10 @@ import {
   subscribePreviewApprovalResolution,
   tryRelayPendingApprovalToPreview,
 } from "@/lib/preview-approval-relay";
+import {
+  previewExecuteResultToPending,
+  subscribePreviewExecuteResult,
+} from "@/lib/preview-execute-result";
 
 function initialChatSessionState(sessionId?: string) {
   if (!sessionId) {
@@ -110,8 +115,76 @@ export function useChatSession(sessionId?: string) {
     return subscribePreviewApprovalResolution((message) => {
       setPendingTx((current) => (current?.id === message.pendingId ? null : current));
       setPendingTxRelayedToPreview(false);
+
+      if (message.status === "executed" && message.digest) {
+        setMessages((current) => {
+          const agentIndex = [...current].reverse().findIndex((m) => m.role === "agent");
+          if (agentIndex === -1) return current;
+          const index = current.length - 1 - agentIndex;
+          const messageRow = current[index];
+          if (!messageRow) return current;
+
+          const nextStep = executionStepFromPreviewResult({
+            action: "swap",
+            status: "executed",
+            digest: message.digest,
+          });
+          const executionSteps = sortExecutionSteps(
+            upsertExecutionStep(messageRow.executionSteps ?? [], nextStep),
+          );
+          const digestReceipt = receiptFromExecutionStep(nextStep);
+
+          return current.map((row, i) =>
+            i === index
+              ? {
+                  ...row,
+                  executionSteps,
+                  ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+                }
+              : row,
+          );
+        });
+      }
     });
   }, []);
+
+  useEffect(() => {
+    return subscribePreviewExecuteResult((message) => {
+      const pending = previewExecuteResultToPending(message);
+      if (pending) {
+        applyPendingTransaction(pending, activeSessionId ?? sessionId);
+      }
+
+      setMessages((current) => {
+        const agentIndex = [...current].reverse().findIndex((m) => m.role === "agent");
+        if (agentIndex === -1) return current;
+        const index = current.length - 1 - agentIndex;
+        const messageRow = current[index];
+        if (!messageRow) return current;
+
+        const nextStep = executionStepFromPreviewResult({
+          action: message.action,
+          status: message.status,
+          digest: message.digest,
+          message: message.message,
+        });
+        const executionSteps = sortExecutionSteps(
+          upsertExecutionStep(messageRow.executionSteps ?? [], nextStep),
+        );
+        const digestReceipt = receiptFromExecutionStep(nextStep);
+
+        return current.map((row, i) =>
+          i === index
+            ? {
+                ...row,
+                executionSteps,
+                ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+              }
+            : row,
+        );
+      });
+    });
+  }, [activeSessionId, applyPendingTransaction, sessionId]);
 
   useEffect(() => {
     if (!sessionId || boot.skipFetch) {

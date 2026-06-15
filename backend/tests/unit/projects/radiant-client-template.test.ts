@@ -30,7 +30,8 @@ describe("radiant-client template", () => {
     assert.match(RADIANT_CLIENT_TS, /approveAgentTransaction/);
     assert.match(RADIANT_CLIENT_TS, /rejectAgentTransaction/);
     assert.match(RADIANT_CLIENT_TS, /RadiantActionError/);
-    assert.equal(RADIANT_AGENT_RUNTIME_VERSION, 4);
+    assert.equal(RADIANT_AGENT_RUNTIME_VERSION, 5);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /notifyParentExecuteResult/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /showInAppApprovalModal/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /resolveApprovalIfNeeded/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /execute_in_app/);

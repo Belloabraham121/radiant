@@ -36,6 +36,7 @@ import {
   requireAgentStreamSession,
   subscribeAgentStream,
 } from "../../../../services/agent/agent-stream.service.js";
+import { drainPendingExecuteInApp } from "../../../../services/agent/agent-stream-pending-execute.js";
 import { fail, ok } from "../../../../utils/http-response.js";
 import { writeSseComment, writeSseEvent } from "../../../../utils/chat-sse.js";
 
@@ -46,6 +47,23 @@ chatSessionsRouter.get("/api/v1/platform/radiant-client", requireAuth, async (re
     version: RADIANT_CLIENT_TEMPLATE_VERSION,
     content: RADIANT_CLIENT_TS,
   });
+});
+
+chatSessionsRouter.post("/api/v1/platform/prepare-artifact-preview", requireAuth, async (req, res, next) => {
+  try {
+    const body = req.body as { files?: Array<{ path: string; content: string }>; template?: string };
+    if (!Array.isArray(body.files) || body.files.length === 0) {
+      return fail(req, res, 400, {
+        code: "VALIDATION_ERROR",
+        message: "files array is required",
+      });
+    }
+    const { ensureAppEntry } = await import("../../../../services/projects/ensure-app-entry.js");
+    const files = ensureAppEntry(body.files, { template: body.template });
+    return ok(req, res, { files });
+  } catch (err) {
+    next(err);
+  }
 });
 
 chatSessionsRouter.get("/api/v1/chat/sessions", requireAuth, async (req, res, next) => {
@@ -157,6 +175,19 @@ chatSessionsRouter.get(
     res.flushHeaders?.();
 
     writeSseEvent(res, "connected", { session_id: sessionId });
+
+    for (const pending of drainPendingExecuteInApp(sessionId)) {
+      writeSseEvent(res, "agent_thinking", { session_id: sessionId, active: true, action: pending.action });
+      writeSseEvent(res, "agent_action", {
+        session_id: sessionId,
+        ts: pending.created_at,
+        action: pending.action,
+        params: pending.params,
+        step: "execute_in_app",
+        animate: true,
+      });
+      writeSseEvent(res, "agent_thinking", { session_id: sessionId, active: false, action: pending.action });
+    }
 
     const unsubscribe = subscribeAgentStream(sessionId, (event) => {
       if (res.writableEnded) {
