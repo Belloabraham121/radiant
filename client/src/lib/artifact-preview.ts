@@ -481,6 +481,7 @@ ${css}
     return path;
   }
   function resolveRelativeImport(fromPath, request) {
+    var MODULE_ROOTS = ["app/", "components/", "lib/", "src/"];
     var baseDir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/")) : "";
     var joined;
     if (request.indexOf("./") === 0) {
@@ -497,12 +498,22 @@ ${css}
     } else if (request.indexOf("/") === 0) {
       joined = request.slice(1);
     } else {
-      return null;
+      var isBareLocal = false;
+      for (var ri = 0; ri < MODULE_ROOTS.length; ri++) {
+        if (request.indexOf(MODULE_ROOTS[ri]) === 0 || request === MODULE_ROOTS[ri].slice(0, -1)) {
+          isBareLocal = true;
+          break;
+        }
+      }
+      if (!isBareLocal) return null;
+      joined = request;
     }
     var candidates = [joined];
     for (var j = 0; j < SOURCE_EXTS.length; j++) {
       candidates.push(stripExt(joined) + SOURCE_EXTS[j]);
     }
+    candidates.push(joined + "/index.tsx");
+    candidates.push(joined + "/index.ts");
     for (var k = 0; k < candidates.length; k++) {
       if (payload.modules[candidates[k]]) return candidates[k];
     }
@@ -557,9 +568,11 @@ ${css}
       if (request.endsWith(".css") || request.endsWith(".scss")) return {};
       var resolved = resolveRelativeImport(moduleId, request);
       if (!resolved) {
-        throw new Error(
-          "Preview cannot load module: " + request + " (from " + moduleId + "). Use app/, components/, or lib/ paths and react / react-dom / react-router-dom only for npm.",
-        );
+        var isRelative = request.indexOf("./") === 0 || request.indexOf("../") === 0 || request.indexOf("/") === 0;
+        var msg = isRelative
+          ? "Preview: file not found: " + request + " (imported from " + moduleId + "). The component file is missing from the generated app — ask the agent to regenerate and include all component files."
+          : "Preview cannot load module: " + request + " (from " + moduleId + "). Use app/, components/, or lib/ paths for local files, and react / react-dom / react-router-dom only for npm.";
+        throw new Error(msg);
       }
       return loadModule(resolved);
     }
