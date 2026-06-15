@@ -153,12 +153,14 @@ export function executionStepFromPreviewResult(input: {
   message?: string;
 }): ExecutionStep {
   const label = `Execute ${input.action.replace(/_/g, " ")}`;
-  if (input.status === "executed" && input.digest) {
+  if (input.status === "executed") {
     return {
       id: "execute",
       status: "ok",
       label,
-      detail: `Broadcast · ${input.digest.slice(0, 10)}…`,
+      detail: input.digest
+        ? `Broadcast · ${input.digest.slice(0, 10)}…`
+        : "Completed in app",
       digest: input.digest,
     };
   }
