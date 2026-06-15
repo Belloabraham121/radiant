@@ -2,13 +2,16 @@ import { getDefaultAgentChainId } from "../../config/chains.js";
 import { categorizeAgentTransactionAction } from "../agent-transaction/deepbook/categorize-action.js";
 import {
   APP_ACTION_NAMES,
+  ONCHAIN_ACTION_NAMES,
+  isOnchainAction,
   type AppActionDefinition,
   type AppActionName,
+  type OnchainActionName,
 } from "./app-action.types.js";
 import { appActionParamSchemaDocs } from "./app-action-param-schemas.js";
 
-export { APP_ACTION_NAMES } from "./app-action.types.js";
-export type { AppActionName, AppActionDefinition } from "./app-action.types.js";
+export { APP_ACTION_NAMES, ONCHAIN_ACTION_NAMES, isOnchainAction } from "./app-action.types.js";
+export type { AppActionName, OnchainActionName, AppActionDefinition } from "./app-action.types.js";
 
 const DEFAULT_CHAIN = getDefaultAgentChainId();
 
@@ -21,8 +24,8 @@ function defineAction(
   };
 }
 
-/** Canonical registry of app-facing actions → execute_transaction mapping. */
-export const APP_ACTION_REGISTRY: Record<AppActionName, AppActionDefinition> = {
+/** Canonical registry of on-chain actions → execute_transaction mapping. */
+export const APP_ACTION_REGISTRY: Record<OnchainActionName, AppActionDefinition> = {
   swap: defineAction({
     name: "swap",
     description: "Swap tokens on DeepBook using the agent wallet.",
@@ -145,18 +148,31 @@ export const APP_ACTION_REGISTRY: Record<AppActionName, AppActionDefinition> = {
 };
 
 export function isAppActionName(value: string): value is AppActionName {
-  return (APP_ACTION_NAMES as readonly string[]).includes(value);
+  return value.length > 0;
 }
 
 export function getAppActionDefinition(name: AppActionName): AppActionDefinition {
+  if (!isOnchainAction(name)) {
+    return {
+      name,
+      description: `App-local action: ${name}`,
+      protocol: "generic",
+      default_chain_id: "sui",
+      execute_action: name,
+      category: "other" as AppActionDefinition["category"],
+    };
+  }
   return APP_ACTION_REGISTRY[name];
 }
 
 export function listAppActionDefinitions(): AppActionDefinition[] {
-  return APP_ACTION_NAMES.map((name) => APP_ACTION_REGISTRY[name]);
+  return ONCHAIN_ACTION_NAMES.map((name) => APP_ACTION_REGISTRY[name]);
 }
 
 /** Param schema docs keyed by action — for GET .../actions and Phase 6 storage. */
 export function getAppActionParamSchemaDoc(name: AppActionName) {
+  if (!isOnchainAction(name)) {
+    return { fields: [] };
+  }
   return appActionParamSchemaDocs[name];
 }

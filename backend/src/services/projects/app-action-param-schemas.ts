@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AppActionName } from "./app-action.types.js";
+import type { OnchainActionName } from "./app-action.types.js";
 
 const sideSchema = z.enum(["buy", "sell"]);
 
@@ -173,19 +173,19 @@ export const appActionParamSchemas = {
       (value) => value.amount_atomic != null || value.amount_display != null,
       { message: "amount_atomic or amount_display is required" },
     ),
-} satisfies Record<AppActionName, z.ZodType<Record<string, unknown>>>;
+} satisfies Record<OnchainActionName, z.ZodType<Record<string, unknown>>>;
 
 export type AppActionParamsMap = {
-  [K in AppActionName]: z.infer<(typeof appActionParamSchemas)[K]>;
+  [K in OnchainActionName]: z.infer<(typeof appActionParamSchemas)[K]>;
 };
 
-/** Zod schema for params of a given canonical app action. */
-export function getAppActionParamSchema(name: AppActionName): z.ZodType<Record<string, unknown>> {
+/** Zod schema for params of a given on-chain app action. */
+export function getAppActionParamSchema(name: OnchainActionName): z.ZodType<Record<string, unknown>> {
   return appActionParamSchemas[name];
 }
 
 /** Human-readable param field docs for action schema export (Phase 6). */
-export const appActionParamSchemaDocs: Record<AppActionName, { fields: Array<{ name: string; type: string; required?: boolean; description?: string }> }> = {
+export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array<{ name: string; type: string; required?: boolean; description?: string }> }> = {
   swap: {
     fields: [
       { name: "amount", type: "number", required: true, description: "Input amount (or use amount_display)" },

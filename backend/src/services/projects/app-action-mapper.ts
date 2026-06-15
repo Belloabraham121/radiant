@@ -6,22 +6,23 @@ import type { ChainId, ExecuteTransactionInput } from "../chains/types.js";
 import { getAppActionParamSchema } from "./app-action-param-schemas.js";
 import { normalizeAppActionParams } from "./app-action-param-coerce.js";
 import {
-  APP_ACTION_NAMES,
+  ONCHAIN_ACTION_NAMES,
   getAppActionDefinition,
   isAppActionName,
+  isOnchainAction,
 } from "./app-action-registry.js";
-import type { AppActionName } from "./app-action.types.js";
+import type { AppActionName, OnchainActionName } from "./app-action.types.js";
 
 export type MapAppActionOptions = {
   chain_id?: ChainId;
 };
 
 /**
- * Parse and validate params for a canonical app action (Zod layer).
+ * Parse and validate params for an on-chain app action (Zod layer).
  * Returns normalized params object passed to execute_transaction.
  */
 export function parseAppActionParams(
-  action: AppActionName,
+  action: OnchainActionName,
   params: unknown,
 ): Record<string, unknown> {
   const normalized = normalizeAppActionParams(action, params);
@@ -54,12 +55,16 @@ export function mapAppActionToExecuteInput(
 
 /**
  * Full validation: Zod app params → execute_transaction shape → existing DeepBook validators.
+ * Only valid for on-chain actions.
  */
 export function validateAppActionInput(
   action: AppActionName,
   params: unknown,
   options: MapAppActionOptions = {},
 ): ExecuteTransactionInput {
+  if (!isOnchainAction(action)) {
+    throw new AppError(400, "NOT_ONCHAIN_ACTION", `Action "${action}" is app-local and cannot be validated for on-chain execution.`);
+  }
   const parsedParams = parseAppActionParams(action, params);
   const input = mapAppActionToExecuteInput(action, parsedParams, options);
   validateExecuteTransactionInput(input);
@@ -80,11 +85,11 @@ export function categorizeAppActionName(actionName: string): AgentTransactionCat
   return categorizeAgentTransactionAction(actionName);
 }
 
-/** Parse action name from HTTP path segment; throws VALIDATION_ERROR if unknown. */
+/** Parse action name from HTTP path segment; throws VALIDATION_ERROR if unknown on-chain action. */
 export function parseAppActionName(actionName: string): AppActionName {
   if (!isAppActionName(actionName)) {
     throw new AppError(400, "VALIDATION_ERROR", `Unknown app action: ${actionName}`, {
-      known_actions: APP_ACTION_NAMES,
+      known_actions: [...ONCHAIN_ACTION_NAMES],
     });
   }
   return actionName;
@@ -92,7 +97,7 @@ export function parseAppActionName(actionName: string): AppActionName {
 
 /** Map execute_transaction action string to canonical app action when supported. */
 export function mapExecuteActionToAppActionName(executeAction: string): AppActionName | null {
-  for (const name of APP_ACTION_NAMES) {
+  for (const name of ONCHAIN_ACTION_NAMES) {
     if (getAppActionDefinition(name).execute_action === executeAction) {
       return name;
     }

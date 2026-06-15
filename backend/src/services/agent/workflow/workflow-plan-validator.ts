@@ -23,6 +23,7 @@ import {
   validateExecuteStepParams,
 } from "./workflow-param-normalizer.js";
 import { mapExecuteActionToAppActionName, parseAppActionParams } from "../../projects/app-action-mapper.js";
+import { isOnchainAction } from "../../projects/app-action-registry.js";
 import { isUuid } from "../../projects/app-scope-resolver.service.js";
 import type { WorkflowPlan, WorkflowStep } from "./workflow.types.js";
 
@@ -218,10 +219,12 @@ async function preflightStep(
   step: WorkflowStep,
 ): Promise<{ ok: boolean; clarify?: { question: string; kind: ClarificationKind } }> {
   if (step.kind === "app_action") {
-    try {
-      parseAppActionParams(step.action, step.params);
-    } catch {
-      return { ok: true };
+    if (isOnchainAction(step.action)) {
+      try {
+        parseAppActionParams(step.action, step.params);
+      } catch {
+        return { ok: true };
+      }
     }
     return { ok: true };
   }

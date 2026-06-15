@@ -3,7 +3,7 @@ import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findInstallationForUser } from "../apps/app-installation.repository.js";
 import { chainIdSchema } from "../chains/types.js";
-import { APP_ACTION_NAMES } from "./app-action-registry.js";
+import { ONCHAIN_ACTION_NAMES, isOnchainAction } from "./app-action-registry.js";
 import type { AppActionName, AppActionResult } from "./app-action.types.js";
 import {
   buildProjectActionsCatalogResponse,
@@ -39,7 +39,7 @@ export const callAppActionInputSchema = z.preprocess(
       installation_id: z.string().uuid().optional(),
       app_name: z.string().min(1).optional(),
       use_session_draft: z.boolean().optional(),
-      action: z.enum(APP_ACTION_NAMES),
+      action: z.string().min(1).max(64).regex(/^[a-z][a-z0-9_]*$/),
       params: z.record(z.string(), z.unknown()).optional().default({}),
       chain_id: chainIdSchema.optional(),
     })
@@ -59,6 +59,9 @@ export function assertActionInProjectSchema(
   project: ProjectActionSchemaSource,
   action: AppActionName,
 ): void {
+  if (!isOnchainAction(action)) {
+    return;
+  }
   const catalog = buildProjectActionsCatalogResponse(project);
   if (!catalog.actions.some((entry) => entry.name === action)) {
     throw new AppError(
@@ -78,6 +81,9 @@ async function assertActionInSessionSchema(
   sessionId: string,
   action: AppActionName,
 ): Promise<void> {
+  if (!isOnchainAction(action)) {
+    return;
+  }
   const catalog = await listAppActionsCatalogForSession(privyUserId, sessionId);
   if (!catalog.actions.some((entry) => entry.name === action)) {
     throw new AppError(
@@ -95,8 +101,10 @@ async function assertActionInSessionSchema(
 export const callAppActionToolDefinition = {
   name: CALL_APP_ACTION_TOOL_NAME,
   description:
-    "Execute an app's on-chain action via the user's agent wallet — same path as clicking a button in the app preview. " +
-    "Scope: project_id (saved project UUID), installation_id (installed app UUID), app_name (match by name in this chat, e.g. \"Uniswap\"), " +
+    "Execute an app action — either on-chain (swap, stake, etc.) or app-local (log_workout, update_reps, etc.). " +
+    "On-chain actions go through the transaction pipeline; app-local actions run in the preview UI. " +
+    "Call query_chain project_actions or session_actions first to discover which actions this app supports. " +
+    "Scope: project_id (saved project UUID), installation_id (installed app UUID), app_name (match by name in this chat), " +
     "or omit all three to use the chat draft when only one app exists. Never pass an app name as project_id.",
   input_schema: {
     type: "object" as const,
@@ -121,20 +129,24 @@ export const callAppActionToolDefinition = {
       },
       action: {
         type: "string",
-        enum: [...APP_ACTION_NAMES],
-        description: "Canonical app action name (e.g. swap, stake, flash_loan).",
+        description:
+          "Action name from query_chain project_actions / session_actions. " +
+          "On-chain: swap, flash_loan, stake, unstake, deposit, withdraw, transfer, etc. " +
+          "App-local: any custom action the app declares (e.g. log_workout, update_reps, add_entry). " +
+          "Must be lowercase snake_case.",
       },
       params: {
         type: "object",
         description:
-          "Action parameters — must match the project action schema. swap: { amount or amount_display, side, pool_key? } — omit estimated_out_display (filled at approval) or pass as a JSON number only. " +
-          "stake: { amount_display, pool_key? }. flash_loan: { borrow_amount, asset?, strategy?, steps? }.",
+          "Action parameters — must match the project action schema. " +
+          "On-chain swap: { amount or amount_display, side, pool_key? }. " +
+          "App-local: pass params matching the app's declared schema (from project_actions response).",
         additionalProperties: true,
       },
       chain_id: {
         type: "string",
         enum: ["sui", "ethereum", "solana"],
-        description: "Optional chain override; defaults from action registry.",
+        description: "Optional chain override; defaults from action registry. Only for on-chain actions.",
       },
     },
     required: ["action", "params"] as const,
@@ -164,13 +176,15 @@ export async function runCallAppActionTool(
     ...(parsed.chain_id ? { chainId: parsed.chain_id } : {}),
   };
 
+  const isAppLocal = !isOnchainAction(parsed.action);
+
   if (parsed.installation_id) {
     const installation = await findInstallationForUser(parsed.installation_id, user.id);
     if (!installation) {
       throw new AppError(404, "INSTALLATION_NOT_FOUND", "Installation not found");
     }
     assertActionInProjectSchema(installation.source_project, parsed.action);
-    if (shouldDelegateAppActionToPreview(context)) {
+    if (isAppLocal || shouldDelegateAppActionToPreview(context)) {
       return delegateAppActionToPreview(
         context,
         parsed.action,
@@ -194,7 +208,7 @@ export async function runCallAppActionTool(
 
   if (scope.kind === "session_draft") {
     await assertActionInSessionSchema(privyUserId, scope.session_id, parsed.action);
-    if (shouldDelegateAppActionToPreview(context)) {
+    if (isAppLocal || shouldDelegateAppActionToPreview(context)) {
       return delegateAppActionToPreview(
         context,
         parsed.action,
@@ -215,7 +229,7 @@ export async function runCallAppActionTool(
     throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
   }
   assertActionInProjectSchema(project, parsed.action);
-  if (shouldDelegateAppActionToPreview(context)) {
+  if (isAppLocal || shouldDelegateAppActionToPreview(context)) {
     return delegateAppActionToPreview(
       context,
       parsed.action,

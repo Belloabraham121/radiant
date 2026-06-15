@@ -23,9 +23,11 @@ describe("app-action registry", () => {
     assert.equal(listAppActionDefinitions().length, APP_ACTION_NAMES.length);
   });
 
-  it("isAppActionName rejects execute_transaction action strings", () => {
+  it("isAppActionName accepts any non-empty string (app-local actions allowed)", () => {
     assert.equal(isAppActionName("swap"), true);
-    assert.equal(isAppActionName("deepbook_flash_loan"), false);
+    assert.equal(isAppActionName("deepbook_flash_loan"), true);
+    assert.equal(isAppActionName("log_workout"), true);
+    assert.equal(isAppActionName(""), false);
   });
 
   it("maps swap to execute_transaction swap on sui", () => {
@@ -111,14 +113,10 @@ describe("app-action mapper", () => {
     assert.equal(input.params.amount_display, 10);
   });
 
-  it("parseAppActionName throws for unknown actions", () => {
-    assert.throws(
-      () => parseAppActionName("deepbook_swap"),
-      (err: unknown) =>
-        err instanceof AppError &&
-        err.code === "VALIDATION_ERROR" &&
-        Array.isArray((err.details as { known_actions?: string[] })?.known_actions),
-    );
+  it("parseAppActionName accepts any valid snake_case action name", () => {
+    assert.equal(parseAppActionName("deepbook_swap"), "deepbook_swap");
+    assert.equal(parseAppActionName("log_workout"), "log_workout");
+    assert.equal(parseAppActionName("swap"), "swap");
   });
 
   it("mapExecuteActionToAppActionName maps swap and deepbook_deposit", () => {

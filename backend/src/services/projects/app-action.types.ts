@@ -3,8 +3,8 @@ import type { ChainId, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "../agent/agent.types.js";
 import type { PinnedAppScope } from "./pinned-app-scope.types.js";
 
-/** Canonical app-facing action names (stable API for UI + call_app_action). */
-export const APP_ACTION_NAMES = [
+/** On-chain action names that route through the transaction pipeline. */
+export const ONCHAIN_ACTION_NAMES = [
   "swap",
   "flash_loan",
   "stake",
@@ -24,7 +24,21 @@ export const APP_ACTION_NAMES = [
   "transfer",
 ] as const;
 
-export type AppActionName = (typeof APP_ACTION_NAMES)[number];
+export type OnchainActionName = (typeof ONCHAIN_ACTION_NAMES)[number];
+
+/**
+ * App action name — either a known on-chain action or any custom app-local action string.
+ * On-chain actions route through the tx pipeline (quote → approval → execute).
+ * App-local actions (e.g. "log_workout", "update_reps") delegate to the preview.
+ */
+export type AppActionName = OnchainActionName | (string & {});
+
+/** @deprecated Use ONCHAIN_ACTION_NAMES. Kept for backward compat in tool schema. */
+export const APP_ACTION_NAMES = ONCHAIN_ACTION_NAMES;
+
+export function isOnchainAction(action: string): action is OnchainActionName {
+  return (ONCHAIN_ACTION_NAMES as readonly string[]).includes(action);
+}
 
 export type AppActionProtocol = "deepbook" | "transfer" | "generic";
 

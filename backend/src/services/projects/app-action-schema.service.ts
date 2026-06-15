@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
-  APP_ACTION_NAMES,
+  ONCHAIN_ACTION_NAMES,
+  isOnchainAction,
   type AppActionName,
   type AppActionParamField,
 } from "./app-action.types.js";
@@ -33,14 +34,15 @@ const appActionParamFieldSchema = z.object({
 });
 
 const projectActionSchemaActionSchema = z.object({
-  name: z.enum(APP_ACTION_NAMES),
+  name: z.string().min(1),
   description: z.string().min(1),
   params: z.array(appActionParamFieldSchema),
+  kind: z.enum(["onchain", "app_local"]).optional(),
 });
 
 export const projectActionSchemaSchema = z.object({
-  schema_version: z.literal(PROJECT_ACTION_SCHEMA_VERSION),
-  app_id: z.string().uuid(),
+  schema_version: z.union([z.literal(1), z.literal(PROJECT_ACTION_SCHEMA_VERSION)]),
+  app_id: z.string(),
   protocol: z.enum(["deepbook", "polymarket", "custom"]),
   actions: z.array(projectActionSchemaActionSchema),
 });
@@ -69,6 +71,18 @@ const EXECUTE_HELPER_PATTERNS: Array<{ pattern: RegExp; action: AppActionName }>
   { pattern: /\bexecuteAction\s*\(\s*["']swap["']/, action: "swap" },
 ];
 
+/**
+ * Detect app-local action registrations from __radiantAgent.register() calls.
+ * Matches: window.__radiantAgent.register('action_name', ...) or .register("action_name", ...)
+ */
+const REGISTER_ACTION_PATTERN = /__radiantAgent\s*\.\s*register\s*\(\s*['"]([a-z_][a-z0-9_]*)["']/g;
+
+/**
+ * Detect app-local actions from a `lib/radiant-actions.ts` manifest.
+ * Matches: { name: "action_name", ... } inside an exported actions array.
+ */
+const MANIFEST_ACTION_PATTERN = /name:\s*["']([a-z_][a-z0-9_]*)["']/g;
+
 function paramDocToFields(name: AppActionName): AppActionParamField[] {
   return getAppActionParamSchemaDoc(name).fields.map((field) => ({
     name: field.name,
@@ -84,6 +98,7 @@ function buildActionEntry(name: AppActionName): ProjectActionSchemaAction {
     name,
     description: definition.description,
     params: paramDocToFields(name),
+    kind: isOnchainAction(name) ? "onchain" : "app_local",
   };
 }
 
@@ -143,29 +158,92 @@ export function detectDefiActionNamesFromArtifact(
   return [...detected];
 }
 
-export function shouldPersistDefiActionSchema(input: {
+/** Detect app-local (non-DeFi) actions from register() calls and manifest files. */
+export function detectAppLocalActionsFromArtifact(
+  files: ArtifactFileInput[],
+): ProjectActionSchemaAction[] {
+  const actions: ProjectActionSchemaAction[] = [];
+  const seen = new Set<string>();
+
+  const manifestFile = files.find(
+    (f) => f.path === "lib/radiant-actions.ts" || f.path === "lib/radiant-actions.js",
+  );
+  if (manifestFile) {
+    try {
+      const nameMatches = manifestFile.content.matchAll(MANIFEST_ACTION_PATTERN);
+      for (const match of nameMatches) {
+        const name = match[1]!;
+        if (!isOnchainAction(name) && !seen.has(name)) {
+          seen.add(name);
+          const descMatch = manifestFile.content.match(
+            new RegExp(`name:\\s*["']${name}["'][^}]*description:\\s*["']([^"']+)["']`),
+          );
+          actions.push({
+            name,
+            description: descMatch?.[1] ?? `App action: ${name}`,
+            params: [],
+            kind: "app_local",
+          });
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  const source = concatArtifactSource(files);
+  const registerMatches = source.matchAll(REGISTER_ACTION_PATTERN);
+  for (const match of registerMatches) {
+    const name = match[1]!;
+    if (!isOnchainAction(name) && !seen.has(name)) {
+      seen.add(name);
+      actions.push({
+        name,
+        description: `App action: ${name}`,
+        params: [],
+        kind: "app_local",
+      });
+    }
+  }
+
+  return actions;
+}
+
+export function shouldPersistActionSchema(input: {
   template?: string;
   files: ArtifactFileInput[];
 }): boolean {
-  return detectDefiActionNamesFromArtifact(input.files, input.template).length > 0;
+  return (
+    detectDefiActionNamesFromArtifact(input.files, input.template).length > 0 ||
+    detectAppLocalActionsFromArtifact(input.files).length > 0
+  );
 }
 
-/** Build schema to persist on generate_app when DeFi UI is detected. Returns null for non-DeFi apps. */
+/** @deprecated Use shouldPersistActionSchema */
+export const shouldPersistDefiActionSchema = shouldPersistActionSchema;
+
+/** Build schema to persist on generate_app. Includes both DeFi and app-local actions. */
 export function inferProjectActionSchemaForArtifact(
   projectId: string,
   input: { template?: string; files: ArtifactFileInput[] },
 ): ProjectActionSchema | null {
-  if (!shouldPersistDefiActionSchema(input)) {
+  const defiNames = detectDefiActionNamesFromArtifact(input.files, input.template);
+  const appLocalActions = detectAppLocalActionsFromArtifact(input.files);
+
+  if (defiNames.length === 0 && appLocalActions.length === 0) {
     return null;
   }
 
-  const actionNames = detectDefiActionNamesFromArtifact(input.files, input.template);
+  const defiActions = defiNames.map((name) => buildActionEntry(name));
+  const protocol: ProjectActionSchema["protocol"] =
+    defiNames.length > 0 ? "deepbook" : "custom";
 
-  if (actionNames.length === 0) {
-    return null;
-  }
-
-  return buildDefaultDeepBookActionSchema(projectId, actionNames);
+  return {
+    schema_version: PROJECT_ACTION_SCHEMA_VERSION,
+    app_id: projectId,
+    protocol,
+    actions: [...defiActions, ...appLocalActions],
+  };
 }
 
 export function parseStoredProjectActionSchema(value: unknown): ProjectActionSchema | null {
@@ -196,6 +274,7 @@ function enrichCatalogEntry(action: ProjectActionSchemaAction): ProjectActionsCa
     category: definition.category,
     execute_action: definition.execute_action,
     params: action.params,
+    kind: action.kind ?? (isOnchainAction(action.name) ? "onchain" : "app_local"),
   };
 }
 

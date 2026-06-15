@@ -81,11 +81,20 @@ describe("call_app_action tool", () => {
     );
   });
 
-  it("callAppActionInputSchema rejects invalid action names", () => {
+  it("callAppActionInputSchema accepts app-local action names", () => {
+    const parsed = callAppActionInputSchema.parse({
+      project_id: projectId,
+      action: "log_workout",
+      params: { workout_name: "Morning Wake-Up" },
+    });
+    assert.equal(parsed.action, "log_workout");
+  });
+
+  it("callAppActionInputSchema rejects invalid format (uppercase, spaces)", () => {
     assert.throws(() =>
       callAppActionInputSchema.parse({
         project_id: projectId,
-        action: "not_a_real_action",
+        action: "Not Valid",
         params: {},
       }),
     );

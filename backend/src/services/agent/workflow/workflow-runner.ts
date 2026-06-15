@@ -11,6 +11,7 @@ import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { parseAppActionParams } from "../../projects/app-action-mapper.js";
+import { isOnchainAction } from "../../projects/app-action-registry.js";
 import type { AppActionResult } from "../../projects/app-action.types.js";
 import { getAgentRuntime } from "../runtime/index.js";
 import { runAgentTool, type AgentToolErrorResult } from "../tools.js";
@@ -292,15 +293,17 @@ async function executeWorkflowStep(
       };
     }
 
-    try {
-      parseAppActionParams(step.action, resolved);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Invalid app action parameters";
-      return {
-        status: "error",
-        tool_calls: [],
-        error: { code: "VALIDATION_ERROR", message },
-      };
+    if (isOnchainAction(step.action)) {
+      try {
+        parseAppActionParams(step.action, resolved);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Invalid app action parameters";
+        return {
+          status: "error",
+          tool_calls: [],
+          error: { code: "VALIDATION_ERROR", message },
+        };
+      }
     }
 
     const toolInput = {

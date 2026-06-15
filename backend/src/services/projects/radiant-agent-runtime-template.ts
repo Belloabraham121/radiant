@@ -178,10 +178,19 @@ function createContext(animate: boolean): RadiantAgentContext {
   };
 }
 
+/** Known on-chain actions that need the backend tx pipeline. */
+const ONCHAIN_ACTIONS = new Set([
+  "swap", "flash_loan", "stake", "unstake", "deposit", "withdraw",
+  "provision_manager", "place_limit_order", "place_market_order",
+  "cancel_order", "cancel_orders", "cancel_all_orders", "modify_order",
+  "withdraw_settled", "submit_proposal", "vote", "transfer",
+]);
+
 /**
  * Generic fallback: for any action without a registered handler, try to match
  * each param key to a data-radiant-id element and fill it step by step.
- * Then find the first submit-like button and highlight it before executing.
+ * Then click the submit button to trigger the app's own logic.
+ * For app-local actions (non-DeFi), returns a success result directly.
  */
 async function genericFallbackHandler(
   params: Record<string, unknown>,
@@ -210,17 +219,16 @@ async function genericFallbackHandler(
     }
   }
 
-  if (filled > 0) {
-    const submitBtn =
-      document.querySelector('[data-radiant-id*="submit"]') ??
-      document.querySelector('[data-radiant-id*="confirm"]') ??
-      document.querySelector('button[type="submit"]');
-    if (submitBtn) {
-      const btnId =
-        submitBtn.getAttribute("data-radiant-id") ?? "submit";
-      ctx.highlight(btnId, "agent-clicking");
-      await ctx.delay(600);
-    }
+  const submitBtn =
+    document.querySelector('[data-radiant-id*="submit"]') ??
+    document.querySelector('[data-radiant-id*="confirm"]') ??
+    document.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    const btnId = submitBtn.getAttribute("data-radiant-id") ?? "submit";
+    ctx.highlight(btnId, "agent-clicking");
+    await ctx.delay(600);
+    (submitBtn as HTMLElement).click();
+    await ctx.delay(300);
   }
 
   return undefined;
@@ -595,7 +603,11 @@ export const radiantAgent = {
         result = await handler(params, createContext(true));
       }
       if (!result || typeof result !== "object" || !("status" in result)) {
-        result = await executeAction(action, params);
+        if (ONCHAIN_ACTIONS.has(action)) {
+          result = await executeAction(action, params);
+        } else {
+          result = { status: "executed", digest: "", explorer_url: null, result: {} } as AppActionResult;
+        }
       }
       result = await resolveApprovalIfNeeded(action, result);
       emit({ type: "result", action, result });
