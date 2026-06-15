@@ -4,6 +4,7 @@ import { setRedisClientForTests } from "../../../src/infrastructure/redis/client
 import {
   agentStreamContextFromAppAction,
   agentStreamContextFromToolOptions,
+  emitAgentStreamExecutionOutcome,
   emitAgentStreamExecutionStart,
   shouldBroadcastAgentStream,
 } from "../../../src/services/agent/agent-stream-execution.js";
@@ -94,6 +95,45 @@ describe("agent-stream execution hooks", () => {
       "agent_step",
       "agent_step",
     ]);
+  });
+
+  it("emitAgentStreamExecutionOutcome emits approval_required for in-app modal", () => {
+    const events: Array<{ type: string; step?: string; pending?: unknown }> = [];
+    const unsubscribe = subscribeAgentStream(sessionId, (event) => {
+      events.push({
+        type: event.type,
+        step: event.step,
+        pending: event.pending,
+      });
+    });
+
+    emitAgentStreamExecutionOutcome(
+      { sessionId, broadcast: true },
+      "swap",
+      {
+        status: "approval_required",
+        pending: {
+          id: "pending-1",
+          chain_id: "sui",
+          action: "swap",
+          params: { amount: 1.6, side: "sell" },
+          summary: "Swap 1.6 SUI",
+          amount_display: "1.6 SUI",
+        },
+        agent_transaction_id: "pending-1",
+      },
+    );
+
+    unsubscribe();
+    assert.ok(
+      events.some(
+        (event) =>
+          event.type === "agent_action" &&
+          event.step === "approval_required" &&
+          event.pending !== undefined,
+      ),
+    );
+    assert.ok(events.some((event) => event.type === "agent_thinking"));
   });
 });
 

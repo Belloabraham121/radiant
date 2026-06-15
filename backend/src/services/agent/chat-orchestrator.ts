@@ -43,6 +43,10 @@ export async function runChatTurn(
     request.session_id,
   );
 
+  if (options.onStream) {
+    options.onStream("session", { session_id: session.id });
+  }
+
   const [priorMessages, memory, agentPermissions] = await Promise.all([
     listRecentMessagesBySessionId(session.id),
     loadAgentMemory(privyUserId),
@@ -52,7 +56,13 @@ export async function runChatTurn(
   const isFirstUserMessage = priorMessages.length === 0;
   const memoryBlock = formatMemoryBlock(memory);
 
-  await appendMessage(session.id, "user", request.message);
+  await appendMessage(
+    session.id,
+    "user",
+    request.message,
+    undefined,
+    request.app_scope ?? undefined,
+  );
 
   const isTransactionContinuation =
     isApprovalContinuationMessage(request.message) ||
@@ -69,7 +79,7 @@ export async function runChatTurn(
     });
   }
 
-  if (!isTransactionContinuation) {
+  if (!isTransactionContinuation && !request.app_scope) {
     const workflowOutcome = await tryStartWorkflowFromMessage(
       privyUserId,
       session.id,

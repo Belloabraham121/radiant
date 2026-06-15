@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  parseChatAppScope,
   parseComposerAppMention,
   stripComposerAppMention,
 } from "../../src/lib/chat-app-scope";
@@ -20,5 +21,14 @@ describe("chat-app-scope client helpers", () => {
 
   it("strips mention from composer text", () => {
     assert.equal(stripComposerAppMention("Swap @project uniswap"), "Swap");
+  });
+
+  it("parses app_scope from API JSON", () => {
+    const scope = parseChatAppScope({
+      kind: "session_draft",
+      name: "Uniswap Swap UI",
+    });
+    assert.equal(scope?.kind, "session_draft");
+    assert.equal(scope?.name, "Uniswap Swap UI");
   });
 });

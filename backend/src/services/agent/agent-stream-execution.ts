@@ -92,6 +92,11 @@ export function emitAgentStreamExecutionOutcome(
   }
 
   if (outcome.status === "approval_required") {
+    emitAgentEvent(ctx.sessionId, "agent_action", {
+      action,
+      step: "approval_required",
+      pending: outcome.pending as unknown as Record<string, unknown>,
+    });
     emitAgentEvent(ctx.sessionId, "agent_thinking", { active: false, action });
   }
 }

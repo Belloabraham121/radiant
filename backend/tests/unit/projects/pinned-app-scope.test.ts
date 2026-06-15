@@ -53,4 +53,12 @@ describe("pinned-app-scope", () => {
     assert.equal(merged.use_session_draft, true);
     assert.equal(merged.app_name, "Uniswap Swap UI");
   });
+
+  it("prompt mentions live preview UI drive", () => {
+    const text = formatPinnedAppScopeForPrompt({
+      kind: "session_draft",
+      name: "Uniswap",
+    });
+    assert.match(text, /animate the form in real time/i);
+  });
 });

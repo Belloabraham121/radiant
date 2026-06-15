@@ -161,9 +161,15 @@ export function useChatSession(sessionId?: string) {
 
       const optimisticId = `u-${Date.now()}`;
       const liveAgentId = `a-live-${Date.now()}`;
+      const userMessage: ChatMessage = {
+        id: optimisticId,
+        role: "user",
+        text,
+        ...(appScope ? { appScope } : {}),
+      };
       setMessages((current) => [
         ...current,
-        { id: optimisticId, role: "user", text },
+        userMessage,
         {
           id: liveAgentId,
           role: "agent",
@@ -184,6 +190,9 @@ export function useChatSession(sessionId?: string) {
             ...(appScope ? { app_scope: appScope } : {}),
           },
           {
+            onSession: (streamSessionId) => {
+              setActiveSessionId(streamSessionId);
+            },
             onStep: (step) => {
               if (step.id === "agent") {
                 return;
@@ -260,7 +269,7 @@ export function useChatSession(sessionId?: string) {
             ...current.filter(
               (message) => message.id !== optimisticId && message.id !== liveAgentId,
             ),
-            { id: optimisticId, role: "user", text },
+            { id: optimisticId, role: "user", text, ...(appScope ? { appScope } : {}) },
             {
               id: data.message_id,
               role: "agent",

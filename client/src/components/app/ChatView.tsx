@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowUp, Check, Copy, ExternalLink, LayoutPanelLeft, Sparkles } from "lucide-react";
+import { ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles } from "lucide-react";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
@@ -10,12 +10,13 @@ import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar"
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { AgentThinkingDots } from "@/components/app/AgentThinkingDots";
 import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
+import { ChatAgentStreamProvider } from "@/components/app/ChatAgentStreamBridge";
 import { ResizableArtifactPanel } from "@/components/app/ResizableArtifactPanel";
 import { useArtifactSession } from "@/components/app/ArtifactContext";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage, Receipt } from "@/lib/chat-messages";
 import type { ArtifactPayload } from "@/lib/artifact-types";
-import { saveStoredChatAppScope } from "@/lib/chat-app-scope";
+import { saveStoredChatAppScope, scopeToChipLabel, type ChatAppScope } from "@/lib/chat-app-scope";
 import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
@@ -113,6 +114,15 @@ function ArtifactViewButton({
   );
 }
 
+function UserMessageAppScopeChip({ scope }: { scope: ChatAppScope }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border-2 border-[var(--hero-ink)]/25 bg-[var(--hero-amber)]/20 px-3 py-1 text-[11px] font-bold text-[var(--hero-ink)]/75">
+      <LayoutGrid className="size-3 shrink-0" strokeWidth={2.5} />
+      <span className="truncate">{scopeToChipLabel(scope)}</span>
+    </span>
+  );
+}
+
 function Bubble({
   message,
   onViewArtifact,
@@ -159,6 +169,10 @@ function Bubble({
             <AgentMessageMarkdown text={message.text} />
           )}
         </div>
+
+        {isUser && message.appScope ? (
+          <UserMessageAppScopeChip scope={message.appScope} />
+        ) : null}
 
         {message.receipts && message.receipts.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -388,10 +402,31 @@ export function ChatView({ sessionId }: ChatViewProps) {
     stickToBottomRef.current = true;
     setInput("");
     resetInputHeight();
-    void sendMessage(text, appScope);
+
+    if (appScope) {
+      const payload =
+        artifactPayload ??
+        [...messages].reverse().find((message) => message.artifact)?.artifact;
+      if (payload) {
+        if (artifactPayload) {
+          updateArtifact(artifactPayload, { open: true });
+        } else {
+          openArtifact(payload);
+        }
+      }
+    }
+
+    const scopeForSend = appScope;
+    if (scopeForSend) {
+      setAppScope(null);
+      saveStoredChatAppScope(scopeSessionKey, null);
+    }
+
+    void sendMessage(text, scopeForSend);
   };
 
   return (
+    <ChatAgentStreamProvider sessionId={scopeSessionKey ?? undefined}>
     <div className="flex h-full min-h-0 overflow-hidden">
       <div
         ref={ref}
@@ -545,5 +580,6 @@ export function ChatView({ sessionId }: ChatViewProps) {
         />
       ) : null}
     </div>
+    </ChatAgentStreamProvider>
   );
 }

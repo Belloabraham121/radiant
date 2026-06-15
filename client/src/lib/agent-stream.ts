@@ -32,7 +32,16 @@ export function mapSseAgentEventToPreviewPayload(
             ? (data.params as Record<string, unknown>)
             : undefined,
         animate: data.animate === true,
-        step: "executing",
+        step:
+          typeof data.step === "string"
+            ? data.step
+            : data.animate === true
+              ? "executing"
+              : undefined,
+        pending:
+          data.pending && typeof data.pending === "object"
+            ? (data.pending as Record<string, unknown>)
+            : undefined,
       };
     case "agent_step":
       return {

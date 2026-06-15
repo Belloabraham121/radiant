@@ -24,6 +24,7 @@ export type AgentStreamEventPayload = {
   message?: string;
   code?: string;
   active?: boolean;
+  pending?: Record<string, unknown>;
 };
 
 export type AgentStreamEvent = AgentStreamEventPayload & {

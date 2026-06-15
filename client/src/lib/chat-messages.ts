@@ -1,6 +1,7 @@
 import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
 import type { ArtifactPayload } from "@/lib/artifact-types";
+import { parseChatAppScope, type ChatAppScope } from "@/lib/chat-app-scope";
 import { extractArtifactFromToolCalls } from "@/lib/extract-artifact";
 import { sanitizeToolErrorMessage } from "@/lib/sanitize-tool-error";
 import {
@@ -25,6 +26,7 @@ export type ChatMessage = {
   id: string;
   role: "user" | "agent";
   text: string;
+  appScope?: ChatAppScope;
   receipts?: Receipt[];
   executionSteps?: ExecutionStep[];
   artifact?: ArtifactPayload;
@@ -594,7 +596,13 @@ function parseToolCalls(raw: unknown): ChatToolCall[] {
 
 export function apiMessageToChatMessage(message: ApiChatMessage): ChatMessage | null {
   if (message.role === "user") {
-    return { id: message.id, role: "user", text: message.content };
+    const appScope = parseChatAppScope(message.app_scope);
+    return {
+      id: message.id,
+      role: "user",
+      text: message.content,
+      ...(appScope ? { appScope } : {}),
+    };
   }
 
   if (message.role === "assistant") {

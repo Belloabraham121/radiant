@@ -56,6 +56,7 @@ function toMessageRecord(message: Awaited<ReturnType<typeof listMessagesBySessio
     role: message.role,
     content: message.content,
     tool_calls: message.tool_calls,
+    ...(message.app_scope != null ? { app_scope: message.app_scope } : {}),
     created_at: message.created_at.toISOString(),
   };
 }

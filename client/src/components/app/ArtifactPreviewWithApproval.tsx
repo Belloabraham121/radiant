@@ -5,12 +5,9 @@ import { ArtifactPreview } from "@/components/app/ArtifactPreview";
 import type { ArtifactFile } from "@/lib/artifact-types";
 import { isAppActionApiPath } from "@/lib/artifact-preview-bridge";
 import { parseAppActionResultFromBody } from "@/lib/app-actions-api";
-import { usePreviewAgentEventRelay } from "@/hooks/usePreviewAgentEventRelay";
+import { useChatAgentStream } from "@/components/app/ChatAgentStreamBridge";
 import { useActivePreviewSessionRegistration } from "@/lib/active-preview-session";
-import {
-  handlePreviewApprovalResolvedMessage,
-  registerPreviewApprovalRelay,
-} from "@/lib/preview-approval-relay";
+import { handlePreviewApprovalResolvedMessage } from "@/lib/preview-approval-relay";
 
 export function ArtifactPreviewWithApproval({
   files,
@@ -28,8 +25,7 @@ export function ArtifactPreviewWithApproval({
   sessionId?: string;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const previewEnabled = Boolean(projectId || installationId || sessionId);
-  const { forward } = usePreviewAgentEventRelay(iframeRef, sessionId, previewEnabled);
+  const { registerPreviewIframe, forwardToPreview } = useChatAgentStream();
 
   useActivePreviewSessionRegistration(
     projectId || installationId || sessionId
@@ -39,15 +35,15 @@ export function ArtifactPreviewWithApproval({
 
   useEffect(() => {
     function syncRelay() {
-      registerPreviewApprovalRelay(iframeRef.current, sessionId);
+      registerPreviewIframe(iframeRef.current);
     }
     syncRelay();
     const timer = window.setInterval(syncRelay, 200);
     return () => {
       window.clearInterval(timer);
-      registerPreviewApprovalRelay(null);
+      registerPreviewIframe(null);
     };
-  }, [sessionId, revision, streaming]);
+  }, [registerPreviewIframe, revision, streaming]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -74,11 +70,11 @@ export function ArtifactPreviewWithApproval({
             if (!isAppActionApiPath(path)) return;
             const result = parseAppActionResultFromBody(body);
             if (result?.status === "approval_required") {
-              forward({ active: false });
+              forwardToPreview({ active: false });
               return;
             }
             if (result?.status === "executed") {
-              forward({
+              forwardToPreview({
                 action: result.action,
                 step: "result",
                 digest: result.digest,
