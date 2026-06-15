@@ -25,6 +25,8 @@ const ChatAgentStreamContext = createContext<ChatAgentStreamContextValue | null>
   null,
 );
 
+const PREVIEW_EVENT_BUFFER_MAX = 48;
+
 /** Keeps agent SSE connected for the chat session and forwards events into the open preview iframe. */
 export function ChatAgentStreamProvider({
   sessionId,
@@ -34,24 +36,46 @@ export function ChatAgentStreamProvider({
   children: ReactNode;
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const pendingEventsRef = useRef<PreviewEvent[]>([]);
 
-  const forwardToPreview = useCallback((event: PreviewEvent) => {
-    postAgentEventToPreviewIframe(iframeRef.current, event);
+  const deliverToPreview = useCallback((event: PreviewEvent) => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) {
+      const buffer = pendingEventsRef.current;
+      buffer.push(event);
+      if (buffer.length > PREVIEW_EVENT_BUFFER_MAX) {
+        buffer.splice(0, buffer.length - PREVIEW_EVENT_BUFFER_MAX);
+      }
+      return;
+    }
+    postAgentEventToPreviewIframe(iframe, event);
+  }, []);
+
+  const flushPendingToPreview = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+    const pending = pendingEventsRef.current.splice(0);
+    for (const event of pending) {
+      postAgentEventToPreviewIframe(iframe, event);
+    }
   }, []);
 
   const registerPreviewIframe = useCallback(
     (iframe: HTMLIFrameElement | null) => {
       iframeRef.current = iframe;
       registerPreviewApprovalRelay(iframe, sessionId);
+      if (iframe) {
+        flushPendingToPreview();
+      }
     },
-    [sessionId],
+    [flushPendingToPreview, sessionId],
   );
 
-  useAgentStream(sessionId, forwardToPreview, Boolean(sessionId));
+  useAgentStream(sessionId, deliverToPreview, Boolean(sessionId));
 
   return (
     <ChatAgentStreamContext.Provider
-      value={{ registerPreviewIframe, forwardToPreview }}
+      value={{ registerPreviewIframe, forwardToPreview: deliverToPreview }}
     >
       {children}
     </ChatAgentStreamContext.Provider>

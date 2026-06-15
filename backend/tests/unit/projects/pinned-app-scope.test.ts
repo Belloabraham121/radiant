@@ -60,5 +60,6 @@ describe("pinned-app-scope", () => {
       name: "Uniswap",
     });
     assert.match(text, /animate the form in real time/i);
+    assert.match(text, /call_app_action immediately/i);
   });
 });

@@ -28,13 +28,7 @@ describe("agent-stream execution hooks", () => {
     setRedisClientForTests(undefined);
   });
 
-  it("shouldBroadcastAgentStream requires sessionId, broadcast, and an active subscriber", () => {
-    assert.equal(
-      shouldBroadcastAgentStream({ sessionId, broadcast: true }),
-      false,
-    );
-
-    const unsubscribe = subscribeAgentStream(sessionId, () => undefined);
+  it("shouldBroadcastAgentStream requires sessionId and broadcast flag", () => {
     assert.equal(
       shouldBroadcastAgentStream({ sessionId, broadcast: true }),
       true,
@@ -43,7 +37,10 @@ describe("agent-stream execution hooks", () => {
       shouldBroadcastAgentStream({ sessionId, broadcast: false }),
       false,
     );
-    unsubscribe();
+    assert.equal(
+      shouldBroadcastAgentStream({ broadcast: true }),
+      false,
+    );
   });
 
   it("agentStreamContextFromAppAction broadcasts only for agent source", () => {

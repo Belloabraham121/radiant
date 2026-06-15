@@ -156,6 +156,7 @@ export async function runCallAppActionTool(
     source: "agent" as const,
     sessionId: context.sessionId,
     messageId: context.messageId,
+    pinnedAppScope: context.pinnedAppScope ?? null,
     ...(parsed.chain_id ? { chainId: parsed.chain_id } : {}),
   };
 

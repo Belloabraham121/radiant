@@ -23,6 +23,7 @@ import {
 } from "../defi/deepbook/deepbook-governance.service.js";
 import type { FlashLoanRepaySource } from "../defi/deepbook/deepbook-flash-loan.types.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
+import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import { AppError } from "../../errors/app-error.js";
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
@@ -278,7 +279,12 @@ export function transferRequiresApprovalWithPermissions(
 export async function transferRequiresApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
+  options: { pinnedAppScope?: PinnedAppScope | null } = {},
 ): Promise<boolean> {
+  if (options.pinnedAppScope && isDeepBookSwapAction(input.action)) {
+    return true;
+  }
+
   if (isDeepBookProvisionAction(input.action)) {
     const info = await getDeepBookManagerInfo(privyUserId);
     if (info.provisioned) {

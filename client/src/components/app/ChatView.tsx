@@ -17,6 +17,7 @@ import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage, Receipt } from "@/lib/chat-messages";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 import { saveStoredChatAppScope, scopeToChipLabel, type ChatAppScope } from "@/lib/chat-app-scope";
+import { requestArtifactPreviewTab } from "@/lib/artifact-preview-tab";
 import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
@@ -404,6 +405,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     resetInputHeight();
 
     if (appScope) {
+      requestArtifactPreviewTab();
       const payload =
         artifactPayload ??
         [...messages].reverse().find((message) => message.artifact)?.artifact;

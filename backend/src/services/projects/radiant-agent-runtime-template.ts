@@ -1,6 +1,6 @@
 /** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_VERSION = 2;
+export const RADIANT_AGENT_RUNTIME_VERSION = 3;
 
 export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
 import {
@@ -58,16 +58,65 @@ function setFieldValue(targetId: string, value: unknown) {
   if (typeof document === "undefined") return;
   const el = document.querySelector('[data-radiant-id="' + targetId + '"]');
   if (!el) return;
+  setNativeValue(el, value);
+}
+
+function setNativeValue(el: Element, value: unknown) {
   if (
     el instanceof HTMLInputElement ||
     el instanceof HTMLTextAreaElement ||
     el instanceof HTMLSelectElement
   ) {
-    el.value = String(value);
+    const proto =
+      el instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : el instanceof HTMLSelectElement
+          ? HTMLSelectElement.prototype
+          : HTMLInputElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, "value");
+    if (descriptor?.set) {
+      descriptor.set.call(el, String(value));
+    } else {
+      el.value = String(value);
+    }
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 }
+
+function fillSwapFields(params: Record<string, unknown>) {
+  const amount = params.amount ?? params.amount_display;
+  const side = params.side;
+  if (amount != null) {
+    setFieldValue("amount-in", amount);
+    setFieldValue("amount", amount);
+    const amountEl = document.querySelector(
+      '[data-radiant-id="amount-in"], [data-radiant-id="amount"], input[type="number"], input[name*="amount" i]',
+    );
+    if (amountEl) setNativeValue(amountEl, amount);
+  }
+  if (side != null) {
+    setFieldValue("side", side);
+    const sideEl = document.querySelector(
+      '[data-radiant-id="side"], select[name*="side" i]',
+    );
+    if (sideEl) setNativeValue(sideEl, side);
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("radiant-agent-swap", { detail: params }));
+  }
+}
+
+function defaultSwapAgentHandler(
+  params: Record<string, unknown>,
+  ctx: RadiantAgentContext,
+) {
+  fillSwapFields(params);
+  ctx.highlight("amount-in");
+  ctx.highlight("swap-submit", "agent-clicking");
+}
+
+handlers.set("swap", defaultSwapAgentHandler);
 
 function createContext(animate: boolean): RadiantAgentContext {
   return {

@@ -3,7 +3,7 @@ import type { ExecuteTransactionInput } from "../chains/types.js";
 import { mapExecuteActionToAppActionName } from "../projects/app-action-mapper.js";
 import type { AppActionContext } from "../projects/app-action.types.js";
 import type { ExecuteToolOutcome } from "./agent.types.js";
-import { emitAgentEvent, hasAgentStreamSubscribers } from "./agent-stream.service.js";
+import { emitAgentEvent } from "./agent-stream.service.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 
 export type AgentStreamBroadcastContext = {
@@ -12,7 +12,7 @@ export type AgentStreamBroadcastContext = {
 };
 
 export function shouldBroadcastAgentStream(ctx: AgentStreamBroadcastContext): boolean {
-  return Boolean(ctx.sessionId && ctx.broadcast && hasAgentStreamSubscribers(ctx.sessionId));
+  return Boolean(ctx.sessionId && ctx.broadcast);
 }
 
 export function agentStreamContextFromAppAction(ctx: AppActionContext): AgentStreamBroadcastContext {

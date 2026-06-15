@@ -82,7 +82,9 @@ export async function runExecuteTransactionToolWithApproval(
     };
 
     if (!approved) {
-      const needsApproval = await transferRequiresApproval(privyUserId, input);
+      const needsApproval = await transferRequiresApproval(privyUserId, input, {
+        pinnedAppScope: opts.pinnedAppScope,
+      });
       if (needsApproval) {
         if (isDeepBookSwapAction(input.action)) {
           await preflightDeepBookSwap(privyUserId, input.params);

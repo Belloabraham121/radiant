@@ -7,6 +7,7 @@ import { ArtifactFileTree } from "@/components/app/ArtifactFileTree";
 import { ArtifactPreviewWithApproval } from "@/components/app/ArtifactPreviewWithApproval";
 import { ArtifactProjectControls } from "@/components/app/ArtifactProjectControls";
 import { ArtifactSaveToProjects } from "@/components/app/ArtifactSaveToProjects";
+import { consumeArtifactPreviewTabRequest } from "@/lib/artifact-preview-tab";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 
 type ArtifactTab = "preview" | "code";
@@ -68,6 +69,12 @@ export function ArtifactPanel({
       // ignore
     }
   }, [projectId, tab]);
+
+  useEffect(() => {
+    if (consumeArtifactPreviewTabRequest()) {
+      setTab("preview");
+    }
+  }, [payload.project_id]);
 
   return (
     <aside

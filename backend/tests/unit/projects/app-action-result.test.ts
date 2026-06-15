@@ -23,6 +23,7 @@ describe("app-action result mapping", () => {
       sessionId: ctx.sessionId,
       messageId: ctx.messageId,
       approved: true,
+      pinnedAppScope: null,
       broadcast: false,
     });
   });
@@ -38,6 +39,7 @@ describe("app-action result mapping", () => {
       sessionId: ctx.sessionId,
       messageId: undefined,
       approved: undefined,
+      pinnedAppScope: null,
       broadcast: true,
     });
   });

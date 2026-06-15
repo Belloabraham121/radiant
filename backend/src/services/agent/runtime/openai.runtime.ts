@@ -43,7 +43,9 @@ import {
 import { classifyFlashLoanTurnIntent } from "../deepbook/flash-loan-turn-intent.js";
 import {
   buildReplyAfterToolsNudge,
+  buildReplyFromAppActionToolCalls,
   findLastToolError,
+  hasSuccessfulAppActionResult,
   hasSuccessfulQueryResults,
   shouldNudgeReplyAfterTools,
 } from "../turn-reply-flow.js";
@@ -166,6 +168,72 @@ function emitExecuteProgressFromResult(
         detail: `Broadcast · ${outcome.result.digest.slice(0, 10)}…`,
         digest: outcome.result.digest,
         chain_id: outcome.result.chain_id,
+        agent_transaction_id: outcome.agent_transaction_id,
+      },
+    });
+  }
+}
+
+function appActionExecuteLabel(action?: string): string {
+  if (action === "swap") {
+    return "Execute swap";
+  }
+  return action ? `Execute ${action.replace(/_/g, " ")}` : "Execute app action";
+}
+
+function emitAppActionProgressFromResult(result: unknown, action?: string): void {
+  if (isAgentToolErrorResult(result)) {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "failed",
+        label: appActionExecuteLabel(action),
+        detail: result.error.message,
+      },
+    });
+    return;
+  }
+
+  if (typeof result !== "object" || result === null || !("status" in result)) {
+    return;
+  }
+
+  const outcome = result as AppActionResult;
+  if (outcome.status === "error") {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "failed",
+        label: appActionExecuteLabel(action),
+        detail: outcome.error.message,
+      },
+    });
+    return;
+  }
+
+  if (outcome.status === "approval_required") {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "warning",
+        label: appActionExecuteLabel(action),
+        detail: "Waiting for your approval in the app",
+        agent_transaction_id: outcome.pending?.id,
+        chain_id: outcome.pending?.chain_id,
+      },
+    });
+    return;
+  }
+
+  if (outcome.status === "executed" && outcome.digest) {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "ok",
+        label: appActionExecuteLabel(action),
+        detail: `Broadcast · ${outcome.digest.slice(0, 10)}…`,
+        digest: outcome.digest,
+        chain_id: outcome.result?.chain_id,
         agent_transaction_id: outcome.agent_transaction_id,
       },
     });
@@ -581,6 +649,13 @@ export const openaiRuntime: AgentRuntime = {
           });
         }
 
+        if (toolCall.function.name === CALL_APP_ACTION_TOOL_NAME) {
+          emitAppActionProgressFromResult(
+            result,
+            typeof args.action === "string" ? args.action : undefined,
+          );
+        }
+
         if (
           batchHasExecute &&
           toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
@@ -657,8 +732,10 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       if (pending_transaction) {
-        reply =
-          "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
+        const usedAppAction = tool_calls.some((call) => call.name === CALL_APP_ACTION_TOOL_NAME);
+        reply = usedAppAction
+          ? "I've filled in the swap in your app preview — review the quote and confirm there."
+          : "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
         break;
       }
 
@@ -717,6 +794,13 @@ export const openaiRuntime: AgentRuntime = {
     }
 
     if (!reply) {
+      const appActionReply = buildReplyFromAppActionToolCalls(tool_calls);
+      if (appActionReply) {
+        reply = appActionReply;
+      }
+    }
+
+    if (!reply) {
       const quote = findLatestFlashLoanQuote(tool_calls);
       if (quote && shouldUseCannedFlashLoanQuoteReply(tool_calls, quote)) {
         reply = formatFlashLoanQuoteReply(quote);
@@ -735,7 +819,7 @@ export const openaiRuntime: AgentRuntime = {
           } catch (err) {
             throw mapOpenAiError(err);
           }
-        } else if (hasSuccessfulQueryResults(tool_calls)) {
+        } else if (hasSuccessfulQueryResults(tool_calls) || hasSuccessfulAppActionResult(tool_calls)) {
           const streamed = streamedReplyAccum.trim();
           if (streamed) {
             reply = streamed;

@@ -23,11 +23,15 @@ export type PinnedAppScope = z.infer<typeof pinnedAppScopeSchema>;
 const PINNED_UI_DRIVE =
   "The artifact preview will animate the form in real time (amount, side, etc.) and show the confirm dialog inside the app — not in chat. ";
 
+const PINNED_EXECUTE_NOW =
+  "For this message you MUST call call_app_action immediately (action swap/stake/etc. from their message) — do not reply with text only and do not call list_session_projects first. ";
+
 export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
   if (scope.kind === "installation") {
     return (
       `User pinned app: "${scope.name}" (installation_id: ${scope.installation_id}). ` +
       PINNED_UI_DRIVE +
+      PINNED_EXECUTE_NOW +
       `Use call_app_action with installation_id "${scope.installation_id}" — ` +
       `never execute_transaction for swaps. Skip list_session_projects; scope is already set.`
     );
@@ -37,6 +41,7 @@ export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
     return (
       `User pinned app: "${scope.name}" (chat draft in this session). ` +
       PINNED_UI_DRIVE +
+      PINNED_EXECUTE_NOW +
       `Use call_app_action with use_session_draft: true and app_name "${scope.name}" — ` +
       `never execute_transaction for swaps. Skip list_session_projects; scope is already set.`
     );
@@ -45,6 +50,7 @@ export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
   return (
     `User pinned app: "${scope.name}" (project_id: ${scope.project_id}). ` +
     PINNED_UI_DRIVE +
+    PINNED_EXECUTE_NOW +
     `Use call_app_action with project_id "${scope.project_id}" — ` +
     `never execute_transaction for swaps. Skip list_session_projects; scope is already set.`
   );
@@ -88,4 +94,8 @@ export function mergePinnedAppScopeIntoCallAppAction<T extends CallAppActionScop
   }
 
   return { ...input, project_id: pinned.project_id };
+}
+
+export function scopeDisplayName(scope: PinnedAppScope): string {
+  return scope.name;
 }

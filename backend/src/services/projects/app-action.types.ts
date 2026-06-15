@@ -1,6 +1,7 @@
 import type { AgentTransactionCategory } from "../agent-transaction/agent-transaction.types.js";
 import type { ChainId, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "../agent/agent.types.js";
+import type { PinnedAppScope } from "./pinned-app-scope.types.js";
 
 /** Canonical app-facing action names (stable API for UI + call_app_action). */
 export const APP_ACTION_NAMES = [
@@ -67,6 +68,8 @@ export type AppActionContext = {
   chainId?: ChainId;
   /** When true, skip approval gate (e.g. user already approved in chat). */
   approved?: boolean;
+  /** Chat @-pinned app — forces in-app approval for swaps driven from chat. */
+  pinnedAppScope?: PinnedAppScope | null;
 };
 
 /** Normalized outcome for UI, chat tools, and external callers. Mirrors chat ExecuteToolOutcome + errors. */

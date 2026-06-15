@@ -14,6 +14,7 @@ export function buildAgentToolOptionsFromContext(ctx: AppActionContext): AgentTo
     sessionId: ctx.sessionId,
     messageId: ctx.messageId,
     approved: ctx.approved,
+    pinnedAppScope: ctx.pinnedAppScope ?? null,
     broadcast: ctx.source === "agent" && Boolean(ctx.sessionId),
   };
 }
