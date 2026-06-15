@@ -218,6 +218,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     streaming,
     chatError,
     pendingTx,
+    pendingTxRelayedToPreview,
     pendingClarification,
     approving,
     rejecting,
@@ -435,7 +436,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
           />
         ) : null}
 
-        {pendingTx ? (
+        {pendingTx && !pendingTxRelayedToPreview ? (
           <TransactionApprovalBar
             className={`${chatColumnClass} mb-3`}
             pending={pendingTx}

@@ -5,6 +5,8 @@ export const PREVIEW_NAVIGATE_TYPE = "radiant-artifact-preview-navigate";
 export const PREVIEW_API_REQUEST = "radiant-preview-api";
 export const PREVIEW_API_RESPONSE = "radiant-preview-api-response";
 export const RADIANT_AGENT_EVENT_TYPE = "radiant-agent-event";
+export const PREVIEW_TX_APPROVAL_REQUEST = "radiant-tx-approval-request";
+export const PREVIEW_TX_APPROVAL_RESOLVED = "radiant-tx-approval-resolved";
 export const RADIANT_SESSION_ID_HEADER = "x-radiant-session-id";
 
 export type PreviewApiRequestMessage = {
@@ -37,6 +39,15 @@ export type RadiantAgentStreamEvent = {
   code?: string;
   message?: string;
   value?: unknown;
+  pending?: Record<string, unknown>;
+};
+
+export type PreviewTxApprovalResolvedMessage = {
+  type: typeof PREVIEW_TX_APPROVAL_RESOLVED;
+  pendingId: string;
+  status: "executed" | "rejected" | "error";
+  digest?: string;
+  errorMessage?: string;
 };
 
 export function isAppActionApiPath(path: string): boolean {

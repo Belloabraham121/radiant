@@ -1,7 +1,15 @@
-/** Template files for generated app agent runtime (Phase 4). */
+/** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. */
-import { executeAction, type AppActionResult } from "./radiant-client";
+export const RADIANT_AGENT_RUNTIME_VERSION = 2;
+
+export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
+import {
+  approveAgentTransaction,
+  executeAction,
+  isApprovalRequired,
+  rejectAgentTransaction,
+  type AppActionResult,
+} from "./radiant-client";
 
 export type RadiantAgentExecuteOptions = {
   animate?: boolean;
@@ -68,6 +76,232 @@ function createContext(animate: boolean): RadiantAgentContext {
   };
 }
 
+type PendingTx = {
+  id: string;
+  chain_id: string;
+  action: string;
+  params: Record<string, unknown>;
+  summary: string;
+  amount_display: string;
+  quote_expires_at?: string | null;
+};
+
+function approvalTitle(action: string, pending: PendingTx): string {
+  const key = action || pending.action;
+  if (key === "swap" || key === "deepbook_swap") return "Confirm swap";
+  if (key === "flash_loan" || key === "deepbook_flash_loan") return "Confirm flash loan";
+  if (key === "stake" || key === "deepbook_stake") return "Confirm stake";
+  if (key === "unstake" || key === "deepbook_unstake") return "Confirm unstake";
+  if (key === "deepbook_submit_proposal") return "Confirm proposal";
+  if (key === "deepbook_vote") return "Confirm vote";
+  if (key.includes("order")) return "Confirm order";
+  if (key.includes("cancel")) return "Confirm cancel";
+  return "Confirm transaction";
+}
+
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return minutes > 0 ? minutes + "m " + String(seconds).padStart(2, "0") + "s" : seconds + "s";
+}
+
+function notifyParentApprovalResolved(
+  pendingId: string,
+  status: "executed" | "rejected" | "error",
+  extra?: { digest?: string; errorMessage?: string },
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.parent.postMessage(
+      {
+        type: "radiant-tx-approval-resolved",
+        pendingId,
+        status,
+        digest: extra?.digest,
+        errorMessage: extra?.errorMessage,
+      },
+      "*",
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function showInAppApprovalModal(
+  action: string,
+  result: Extract<AppActionResult, { status: "approval_required" }>,
+): Promise<AppActionResult> {
+  return new Promise((resolve) => {
+    if (typeof document === "undefined") {
+      resolve(result);
+      return;
+    }
+
+    const pending = result.pending as PendingTx;
+    if (!pending?.id) {
+      resolve(result);
+      return;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.className = "radiant-tx-approval-overlay";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+
+    const card = document.createElement("div");
+    card.className = "radiant-tx-approval-card";
+
+    const title = document.createElement("h2");
+    title.className = "radiant-tx-approval-title";
+    title.textContent = approvalTitle(action, pending);
+
+    const subtitle = document.createElement("p");
+    subtitle.className = "radiant-tx-approval-subtitle";
+    subtitle.textContent = pending.summary || "Review the details, then approve to sign and send.";
+
+    const amount = document.createElement("p");
+    amount.className = "radiant-tx-approval-amount";
+    amount.textContent = pending.amount_display;
+
+    const meta = document.createElement("p");
+    meta.className = "radiant-tx-approval-meta";
+    meta.textContent = pending.chain_id + " · " + (action || pending.action);
+
+    const quoteNote = document.createElement("p");
+    quoteNote.className = "radiant-tx-approval-quote";
+    quoteNote.hidden = true;
+
+    const errorEl = document.createElement("p");
+    errorEl.className = "radiant-tx-approval-error";
+    errorEl.hidden = true;
+
+    const actions = document.createElement("div");
+    actions.className = "radiant-tx-approval-actions";
+
+    const approveBtn = document.createElement("button");
+    approveBtn.type = "button";
+    approveBtn.className = "radiant-tx-approval-approve";
+    approveBtn.textContent = "Approve & send";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "radiant-tx-approval-cancel";
+    cancelBtn.textContent = "Cancel";
+
+    actions.append(approveBtn, cancelBtn);
+    card.append(title, subtitle, amount, meta, quoteNote, errorEl, actions);
+    overlay.append(card);
+    document.body.append(overlay);
+
+    let quoteTimer: ReturnType<typeof setInterval> | null = null;
+    let quoteExpired = false;
+
+    function cleanup() {
+      if (quoteTimer) clearInterval(quoteTimer);
+      overlay.remove();
+    }
+
+    const isSwap = action === "swap" || pending.action === "swap" || pending.action === "deepbook_swap";
+    if (isSwap && pending.quote_expires_at) {
+      const expiresAt = Date.parse(pending.quote_expires_at);
+      if (Number.isFinite(expiresAt)) {
+        quoteNote.hidden = false;
+        const tick = () => {
+          const remaining = expiresAt - Date.now();
+          if (remaining <= 0) {
+            quoteExpired = true;
+            quoteNote.textContent = "Quote expired — cancel and get a fresh quote.";
+            quoteNote.classList.add("radiant-tx-approval-quote-expired");
+            approveBtn.disabled = true;
+            if (quoteTimer) clearInterval(quoteTimer);
+            return;
+          }
+          quoteNote.textContent = "Quote valid for " + formatCountdown(remaining);
+        };
+        tick();
+        quoteTimer = setInterval(tick, 1000);
+      }
+    }
+
+    let busy = false;
+
+    async function onApprove() {
+      if (busy || quoteExpired) return;
+      busy = true;
+      approveBtn.disabled = true;
+      cancelBtn.disabled = true;
+      approveBtn.textContent = "Sending…";
+      errorEl.hidden = true;
+
+      try {
+        const approved = await approveAgentTransaction(pending.id);
+        if (approved.status === "executed") {
+          cleanup();
+          const executed: AppActionResult = {
+            status: "executed",
+            action,
+            digest: approved.digest,
+            explorer_url: approved.explorer_url,
+            agent_transaction_id: approved.agent_transaction_id,
+            result: approved.result,
+          };
+          notifyParentApprovalResolved(pending.id, "executed", { digest: approved.digest });
+          resolve(executed);
+          return;
+        }
+        errorEl.textContent = approved.error.message;
+        errorEl.hidden = false;
+        notifyParentApprovalResolved(pending.id, "error", { errorMessage: approved.error.message });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Approval failed";
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+        notifyParentApprovalResolved(pending.id, "error", { errorMessage: message });
+      } finally {
+        busy = false;
+        if (!quoteExpired) {
+          approveBtn.disabled = false;
+          cancelBtn.disabled = false;
+          approveBtn.textContent = "Approve & send";
+        }
+      }
+    }
+
+    async function onCancel() {
+      if (busy) return;
+      busy = true;
+      approveBtn.disabled = true;
+      cancelBtn.disabled = true;
+      try {
+        await rejectAgentTransaction(pending.id);
+      } catch {
+        // Best-effort reject — still close the modal.
+      }
+      cleanup();
+      notifyParentApprovalResolved(pending.id, "rejected");
+      resolve({
+        status: "error",
+        action,
+        error: { code: "REJECTED", message: "Transaction cancelled" },
+      });
+    }
+
+    approveBtn.addEventListener("click", () => void onApprove());
+    cancelBtn.addEventListener("click", () => void onCancel());
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) void onCancel();
+    });
+  });
+}
+
+async function resolveApprovalIfNeeded(action: string, result: AppActionResult): Promise<AppActionResult> {
+  if (!isApprovalRequired(result)) {
+    return result;
+  }
+  return showInAppApprovalModal(action, result);
+}
+
 export const radiantAgent = {
   register(action: string, handler: RadiantAgentHandler) {
     handlers.set(action, handler);
@@ -99,6 +333,23 @@ export const radiantAgent = {
       data.params && typeof data.params === "object"
         ? (data.params as Record<string, unknown>)
         : null;
+
+    if (action && data.step === "approval_required" && data.pending && typeof data.pending === "object") {
+      const pending = data.pending as Record<string, unknown>;
+      void resolveApprovalIfNeeded(action, {
+        status: "approval_required",
+        action,
+        agent_transaction_id: String(pending.id ?? ""),
+        pending,
+      }).then((result) => {
+        emit({ type: "result", action, result });
+        if (result.status === "executed" && typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("radiant-agent-refresh"));
+        }
+      });
+      return;
+    }
+
     if (action && data.animate === true && params) {
       const handler = handlers.get(action);
       if (handler) {
@@ -133,22 +384,29 @@ export const radiantAgent = {
     params: Record<string, unknown> = {},
     opts: RadiantAgentExecuteOptions = {},
   ): Promise<AppActionResult> {
-    activeCount += 1;
-    emit({ type: "active", active: true });
+    const animate = Boolean(opts.animate);
+    if (animate) {
+      activeCount += 1;
+      emit({ type: "active", active: true });
+    }
     emit({ type: "executing", action, params });
     try {
-      const animate = Boolean(opts.animate);
-      const handler = handlers.get(action);
-      if (animate && handler) {
-        await handler(params, createContext(true));
+      if (animate) {
+        const handler = handlers.get(action);
+        if (handler) {
+          await handler(params, createContext(true));
+        }
       }
-      const result = await executeAction(action, params);
+      let result = await executeAction(action, params);
+      result = await resolveApprovalIfNeeded(action, result);
       emit({ type: "result", action, result });
       return result;
     } finally {
-      activeCount = Math.max(0, activeCount - 1);
-      if (activeCount === 0) {
-        emit({ type: "active", active: false });
+      if (animate) {
+        activeCount = Math.max(0, activeCount - 1);
+        if (activeCount === 0) {
+          emit({ type: "active", active: false });
+        }
       }
     }
   },
@@ -258,5 +516,108 @@ export const AGENT_STYLES_CSS = `.radiant-agent-indicator {
 [data-radiant-id].agent-clicking {
   transform: scale(0.98);
   transition: transform 0.15s ease;
+}
+
+.radiant-tx-approval-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(26, 26, 26, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.radiant-tx-approval-card {
+  width: min(100%, 24rem);
+  border-radius: 1.25rem;
+  border: 2px solid var(--hero-ink);
+  background: white;
+  padding: 1.25rem;
+  box-shadow: 4px 4px 0 var(--hero-ink);
+}
+
+.radiant-tx-approval-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: var(--hero-ink);
+}
+
+.radiant-tx-approval-subtitle {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(26, 26, 26, 0.55);
+}
+
+.radiant-tx-approval-amount {
+  margin: 1rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--hero-ink);
+}
+
+.radiant-tx-approval-meta {
+  margin: 0.25rem 0 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: rgba(26, 26, 26, 0.45);
+}
+
+.radiant-tx-approval-quote {
+  margin: 0.75rem 0 0;
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--hero-blue, #3b82f6);
+}
+
+.radiant-tx-approval-quote-expired {
+  color: var(--hero-coral, #ff5d46);
+}
+
+.radiant-tx-approval-error {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--hero-coral, #ff5d46);
+}
+
+.radiant-tx-approval-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.radiant-tx-approval-approve,
+.radiant-tx-approval-cancel {
+  flex: 1;
+  border-radius: 9999px;
+  border: 2px solid var(--hero-ink);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.radiant-tx-approval-approve {
+  background: var(--hero-ink);
+  color: var(--hero-bg);
+  box-shadow: 3px 3px 0 var(--hero-coral, #ff5d46);
+}
+
+.radiant-tx-approval-cancel {
+  background: white;
+  color: var(--hero-ink);
+  box-shadow: 3px 3px 0 var(--hero-ink);
+}
+
+.radiant-tx-approval-approve:disabled,
+.radiant-tx-approval-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 `;

@@ -4,6 +4,7 @@ import {
   PREVIEW_API_RESPONSE,
   PREVIEW_MESSAGE_TYPE,
   PREVIEW_NAVIGATE_TYPE,
+  PREVIEW_TX_APPROVAL_REQUEST,
   RADIANT_AGENT_EVENT_TYPE,
 } from "@/lib/artifact-preview-bridge";
 import {
@@ -285,6 +286,18 @@ ${css}
     if (!data || data.type !== "${RADIANT_AGENT_EVENT_TYPE}") return;
     if (typeof window.__radiantAgent?.handleExternalEvent === "function") {
       window.__radiantAgent.handleExternalEvent(data);
+    }
+  });
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.type !== "${PREVIEW_TX_APPROVAL_REQUEST}") return;
+    if (typeof window.__radiantAgent?.handleExternalEvent === "function") {
+      window.__radiantAgent.handleExternalEvent({
+        type: "${RADIANT_AGENT_EVENT_TYPE}",
+        step: "approval_required",
+        action: data.action,
+        pending: data.pending,
+      });
     }
   });
   window.__RADIANT_PREVIEW_FETCH__ = function(path, init) {

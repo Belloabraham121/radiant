@@ -303,6 +303,42 @@ export async function governanceState(pool_key = "SUI_USDC"): Promise<Record<str
   );
   return parseEnvelope<Record<string, unknown>>(res);
 }
+
+export type AgentTransactionApprovalResult =
+  | {
+      status: "executed";
+      agent_transaction_id: string;
+      digest: string;
+      explorer_url: string | null;
+      result: Record<string, unknown>;
+    }
+  | {
+      status: "error";
+      agent_transaction_id: string;
+      error: { code: string; message: string; details?: unknown };
+    };
+
+/** Approve a pending agent transaction (in-app confirmation modal). */
+export async function approveAgentTransaction(
+  transactionId: string,
+): Promise<AgentTransactionApprovalResult> {
+  const res = await platformFetch(
+    "/api/v1/agent/transactions/" + encodeURIComponent(transactionId) + "/approve",
+    { method: "POST" },
+  );
+  return parseEnvelope<AgentTransactionApprovalResult>(res);
+}
+
+/** Reject / cancel a pending agent transaction. */
+export async function rejectAgentTransaction(
+  transactionId: string,
+): Promise<{ status: "rejected"; agent_transaction_id: string }> {
+  const res = await platformFetch(
+    "/api/v1/agent/transactions/" + encodeURIComponent(transactionId) + "/reject",
+    { method: "POST" },
+  );
+  return parseEnvelope<{ status: "rejected"; agent_transaction_id: string }>(res);
+}
 `;
 
 export const NEXT_APP_LAYOUT_TSX = `import "./globals.css";

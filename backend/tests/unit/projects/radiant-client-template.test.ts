@@ -4,7 +4,10 @@ import {
   RADIANT_CLIENT_TEMPLATE_VERSION,
   RADIANT_CLIENT_TS,
 } from "../../../src/services/projects/radiant-client-template.js";
-import { RADIANT_AGENT_RUNTIME_TS } from "../../../src/services/projects/radiant-agent-runtime-template.js";
+import {
+  RADIANT_AGENT_RUNTIME_TS,
+  RADIANT_AGENT_RUNTIME_VERSION,
+} from "../../../src/services/projects/radiant-agent-runtime-template.js";
 
 describe("radiant-client template", () => {
   it("is at expected version with execute helpers", () => {
@@ -24,7 +27,12 @@ describe("radiant-client template", () => {
     assert.match(RADIANT_CLIENT_TS, /resolveSwapSide/);
     assert.match(RADIANT_CLIENT_TS, /\/api\/v1\/chat\/sessions\//);
     assert.match(RADIANT_CLIENT_TS, /isApprovalRequired/);
+    assert.match(RADIANT_CLIENT_TS, /approveAgentTransaction/);
+    assert.match(RADIANT_CLIENT_TS, /rejectAgentTransaction/);
     assert.match(RADIANT_CLIENT_TS, /RadiantActionError/);
+    assert.equal(RADIANT_AGENT_RUNTIME_VERSION, 2);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /showInAppApprovalModal/);
+    assert.match(RADIANT_AGENT_RUNTIME_TS, /resolveApprovalIfNeeded/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /handleExternalEvent/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /data\.animate === true/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /setFieldValue/);

@@ -25,6 +25,10 @@ import { postChatStream } from "@/lib/chat-stream";
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useArtifactContext } from "@/components/app/ArtifactContext";
+import {
+  subscribePreviewApprovalResolution,
+  tryRelayPendingApprovalToPreview,
+} from "@/lib/preview-approval-relay";
 
 function initialChatSessionState(sessionId?: string) {
   if (!sessionId) {
@@ -83,6 +87,30 @@ export function useChatSession(sessionId?: string) {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [respondingClarification, setRespondingClarification] = useState(false);
+  const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] = useState(false);
+
+  const applyPendingTransaction = useCallback(
+    (pending: PendingTransaction | null, sessionKey?: string) => {
+      setPendingTx(pending);
+      if (!pending) {
+        setPendingTxRelayedToPreview(false);
+        return;
+      }
+      const relayed = tryRelayPendingApprovalToPreview(
+        pending,
+        sessionKey ?? activeSessionId ?? sessionId,
+      );
+      setPendingTxRelayedToPreview(relayed);
+    },
+    [activeSessionId, sessionId],
+  );
+
+  useEffect(() => {
+    return subscribePreviewApprovalResolution((message) => {
+      setPendingTx((current) => (current?.id === message.pendingId ? null : current));
+      setPendingTxRelayedToPreview(false);
+    });
+  }, []);
 
   useEffect(() => {
     if (!sessionId || boot.skipFetch) {
@@ -253,7 +281,10 @@ export function useChatSession(sessionId?: string) {
           return nextMessages;
         });
 
-        setPendingTx(data.pending_transaction ?? null);
+        applyPendingTransaction(
+          data.pending_transaction ?? null,
+          data.session_id ?? sessionId ?? activeSessionId ?? undefined,
+        );
         setPendingClarification(data.pending_clarification ?? null);
 
         if (!sessionId && data.session_id && artifactSessionKey === "new") {
@@ -286,6 +317,7 @@ export function useChatSession(sessionId?: string) {
     },
     [
       activeSessionId,
+      applyPendingTransaction,
       migrateArtifactSession,
       openArtifact,
       refreshSessions,
@@ -313,7 +345,7 @@ export function useChatSession(sessionId?: string) {
       });
 
       setActiveSessionId(data.session_id);
-      setPendingTx(data.pending_transaction ?? null);
+      applyPendingTransaction(data.pending_transaction ?? null, data.session_id);
       setPendingClarification(data.pending_clarification ?? null);
       setMessages((current) => [
         ...current,
@@ -338,7 +370,7 @@ export function useChatSession(sessionId?: string) {
     } finally {
       setApproving(false);
     }
-  }, [activeSessionId, approving, openArtifact, pendingTx, refreshSessions]);
+  }, [activeSessionId, applyPendingTransaction, approving, openArtifact, pendingTx, refreshSessions]);
 
   const rejectPending = useCallback(async () => {
     if (!pendingTx || rejecting || approving) return;
@@ -354,7 +386,7 @@ export function useChatSession(sessionId?: string) {
       });
 
       setActiveSessionId(data.session_id);
-      setPendingTx(null);
+      applyPendingTransaction(null);
       setPendingClarification(data.pending_clarification ?? null);
       setMessages((current) => [
         ...current,
@@ -417,7 +449,10 @@ export function useChatSession(sessionId?: string) {
 
         setActiveSessionId(data.session_id);
         setPendingClarification(data.pending_clarification ?? null);
-        setPendingTx(data.pending_transaction ?? null);
+        applyPendingTransaction(
+          data.pending_transaction ?? null,
+          data.session_id ?? sessionId ?? activeSessionId ?? undefined,
+        );
         setMessages((current) => [
           ...current,
           { id: `u-clarify-${Date.now()}`, role: "user", text: userText },
@@ -456,6 +491,7 @@ export function useChatSession(sessionId?: string) {
     streaming,
     chatError,
     pendingTx,
+    pendingTxRelayedToPreview,
     pendingClarification,
     approving,
     rejecting,
@@ -464,7 +500,7 @@ export function useChatSession(sessionId?: string) {
     approvePending,
     rejectPending,
     respondClarification,
-    dismissPending: () => setPendingTx(null),
+    dismissPending: () => applyPendingTransaction(null),
     dismissClarification: () => setPendingClarification(null),
   };
 }

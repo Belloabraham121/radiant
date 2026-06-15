@@ -48,7 +48,7 @@ describe("radiant agent runtime factory", () => {
     assert.deepEqual(calls, ["api:swap"]);
   });
 
-  it("emits active events around execute", async () => {
+  it("emits active events only when animate is true", async () => {
     const activeStates: boolean[] = [];
     const runtime = createRadiantAgentRuntime({
       executeAction: async () => ({ status: "executed", digest: "0x1", explorer_url: null, result: {} }),
@@ -61,6 +61,28 @@ describe("radiant agent runtime factory", () => {
     });
 
     await runtime.execute("swap", {}, { animate: false });
+    assert.deepEqual(activeStates, []);
+
+    await runtime.execute("swap", {}, { animate: true });
     assert.deepEqual(activeStates, [true, false]);
+  });
+
+  it("resolves approval_required via resolveApproval", async () => {
+    const runtime = createRadiantAgentRuntime({
+      executeAction: async () => ({
+        status: "approval_required",
+        pending: { id: "tx-1" },
+      }),
+      resolveApproval: async (action) => ({
+        status: "executed",
+        digest: "0xapproved",
+        explorer_url: null,
+        result: { action },
+      }),
+    });
+
+    const result = (await runtime.execute("swap", { amount: 1 })) as { status: string; digest: string };
+    assert.equal(result.status, "executed");
+    assert.equal(result.digest, "0xapproved");
   });
 });

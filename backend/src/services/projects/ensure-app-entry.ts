@@ -8,6 +8,7 @@ import {
   AGENT_INDICATOR_TSX,
   AGENT_STYLES_CSS,
   RADIANT_AGENT_RUNTIME_TS,
+  RADIANT_AGENT_RUNTIME_VERSION,
 } from "./radiant-agent-runtime-template.js";
 import { normalizeArtifactFileContent } from "./artifact-file-content.js";
 
@@ -85,6 +86,16 @@ function injectPlatformFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
   }
   if (!hasPath(next, "lib/radiant-agent-runtime.ts")) {
     next.push({ path: "lib/radiant-agent-runtime.ts", content: RADIANT_AGENT_RUNTIME_TS });
+  } else {
+    next = next.map((file) => {
+      if (normalizeClientPath(file.path) !== "lib/radiant-agent-runtime.ts") {
+        return file;
+      }
+      if (file.content.includes(`Template v${RADIANT_AGENT_RUNTIME_VERSION}`)) {
+        return file;
+      }
+      return { ...file, content: RADIANT_AGENT_RUNTIME_TS };
+    });
   }
   if (!hasPath(next, "components/AgentIndicator.tsx")) {
     next.push({ path: "components/AgentIndicator.tsx", content: AGENT_INDICATOR_TSX });

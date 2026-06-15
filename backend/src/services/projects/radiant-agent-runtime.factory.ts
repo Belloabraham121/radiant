@@ -33,7 +33,21 @@ export type RadiantAgentRuntime = {
 export type RadiantAgentRuntimeDeps = {
   executeAction: (action: string, params: Record<string, unknown>) => Promise<unknown>;
   highlight?: (targetId: string, className?: string) => void;
+  resolveApproval?: (
+    action: string,
+    result: { status: "approval_required"; pending: Record<string, unknown> },
+  ) => Promise<unknown>;
 };
+
+function isApprovalRequired(
+  result: unknown,
+): result is { status: "approval_required"; pending: Record<string, unknown> } {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    (result as { status?: string }).status === "approval_required"
+  );
+}
 
 export function createRadiantAgentRuntime(deps: RadiantAgentRuntimeDeps): RadiantAgentRuntime {
   const handlers = new Map<string, RadiantAgentHandler>();
@@ -71,24 +85,33 @@ export function createRadiantAgentRuntime(deps: RadiantAgentRuntimeDeps): Radian
       return activeCount > 0;
     },
     async execute(action, params = {}, opts = {}) {
-      activeCount += 1;
-      emit({ type: "active", active: true });
+      const animate = Boolean(opts.animate);
+      if (animate) {
+        activeCount += 1;
+        emit({ type: "active", active: true });
+      }
       emit({ type: "executing", action, params });
 
       try {
-        const animate = Boolean(opts.animate);
-        const handler = handlers.get(action);
-        if (animate && handler) {
-          await handler(params, createContext(true));
+        if (animate) {
+          const handler = handlers.get(action);
+          if (handler) {
+            await handler(params, createContext(true));
+          }
         }
 
-        const result = await deps.executeAction(action, params);
+        let result = await deps.executeAction(action, params);
+        if (isApprovalRequired(result) && deps.resolveApproval) {
+          result = await deps.resolveApproval(action, result);
+        }
         emit({ type: "result", action, result });
         return result;
       } finally {
-        activeCount = Math.max(0, activeCount - 1);
-        if (activeCount === 0) {
-          emit({ type: "active", active: false });
+        if (animate) {
+          activeCount = Math.max(0, activeCount - 1);
+          if (activeCount === 0) {
+            emit({ type: "active", active: false });
+          }
         }
       }
     },
