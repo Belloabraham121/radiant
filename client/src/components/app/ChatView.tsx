@@ -18,6 +18,7 @@ import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
 const CHAT_INPUT_MAX_HEIGHT_PX = 160;
+const CHAT_INPUT_SINGLE_LINE_HEIGHT_PX = 40;
 
 function ReceiptPill({ receipt }: { receipt: Receipt }) {
   const explorerUrl =
@@ -208,20 +209,36 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const animatedMessageIdsRef = useRef(new Set<string>());
   const initialBatchDoneRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
+  const [inputExpanded, setInputExpanded] = useState(false);
+
+  const syncShellShape = useCallback(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    const height = shell.offsetHeight;
+    if (height > 0) {
+      shell.style.borderRadius = `${height / 2}px`;
+    }
+  }, []);
 
   const resizeInput = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, CHAT_INPUT_MAX_HEIGHT_PX)}px`;
-  }, []);
+    const nextHeight = Math.min(el.scrollHeight, CHAT_INPUT_MAX_HEIGHT_PX);
+    el.style.height = `${nextHeight}px`;
+    setInputExpanded(nextHeight > CHAT_INPUT_SINGLE_LINE_HEIGHT_PX);
+    requestAnimationFrame(syncShellShape);
+  }, [syncShellShape]);
 
   const resetInputHeight = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
-  }, []);
+    setInputExpanded(false);
+    requestAnimationFrame(syncShellShape);
+  }, [syncShellShape]);
 
   const {
     messages,
@@ -362,6 +379,18 @@ export function ChatView({ sessionId }: ChatViewProps) {
     resizeInput();
   }, [input, resizeInput]);
 
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+
+    syncShellShape();
+    const observer = new ResizeObserver(() => {
+      syncShellShape();
+    });
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, [syncShellShape, chatColumnClass]);
+
   const inputDisabled =
     Boolean(loadError) ||
     Boolean(pendingTx) ||
@@ -371,6 +400,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     !typing &&
     !streaming &&
     !inputDisabled;
+  const isMultiline = inputExpanded || input.includes("\n");
 
   const send = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -478,7 +508,8 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
         <form onSubmit={send}>
           <div
-            className={`${chatColumnClass} flex items-end gap-3 rounded-3xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-2 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
+            ref={shellRef}
+            className={`${chatColumnClass} flex gap-3 overflow-hidden rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)] ${isMultiline ? "items-end" : "items-center"}`}
           >
             <textarea
               ref={inputRef}
@@ -492,13 +523,13 @@ export function ChatView({ sessionId }: ChatViewProps) {
               }}
               placeholder="Tell your agent what you want…"
               rows={1}
-              className="max-h-40 min-h-6 flex-1 resize-none overflow-y-auto bg-transparent py-1 text-sm font-semibold leading-relaxed placeholder:text-[var(--hero-ink)]/35 focus:outline-none"
+              className="max-h-40 min-h-10 flex-1 resize-none overflow-y-auto bg-transparent py-2.5 text-sm font-semibold leading-5 placeholder:text-[var(--hero-ink)]/35 focus:outline-none"
               disabled={inputDisabled}
             />
             <button
               type="submit"
               aria-label="Send"
-              className="mb-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
               disabled={!canSend}
             >
               <ArrowUp className="size-5" strokeWidth={2.5} />
