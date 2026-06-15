@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   isMultipleOfStep,
+  normalizeSwapSellAmount,
   snapToStep,
 } from "../../../src/services/defi/deepbook/order-constraints.js";
 
@@ -23,5 +24,11 @@ describe("order-constraints", () => {
   it("treats 1.5 as a valid multiple of lot_size 0.1 (IEEE-754 safe)", () => {
     assert.equal(1.5 % 0.1 > 0, true);
     assert.equal(isMultipleOfStep(1.5, 0.1), true);
+  });
+
+  it("normalizeSwapSellAmount floors to lot_size and respects min_size", () => {
+    assert.equal(normalizeSwapSellAmount(1.648353, 1, 0.1), 1.6);
+    assert.equal(normalizeSwapSellAmount(1.5, 1, 0.1), 1.5);
+    assert.equal(normalizeSwapSellAmount(0.95, 1, 0.1), 0.9);
   });
 });

@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import type { ArtifactPayload } from "@/lib/artifact-types";
-import { mergeArtifactPayload } from "@/lib/artifact-merge";
+import { mergeArtifactPayload, normalizeArtifactPayload } from "@/lib/artifact-merge";
+import { prepareArtifactPayloadForPreview } from "@/lib/prepare-artifact-preview";
 
 type SessionArtifactState = {
   panelOpen: boolean;
@@ -65,44 +66,50 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
   );
 
   const openArtifact = useCallback((sessionKey: string, payload: ArtifactPayload) => {
-    const firstPath = pickActivePath(payload);
-    setBySession((current) => ({
-      ...current,
-      [sessionKey]: {
-        panelOpen: true,
-        payload,
-        activePath: firstPath,
-        streaming: false,
-        userDismissed: false,
-      },
-    }));
+    void prepareArtifactPayloadForPreview(normalizeArtifactPayload(payload)).then((prepared) => {
+      const firstPath = pickActivePath(prepared);
+      setBySession((current) => ({
+        ...current,
+        [sessionKey]: {
+          panelOpen: true,
+          payload: prepared,
+          activePath: firstPath,
+          streaming: false,
+          userDismissed: false,
+        },
+      }));
+    });
   }, []);
 
   const updateArtifact = useCallback(
     (sessionKey: string, payload: ArtifactPayload, options: UpdateArtifactOptions = {}) => {
-      setBySession((current) => {
-        const prev = current[sessionKey] ?? emptyState();
-        const merged = mergeArtifactPayload(prev.payload, payload);
-        const streaming = options.streaming ?? prev.streaming;
-        const activePath = pickActivePath(merged, options.activePath ?? prev.activePath);
+      void prepareArtifactPayloadForPreview(payload).then((preparedInput) => {
+        setBySession((current) => {
+          const prev = current[sessionKey] ?? emptyState();
+          const merged = mergeArtifactPayload(prev.payload, preparedInput);
+          const streaming = options.streaming ?? prev.streaming;
+          const activePath = pickActivePath(merged, options.activePath ?? prev.activePath);
 
-        let panelOpen = prev.panelOpen;
-        if (options.open === true) {
-          panelOpen = !prev.userDismissed;
-        } else if (options.open === false) {
-          panelOpen = false;
-        }
+          let panelOpen = prev.panelOpen;
+          let userDismissed = prev.userDismissed;
+          if (options.open === true) {
+            panelOpen = true;
+            userDismissed = false;
+          } else if (options.open === false) {
+            panelOpen = false;
+          }
 
-        return {
-          ...current,
-          [sessionKey]: {
-            panelOpen,
-            payload: merged,
-            activePath,
-            streaming,
-            userDismissed: prev.userDismissed,
-          },
-        };
+          return {
+            ...current,
+            [sessionKey]: {
+              panelOpen,
+              payload: merged,
+              activePath,
+              streaming,
+              userDismissed,
+            },
+          };
+        });
       });
     },
     [],

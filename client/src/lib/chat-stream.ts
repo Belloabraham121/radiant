@@ -8,6 +8,7 @@ export type ChatStreamHandlers = {
   onArtifact?: (payload: { artifact: ArtifactPayload; streaming: boolean }) => void;
   onReplyDelta?: (delta: string) => void;
   onReplyClear?: () => void;
+  onSession?: (sessionId: string) => void;
 };
 
 function parseSseBlock(block: string): { event: string; data: string } | null {
@@ -95,6 +96,11 @@ export async function postChatStream(
         } else if (parsed.event === "artifact") {
           const artifactPayload = payload as { artifact: ArtifactPayload; streaming: boolean };
           handlers.onArtifact?.(artifactPayload);
+        } else if (parsed.event === "session") {
+          const sessionId = (payload as { session_id?: string }).session_id;
+          if (sessionId) {
+            handlers.onSession?.(sessionId);
+          }
         } else if (parsed.event === "done") {
           finalResponse = payload as ChatResponse;
         } else if (parsed.event === "error") {

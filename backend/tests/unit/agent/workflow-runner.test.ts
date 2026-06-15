@@ -176,4 +176,51 @@ describe("workflow-runner", () => {
     assert.match(continued!.reply, /Step 2 of 2/i);
     assert.equal(executeCount, 2);
   });
+
+  it("runs app_action steps via call_app_action and pauses for approval", async () => {
+    const PROJECT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+    setAgentToolHandlerForTests(async (_privyUserId, name) => {
+      if (name !== "call_app_action") {
+        return { error: { code: "X", message: "unexpected" } };
+      }
+      return {
+        status: "approval_required",
+        action: "swap",
+        agent_transaction_id: "33333333-3333-4333-8333-333333333333",
+        pending: {
+          id: "33333333-3333-4333-8333-333333333333",
+          chain_id: "sui",
+          action: "swap",
+          params: { amount: 2, side: "sell", pool_key: "SUI_USDC" },
+          summary: "Swap 2 SUI",
+          amount_display: "2 SUI",
+        },
+      };
+    });
+
+    const plan: WorkflowPlan = {
+      originalMessage: "swap in my project then check balance",
+      steps: [
+        {
+          kind: "app_action",
+          label: "Swap 2 SUI",
+          project_id: PROJECT_ID,
+          action: "swap",
+          params: { amount: 2, side: "sell", pool_key: "SUI_USDC" },
+        },
+        {
+          kind: "query",
+          label: "Wallet balances",
+          input: { chain_id: "sui", query: "token_balances", params: {} },
+        },
+      ],
+    };
+
+    const first = await startAndRunWorkflow("privy-workflow", SESSION, plan);
+    assert.ok(first.pending_transaction);
+    assert.equal(first.pending_transaction!.id, "33333333-3333-4333-8333-333333333333");
+    assert.match(first.reply, /Step 1 of 2/i);
+    assert.equal(first.workflowCompleted, false);
+  });
 });

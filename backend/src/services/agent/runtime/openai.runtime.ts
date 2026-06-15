@@ -43,7 +43,9 @@ import {
 import { classifyFlashLoanTurnIntent } from "../deepbook/flash-loan-turn-intent.js";
 import {
   buildReplyAfterToolsNudge,
+  buildReplyFromAppActionToolCalls,
   findLastToolError,
+  hasSuccessfulAppActionResult,
   hasSuccessfulQueryResults,
   shouldNudgeReplyAfterTools,
 } from "../turn-reply-flow.js";
@@ -62,7 +64,9 @@ import {
   synthesizeTurnReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
+import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import { emitArtifactPreview, emitExecutionProgress, emitReplyClear, emitReplyDelta, hasExecutionProgressContext } from "../execution-progress-context.js";
 import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
@@ -170,6 +174,84 @@ function emitExecuteProgressFromResult(
   }
 }
 
+function appActionExecuteLabel(action?: string): string {
+  if (action === "swap") {
+    return "Execute swap";
+  }
+  return action ? `Execute ${action.replace(/_/g, " ")}` : "Execute app action";
+}
+
+function emitAppActionProgressFromResult(result: unknown, action?: string): void {
+  if (isAgentToolErrorResult(result)) {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "failed",
+        label: appActionExecuteLabel(action),
+        detail: result.error.message,
+      },
+    });
+    return;
+  }
+
+  if (typeof result !== "object" || result === null || !("status" in result)) {
+    return;
+  }
+
+  const outcome = result as AppActionResult;
+  if (outcome.status === "error") {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "failed",
+        label: appActionExecuteLabel(action),
+        detail: outcome.error.message,
+      },
+    });
+    return;
+  }
+
+  if (outcome.status === "preview_delegated") {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "warning",
+        label: appActionExecuteLabel(action),
+        detail: "Started in app preview — confirm there",
+      },
+    });
+    return;
+  }
+
+  if (outcome.status === "approval_required") {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "warning",
+        label: appActionExecuteLabel(action),
+        detail: "Waiting for your approval in the app",
+        agent_transaction_id: outcome.pending?.id,
+        chain_id: outcome.pending?.chain_id,
+      },
+    });
+    return;
+  }
+
+  if (outcome.status === "executed" && outcome.digest) {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "ok",
+        label: appActionExecuteLabel(action),
+        detail: `Broadcast · ${outcome.digest.slice(0, 10)}…`,
+        digest: outcome.digest,
+        chain_id: outcome.result?.chain_id,
+        agent_transaction_id: outcome.agent_transaction_id,
+      },
+    });
+  }
+}
+
 function emitSwapQuoteProgressFromResult(result: unknown): void {
   if (isAgentToolErrorResult(result)) {
     emitExecutionProgress({
@@ -242,6 +324,7 @@ export const openaiRuntime: AgentRuntime = {
         content: buildSystemPrompt({
           memoryBlock: input.memoryBlock,
           agentPermissions: input.agentPermissions,
+          pinnedAppScope: input.pinnedAppScope,
         }),
       },
       ...input.messages.map((message) => ({
@@ -517,6 +600,7 @@ export const openaiRuntime: AgentRuntime = {
           : await runAgentTool(input.privyUserId, toolCall.function.name, args, {
               sessionId: input.sessionId,
               flashLoanTurnIntent,
+              pinnedAppScope: input.pinnedAppScope,
               ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
                 ? { rawArguments: toolCall.function.arguments }
                 : {}),
@@ -527,6 +611,10 @@ export const openaiRuntime: AgentRuntime = {
             ? { query: args.query }
             : {}),
           ...(toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+          typeof args.action === "string"
+            ? { action: args.action }
+            : {}),
+          ...(toolCall.function.name === CALL_APP_ACTION_TOOL_NAME &&
           typeof args.action === "string"
             ? { action: args.action }
             : {}),
@@ -571,6 +659,13 @@ export const openaiRuntime: AgentRuntime = {
           emitExecuteProgressFromResult(result, {
             action: typeof args.action === "string" ? args.action : undefined,
           });
+        }
+
+        if (toolCall.function.name === CALL_APP_ACTION_TOOL_NAME) {
+          emitAppActionProgressFromResult(
+            result,
+            typeof args.action === "string" ? args.action : undefined,
+          );
         }
 
         if (
@@ -621,6 +716,13 @@ export const openaiRuntime: AgentRuntime = {
           }
         }
 
+        if (toolCall.function.name === CALL_APP_ACTION_TOOL_NAME) {
+          const outcome = result as AppActionResult;
+          if (outcome.status === "approval_required") {
+            pending_transaction = outcome.pending;
+          }
+        }
+
         messages.push({
           role: "tool",
           tool_call_id: toolCall.id,
@@ -642,8 +744,10 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       if (pending_transaction) {
-        reply =
-          "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
+        const usedAppAction = tool_calls.some((call) => call.name === CALL_APP_ACTION_TOOL_NAME);
+        reply = usedAppAction
+          ? "Confirm the transaction in your app preview."
+          : "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
         break;
       }
 
@@ -702,6 +806,13 @@ export const openaiRuntime: AgentRuntime = {
     }
 
     if (!reply) {
+      const appActionReply = buildReplyFromAppActionToolCalls(tool_calls);
+      if (appActionReply) {
+        reply = appActionReply;
+      }
+    }
+
+    if (!reply) {
       const quote = findLatestFlashLoanQuote(tool_calls);
       if (quote && shouldUseCannedFlashLoanQuoteReply(tool_calls, quote)) {
         reply = formatFlashLoanQuoteReply(quote);
@@ -720,7 +831,7 @@ export const openaiRuntime: AgentRuntime = {
           } catch (err) {
             throw mapOpenAiError(err);
           }
-        } else if (hasSuccessfulQueryResults(tool_calls)) {
+        } else if (hasSuccessfulQueryResults(tool_calls) || hasSuccessfulAppActionResult(tool_calls)) {
           const streamed = streamedReplyAccum.trim();
           if (streamed) {
             reply = streamed;

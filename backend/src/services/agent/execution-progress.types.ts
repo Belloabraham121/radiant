@@ -36,11 +36,12 @@ export type ChatStreamDoneEvent = {
 };
 
 export type ChatStreamSender = (
-  event: "step" | "artifact" | "reply" | "reply_clear" | "done" | "error",
+  event: "step" | "artifact" | "reply" | "reply_clear" | "session" | "done" | "error",
   data:
     | ExecutionProgressEvent
     | { artifact: ArtifactPayload; streaming: boolean }
     | { delta: string }
+    | { session_id: string }
     | ChatStreamDoneEvent
     | ChatResponse
     | { message: string }

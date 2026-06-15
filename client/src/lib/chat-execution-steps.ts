@@ -73,7 +73,11 @@ export type StreamExecutionStepPayload = {
   chain_id?: string;
 };
 
-const EXECUTION_TIMELINE_TOOL_NAMES = new Set(["execute_transaction", "query_chain"]);
+const EXECUTION_TIMELINE_TOOL_NAMES = new Set([
+  "execute_transaction",
+  "call_app_action",
+  "query_chain",
+]);
 
 /** Whether this turn should show the on-chain execution timeline (swaps, flash loans, etc.). */
 export function isExecutionTimelineRelevant(toolCalls: ChatToolCall[]): boolean {
@@ -139,6 +143,41 @@ export function sortExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
       return a.id.localeCompare(b.id);
     }),
   );
+}
+
+/** Update the execute step when the preview iframe reports an app action outcome. */
+export function executionStepFromPreviewResult(input: {
+  action: string;
+  status: "executed" | "approval_required" | "error";
+  digest?: string;
+  message?: string;
+}): ExecutionStep {
+  const label = `Execute ${input.action.replace(/_/g, " ")}`;
+  if (input.status === "executed") {
+    return {
+      id: "execute",
+      status: "ok",
+      label,
+      detail: input.digest
+        ? `Broadcast · ${input.digest.slice(0, 10)}…`
+        : "Completed in app",
+      digest: input.digest,
+    };
+  }
+  if (input.status === "approval_required") {
+    return {
+      id: "execute",
+      status: "warning",
+      label,
+      detail: "Waiting for your approval in the app",
+    };
+  }
+  return {
+    id: "execute",
+    status: "failed",
+    label,
+    detail: input.message ?? "Action failed in preview",
+  };
 }
 
 export function isFlashLoanParamValidationError(message: string): boolean {
@@ -359,7 +398,9 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
       "output_amount_display" in call.result,
   );
 
-  const executeCall = toolCalls.find((call) => call.name === "execute_transaction");
+  const executeCall = toolCalls.find(
+    (call) => call.name === "execute_transaction" || call.name === "call_app_action",
+  );
   if (!quoteCall && !executeCall) {
     return undefined;
   }
@@ -390,13 +431,70 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
   }
 
   if (executeCall) {
+    const isAppAction = executeCall.name === "call_app_action";
+    const executeLabel = isAppAction ? "Execute swap" : "Execute swap";
+
     if (isToolError(executeCall.result)) {
       steps.push({
         id: "execute",
         status: "failed",
-        label: "Execute swap",
+        label: executeLabel,
         detail: executeCall.result.error.message,
       });
+    } else if (isAppAction) {
+      const outcome = executeCall.result as {
+        status?: string;
+        agent_transaction_id?: string;
+        digest?: string;
+        pending?: { id?: string; chain_id?: AgentChainId };
+        result?: { chain_id?: AgentChainId };
+        error?: { message?: string };
+      };
+
+      if (outcome.status === "error" && outcome.error?.message) {
+        steps.push({
+          id: "execute",
+          status: "failed",
+          label: executeLabel,
+          detail: outcome.error.message,
+        });
+      } else {
+        const agentTransactionId =
+          outcome.agent_transaction_id ?? outcome.pending?.id;
+        const chainId =
+          outcome.result?.chain_id ?? outcome.pending?.chain_id;
+        const meta = {
+          ...(agentTransactionId ? { agentTransactionId } : {}),
+          ...(chainId ? { chainId } : {}),
+        };
+
+        if (outcome.status === "preview_delegated") {
+          const actionName = (executeCall.result as { action?: string })?.action;
+          steps.push({
+            id: "execute",
+            status: "warning",
+            label: actionName ? `Execute ${actionName}` : executeLabel,
+            detail: "Started in app preview — confirm there",
+          });
+        } else if (outcome.status === "approval_required") {
+          steps.push({
+            id: "execute",
+            status: "warning",
+            label: executeLabel,
+            detail: "Waiting for your approval in the app",
+            ...meta,
+          });
+        } else if (outcome.status === "executed" && outcome.digest) {
+          steps.push({
+            id: "execute",
+            status: "ok",
+            label: executeLabel,
+            detail: `Broadcast · ${outcome.digest.slice(0, 10)}…`,
+            digest: outcome.digest,
+            ...meta,
+          });
+        }
+      }
     } else {
       const outcome = executeCall.result as {
         status?: string;

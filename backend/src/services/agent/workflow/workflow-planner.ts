@@ -51,7 +51,7 @@ async function planWorkflowWithOpenAi(message: string): Promise<PlannerOutput | 
           role: "user",
           content:
             `Parse this message into a workflow plan JSON:\n\n${message}\n\n` +
-            `Schema: { is_multi_step, steps: [{ action, label, params, depends_on?: { after_step_index, only_if_success?, only_if_condition? } }], assumptions: [], confidence: 0-1, needs_clarification, clarification?: { question, step_index?, kind } }`,
+            `Schema: { is_multi_step, steps: [{ action, label, params, project_id?, installation_id?, depends_on?: { after_step_index, only_if_success?, only_if_condition? } }], assumptions: [], confidence: 0-1, needs_clarification, clarification?: { question, step_index?, kind } }`,
         },
       ],
     });

@@ -29,7 +29,8 @@ export const generateAppToolDefinition = {
       template: {
         type: "string",
         enum: ["custom", "escrow", "swap", "prediction"],
-        description: "custom = agent-generated UI; fixed templates are pre-built scaffold apps.",
+        description:
+          "Use custom for agent-generated UI (default). swap/escrow/prediction are legacy metadata labels only — no prebuilt scaffold is injected.",
       },
       files: {
         type: "array",

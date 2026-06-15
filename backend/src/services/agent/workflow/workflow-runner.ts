@@ -8,7 +8,11 @@ import { resolveOrCreateSession } from "../../conversation/conversation.service.
 import { appendMessage } from "../../conversation/message.repository.js";
 import { touchSession } from "../../conversation/session.repository.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
+import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
+import { parseAppActionParams } from "../../projects/app-action-mapper.js";
+import { isOnchainAction } from "../../projects/app-action-registry.js";
+import type { AppActionResult } from "../../projects/app-action.types.js";
 import { getAgentRuntime } from "../runtime/index.js";
 import { runAgentTool, type AgentToolErrorResult } from "../tools.js";
 import { linkToolCallTransactionsToMessage } from "../../agent-transaction/link-transactions.js";
@@ -31,7 +35,7 @@ import {
   startSessionWorkflow,
   updateSessionWorkflow,
 } from "./session-workflow.store.js";
-import { ledgerEntryFromToolCalls } from "./workflow-ledger.js";
+import { ledgerEntryFromToolCalls, resolveParamsFromLedger } from "./workflow-ledger.js";
 import { evaluateStepDependency } from "../intent/step-dependency.js";
 import { synthesizeWorkflowCompletionReply } from "./workflow-reply.js";
 import {
@@ -54,6 +58,17 @@ function isExecuteOutcome(result: unknown): result is ExecuteToolOutcome {
     "status" in result &&
     ((result as ExecuteToolOutcome).status === "executed" ||
       (result as ExecuteToolOutcome).status === "approval_required")
+  );
+}
+
+function isAppActionOutcome(result: unknown): result is AppActionResult {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    "status" in result &&
+    ((result as AppActionResult).status === "executed" ||
+      (result as AppActionResult).status === "approval_required" ||
+      (result as AppActionResult).status === "preview_delegated")
   );
 }
 
@@ -239,12 +254,109 @@ async function executeWorkflowStep(
   }
 
   if (step.kind === "query") {
-    const result = await runAgentTool(privyUserId, QUERY_CHAIN_TOOL_NAME, step.input);
+    const result = await runAgentTool(privyUserId, QUERY_CHAIN_TOOL_NAME, step.input, {
+      sessionId,
+    });
     const tool_calls: ToolCallRecord[] = [{ name: QUERY_CHAIN_TOOL_NAME, result }];
     if (isToolError(result)) {
       return { status: "error", tool_calls, error: result.error };
     }
     return { status: "executed", tool_calls };
+  }
+
+  if (step.kind === "app_action") {
+    const { resolved, unresolved } = resolveParamsFromLedger(
+      step.params as Record<string, import("./planner.types.js").PlanSlot | string | number | boolean>,
+      state.ledger,
+    );
+    if (unresolved.length > 0) {
+      const gap: ClarificationGap = {
+        gap_id: `step${stepIndex}.runtime.ref`,
+        interaction_type: "confirm",
+        question: `Should I use the output from a previous step for ${step.label}?`,
+        step_index: stepIndex,
+        kind: "amount_ref",
+      };
+      const clarificationState = startSessionClarification({
+        sessionId,
+        gap,
+        plan: state.plan,
+      });
+      updateSessionWorkflow(sessionId, {
+        status: "paused_clarification",
+        pendingClarificationId: clarificationState.id,
+      });
+      const pending = gapToPending(gap, clarificationState.id);
+      return {
+        status: "clarification_required" as const,
+        pending,
+      };
+    }
+
+    if (isOnchainAction(step.action)) {
+      try {
+        parseAppActionParams(step.action, resolved);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Invalid app action parameters";
+        return {
+          status: "error",
+          tool_calls: [],
+          error: { code: "VALIDATION_ERROR", message },
+        };
+      }
+    }
+
+    const toolInput = {
+      ...(step.project_id
+        ? { project_id: step.project_id }
+        : step.installation_id
+          ? { installation_id: step.installation_id }
+          : step.app_name
+            ? { app_name: step.app_name }
+            : { use_session_draft: true }),
+      action: step.action,
+      params: resolved,
+    };
+
+    const result = await runAgentTool(privyUserId, CALL_APP_ACTION_TOOL_NAME, toolInput, {
+      sessionId,
+      workflowStepIndex: stepIndex,
+    });
+    const tool_calls: ToolCallRecord[] = [
+      { name: CALL_APP_ACTION_TOOL_NAME, action: step.action, result },
+    ];
+
+    if (isToolError(result)) {
+      return { status: "error", tool_calls, error: result.error };
+    }
+
+    const outcome = result as AppActionResult;
+    if (outcome.status === "error") {
+      return {
+        status: "error",
+        tool_calls,
+        error: outcome.error,
+      };
+    }
+    if (outcome.status === "approval_required") {
+      return {
+        status: "approval_required",
+        tool_calls,
+        pendingId: outcome.agent_transaction_id,
+      };
+    }
+    if (outcome.status === "preview_delegated") {
+      return {
+        status: "executed",
+        tool_calls,
+        txResult: undefined,
+      };
+    }
+    return {
+      status: "executed",
+      tool_calls,
+      txResult: outcome.result,
+    };
   }
 
   if (step.kind === "execute") {
@@ -483,10 +595,24 @@ export async function runWorkflowFromStep(
     }
 
     const digest = outcome.txResult?.digest;
+    const ledgerAction =
+      step.kind === "execute"
+        ? step.input.action
+        : step.kind === "app_action"
+          ? step.action
+          : step.kind === "query"
+            ? "query"
+            : "agent";
+    const ledgerParams =
+      step.kind === "execute"
+        ? step.input.params
+        : step.kind === "app_action"
+          ? step.params
+          : {};
     const ledgerEntry = ledgerEntryFromToolCalls(
       index,
-      step.kind === "execute" ? step.input.action : step.kind === "query" ? "query" : "agent",
-      step.kind === "execute" ? step.input.params : {},
+      ledgerAction,
+      ledgerParams,
       outcome.tool_calls,
       outcome.txResult,
     );
@@ -540,6 +666,17 @@ export async function runWorkflowFromStep(
 async function resolvePendingFromOutcome(
   outcome: Extract<WorkflowStepOutcome, { status: "approval_required" }>,
 ) {
+  const appActionCall = outcome.tool_calls.find(
+    (call) => call.name === CALL_APP_ACTION_TOOL_NAME,
+  );
+  if (
+    appActionCall &&
+    isAppActionOutcome(appActionCall.result) &&
+    appActionCall.result.status === "approval_required"
+  ) {
+    return appActionCall.result.pending;
+  }
+
   const executeCall = outcome.tool_calls.find(
     (call) => call.name === EXECUTE_TRANSACTION_TOOL_NAME,
   );
@@ -702,12 +839,16 @@ export async function continueWorkflowAfterApproval(
     return null;
   }
 
+  const approvedToolName =
+    step.kind === "app_action" ? CALL_APP_ACTION_TOOL_NAME : EXECUTE_TRANSACTION_TOOL_NAME;
+
   const completedEntry = {
     index: stepIndex,
     label: step.label,
     tool_calls: [
       {
-        name: EXECUTE_TRANSACTION_TOOL_NAME,
+        name: approvedToolName,
+        ...(step.kind === "app_action" ? { action: step.action } : {}),
         result: { status: "executed" as const, result: completedTx },
       },
     ],
@@ -723,8 +864,16 @@ export async function continueWorkflowAfterApproval(
       ...state.ledger,
       ledgerEntryFromToolCalls(
         stepIndex,
-        step.kind === "execute" ? step.input.action : "execute",
-        step.kind === "execute" ? step.input.params : {},
+        step.kind === "execute"
+          ? step.input.action
+          : step.kind === "app_action"
+            ? step.action
+            : "execute",
+        step.kind === "execute"
+          ? step.input.params
+          : step.kind === "app_action"
+            ? step.params
+            : {},
         completedEntry.tool_calls,
         completedTx,
       ),
@@ -737,7 +886,8 @@ export async function continueWorkflowAfterApproval(
   });
 
   const baseToolCall = {
-    name: EXECUTE_TRANSACTION_TOOL_NAME,
+    name: approvedToolName,
+    ...(step.kind === "app_action" ? { action: step.action } : {}),
     result: { status: "executed" as const, result: completedTx },
   };
 

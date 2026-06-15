@@ -14,13 +14,21 @@ import {
   restoreProjectRevisionForUser,
 } from "../../../../services/projects/project-artifact.service.js";
 import {
+  flashLoanQuoteForProject,
+  governanceStateForProject,
+  openOrdersForProject,
   poolInfoForProject,
+  stakeBalanceForProject,
   swapQuoteForProject,
 } from "../../../../services/projects/project-platform.service.js";
 import {
   getProjectPublishStateForUser,
   publishProjectForUser,
 } from "../../../../services/apps/app-installation.service.js";
+import { listAppActionsCatalogForProject } from "../../../../services/projects/app-action-catalog.service.js";
+import { parseAppActionName } from "../../../../services/projects/app-action-mapper.js";
+import { executeAppActionForProject } from "../../../../services/projects/app-action.service.js";
+import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { ok } from "../../../../utils/http-response.js";
 
@@ -222,6 +230,113 @@ projectsRouter.get(
         req.query,
       );
       return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.post(
+  "/api/v1/projects/:projectId/deepbook/flash-loan/quote",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await flashLoanQuoteForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.body,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/open-orders",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await openOrdersForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/stake-balance",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await stakeBalanceForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/governance-state",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await governanceStateForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get("/api/v1/projects/:projectId/actions", requireAuth, async (req, res, next) => {
+  try {
+    const user = await findUserByPrivyId(req.user.privyUserId);
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    const project = await findProjectByIdForUser(req.params.projectId, user.id);
+    if (!project) {
+      throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+    }
+
+    return ok(req, res, listAppActionsCatalogForProject(project));
+  } catch (err) {
+    next(err);
+  }
+});
+
+projectsRouter.post(
+  "/api/v1/projects/:projectId/actions/:actionName",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const action = parseAppActionName(req.params.actionName);
+      const sessionId = readAppActionSessionId(req);
+      const result = await executeAppActionForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        action,
+        req.body,
+        { source: "ui", ...(sessionId ? { sessionId } : {}) },
+      );
+      return ok(req, res, result);
     } catch (err) {
       next(err);
     }

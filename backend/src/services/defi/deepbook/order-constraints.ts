@@ -62,3 +62,33 @@ export function formatConstraintNumber(value: number): string {
   const text = value.toPrecision(12);
   return text.includes(".") ? text.replace(/\.?0+$/, "") : text;
 }
+
+/**
+ * Snap a sell-side base amount to pool lot_size (floor) while respecting min_size.
+ * Used when users or agents pass wallet-precision amounts that are not lot multiples.
+ */
+export function normalizeSwapSellAmount(
+  amount: number,
+  minSize: number,
+  lotSize: number,
+): number {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return amount;
+  }
+
+  let normalized =
+    lotSize > 0 && !isMultipleOfStep(amount, lotSize)
+      ? snapToStep(amount, lotSize, "down")
+      : amount;
+
+  if (minSize > 0 && normalized < minSize) {
+    const minValid =
+      lotSize > 0 ? snapToStep(minSize, lotSize, "up") : minSize;
+    if (minValid > amount) {
+      return normalized;
+    }
+    normalized = minValid;
+  }
+
+  return normalized;
+}

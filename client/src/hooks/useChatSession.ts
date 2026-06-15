@@ -20,11 +20,21 @@ import {
   mapStreamStepToExecutionStep,
   sortExecutionSteps,
   upsertExecutionStep,
+  executionStepFromPreviewResult,
 } from "@/lib/chat-execution-steps";
 import { postChatStream } from "@/lib/chat-stream";
 import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useArtifactContext } from "@/components/app/ArtifactContext";
+import type { ChatAppScope } from "@/lib/chat-app-scope";
+import {
+  subscribePreviewApprovalResolution,
+  tryRelayPendingApprovalToPreview,
+} from "@/lib/preview-approval-relay";
+import {
+  previewExecuteResultToPending,
+  subscribePreviewExecuteResult,
+} from "@/lib/preview-execute-result";
 
 function initialChatSessionState(sessionId?: string) {
   if (!sessionId) {
@@ -83,6 +93,98 @@ export function useChatSession(sessionId?: string) {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [respondingClarification, setRespondingClarification] = useState(false);
+  const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] = useState(false);
+
+  const applyPendingTransaction = useCallback(
+    (pending: PendingTransaction | null, sessionKey?: string) => {
+      setPendingTx(pending);
+      if (!pending) {
+        setPendingTxRelayedToPreview(false);
+        return;
+      }
+      const relayed = tryRelayPendingApprovalToPreview(
+        pending,
+        sessionKey ?? activeSessionId ?? sessionId,
+      );
+      setPendingTxRelayedToPreview(relayed);
+    },
+    [activeSessionId, sessionId],
+  );
+
+  useEffect(() => {
+    return subscribePreviewApprovalResolution((message) => {
+      setPendingTx((current) => (current?.id === message.pendingId ? null : current));
+      setPendingTxRelayedToPreview(false);
+
+      if (message.status === "executed" && message.digest) {
+        setMessages((current) => {
+          const agentIndex = [...current].reverse().findIndex((m) => m.role === "agent");
+          if (agentIndex === -1) return current;
+          const index = current.length - 1 - agentIndex;
+          const messageRow = current[index];
+          if (!messageRow) return current;
+
+          const nextStep = executionStepFromPreviewResult({
+            action: "swap",
+            status: "executed",
+            digest: message.digest,
+          });
+          const executionSteps = sortExecutionSteps(
+            upsertExecutionStep(messageRow.executionSteps ?? [], nextStep),
+          );
+          const digestReceipt = receiptFromExecutionStep(nextStep);
+
+          return current.map((row, i) =>
+            i === index
+              ? {
+                  ...row,
+                  executionSteps,
+                  ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+                }
+              : row,
+          );
+        });
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    return subscribePreviewExecuteResult((message) => {
+      const pending = previewExecuteResultToPending(message);
+      if (pending) {
+        applyPendingTransaction(pending, activeSessionId ?? sessionId);
+      }
+
+      setMessages((current) => {
+        const agentIndex = [...current].reverse().findIndex((m) => m.role === "agent");
+        if (agentIndex === -1) return current;
+        const index = current.length - 1 - agentIndex;
+        const messageRow = current[index];
+        if (!messageRow) return current;
+
+        const nextStep = executionStepFromPreviewResult({
+          action: message.action,
+          status: message.status,
+          digest: message.digest,
+          message: message.message,
+        });
+        const executionSteps = sortExecutionSteps(
+          upsertExecutionStep(messageRow.executionSteps ?? [], nextStep),
+        );
+        const digestReceipt = receiptFromExecutionStep(nextStep);
+
+        return current.map((row, i) =>
+          i === index
+            ? {
+                ...row,
+                executionSteps,
+                ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+              }
+            : row,
+        );
+      });
+    });
+  }, [activeSessionId, applyPendingTransaction, sessionId]);
 
   useEffect(() => {
     if (!sessionId || boot.skipFetch) {
@@ -127,14 +229,20 @@ export function useChatSession(sessionId?: string) {
   }, [boot.skipFetch, sessionId]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, appScope?: ChatAppScope | null) => {
       if (!text.trim() || typing || streaming) return;
 
       const optimisticId = `u-${Date.now()}`;
       const liveAgentId = `a-live-${Date.now()}`;
+      const userMessage: ChatMessage = {
+        id: optimisticId,
+        role: "user",
+        text,
+        ...(appScope ? { appScope } : {}),
+      };
       setMessages((current) => [
         ...current,
-        { id: optimisticId, role: "user", text },
+        userMessage,
         {
           id: liveAgentId,
           role: "agent",
@@ -152,8 +260,12 @@ export function useChatSession(sessionId?: string) {
           {
             message: text,
             session_id: activeSessionId,
+            ...(appScope ? { app_scope: appScope } : {}),
           },
           {
+            onSession: (streamSessionId) => {
+              setActiveSessionId(streamSessionId);
+            },
             onStep: (step) => {
               if (step.id === "agent") {
                 return;
@@ -230,7 +342,7 @@ export function useChatSession(sessionId?: string) {
             ...current.filter(
               (message) => message.id !== optimisticId && message.id !== liveAgentId,
             ),
-            { id: optimisticId, role: "user", text },
+            { id: optimisticId, role: "user", text, ...(appScope ? { appScope } : {}) },
             {
               id: data.message_id,
               role: "agent",
@@ -253,7 +365,10 @@ export function useChatSession(sessionId?: string) {
           return nextMessages;
         });
 
-        setPendingTx(data.pending_transaction ?? null);
+        applyPendingTransaction(
+          data.pending_transaction ?? null,
+          data.session_id ?? sessionId ?? activeSessionId ?? undefined,
+        );
         setPendingClarification(data.pending_clarification ?? null);
 
         if (!sessionId && data.session_id && artifactSessionKey === "new") {
@@ -286,6 +401,7 @@ export function useChatSession(sessionId?: string) {
     },
     [
       activeSessionId,
+      applyPendingTransaction,
       migrateArtifactSession,
       openArtifact,
       refreshSessions,
@@ -313,7 +429,7 @@ export function useChatSession(sessionId?: string) {
       });
 
       setActiveSessionId(data.session_id);
-      setPendingTx(data.pending_transaction ?? null);
+      applyPendingTransaction(data.pending_transaction ?? null, data.session_id);
       setPendingClarification(data.pending_clarification ?? null);
       setMessages((current) => [
         ...current,
@@ -338,7 +454,7 @@ export function useChatSession(sessionId?: string) {
     } finally {
       setApproving(false);
     }
-  }, [activeSessionId, approving, openArtifact, pendingTx, refreshSessions]);
+  }, [activeSessionId, applyPendingTransaction, approving, openArtifact, pendingTx, refreshSessions]);
 
   const rejectPending = useCallback(async () => {
     if (!pendingTx || rejecting || approving) return;
@@ -354,7 +470,7 @@ export function useChatSession(sessionId?: string) {
       });
 
       setActiveSessionId(data.session_id);
-      setPendingTx(null);
+      applyPendingTransaction(null);
       setPendingClarification(data.pending_clarification ?? null);
       setMessages((current) => [
         ...current,
@@ -417,7 +533,10 @@ export function useChatSession(sessionId?: string) {
 
         setActiveSessionId(data.session_id);
         setPendingClarification(data.pending_clarification ?? null);
-        setPendingTx(data.pending_transaction ?? null);
+        applyPendingTransaction(
+          data.pending_transaction ?? null,
+          data.session_id ?? sessionId ?? activeSessionId ?? undefined,
+        );
         setMessages((current) => [
           ...current,
           { id: `u-clarify-${Date.now()}`, role: "user", text: userText },
@@ -456,6 +575,7 @@ export function useChatSession(sessionId?: string) {
     streaming,
     chatError,
     pendingTx,
+    pendingTxRelayedToPreview,
     pendingClarification,
     approving,
     rejecting,
@@ -464,7 +584,7 @@ export function useChatSession(sessionId?: string) {
     approvePending,
     rejectPending,
     respondClarification,
-    dismissPending: () => setPendingTx(null),
+    dismissPending: () => applyPendingTransaction(null),
     dismissClarification: () => setPendingClarification(null),
   };
 }

@@ -1,22 +1,27 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowUp, Check, Copy, ExternalLink, LayoutPanelLeft, Sparkles } from "lucide-react";
+import { ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles } from "lucide-react";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { AgentThinkingDots } from "@/components/app/AgentThinkingDots";
+import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
+import { ChatAgentStreamProvider } from "@/components/app/ChatAgentStreamBridge";
 import { ResizableArtifactPanel } from "@/components/app/ResizableArtifactPanel";
 import { useArtifactSession } from "@/components/app/ArtifactContext";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage, Receipt } from "@/lib/chat-messages";
 import type { ArtifactPayload } from "@/lib/artifact-types";
+import { saveStoredChatAppScope, scopeToChipLabel, type ChatAppScope } from "@/lib/chat-app-scope";
+import { requestArtifactPreviewTab } from "@/lib/artifact-preview-tab";
 import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
+const CHAT_INPUT_MAX_HEIGHT_PX = 160;
 
 function ReceiptPill({ receipt }: { receipt: Receipt }) {
   const explorerUrl =
@@ -110,6 +115,15 @@ function ArtifactViewButton({
   );
 }
 
+function UserMessageAppScopeChip({ scope }: { scope: ChatAppScope }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border-2 border-[var(--hero-ink)]/25 bg-[var(--hero-amber)]/20 px-3 py-1 text-[11px] font-bold text-[var(--hero-ink)]/75">
+      <LayoutGrid className="size-3 shrink-0" strokeWidth={2.5} />
+      <span className="truncate">{scopeToChipLabel(scope)}</span>
+    </span>
+  );
+}
+
 function Bubble({
   message,
   onViewArtifact,
@@ -156,6 +170,10 @@ function Bubble({
             <AgentMessageMarkdown text={message.text} />
           )}
         </div>
+
+        {isUser && message.appScope ? (
+          <UserMessageAppScopeChip scope={message.appScope} />
+        ) : null}
 
         {message.receipts && message.receipts.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -206,7 +224,21 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const stickToBottomRef = useRef(true);
   const animatedMessageIdsRef = useRef(new Set<string>());
   const initialBatchDoneRef = useRef(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
+
+  const resizeInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, CHAT_INPUT_MAX_HEIGHT_PX)}px`;
+  }, []);
+
+  const resetInputHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+  }, []);
 
   const {
     messages,
@@ -218,6 +250,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     streaming,
     chatError,
     pendingTx,
+    pendingTxRelayedToPreview,
     pendingClarification,
     approving,
     rejecting,
@@ -229,7 +262,14 @@ export function ChatView({ sessionId }: ChatViewProps) {
     dismissClarification,
   } = useChatSession(sessionId);
 
-  const artifactKey = sessionId ?? activeSessionId ?? "new";
+  const scopeSessionKey = sessionId ?? activeSessionId;
+  const { scope: appScope, setScope: setAppScope } = useChatAppScope(scopeSessionKey);
+
+  useEffect(() => {
+    saveStoredChatAppScope(scopeSessionKey, appScope);
+  }, [scopeSessionKey, appScope]);
+
+  const artifactKey = scopeSessionKey ?? "new";
   const {
     panelOpen,
     payload: artifactPayload,
@@ -342,16 +382,53 @@ export function ChatView({ sessionId }: ChatViewProps) {
     container.scrollTop = container.scrollHeight;
   }, [hydrating, messages, pendingTx, typing, streaming]);
 
-  const send = (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    resizeInput();
+  }, [input, resizeInput]);
+
+  const inputDisabled =
+    Boolean(loadError) ||
+    Boolean(pendingTx) ||
+    Boolean(pendingClarification);
+  const canSend =
+    Boolean(input.trim()) &&
+    !typing &&
+    !streaming &&
+    !inputDisabled;
+
+  const send = (e?: React.FormEvent) => {
+    e?.preventDefault();
     const text = input.trim();
     if (!text || typing || streaming) return;
     stickToBottomRef.current = true;
     setInput("");
-    void sendMessage(text);
+    resetInputHeight();
+
+    if (appScope) {
+      requestArtifactPreviewTab();
+      const payload =
+        artifactPayload ??
+        [...messages].reverse().find((message) => message.artifact)?.artifact;
+      if (payload) {
+        if (artifactPayload) {
+          updateArtifact(artifactPayload, { open: true });
+        } else {
+          openArtifact(payload);
+        }
+      }
+    }
+
+    const scopeForSend = appScope;
+    if (scopeForSend) {
+      setAppScope(null);
+      saveStoredChatAppScope(scopeSessionKey, null);
+    }
+
+    void sendMessage(text, scopeForSend);
   };
 
   return (
+    <ChatAgentStreamProvider sessionId={scopeSessionKey ?? undefined}>
     <div className="flex h-full min-h-0 overflow-hidden">
       <div
         ref={ref}
@@ -435,7 +512,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
           />
         ) : null}
 
-        {pendingTx ? (
+        {pendingTx && !pendingTxRelayedToPreview ? (
           <TransactionApprovalBar
             className={`${chatColumnClass} mb-3`}
             pending={pendingTx}
@@ -447,30 +524,41 @@ export function ChatView({ sessionId }: ChatViewProps) {
 
         <form onSubmit={send}>
           <div
-            className={`${chatColumnClass} flex items-center gap-3 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] py-1.5 pl-6 pr-1.5 shadow-[3px_3px_0_var(--hero-ink)]`}
+            className={`${chatColumnClass} flex min-h-[4.5rem] flex-col gap-2 rounded-3xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 pb-3 pt-4 shadow-[3px_3px_0_var(--hero-ink)]`}
           >
-            <input
+            <textarea
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (canSend) send();
+                }
+              }}
               placeholder="Tell your agent what you want…"
-              className="flex-1 bg-transparent text-sm font-semibold placeholder:text-[var(--hero-ink)]/35 focus:outline-none"
-              disabled={Boolean(loadError)}
+              rows={1}
+              className="max-h-40 min-h-6 w-full resize-none overflow-y-auto bg-transparent text-sm font-semibold leading-5 placeholder:text-[var(--hero-ink)]/35 focus:outline-none"
+              disabled={inputDisabled}
             />
-            <button
-              type="submit"
-              aria-label="Send"
-              className="flex size-10 items-center justify-center rounded-full bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
-              disabled={
-                !input.trim() ||
-                typing ||
-                streaming ||
-                Boolean(loadError) ||
-                Boolean(pendingTx) ||
-                Boolean(pendingClarification)
-              }
-            >
-              <ArrowUp className="size-5" strokeWidth={2.5} />
-            </button>
+            <div className="flex items-center justify-between gap-2">
+              <ChatAppScopePicker
+                sessionId={scopeSessionKey}
+                input={input}
+                onInputChange={setInput}
+                scope={appScope}
+                onScopeChange={setAppScope}
+                disabled={inputDisabled}
+              />
+              <button
+                type="submit"
+                aria-label="Send"
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
+                disabled={!canSend}
+              >
+                <ArrowUp className="size-5" strokeWidth={2.5} />
+              </button>
+            </div>
           </div>
           <p
             className={`${chatColumnClass} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
@@ -494,5 +582,6 @@ export function ChatView({ sessionId }: ChatViewProps) {
         />
       ) : null}
     </div>
+    </ChatAgentStreamProvider>
   );
 }

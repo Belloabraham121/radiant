@@ -100,6 +100,9 @@ describe("generateAppForUser", () => {
     assert.equal(first.revision, 0);
     assert.ok(first.artifact.files.some((f) => f.path === "app/page.tsx"));
     assert.ok(first.artifact.files.some((f) => f.path === "lib/radiant-client.ts"));
+    const radiantClient = first.artifact.files.find((f) => f.path === "lib/radiant-client.ts");
+    assert.ok(radiantClient);
+    assert.match(radiantClient!.content, /export async function executeSwap/);
     assert.deepEqual(first.artifact, {
       project_id: PREVIEW_PROJECT_ID,
       name: "Counter",
@@ -127,6 +130,15 @@ describe("generateAppForUser", () => {
     assert.ok(project);
     assert.equal(project.session_id, session.id);
     assert.equal(project.artifact_revision, 0);
+    assert.ok(project.action_schema);
+    const actionSchema = project.action_schema as {
+      schema_version: number;
+      protocol: string;
+      actions: Array<{ name: string }>;
+    };
+    assert.equal(actionSchema.schema_version, 1);
+    assert.equal(actionSchema.protocol, "deepbook");
+    assert.ok(actionSchema.actions.some((action) => action.name === "swap"));
 
     const files = await listArtifactFiles(saved.project_id, 0);
     assert.ok(files.length >= 4);

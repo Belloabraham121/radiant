@@ -13,6 +13,12 @@ export const APP_CATEGORIES = [
 
 export type AppCategory = (typeof APP_CATEGORIES)[number];
 
+export type PublicAppActionSummary = {
+  name: string;
+  description: string;
+  category: string;
+};
+
 export type PublicAppListing = {
   id: string;
   name: string;
@@ -26,6 +32,7 @@ export type PublicAppListing = {
   creator: string;
   published_at: string;
   artifact_revision: number;
+  available_actions: PublicAppActionSummary[];
 };
 
 export type PublicAppsCatalog = {

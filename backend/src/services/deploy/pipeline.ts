@@ -90,6 +90,7 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
 
     const artifactFiles = ensureAppEntry(
       rawArtifactFiles.map((file) => ({ path: file.path, content: file.content })),
+      { template: project.template },
     ).map((file) => ({ path: file.path, content: file.content }));
 
     if (providerName === "none") {

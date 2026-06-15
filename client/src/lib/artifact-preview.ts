@@ -1,5 +1,13 @@
 import type { ArtifactFile } from "@/lib/artifact-types";
 import {
+  PREVIEW_API_REQUEST,
+  PREVIEW_API_RESPONSE,
+  PREVIEW_MESSAGE_TYPE,
+  PREVIEW_NAVIGATE_TYPE,
+  PREVIEW_TX_APPROVAL_REQUEST,
+  RADIANT_AGENT_EVENT_TYPE,
+} from "@/lib/artifact-preview-bridge";
+import {
   buildModuleSourceMap,
   normalizeArtifactPath,
   pickAppModulePath,
@@ -32,15 +40,166 @@ export function prepareAppSourceForPreview(source: string): string {
 
 export type ArtifactPreviewOptions = {
   projectId?: string;
+  installationId?: string;
+  sessionId?: string;
 };
 
-function prepareModuleMap(files: ArtifactFile[]): Record<string, string> {
+function prepareModuleMap(
+  files: ArtifactFile[],
+  options: ArtifactPreviewOptions = {},
+): Record<string, string> {
   const raw = buildModuleSourceMap(files);
   const prepared: Record<string, string> = {};
   for (const [path, source] of Object.entries(raw)) {
-    prepared[path] = prepareAppSourceForPreview(source);
+    let next = prepareAppSourceForPreview(source);
+    if (path === "lib/radiant-client.ts") {
+      next = patchRadiantClientForPreview(next);
+    }
+    prepared[path] = next;
   }
   return prepared;
+}
+
+/** Patch platform client for chat preview iframe (no Node process, session-scoped APIs). */
+export function patchRadiantClientForPreview(source: string): string {
+  let next = source;
+
+  if (next.includes("process.env") && !next.includes("function readPublicEnv")) {
+    next = next.replace(
+      "declare global {",
+      `function readPublicEnv(key: string): string {
+  try {
+    if (typeof process !== "undefined" && process.env && typeof process.env[key] === "string") {
+      return process.env[key] as string;
+    }
+  } catch {
+    // Preview iframe has no Node process global.
+  }
+  return "";
+}
+
+declare global {`,
+    );
+    next = next.replace(
+      /return process\.env\.([A-Z0-9_]+)\s*\?\?\s*"";/g,
+      'return readPublicEnv("$1");',
+    );
+  }
+
+  if (!next.includes("__RADIANT_SESSION_ID__")) {
+    next = patchRadiantClientForSessionPreview(next);
+  }
+
+  return next;
+}
+
+/** Legacy v4 client in chat drafts — patch session API paths without an async template fetch. */
+export function patchRadiantClientForSessionPreview(source: string): string {
+  if (source.includes("__RADIANT_SESSION_ID__")) {
+    return source;
+  }
+
+  let next = source.replace(
+    "__RADIANT_INSTALLATION_ID__?: string;",
+    "__RADIANT_INSTALLATION_ID__?: string;\n    __RADIANT_SESSION_ID__?: string;",
+  );
+
+  if (!next.includes("function sessionId()")) {
+    next = next.replace(
+      `function installationId(): string {
+  if (typeof window !== "undefined" && window.__RADIANT_INSTALLATION_ID__) {
+    return window.__RADIANT_INSTALLATION_ID__;
+  }
+  return process.env.NEXT_PUBLIC_RADIANT_INSTALLATION_ID ?? "";
+}
+
+function scopeIds(): { projectId: string; installationId: string | null } {`,
+      `function installationId(): string {
+  if (typeof window !== "undefined" && window.__RADIANT_INSTALLATION_ID__) {
+    return window.__RADIANT_INSTALLATION_ID__;
+  }
+  return process.env.NEXT_PUBLIC_RADIANT_INSTALLATION_ID ?? "";
+}
+
+function sessionId(): string {
+  if (typeof window !== "undefined" && window.__RADIANT_SESSION_ID__) {
+    return window.__RADIANT_SESSION_ID__;
+  }
+  return process.env.NEXT_PUBLIC_RADIANT_SESSION_ID ?? "";
+}
+
+function scopeIds(): {
+  projectId: string;
+  installationId: string | null;
+  sessionId: string;
+} {`,
+    );
+  }
+
+  if (!next.includes("const session = sessionId()")) {
+    next = next.replace(
+      `  const install = installationId();
+  const project = projectId();`,
+      `  const install = installationId();
+  const project = projectId();
+  const session = sessionId();`,
+    );
+  }
+
+  next = next.replace(
+    `    return { projectId: project, installationId: install };`,
+    `    return { projectId: project, installationId: install, sessionId: session };`,
+  );
+
+  next = next.replace(
+    `  if (!project) {
+    throw new Error("Missing Radiant project id");
+  }
+  return { projectId: project, installationId: null };`,
+    `  if (project) {
+    return { projectId: project, installationId: null, sessionId: session };
+  }
+  if (session) {
+    return { projectId: "", installationId: null, sessionId: session };
+  }
+  throw new Error("Missing Radiant project or session id");`,
+  );
+
+  next = next.replace(
+    `function projectApiPrefix(): string {
+  const { projectId: id } = scopeIds();
+  return "/api/v1/projects/" + id;
+}`,
+    `function projectApiPrefix(): string {
+  const { projectId: id, sessionId: sid } = scopeIds();
+  if (sid && !id) {
+    return "/api/v1/chat/sessions/" + sid;
+  }
+  return "/api/v1/projects/" + id;
+}`,
+  );
+
+  next = next.replace(
+    `function actionApiPath(action: string): string {
+  const { projectId: id, installationId: install } = scopeIds();
+  if (install) {
+    return "/api/v1/installations/" + install + "/actions/" + action;
+  }
+  return "/api/v1/projects/" + id + "/actions/" + action;
+}`,
+    `function actionApiPath(action: string): string {
+  const { projectId: id, installationId: install, sessionId: sid } = scopeIds();
+  if (install) {
+    return "/api/v1/installations/" + install + "/actions/" + action;
+  }
+  if (sid && !id) {
+    return "/api/v1/chat/sessions/" + sid + "/actions/" + action;
+  }
+  return "/api/v1/projects/" + id + "/actions/" + action;
+}`,
+  );
+
+  return next;
 }
 
 /** Client-side preview HTML — no E2B. Uses CDN React + Babel in iframe srcdoc. */
@@ -49,12 +208,14 @@ export function buildArtifactPreviewSrcdoc(
   options: ArtifactPreviewOptions = {},
 ): string {
   const entry = pickAppModulePath(files);
-  const modules = prepareModuleMap(files);
+  const modules = prepareModuleMap(files, options);
   const css = escapeStyleClose(collectCss(files));
   const payload = JSON.stringify({
     entry,
     modules,
     projectId: options.projectId ?? "",
+    installationId: options.installationId ?? "",
+    sessionId: options.sessionId ?? "",
   });
 
   return `<!DOCTYPE html>
@@ -104,6 +265,9 @@ ${css}
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"><\/script>
 <script>
 (function () {
+  if (typeof process === "undefined") {
+    window.process = { env: {} };
+  }
   const payload = ${payload};
   const errEl = document.getElementById("error");
   const SOURCE_EXTS = [".tsx", ".ts", ".jsx", ".js"];
@@ -111,12 +275,37 @@ ${css}
   if (payload.projectId) {
     window.__RADIANT_PROJECT_ID__ = payload.projectId;
   }
+  if (payload.installationId) {
+    window.__RADIANT_INSTALLATION_ID__ = payload.installationId;
+  }
+  if (payload.sessionId) {
+    window.__RADIANT_SESSION_ID__ = payload.sessionId;
+  }
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.type !== "${RADIANT_AGENT_EVENT_TYPE}") return;
+    if (typeof window.__radiantAgent?.handleExternalEvent === "function") {
+      window.__radiantAgent.handleExternalEvent(data);
+    }
+  });
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (!data || data.type !== "${PREVIEW_TX_APPROVAL_REQUEST}") return;
+    if (typeof window.__radiantAgent?.handleExternalEvent === "function") {
+      window.__radiantAgent.handleExternalEvent({
+        type: "${RADIANT_AGENT_EVENT_TYPE}",
+        step: "approval_required",
+        action: data.action,
+        pending: data.pending,
+      });
+    }
+  });
   window.__RADIANT_PREVIEW_FETCH__ = function(path, init) {
     return new Promise(function(resolve, reject) {
       var requestId = "preview-" + Math.random().toString(36).slice(2);
       function onMessage(event) {
         var data = event.data;
-        if (!data || data.type !== "radiant-preview-api-response" || data.requestId !== requestId) return;
+        if (!data || data.type !== "${PREVIEW_API_RESPONSE}" || data.requestId !== requestId) return;
         window.removeEventListener("message", onMessage);
         if (data.error) {
           reject(new Error(data.error));
@@ -129,7 +318,7 @@ ${css}
       }
       window.addEventListener("message", onMessage);
       window.parent.postMessage({
-        type: "radiant-preview-api",
+        type: "${PREVIEW_API_REQUEST}",
         requestId: requestId,
         path: path,
         method: (init && init.method) || "GET",
@@ -292,6 +481,7 @@ ${css}
     return path;
   }
   function resolveRelativeImport(fromPath, request) {
+    var MODULE_ROOTS = ["app/", "components/", "lib/", "src/"];
     var baseDir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/")) : "";
     var joined;
     if (request.indexOf("./") === 0) {
@@ -308,12 +498,22 @@ ${css}
     } else if (request.indexOf("/") === 0) {
       joined = request.slice(1);
     } else {
-      return null;
+      var isBareLocal = false;
+      for (var ri = 0; ri < MODULE_ROOTS.length; ri++) {
+        if (request.indexOf(MODULE_ROOTS[ri]) === 0 || request === MODULE_ROOTS[ri].slice(0, -1)) {
+          isBareLocal = true;
+          break;
+        }
+      }
+      if (!isBareLocal) return null;
+      joined = request;
     }
     var candidates = [joined];
     for (var j = 0; j < SOURCE_EXTS.length; j++) {
       candidates.push(stripExt(joined) + SOURCE_EXTS[j]);
     }
+    candidates.push(joined + "/index.tsx");
+    candidates.push(joined + "/index.ts");
     for (var k = 0; k < candidates.length; k++) {
       if (payload.modules[candidates[k]]) return candidates[k];
     }
@@ -368,9 +568,11 @@ ${css}
       if (request.endsWith(".css") || request.endsWith(".scss")) return {};
       var resolved = resolveRelativeImport(moduleId, request);
       if (!resolved) {
-        throw new Error(
-          "Preview cannot load module: " + request + " (from " + moduleId + "). Use app/, components/, or lib/ paths and react / react-dom / react-router-dom only for npm.",
-        );
+        var isRelative = request.indexOf("./") === 0 || request.indexOf("../") === 0 || request.indexOf("/") === 0;
+        var msg = isRelative
+          ? "Preview: file not found: " + request + " (imported from " + moduleId + "). The component file is missing from the generated app — ask the agent to regenerate and include all component files."
+          : "Preview cannot load module: " + request + " (from " + moduleId + "). Use app/, components/, or lib/ paths for local files, and react / react-dom / react-router-dom only for npm.";
+        throw new Error(msg);
       }
       return loadModule(resolved);
     }
@@ -387,6 +589,14 @@ ${css}
 
   try {
     npmRegistry = createNpmRegistry();
+    // Next.js layout.tsx is not executed in chat preview — bootstrap platform libs first.
+    var platformBoot = ["lib/radiant-client.ts", "lib/radiant-agent-runtime.ts"];
+    for (var bi = 0; bi < platformBoot.length; bi++) {
+      var bootId = platformBoot[bi];
+      if (payload.modules[bootId]) {
+        loadModule(bootId);
+      }
+    }
     var entryExports = loadModule(payload.entry);
     var App = entryExports.default || entryExports;
     if (typeof App !== "function") {

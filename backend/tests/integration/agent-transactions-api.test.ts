@@ -48,6 +48,22 @@ describe("agent transactions API", () => {
     assert.equal(response.status, 401);
   });
 
+  it("returns 401 for POST /api/v1/agent/transactions/:id/approve without privy-token cookie", async () => {
+    const response = await fetch(
+      `${baseUrl}/api/v1/agent/transactions/00000000-0000-4000-8000-000000000099/approve`,
+      { method: "POST" },
+    );
+    assert.equal(response.status, 401);
+  });
+
+  it("returns 401 for POST /api/v1/agent/transactions/:id/reject without privy-token cookie", async () => {
+    const response = await fetch(
+      `${baseUrl}/api/v1/agent/transactions/00000000-0000-4000-8000-000000000099/reject`,
+      { method: "POST" },
+    );
+    assert.equal(response.status, 401);
+  });
+
   it("returns 401 for GET /api/v1/chat/sessions/:sessionId/transactions without privy-token cookie", async () => {
     const response = await fetch(
       `${baseUrl}/api/v1/chat/sessions/00000000-0000-4000-8000-000000000099/transactions`,

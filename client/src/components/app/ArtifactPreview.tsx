@@ -1,15 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { ArtifactPreviewNavBar } from "@/components/app/ArtifactPreviewNavBar";
 import { buildArtifactPreviewSrcdoc } from "@/lib/artifact-preview";
 import { extractArtifactPreviewRoutes } from "@/lib/artifact-preview-routes";
 import type { ArtifactFile } from "@/lib/artifact-types";
+import {
+  PREVIEW_API_REQUEST,
+  PREVIEW_MESSAGE_TYPE,
+  PREVIEW_NAVIGATE_TYPE,
+  proxyPreviewApiRequest,
+} from "@/lib/artifact-preview-bridge";
 
-const PREVIEW_MESSAGE_TYPE = "radiant-artifact-preview";
-const PREVIEW_NAVIGATE_TYPE = "radiant-artifact-preview-navigate";
-const PREVIEW_API_REQUEST = "radiant-preview-api";
-const PREVIEW_API_RESPONSE = "radiant-preview-api-response";
+const PREVIEW_LOAD_TIMEOUT_MS = 20_000;
 
 function PreviewLoadingOverlay() {
   return (
@@ -39,39 +49,90 @@ function PreviewLoadingOverlay() {
   );
 }
 
+function hashSrcdoc(srcdoc: string): string {
+  let hash = 0;
+  for (let index = 0; index < srcdoc.length; index += 1) {
+    hash = (hash * 31 + srcdoc.charCodeAt(index)) | 0;
+  }
+  return String(hash);
+}
+
 export function ArtifactPreview({
   files,
   revision,
+  streaming = false,
   projectId,
   installationId,
+  sessionId,
+  iframeRef: externalIframeRef,
+  onProxiedApiResponse,
 }: {
   files: ArtifactFile[];
   revision: number;
+  streaming?: boolean;
   projectId?: string;
   installationId?: string;
+  sessionId?: string;
+  iframeRef?: RefObject<HTMLIFrameElement | null>;
+  onProxiedApiResponse?: (status: number, body: string, path: string) => void;
 }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const internalIframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeRef = externalIframeRef ?? internalIframeRef;
   const previewPathRef = useRef("/");
-  const [loading, setLoading] = useState(true);
   const [previewPath, setPreviewPath] = useState("/");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [loadedSrcdocHash, setLoadedSrcdocHash] = useState<string | null>(null);
+  const deferredFiles = useDeferredValue(files);
+  const renderFiles = streaming ? deferredFiles : files;
   const routes = useMemo(() => extractArtifactPreviewRoutes(files), [files]);
+
   const srcdoc = useMemo(
-    () => buildArtifactPreviewSrcdoc(files, { projectId }),
-    [files, projectId, revision, refreshKey],
+    () => buildArtifactPreviewSrcdoc(renderFiles, { projectId, installationId, sessionId }),
+    [renderFiles, projectId, installationId, sessionId],
   );
 
-  previewPathRef.current = previewPath;
+  const srcdocHash = useMemo(() => hashSrcdoc(srcdoc), [srcdoc]);
+  const iframeKey = `${revision}-${refreshKey}`;
+  const loading = loadedSrcdocHash !== srcdocHash;
 
-  const postNavigate = useCallback((path: string) => {
-    const win = iframeRef.current?.contentWindow;
-    if (!win) return;
-    win.postMessage({ type: PREVIEW_NAVIGATE_TYPE, path }, "*");
-  }, []);
+  const bridgeRef = useRef({
+    projectId,
+    installationId,
+    sessionId,
+    onProxiedApiResponse,
+    srcdocHash,
+  });
 
   useEffect(() => {
-    setLoading(true);
-  }, [srcdoc]);
+    bridgeRef.current = {
+      projectId,
+      installationId,
+      sessionId,
+      onProxiedApiResponse,
+      srcdocHash,
+    };
+  }, [projectId, installationId, sessionId, onProxiedApiResponse, srcdocHash]);
+
+  useEffect(() => {
+    previewPathRef.current = previewPath;
+  }, [previewPath]);
+
+  function navigatePreview(path: string) {
+    iframeRef.current?.contentWindow?.postMessage({ type: PREVIEW_NAVIGATE_TYPE, path }, "*");
+  }
+
+  function markPreviewLoaded() {
+    setLoadedSrcdocHash(bridgeRef.current.srcdocHash);
+    navigatePreview(previewPathRef.current);
+  }
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => {
+      setLoadedSrcdocHash(bridgeRef.current.srcdocHash);
+    }, PREVIEW_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [loading, srcdocHash]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -84,50 +145,36 @@ export function ArtifactPreview({
         body?: string;
       } | null;
 
+      if (event.source !== iframeRef.current?.contentWindow) return;
+
       if (data?.type === PREVIEW_API_REQUEST) {
-        if (event.source !== iframeRef.current?.contentWindow) return;
+        const bridge = bridgeRef.current;
         void (async () => {
-          try {
-            let path = data.path ?? "";
-            if (installationId && projectId) {
-              const projectPrefix = `/api/v1/projects/${projectId}/`;
-              const installationPrefix = `/api/v1/installations/${installationId}/`;
-              if (path.startsWith(projectPrefix)) {
-                path = installationPrefix + path.slice(projectPrefix.length);
-              }
-            }
-            const res = await fetch(path, {
-              method: data.method ?? "GET",
+          const { response, path } = await proxyPreviewApiRequest(
+            {
+              type: PREVIEW_API_REQUEST,
+              requestId: data.requestId ?? "",
+              path: data.path ?? "",
+              method: data.method,
               body: data.body,
-              credentials: "include",
-              headers: data.body ? { "Content-Type": "application/json" } : undefined,
-            });
-            const text = await res.text();
-            iframeRef.current?.contentWindow?.postMessage(
-              {
-                type: PREVIEW_API_RESPONSE,
-                requestId: data.requestId,
-                status: res.status,
-                body: text,
-              },
-              "*",
-            );
-          } catch (err) {
-            iframeRef.current?.contentWindow?.postMessage(
-              {
-                type: PREVIEW_API_RESPONSE,
-                requestId: data.requestId,
-                error: err instanceof Error ? err.message : "Request failed",
-              },
-              "*",
-            );
+            },
+            {
+              projectId: bridge.projectId,
+              installationId: bridge.installationId,
+              sessionId: bridge.sessionId,
+            },
+          );
+
+          if (response.body && response.status != null) {
+            bridge.onProxiedApiResponse?.(response.status, response.body, path);
           }
+
+          iframeRef.current?.contentWindow?.postMessage(response, "*");
         })();
         return;
       }
 
       if (data?.type !== PREVIEW_MESSAGE_TYPE) return;
-      if (event.source !== iframeRef.current?.contentWindow) return;
 
       if (data.status === "path" && data.path) {
         setPreviewPath(data.path);
@@ -135,23 +182,30 @@ export function ArtifactPreview({
       }
 
       if (data.status === "ready" || data.status === "error") {
-        setLoading(false);
-        postNavigate(previewPathRef.current);
+        setLoadedSrcdocHash(bridgeRef.current.srcdocHash);
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: PREVIEW_NAVIGATE_TYPE, path: previewPathRef.current },
+          "*",
+        );
       }
     }
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [postNavigate, installationId, projectId]);
+  }, [iframeRef]);
 
   function handlePathChange(path: string) {
     setPreviewPath(path);
-    postNavigate(path);
+    navigatePreview(path);
   }
 
   function handleRefresh() {
-    setLoading(true);
     setRefreshKey((key) => key + 1);
+    setLoadedSrcdocHash(null);
+  }
+
+  function handleIframeLoad() {
+    markPreviewLoaded();
   }
 
   return (
@@ -167,10 +221,11 @@ export function ArtifactPreview({
         {loading ? <PreviewLoadingOverlay /> : null}
         <iframe
           ref={iframeRef}
-          key={`${revision}-${refreshKey}`}
+          key={iframeKey}
           title="App preview"
-          sandbox="allow-scripts"
+          sandbox="allow-scripts allow-same-origin"
           srcDoc={srcdoc}
+          onLoad={handleIframeLoad}
           className={`h-full w-full border-0 bg-[var(--hero-bg)] transition-opacity duration-300 ${
             loading ? "opacity-0" : "opacity-100"
           }`}

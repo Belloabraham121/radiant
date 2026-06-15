@@ -7,6 +7,7 @@ Claude-style **artifacts in chat**, **Radiant-only personal apps** (no external 
 **References**
 
 - [App builder platform TODO](./app-builder-platform-TODO.md) — master roadmap (Radiant-only runtime, Option B storage, explorer install)
+- [Agent app actions TODO](./agent-app-actions-TODO.md) — UI + chat execute via agent wallet, live SSE, protocol extension
 - [README — Deploy pipeline](../README.md#deploy-pipeline)
 - [E2B Billing & Plans (Hobby = free tier)](https://e2b.mintlify.app/docs/billing#plans)
 - [E2B Filesystem — 10 GB Hobby disk](https://e2b.mintlify.app/docs/filesystem)

@@ -30,11 +30,13 @@ import {
   agentTransactionCategorySchema,
   agentTransactionStatusSchema,
 } from "../agent-transaction/agent-transaction.types.js";
+import { pinnedAppScopeSchema } from "../projects/pinned-app-scope.types.js";
 
 export const chatRequestSchema = z
   .object({
     message: z.string().max(8000).optional().default(""),
     session_id: z.string().uuid().optional(),
+    app_scope: pinnedAppScopeSchema.optional(),
     approve_transaction_id: z.string().uuid().optional(),
     reject_transaction_id: z.string().uuid().optional(),
     clarification_id: z.string().uuid().optional(),
@@ -141,6 +143,8 @@ const queryChainInputObjectSchema = z.object({
     "deepbook_volume",
     "deepbook_ohlcv",
     "agent_transactions",
+    "project_actions",
+    "session_actions",
   ]),
   params: z
     .object({
@@ -177,6 +181,8 @@ const queryChainInputObjectSchema = z.object({
       category: agentTransactionCategorySchema.optional(),
       session_id: z.string().uuid().optional(),
       transaction_id: z.string().uuid().optional(),
+      project_id: z.string().uuid().optional(),
+      app_name: z.string().min(1).optional(),
     })
     .passthrough()
     .optional()
@@ -241,6 +247,18 @@ export const queryChainInputSchema = z.preprocess((input) => {
       params.borrow_amount = params.amount;
     }
     delete params.amount;
+  }
+
+  const projectId = params.project_id;
+  if (typeof projectId === "string" && projectId.trim()) {
+    const uuidRe =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(projectId.trim())) {
+      if (typeof params.app_name !== "string" || !params.app_name.trim()) {
+        params.app_name = projectId.trim();
+      }
+      delete params.project_id;
+    }
   }
 
   return { ...record, params };

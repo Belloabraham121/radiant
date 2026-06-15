@@ -29,6 +29,11 @@ import {
 import { queryAgentTransactions } from "../agent-transaction/agent-transaction.service.js";
 import { getWalletAssetsForPrivyUser } from "../wallet/wallet-assets.service.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
+import { findUserByPrivyId } from "../auth/user.repository.js";
+import { findProjectByIdForUser } from "../projects/project.repository.js";
+import { buildProjectActionsCatalogResponse } from "../projects/app-action-schema.service.js";
+import { listAppActionsCatalogForSession } from "../projects/app-action-catalog.service.js";
+import { resolveAppScope } from "../projects/app-scope-resolver.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -83,9 +88,11 @@ export const queryChainToolDefinition = {
           "deepbook_volume",
           "deepbook_ohlcv",
           "agent_transactions",
+          "project_actions",
+          "session_actions",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, or agent_transactions.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, or session_actions.",
       },
       params: {
         type: "object",
@@ -105,6 +112,8 @@ export const queryChainToolDefinition = {
           "May also pass input_coin/from + output_coin/to instead of side for swap_quote. " +
           "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
           "returns recent agent wallet activity; response includes summary (date, amount, status, digest) to quote in chat. " +
+          "project_actions: { project_id } OR { app_name } — saved project action schema. Never pass an app name as project_id. " +
+          "session_actions: optional { app_name } — chat draft artifact action schema (unsaved preview). Uses current chat session. " +
           "EVM balances: { evm_chain_id }.",
         additionalProperties: true,
       },
@@ -117,7 +126,7 @@ export const queryChainToolDefinition = {
 export async function runQueryChainTool(
   privyUserId: string,
   input: QueryChainInput,
-  options?: Pick<AgentToolOptions, "flashLoanTurnIntent">,
+  options?: Pick<AgentToolOptions, "flashLoanTurnIntent" | "sessionId">,
 ): Promise<QueryChainResult> {
   const parsed = queryChainInputSchema.parse(input);
   const wallet = await resolveAgentWalletByPrivyUserId(
@@ -246,6 +255,57 @@ export async function runQueryChainTool(
         sessionId: parsed.params.session_id,
         transactionId: parsed.params.transaction_id,
       });
+    }
+    case "project_actions":
+    case "session_actions": {
+      const useSession = parsed.query === "session_actions";
+      const projectId = parsed.params.project_id;
+      const appName = parsed.params.app_name;
+
+      if (!useSession && projectId) {
+        const user = await findUserByPrivyId(privyUserId);
+        if (!user) {
+          throw new AppError(404, "USER_NOT_FOUND", "User not found");
+        }
+
+        const project = await findProjectByIdForUser(projectId, user.id);
+        if (!project) {
+          throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+        }
+
+        return buildProjectActionsCatalogResponse(project);
+      }
+
+      if (!options?.sessionId) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          useSession
+            ? "session_actions requires an active chat session."
+            : "project_actions requires params.project_id (UUID) or params.app_name with a chat session.",
+        );
+      }
+
+      const scope = await resolveAppScope(privyUserId, options.sessionId, {
+        project_id: useSession ? undefined : projectId,
+        app_name: appName,
+        use_session_draft: useSession || (!projectId && !appName),
+      });
+
+      if (scope.kind === "project") {
+        const user = await findUserByPrivyId(privyUserId);
+        if (!user) {
+          throw new AppError(404, "USER_NOT_FOUND", "User not found");
+        }
+        const project = await findProjectByIdForUser(scope.project_id, user.id);
+        if (!project) {
+          throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+        }
+        return buildProjectActionsCatalogResponse(project);
+      }
+
+      const catalog = await listAppActionsCatalogForSession(privyUserId, scope.session_id);
+      return catalog;
     }
     default:
       throw new AppError(

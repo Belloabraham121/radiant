@@ -1,7 +1,5 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
-import {
-  classifyWorkflowSegment,
-} from "./workflow-parser.js";
+import { classifyWorkflowSegment, messageHasBuildAppIntent } from "./workflow-parser.js";
 import type {
   PlannerOutput,
   PlannedStep,
@@ -143,12 +141,27 @@ function workflowStepToPlanned(
     };
   }
 
+  if (step.kind === "app_action") {
+    return {
+      action: step.action as PlannedStep["action"],
+      label: step.label,
+      params: step.params as Record<string, PlanSlot | string | number | boolean>,
+      ...(step.project_id ? { project_id: step.project_id } : {}),
+      ...(step.installation_id ? { installation_id: step.installation_id } : {}),
+      ...(step.app_name ? { app_name: step.app_name } : {}),
+    };
+  }
+
   return null;
 }
 
 export function looksLikeWorkflowMessage(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed) return false;
+
+  if (messageHasBuildAppIntent(trimmed)) {
+    return false;
+  }
 
   const actionPattern =
     /\b(swap|deposit|withdraw|with\s*all|transfer|send|order|buy|sell|cancel|place|click|comot|put)\b/gi;

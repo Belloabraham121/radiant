@@ -16,6 +16,17 @@ export const generateAppInputSchema = z.object({
 
 export type GenerateAppInput = z.infer<typeof generateAppInputSchema>;
 
+export type AppTemplate = GenerateAppInput["template"];
+
+const APP_TEMPLATES: readonly AppTemplate[] = ["custom", "escrow", "swap", "prediction"];
+
+/** Coerce DB / draft template strings into the generate_app enum. */
+export function coerceAppTemplate(value: string): AppTemplate {
+  return (APP_TEMPLATES as readonly string[]).includes(value)
+    ? (value as AppTemplate)
+    : "custom";
+}
+
 export type ArtifactPayload = {
   project_id: string;
   name: string;

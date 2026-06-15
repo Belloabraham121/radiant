@@ -1,4 +1,5 @@
-import type { Prisma, Project, ProjectStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import type { Project, ProjectStatus } from "@prisma/client";
 import { prisma } from "../../infrastructure/postgres/client.js";
 
 export async function createProject(data: {
@@ -136,5 +137,16 @@ export async function setProjectStatus(projectId: string, status: ProjectStatus)
   return prisma.project.update({
     where: { id: projectId },
     data: { status },
+  });
+}
+
+/** Persist or clear the per-project app action schema (JSONB). */
+export async function setProjectActionSchema(
+  projectId: string,
+  actionSchema: Prisma.InputJsonValue | typeof Prisma.DbNull,
+): Promise<Project> {
+  return prisma.project.update({
+    where: { id: projectId },
+    data: { action_schema: actionSchema } as Prisma.ProjectUpdateInput,
   });
 }

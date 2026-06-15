@@ -16,9 +16,16 @@ Backend API and environment checklist. Implementation lives under `src/`.
 | `GET` | `/api/v1/chat/sessions` | List chat threads for the authenticated user |
 | `POST` | `/api/v1/chat/sessions` | Create a new chat thread |
 | `GET` | `/api/v1/chat/sessions/:sessionId/messages` | Load messages for a thread (404 if not owned) |
+| `GET` | `/api/v1/chat/sessions/:sessionId/agent-stream` | SSE live agent events for preview animation (404 if not owned) |
 | `GET` | `/api/v1/chat/sessions/:sessionId/transactions` | Agent transaction history for a thread (404 if not owned) |
 | `GET` | `/api/v1/agent/transactions` | Paginated agent wallet activity for the authenticated user |
 | `GET` | `/api/v1/agent/transactions/:id` | Single transaction detail (params, result, explorer URL) |
+| `POST` | `/api/v1/agent/transactions/:id/approve` | Approve a pending agent transaction (UI / app actions) |
+| `POST` | `/api/v1/agent/transactions/:id/reject` | Reject a pending agent transaction |
+| `GET` | `/api/v1/projects/:projectId/actions` | Supported app actions + param field docs for a saved project |
+| `POST` | `/api/v1/projects/:projectId/actions/:actionName` | Execute action via agent wallet (`swap`, `flash_loan`, …) |
+| `GET` | `/api/v1/installations/:installationId/actions` | Supported app actions for an installed app |
+| `POST` | `/api/v1/installations/:installationId/actions/:actionName` | Execute action on an installed app (installer's agent wallet) |
 | `POST` | `/api/v1/build` | Preview app build without deploying |
 | `POST` | `/api/v1/deploy` | Full deploy pipeline (E2B + Walrus + registry) |
 | `GET` | `/api/v1/apps` | Public marketplace listings |
@@ -105,6 +112,33 @@ Large transfers return `pending_transaction` instead of broadcasting immediately
 ```
 
 Auto-approve thresholds (env): `AGENT_AUTO_APPROVE_MAX_SUI` (default 25), `AGENT_AUTO_APPROVE_MAX_ETH`, `AGENT_AUTO_APPROVE_MAX_SOL`.
+
+### Live agent stream (SSE)
+
+**`GET /api/v1/chat/sessions/:sessionId/agent-stream`** — requires cookie. Opens a long-lived SSE connection for preview animation while the agent executes app actions.
+
+Initial event:
+
+```
+event: connected
+data: {"session_id":"..."}
+```
+
+Agent events use the SSE `event:` name as the type:
+
+| SSE `event` | Payload fields (JSON) |
+| ----------- | --------------------- |
+| `agent_thinking` | `session_id`, `ts`, `active?` |
+| `agent_action` | `session_id`, `ts`, `action`, `params?`, `animate?` |
+| `agent_step` | `session_id`, `ts`, `target?`, `value?`, `step?` |
+| `agent_done` | `session_id`, `ts`, `digest?`, `refresh?` |
+| `agent_error` | `session_id`, `ts`, `code?`, `message?` |
+
+Comment heartbeats (`: keepalive`) are sent every 25s. When `REDIS_URL` is set, events are published on `radiant:agent-stream:{sessionId}` for multi-instance deploys; otherwise in-memory listeners on the Node process.
+
+**Ordering:** Preview animation is best-effort and may lead or lag the on-chain transaction by ~300ms (SSE + React render). Treat **`agent_done.digest`** and the chat transaction ledger as source of truth — never infer success from animation alone. When `agent_done.refresh` is `true`, generated apps should refetch quotes and balances.
+
+Manual demo: `npx tsx scripts/demo-agent-stream.ts <session-uuid>` (in-process, same Node as API) or `curl -N` against the SSE URL with a valid `privy-token` cookie.
 
 ### Agent transactions
 
@@ -208,6 +242,37 @@ Returns `repay_feasible`, per-step `min_out`, `estimated_surplus`, and `warnings
 | `steps` | Up to 2 swaps for `swap_chain_repay`; include `min_out_display` from quote |
 | `slippage_bps` | Default 100 |
 | `repay_source` | `swap_output` (default), `wallet`, `merged` |
+
+### App actions (generated apps)
+
+Project-scoped and installation-scoped routes execute via the **authenticated user's agent wallet** (same pipeline as chat `execute_transaction`). Responses use the standard envelope; `data` is an `AppActionResult`:
+
+| `data.status` | Meaning |
+| ------------- | ------- |
+| `executed` | Signed and submitted — includes `digest`, `explorer_url`, `result` |
+| `approval_required` | User must approve — includes `pending`, `agent_transaction_id`; approve via `POST /api/v1/agent/transactions/:id/approve` |
+| `error` | Validation or execution failure — includes `error.code`, `error.message` |
+
+**In-app approval:** Preview iframes that receive `approval_required` show `TransactionApprovalBar` in the parent shell (chat artifact panel or run page). Approve/reject via `POST /api/v1/agent/transactions/:id/approve|reject` — no chat redirect.
+
+**Protocol routing:** `executeAppAction` resolves `Project.action_schema.protocol` (`deepbook` | `polymarket` | `custom`) and dispatches to a registered adapter (`backend/src/services/protocols/`). See `docs/protocol-extension-kit.md` for adding new protocols.
+
+**`GET /api/v1/projects/:projectId/actions`** — returns the project's persisted action schema (`schema_version`, `app_id`, `protocol`, `actions[]` with param fields). Swap-template and DeFi apps get a default DeepBook schema on `generate_app`; non-DeFi projects return `protocol: "custom"` with an empty `actions` array. Installations inherit the source project's schema.
+
+**`POST /api/v1/projects/:projectId/actions/swap`** example:
+
+```json
+{
+  "side": "sell",
+  "amount": 1,
+  "pool_key": "SUI_USDC",
+  "slippage_bps": 100
+}
+```
+
+**`POST /api/v1/projects/:projectId/actions/flash_loan`** — same params as agent `deepbook_flash_loan` (see flash loan table above), with canonical names (`borrow_amount`, `steps`, …).
+
+Installation routes mirror project routes under `/api/v1/installations/:installationId/actions/...`.
 
 ## WebSocket
 

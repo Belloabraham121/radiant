@@ -8,7 +8,7 @@ import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.servic
 import { signSuiTransactionBytes } from "../../wallet/sui-signing.service.js";
 import { getAssetDecimals } from "./asset-scalars.js";
 import { getDeepBookPoolInfo } from "./deepbook-pools.service.js";
-import { isMultipleOfStep } from "./order-constraints.js";
+import { normalizeSwapSellAmount } from "./order-constraints.js";
 import { assertResolvablePoolKey } from "./pool-key.js";
 import {
   getDeepBookClient,
@@ -365,22 +365,24 @@ async function validateSwapSize(
     if (!info.on_chain) return;
 
     const { min_size, lot_size } = info.on_chain;
-    const baseAmount = parsed.side === "sell" ? parsed.amount : undefined;
 
-    if (baseAmount !== undefined && baseAmount < min_size) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        `Swap amount ${baseAmount} ${pool.base_coin} is below pool min_size ${min_size}`,
-      );
-    }
-
-    if (baseAmount !== undefined && lot_size > 0 && !isMultipleOfStep(baseAmount, lot_size)) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        `Swap amount must be a multiple of lot_size ${lot_size} ${pool.base_coin}`,
-      );
+    if (parsed.side === "sell") {
+      const normalized = normalizeSwapSellAmount(parsed.amount, min_size, lot_size);
+      if (normalized <= 0) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          `Swap amount must be positive after lot_size rounding (lot_size ${lot_size} ${pool.base_coin})`,
+        );
+      }
+      if (normalized < min_size) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          `Swap amount ${parsed.amount} ${pool.base_coin} is below pool min_size ${min_size}`,
+        );
+      }
+      parsed.amount = normalized;
     }
   } catch (err) {
     if (err instanceof AppError) throw err;
@@ -477,6 +479,7 @@ export async function executeDeepBookSwap(
 
   const quote = await getDeepBookSwapQuote(privyUserId, execParams);
   const minOut = quote.min_out_display;
+  parsed.amount = quote.input_amount_display;
 
   const result = await buildAndExecuteSwapTransaction(privyUserId, (tx, client, address) => {
     addSwapToTransaction(
@@ -510,6 +513,7 @@ export async function buildDeepBookSwapTransactionBytes(
 ): Promise<{ bytes: Uint8Array; quote: DeepBookSwapQuoteResult }> {
   const parsed = parseDeepBookSwapParams(params);
   const quote = await getDeepBookSwapQuote(privyUserId, params);
+  parsed.amount = quote.input_amount_display;
   const wallet = await resolveSuiAgentWallet(privyUserId);
 
   const tx = new Transaction();

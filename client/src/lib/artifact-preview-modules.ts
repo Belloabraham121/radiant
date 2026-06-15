@@ -1,4 +1,5 @@
 import type { ArtifactFile } from "@/lib/artifact-types";
+import { normalizeArtifactFileContent } from "@/lib/artifact-file-content";
 
 const SOURCE_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"];
 
@@ -22,7 +23,7 @@ export function buildModuleSourceMap(files: ArtifactFile[]): Record<string, stri
   for (const file of files) {
     const path = normalizeArtifactPath(file.path);
     if (isPreviewModulePath(path)) {
-      map[path] = file.content;
+      map[path] = normalizeArtifactFileContent(file.content);
     }
   }
   return map;
@@ -38,7 +39,12 @@ function stripExtension(path: string): string {
 }
 
 function moduleCandidates(joined: string): string[] {
-  return [joined, ...SOURCE_EXTENSIONS.map((ext) => `${stripExtension(joined)}${ext}`)];
+  return [
+    joined,
+    ...SOURCE_EXTENSIONS.map((ext) => `${stripExtension(joined)}${ext}`),
+    `${joined}/index.tsx`,
+    `${joined}/index.ts`,
+  ];
 }
 
 /** Resolve a relative import from one artifact file to a module path key. */
@@ -65,7 +71,11 @@ export function resolveRelativeImport(
   } else if (request.startsWith("/")) {
     joined = request.slice(1);
   } else {
-    return null;
+    const isBareLocal = MODULE_ROOTS.some(
+      (root) => request.startsWith(root) || request === root.slice(0, -1),
+    );
+    if (!isBareLocal) return null;
+    joined = request;
   }
 
   for (const candidate of moduleCandidates(joined)) {
