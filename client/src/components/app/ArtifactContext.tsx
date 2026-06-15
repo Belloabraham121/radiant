@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ArtifactPayload } from "@/lib/artifact-types";
-import { mergeArtifactPayload } from "@/lib/artifact-merge";
+import { mergeArtifactPayload, normalizeArtifactPayload } from "@/lib/artifact-merge";
 
 type SessionArtifactState = {
   panelOpen: boolean;
@@ -65,12 +65,13 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
   );
 
   const openArtifact = useCallback((sessionKey: string, payload: ArtifactPayload) => {
-    const firstPath = pickActivePath(payload);
+    const normalized = normalizeArtifactPayload(payload);
+    const firstPath = pickActivePath(normalized);
     setBySession((current) => ({
       ...current,
       [sessionKey]: {
         panelOpen: true,
-        payload,
+        payload: normalized,
         activePath: firstPath,
         streaming: false,
         userDismissed: false,

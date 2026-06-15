@@ -1,4 +1,5 @@
 import { parsePartialGenerateAppArgs } from "./parse-partial-generate-app.js";
+import { normalizeArtifactFileContent } from "./artifact-file-content.js";
 
 type ArtifactFileInput = { path: string; content: string };
 
@@ -20,7 +21,10 @@ function coerceString(value: unknown): string | undefined {
 function normalizeFileEntry(value: unknown): ArtifactFileInput | null {
   if (!isRecord(value)) return null;
   const path = coerceString(value.path);
-  const content = typeof value.content === "string" ? value.content : undefined;
+  const content =
+    typeof value.content === "string"
+      ? normalizeArtifactFileContent(value.content)
+      : undefined;
   if (!path || content === undefined) return null;
   return { path, content };
 }

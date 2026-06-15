@@ -19,6 +19,8 @@ import {
   proxyPreviewApiRequest,
 } from "@/lib/artifact-preview-bridge";
 
+const PREVIEW_LOAD_TIMEOUT_MS = 20_000;
+
 function PreviewLoadingOverlay() {
   return (
     <div
@@ -79,7 +81,7 @@ export function ArtifactPreview({
   const previewPathRef = useRef("/");
   const [previewPath, setPreviewPath] = useState("/");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [readyIframeKey, setReadyIframeKey] = useState<string | null>(null);
+  const [loadedSrcdocHash, setLoadedSrcdocHash] = useState<string | null>(null);
   const deferredFiles = useDeferredValue(files);
   const renderFiles = streaming ? deferredFiles : files;
   const routes = useMemo(() => extractArtifactPreviewRoutes(files), [files]);
@@ -89,12 +91,27 @@ export function ArtifactPreview({
     [renderFiles, projectId, installationId, sessionId],
   );
 
-  const iframeKey = useMemo(
-    () => `${revision}-${refreshKey}-${hashSrcdoc(srcdoc)}`,
-    [revision, refreshKey, srcdoc],
-  );
+  const srcdocHash = useMemo(() => hashSrcdoc(srcdoc), [srcdoc]);
+  const iframeKey = `${revision}-${refreshKey}`;
+  const loading = loadedSrcdocHash !== srcdocHash;
 
-  const loading = readyIframeKey !== iframeKey;
+  const bridgeRef = useRef({
+    projectId,
+    installationId,
+    sessionId,
+    onProxiedApiResponse,
+    srcdocHash,
+  });
+
+  useEffect(() => {
+    bridgeRef.current = {
+      projectId,
+      installationId,
+      sessionId,
+      onProxiedApiResponse,
+      srcdocHash,
+    };
+  }, [projectId, installationId, sessionId, onProxiedApiResponse, srcdocHash]);
 
   useEffect(() => {
     previewPathRef.current = previewPath;
@@ -103,6 +120,19 @@ export function ArtifactPreview({
   function navigatePreview(path: string) {
     iframeRef.current?.contentWindow?.postMessage({ type: PREVIEW_NAVIGATE_TYPE, path }, "*");
   }
+
+  function markPreviewLoaded() {
+    setLoadedSrcdocHash(bridgeRef.current.srcdocHash);
+    navigatePreview(previewPathRef.current);
+  }
+
+  useEffect(() => {
+    if (!loading) return;
+    const timer = window.setTimeout(() => {
+      setLoadedSrcdocHash(bridgeRef.current.srcdocHash);
+    }, PREVIEW_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [loading, srcdocHash]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -115,8 +145,10 @@ export function ArtifactPreview({
         body?: string;
       } | null;
 
+      if (event.source !== iframeRef.current?.contentWindow) return;
+
       if (data?.type === PREVIEW_API_REQUEST) {
-        if (event.source !== iframeRef.current?.contentWindow) return;
+        const bridge = bridgeRef.current;
         void (async () => {
           const { response, path } = await proxyPreviewApiRequest(
             {
@@ -126,11 +158,15 @@ export function ArtifactPreview({
               method: data.method,
               body: data.body,
             },
-            { projectId, installationId, sessionId },
+            {
+              projectId: bridge.projectId,
+              installationId: bridge.installationId,
+              sessionId: bridge.sessionId,
+            },
           );
 
           if (response.body && response.status != null) {
-            onProxiedApiResponse?.(response.status, response.body, path);
+            bridge.onProxiedApiResponse?.(response.status, response.body, path);
           }
 
           iframeRef.current?.contentWindow?.postMessage(response, "*");
@@ -139,7 +175,6 @@ export function ArtifactPreview({
       }
 
       if (data?.type !== PREVIEW_MESSAGE_TYPE) return;
-      if (event.source !== iframeRef.current?.contentWindow) return;
 
       if (data.status === "path" && data.path) {
         setPreviewPath(data.path);
@@ -147,7 +182,7 @@ export function ArtifactPreview({
       }
 
       if (data.status === "ready" || data.status === "error") {
-        setReadyIframeKey(iframeKey);
+        setLoadedSrcdocHash(bridgeRef.current.srcdocHash);
         iframeRef.current?.contentWindow?.postMessage(
           { type: PREVIEW_NAVIGATE_TYPE, path: previewPathRef.current },
           "*",
@@ -157,14 +192,7 @@ export function ArtifactPreview({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [
-    installationId,
-    projectId,
-    sessionId,
-    onProxiedApiResponse,
-    iframeKey,
-    iframeRef,
-  ]);
+  }, [iframeRef]);
 
   function handlePathChange(path: string) {
     setPreviewPath(path);
@@ -173,6 +201,11 @@ export function ArtifactPreview({
 
   function handleRefresh() {
     setRefreshKey((key) => key + 1);
+    setLoadedSrcdocHash(null);
+  }
+
+  function handleIframeLoad() {
+    markPreviewLoaded();
   }
 
   return (
@@ -192,6 +225,7 @@ export function ArtifactPreview({
           title="App preview"
           sandbox="allow-scripts"
           srcDoc={srcdoc}
+          onLoad={handleIframeLoad}
           className={`h-full w-full border-0 bg-[var(--hero-bg)] transition-opacity duration-300 ${
             loading ? "opacity-0" : "opacity-100"
           }`}

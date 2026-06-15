@@ -9,6 +9,7 @@ import {
   AGENT_STYLES_CSS,
   RADIANT_AGENT_RUNTIME_TS,
 } from "./radiant-agent-runtime-template.js";
+import { normalizeArtifactFileContent } from "./artifact-file-content.js";
 
 export { RADIANT_CLIENT_TEMPLATE_VERSION };
 
@@ -104,7 +105,12 @@ export function ensureAppEntry(
   files: ArtifactFileInput[],
   _options: EnsureAppEntryOptions = {},
 ): ArtifactFileInput[] {
-  let next = injectPlatformFiles(files);
+  let next = injectPlatformFiles(
+    files.map((file) => ({
+      ...file,
+      content: normalizeArtifactFileContent(file.content),
+    })),
+  );
 
   const usesLegacy = hasPath(next, "src/App.tsx") || hasPath(next, "src/App.jsx");
   const usesNext = hasPath(next, "app/page.tsx");

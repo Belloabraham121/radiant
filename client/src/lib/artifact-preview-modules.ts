@@ -1,4 +1,5 @@
 import type { ArtifactFile } from "@/lib/artifact-types";
+import { normalizeArtifactFileContent } from "@/lib/artifact-file-content";
 
 const SOURCE_EXTENSIONS = [".tsx", ".ts", ".jsx", ".js"];
 
@@ -22,7 +23,7 @@ export function buildModuleSourceMap(files: ArtifactFile[]): Record<string, stri
   for (const file of files) {
     const path = normalizeArtifactPath(file.path);
     if (isPreviewModulePath(path)) {
-      map[path] = file.content;
+      map[path] = normalizeArtifactFileContent(file.content);
     }
   }
   return map;

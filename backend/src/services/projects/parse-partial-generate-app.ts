@@ -1,3 +1,5 @@
+import { unescapeJsonString, normalizeArtifactFileContent } from "./artifact-file-content.js";
+
 export type PartialGenerateAppParse = {
   project_id?: string;
   name?: string;
@@ -6,14 +8,7 @@ export type PartialGenerateAppParse = {
   files: Array<{ path: string; content: string }>;
 };
 
-function unescapeJsonString(raw: string): string {
-  return raw
-    .replace(/\\n/g, "\n")
-    .replace(/\\r/g, "\r")
-    .replace(/\\t/g, "\t")
-    .replace(/\\"/g, "\"")
-    .replace(/\\\\/g, "\\");
-}
+export { unescapeJsonString, normalizeArtifactFileContent };
 
 /**
  * Best-effort parse of streaming / partial generate_app JSON tool arguments.
@@ -28,9 +23,14 @@ export function parsePartialGenerateAppArgs(raw: string): PartialGenerateAppPars
   try {
     const parsed = JSON.parse(raw) as PartialGenerateAppParse;
     if (Array.isArray(parsed.files)) {
-      result.files = parsed.files.filter(
-        (file) => typeof file?.path === "string" && typeof file?.content === "string",
-      );
+      result.files = parsed.files
+        .filter(
+          (file) => typeof file?.path === "string" && typeof file?.content === "string",
+        )
+        .map((file) => ({
+          path: file.path,
+          content: normalizeArtifactFileContent(file.content),
+        }));
     }
     if (typeof parsed.name === "string") result.name = parsed.name;
     if (typeof parsed.tagline === "string") result.tagline = parsed.tagline;
@@ -67,7 +67,7 @@ export function parsePartialGenerateAppArgs(raw: string): PartialGenerateAppPars
   while ((match = fileRe.exec(raw))) {
     result.files.push({
       path: unescapeJsonString(match[1]),
-      content: unescapeJsonString(match[2]),
+      content: normalizeArtifactFileContent(unescapeJsonString(match[2])),
     });
   }
 
