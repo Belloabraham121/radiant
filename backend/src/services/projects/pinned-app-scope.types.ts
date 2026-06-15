@@ -20,39 +20,39 @@ export const pinnedAppScopeSchema = z.discriminatedUnion("kind", [
 
 export type PinnedAppScope = z.infer<typeof pinnedAppScopeSchema>;
 
-const PINNED_UI_DRIVE =
-  "The artifact preview will animate the form in real time (amount, side, etc.) and show the confirm dialog inside the app — not in chat. ";
+const PINNED_EXECUTE_IN_APP =
+  "Execute through this app's UI in the artifact preview — the app runs its own flow (quotes, forms, confirm modal). " +
+  "Do not use execute_transaction. Do not describe filling forms; the user asked you to act in the app. ";
 
-const PINNED_EXECUTE_NOW =
-  "For this message you MUST call call_app_action immediately (action swap/stake/etc. from their message) — do not reply with text only and do not call list_session_projects first. ";
+const PINNED_ACTION_FLOW =
+  "1) Call query_chain session_actions (chat draft) or project_actions for this pinned app to learn available actions and param names. " +
+  "2) Call call_app_action with the matching action and params — execution is delegated to the preview iframe. " +
+  "Skip list_session_projects; scope is already set. ";
 
 export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
   if (scope.kind === "installation") {
     return (
       `User pinned app: "${scope.name}" (installation_id: ${scope.installation_id}). ` +
-      PINNED_UI_DRIVE +
-      PINNED_EXECUTE_NOW +
-      `Use call_app_action with installation_id "${scope.installation_id}" — ` +
-      `never execute_transaction for swaps. Skip list_session_projects; scope is already set.`
+      PINNED_EXECUTE_IN_APP +
+      PINNED_ACTION_FLOW +
+      `Use call_app_action with installation_id "${scope.installation_id}".`
     );
   }
 
   if (scope.kind === "session_draft") {
     return (
       `User pinned app: "${scope.name}" (chat draft in this session). ` +
-      PINNED_UI_DRIVE +
-      PINNED_EXECUTE_NOW +
-      `Use call_app_action with use_session_draft: true and app_name "${scope.name}" — ` +
-      `never execute_transaction for swaps. Skip list_session_projects; scope is already set.`
+      PINNED_EXECUTE_IN_APP +
+      PINNED_ACTION_FLOW +
+      `Use call_app_action with use_session_draft: true and app_name "${scope.name}".`
     );
   }
 
   return (
     `User pinned app: "${scope.name}" (project_id: ${scope.project_id}). ` +
-    PINNED_UI_DRIVE +
-    PINNED_EXECUTE_NOW +
-    `Use call_app_action with project_id "${scope.project_id}" — ` +
-    `never execute_transaction for swaps. Skip list_session_projects; scope is already set.`
+    PINNED_EXECUTE_IN_APP +
+    PINNED_ACTION_FLOW +
+    `Use call_app_action with project_id "${scope.project_id}".`
   );
 }
 

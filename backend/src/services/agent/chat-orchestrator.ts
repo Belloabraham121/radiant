@@ -24,7 +24,6 @@ import {
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
-import { tryExecutePinnedAppSwapFromMessage } from "./deepbook/pinned-app-swap-flow.js";
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
 import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
 import { extractArtifactFromToolCalls } from "../projects/extract-artifact.js";
@@ -78,33 +77,6 @@ export async function runChatTurn(
         detail: "Planning next steps…",
       },
     });
-  }
-
-  if (!isTransactionContinuation && request.app_scope) {
-    const pinnedSwapOutcome = await tryExecutePinnedAppSwapFromMessage(
-      privyUserId,
-      request.message,
-      session.id,
-      request.app_scope,
-    );
-
-    if (pinnedSwapOutcome) {
-      const sessionTitle =
-        isFirstUserMessage && session.title === "New chat"
-          ? deriveSessionTitle(request.message)
-          : session.title;
-
-      await touchSession(session.id, {
-        title: sessionTitle,
-        updated_at: new Date(),
-      });
-
-      return persistWorkflowChatResponse(privyUserId, request, {
-        ...pinnedSwapOutcome,
-        pending_clarification: null,
-        workflowCompleted: true,
-      });
-    }
   }
 
   if (!isTransactionContinuation && !request.app_scope) {

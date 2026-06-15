@@ -89,6 +89,11 @@ export type AppActionResult =
       pending: PendingTransaction;
     }
   | {
+      status: "preview_delegated";
+      action: AppActionName;
+      message: string;
+    }
+  | {
       status: "error";
       action: AppActionName;
       error: {

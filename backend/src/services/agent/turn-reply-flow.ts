@@ -57,7 +57,11 @@ function isPendingOrExecutedOutcome(result: unknown): boolean {
     return false;
   }
   const outcome = result as { status?: string };
-  return outcome.status === "approval_required" || outcome.status === "executed";
+  return (
+    outcome.status === "approval_required" ||
+    outcome.status === "executed" ||
+    outcome.status === "preview_delegated"
+  );
 }
 
 function hasPendingOrExecutedTransaction(toolCalls: ToolCallRecord[]): boolean {
@@ -148,12 +152,13 @@ export function hasSuccessfulAppActionResult(toolCalls: ToolCallRecord[]): boole
       return false;
     }
     const result = call.result as AppActionResult | undefined;
-    return result?.status === "executed" || result?.status === "approval_required";
+    return (
+      result?.status === "executed" ||
+      result?.status === "approval_required" ||
+      result?.status === "preview_delegated"
+    );
   });
 }
-
-const APP_ACTION_APPROVAL_REPLY =
-  "I've filled in the swap in your app preview — review the quote and confirm there.";
 
 export function buildReplyFromAppActionToolCalls(toolCalls: ToolCallRecord[]): string | null {
   const latest = findLatestAppActionResult(toolCalls);
@@ -162,11 +167,15 @@ export function buildReplyFromAppActionToolCalls(toolCalls: ToolCallRecord[]): s
   }
 
   const { result } = latest;
+  if (result.status === "preview_delegated") {
+    return result.message;
+  }
   if (result.status === "approval_required") {
-    return APP_ACTION_APPROVAL_REPLY;
+    return "Confirm the transaction in your app preview.";
   }
   if (result.status === "executed") {
-    return `Swap submitted in your app — digest ${result.digest}.`;
+    const action = latest.action ?? result.action;
+    return `${action} completed in your app — digest ${result.digest}.`;
   }
   if (result.status === "error") {
     return result.error.message;

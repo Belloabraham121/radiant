@@ -58,6 +58,24 @@ function emitAgentStreamSteps(
   }
 }
 
+export function emitAgentStreamExecuteInApp(
+  ctx: AgentStreamBroadcastContext,
+  action: string,
+  params: Record<string, unknown>,
+): void {
+  if (!shouldBroadcastAgentStream(ctx) || !ctx.sessionId) {
+    return;
+  }
+
+  emitAgentEvent(ctx.sessionId, "agent_thinking", { active: true, action });
+  emitAgentEvent(ctx.sessionId, "agent_action", {
+    action,
+    params,
+    step: "execute_in_app",
+    animate: true,
+  });
+}
+
 export function emitAgentStreamExecutionStart(
   ctx: AgentStreamBroadcastContext,
   action: string,

@@ -40,7 +40,13 @@ export function summarizeToolResult(name: string, result: unknown): string {
     if (outcome.status === "approval_required") {
       return `Approval required: ${outcome.pending.summary}`;
     }
-    return `Tx digest: ${outcome.digest}`;
+    if (outcome.status === "preview_delegated") {
+      return outcome.message;
+    }
+    if (outcome.status === "executed") {
+      return `Tx digest: ${outcome.digest}`;
+    }
+    return "Done.";
   }
 
   if (name !== EXECUTE_TRANSACTION_TOOL_NAME) {

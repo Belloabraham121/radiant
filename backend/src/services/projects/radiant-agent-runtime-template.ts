@@ -1,6 +1,6 @@
 /** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_VERSION = 3;
+export const RADIANT_AGENT_RUNTIME_VERSION = 4;
 
 export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
 import {
@@ -382,6 +382,29 @@ export const radiantAgent = {
       data.params && typeof data.params === "object"
         ? (data.params as Record<string, unknown>)
         : null;
+
+    if (action && data.step === "execute_in_app" && params) {
+      void radiantAgent
+        .execute(action, params, { animate: true })
+        .then((result) => {
+          emit({ type: "result", action, result });
+          if (result.status === "executed" && typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("radiant-agent-refresh"));
+          }
+        })
+        .catch(() => {
+          emit({
+            type: "result",
+            action,
+            result: {
+              status: "error",
+              action,
+              error: { code: "EXECUTE_FAILED", message: "Action failed in preview" },
+            },
+          });
+        });
+      return;
+    }
 
     if (action && data.step === "approval_required" && data.pending && typeof data.pending === "object") {
       const pending = data.pending as Record<string, unknown>;

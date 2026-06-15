@@ -211,6 +211,18 @@ function emitAppActionProgressFromResult(result: unknown, action?: string): void
     return;
   }
 
+  if (outcome.status === "preview_delegated") {
+    emitExecutionProgress({
+      step: {
+        id: "execute",
+        status: "running",
+        label: appActionExecuteLabel(action),
+        detail: "Running in app preview — confirm there",
+      },
+    });
+    return;
+  }
+
   if (outcome.status === "approval_required") {
     emitExecutionProgress({
       step: {
@@ -734,7 +746,7 @@ export const openaiRuntime: AgentRuntime = {
       if (pending_transaction) {
         const usedAppAction = tool_calls.some((call) => call.name === CALL_APP_ACTION_TOOL_NAME);
         reply = usedAppAction
-          ? "I've filled in the swap in your app preview — review the quote and confirm there."
+          ? "Confirm the transaction in your app preview."
           : "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
         break;
       }

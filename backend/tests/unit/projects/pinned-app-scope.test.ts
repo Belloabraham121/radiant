@@ -54,12 +54,14 @@ describe("pinned-app-scope", () => {
     assert.equal(merged.app_name, "Uniswap Swap UI");
   });
 
-  it("prompt mentions live preview UI drive", () => {
+  it("prompt instructs execute through app UI", () => {
     const text = formatPinnedAppScopeForPrompt({
       kind: "session_draft",
       name: "Uniswap",
     });
-    assert.match(text, /animate the form in real time/i);
-    assert.match(text, /call_app_action immediately/i);
+    assert.match(text, /artifact preview/i);
+    assert.match(text, /session_actions/i);
+    assert.match(text, /call_app_action/i);
+    assert.doesNotMatch(text, /animate the form/i);
   });
 });

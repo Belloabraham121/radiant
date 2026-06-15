@@ -31,13 +31,8 @@ export function mapSseAgentEventToPreviewPayload(
           data.params && typeof data.params === "object"
             ? (data.params as Record<string, unknown>)
             : undefined,
-        animate: data.animate === true,
-        step:
-          typeof data.step === "string"
-            ? data.step
-            : data.animate === true
-              ? "executing"
-              : undefined,
+        animate: data.animate === true || data.step === "execute_in_app",
+        step: typeof data.step === "string" ? data.step : data.animate === true ? "executing" : undefined,
         pending:
           data.pending && typeof data.pending === "object"
             ? (data.pending as Record<string, unknown>)

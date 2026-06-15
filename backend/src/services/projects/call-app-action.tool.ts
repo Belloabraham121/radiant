@@ -19,6 +19,10 @@ import {
 import { listAppActionsCatalogForSession } from "./app-action-catalog.service.js";
 import { findProjectByIdForUser } from "./project.repository.js";
 import type { AgentToolOptions } from "../agent/execute-transaction-context.js";
+import {
+  delegateAppActionToPreview,
+  shouldDelegateAppActionToPreview,
+} from "./pinned-app-preview-delegation.js";
 
 export const CALL_APP_ACTION_TOOL_NAME = "call_app_action" as const;
 
@@ -166,6 +170,13 @@ export async function runCallAppActionTool(
       throw new AppError(404, "INSTALLATION_NOT_FOUND", "Installation not found");
     }
     assertActionInProjectSchema(installation.source_project, parsed.action);
+    if (shouldDelegateAppActionToPreview(context)) {
+      return delegateAppActionToPreview(
+        context,
+        parsed.action,
+        parsed.params as Record<string, unknown>,
+      );
+    }
     return executeAppActionForInstallation(
       privyUserId,
       parsed.installation_id,
@@ -183,6 +194,13 @@ export async function runCallAppActionTool(
 
   if (scope.kind === "session_draft") {
     await assertActionInSessionSchema(privyUserId, scope.session_id, parsed.action);
+    if (shouldDelegateAppActionToPreview(context)) {
+      return delegateAppActionToPreview(
+        context,
+        parsed.action,
+        parsed.params as Record<string, unknown>,
+      );
+    }
     return executeAppActionForSession(
       privyUserId,
       scope.session_id,
@@ -197,6 +215,13 @@ export async function runCallAppActionTool(
     throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
   }
   assertActionInProjectSchema(project, parsed.action);
+  if (shouldDelegateAppActionToPreview(context)) {
+    return delegateAppActionToPreview(
+      context,
+      parsed.action,
+      parsed.params as Record<string, unknown>,
+    );
+  }
   return executeAppActionForProject(
     privyUserId,
     scope.project_id,

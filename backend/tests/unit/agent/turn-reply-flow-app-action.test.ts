@@ -8,6 +8,21 @@ import {
 import { CALL_APP_ACTION_TOOL_NAME } from "../../../src/services/projects/call-app-action.tool.js";
 
 describe("turn-reply-flow app action", () => {
+  it("buildReplyFromAppActionToolCalls returns preview delegated message", () => {
+    const reply = buildReplyFromAppActionToolCalls([
+      {
+        name: CALL_APP_ACTION_TOOL_NAME,
+        action: "swap",
+        result: {
+          status: "preview_delegated",
+          action: "swap",
+          message: "Running swap in DeepBook — follow the flow in the preview and confirm there.",
+        },
+      },
+    ]);
+    assert.match(reply ?? "", /preview/i);
+  });
+
   it("buildReplyFromAppActionToolCalls returns in-app approval message", () => {
     const reply = buildReplyFromAppActionToolCalls([
       {
@@ -29,6 +44,22 @@ describe("turn-reply-flow app action", () => {
       },
     ]);
     assert.match(reply ?? "", /app preview/i);
+  });
+
+  it("hasSuccessfulAppActionResult is true for preview_delegated", () => {
+    assert.equal(
+      hasSuccessfulAppActionResult([
+        {
+          name: CALL_APP_ACTION_TOOL_NAME,
+          result: {
+            status: "preview_delegated",
+            action: "swap",
+            message: "Running in preview",
+          },
+        },
+      ]),
+      true,
+    );
   });
 
   it("hasSuccessfulAppActionResult is true for approval_required", () => {

@@ -433,7 +433,14 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
           ...(chainId ? { chainId } : {}),
         };
 
-        if (outcome.status === "approval_required") {
+        if (outcome.status === "preview_delegated") {
+          steps.push({
+            id: "execute",
+            status: "running",
+            label: executeCall.action ? `Execute ${executeCall.action}` : executeLabel,
+            detail: "Running in app preview — confirm there",
+          });
+        } else if (outcome.status === "approval_required") {
           steps.push({
             id: "execute",
             status: "warning",
