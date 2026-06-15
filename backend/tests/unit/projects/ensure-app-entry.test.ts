@@ -52,13 +52,26 @@ describe("ensureAppEntry", () => {
     assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
   });
 
-  it("injects radiant-client template v3 with execute helpers", () => {
+  it("injects radiant-client template v6 with browser-safe env and swap helpers", () => {
     const result = ensureAppEntry([{ path: "app/page.tsx", content: "export default function Page() { return null; }" }]);
     const client = result.find((f) => f.path === "lib/radiant-client.ts");
     assert.ok(client);
     assert.match(client!.content, /export async function executeAction/);
     assert.match(client!.content, /export async function executeSwap/);
-    assert.match(client!.content, /Template v4/);
+    assert.match(client!.content, /Template v6/);
+    assert.match(client!.content, /readPublicEnv/);
+    assert.match(client!.content, /resolveSwapSide/);
+  });
+
+  it("upgrades stale lib/radiant-client.ts to the current template", () => {
+    const result = ensureAppEntry([
+      { path: "app/page.tsx", content: "export default function Page() { return null; }" },
+      { path: "lib/radiant-client.ts", content: "/** Template v4 */\nthrow new Error('stale');" },
+    ]);
+    const client = result.find((f) => f.path === "lib/radiant-client.ts");
+    assert.ok(client);
+    assert.match(client!.content, /Template v6/);
+    assert.doesNotMatch(client!.content, /stale/);
   });
 
   it("injects agent runtime, indicator, and agent CSS", () => {
@@ -75,16 +88,12 @@ describe("ensureAppEntry", () => {
     assert.match(globals!.content, /\.agent-focused/);
   });
 
-  it("adds DexApp scaffold when template is swap", () => {
+  it("does not inject prebuilt DexApp when template is swap", () => {
     const result = ensureAppEntry([], { template: "swap" });
-    const dexApp = result.find((f) => f.path === "components/DexApp.tsx");
-    const page = result.find((f) => f.path === "app/page.tsx");
-    assert.ok(dexApp);
-    assert.match(dexApp!.content, /agent\.register\("swap"/);
-    assert.match(dexApp!.content, /flashLoanQuote/);
-    assert.match(dexApp!.content, /openOrders/);
-    assert.ok(page);
-    assert.match(page!.content, /radiant-agent-runtime/);
+    assert.equal(result.some((f) => f.path === "components/DexApp.tsx"), false);
+    assert.equal(result.some((f) => f.path === "components/SwapForm.tsx"), false);
+    assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
+    assert.ok(result.some((f) => f.path === "lib/radiant-agent-runtime.ts"));
   });
 
   it("injects Tailwind import into globals.css for deploy builds", () => {

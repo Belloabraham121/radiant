@@ -3,7 +3,13 @@ import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findInstallationForUser } from "../apps/app-installation.repository.js";
 import { getAppProtocolAdapter } from "../protocols/protocol-adapter-registry.js";
 import { resolveAppProtocolId } from "../protocols/resolve-project-protocol.js";
-import type { ProjectActionSchemaSource } from "./app-action-schema.service.js";
+import {
+  inferProjectActionSchemaForArtifact,
+  type ProjectActionSchemaSource,
+} from "./app-action-schema.service.js";
+import { listSessionDraftFiles, findSessionDraftBySessionId } from "./session-draft.repository.js";
+import { coerceAppTemplate } from "./project.types.js";
+import { findSessionForUser } from "../conversation/session.repository.js";
 import { findProjectByIdForUser } from "./project.repository.js";
 import type { AppActionContext, AppActionName, AppActionResult } from "./app-action.types.js";
 import { mapThrownErrorToAppActionResult } from "./app-action-result.js";
@@ -52,6 +58,30 @@ async function loadProjectSchemaSource(
   if (ctx.installationId) {
     const installation = await findInstallationForUser(ctx.installationId, user.id);
     return installation?.source_project ?? null;
+  }
+
+  if (ctx.sessionId && !ctx.projectId) {
+    const session = await findSessionForUser(ctx.sessionId, user.id);
+    if (!session) {
+      return null;
+    }
+    const draft = await findSessionDraftBySessionId(ctx.sessionId);
+    if (!draft) {
+      return { id: ctx.sessionId, template: "custom", action_schema: null };
+    }
+    const files = await listSessionDraftFiles(draft.id, draft.revision);
+    const template = coerceAppTemplate(draft.template);
+    return {
+      id: ctx.sessionId,
+      template,
+      action_schema: inferProjectActionSchemaForArtifact(ctx.sessionId, {
+        template,
+        files: files.map((file) => ({
+          path: file.path.replace(/^\/workspace\//, ""),
+          content: file.content,
+        })),
+      }),
+    };
   }
 
   return null;
@@ -123,6 +153,33 @@ export async function executeAppActionForInstallation(
     {
       privyUserId,
       installationId,
+      ...options,
+    },
+    action,
+    params,
+  );
+}
+
+/** Chat draft preview — same agent wallet; works before Save to Projects. */
+export async function executeAppActionForSession(
+  privyUserId: string,
+  sessionId: string,
+  action: AppActionName,
+  params: unknown,
+  options: Omit<AppActionContext, "privyUserId" | "sessionId"> = { source: "ui" },
+): Promise<AppActionResult> {
+  const user = await findUserByPrivyId(privyUserId);
+  if (!user) {
+    throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  }
+  const session = await findSessionForUser(sessionId, user.id);
+  if (!session) {
+    throw new AppError(404, "SESSION_NOT_FOUND", "Chat session not found");
+  }
+  return executeAppAction(
+    {
+      privyUserId,
+      sessionId,
       ...options,
     },
     action,

@@ -8,7 +8,7 @@ import { RADIANT_AGENT_RUNTIME_TS } from "../../../src/services/projects/radiant
 
 describe("radiant-client template", () => {
   it("is at expected version with execute helpers", () => {
-    assert.equal(RADIANT_CLIENT_TEMPLATE_VERSION, 4);
+    assert.equal(RADIANT_CLIENT_TEMPLATE_VERSION, 6);
     assert.match(RADIANT_CLIENT_TS, /export async function executeAction/);
     assert.match(RADIANT_CLIENT_TS, /export async function executeSwap/);
     assert.match(RADIANT_CLIENT_TS, /export async function executeFlashLoan/);
@@ -19,6 +19,10 @@ describe("radiant-client template", () => {
     assert.match(RADIANT_CLIENT_TS, /export async function stakeBalance/);
     assert.match(RADIANT_CLIENT_TS, /export async function governanceState/);
     assert.match(RADIANT_CLIENT_TS, /__RADIANT_INSTALLATION_ID__/);
+    assert.match(RADIANT_CLIENT_TS, /__RADIANT_SESSION_ID__/);
+    assert.match(RADIANT_CLIENT_TS, /readPublicEnv/);
+    assert.match(RADIANT_CLIENT_TS, /resolveSwapSide/);
+    assert.match(RADIANT_CLIENT_TS, /\/api\/v1\/chat\/sessions\//);
     assert.match(RADIANT_CLIENT_TS, /isApprovalRequired/);
     assert.match(RADIANT_CLIENT_TS, /RadiantActionError/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /handleExternalEvent/);

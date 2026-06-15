@@ -146,6 +146,7 @@ export function ArtifactPanel({
           <ArtifactPreviewWithApproval
             files={payload.files}
             revision={payload.revision}
+            streaming={streaming}
             projectId={projectId}
             sessionId={sessionId}
           />

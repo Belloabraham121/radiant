@@ -43,13 +43,162 @@ export type ArtifactPreviewOptions = {
   sessionId?: string;
 };
 
-function prepareModuleMap(files: ArtifactFile[]): Record<string, string> {
+function prepareModuleMap(
+  files: ArtifactFile[],
+  options: ArtifactPreviewOptions = {},
+): Record<string, string> {
   const raw = buildModuleSourceMap(files);
   const prepared: Record<string, string> = {};
   for (const [path, source] of Object.entries(raw)) {
-    prepared[path] = prepareAppSourceForPreview(source);
+    let next = prepareAppSourceForPreview(source);
+    if (path === "lib/radiant-client.ts") {
+      next = patchRadiantClientForPreview(next);
+    }
+    prepared[path] = next;
   }
   return prepared;
+}
+
+/** Patch platform client for chat preview iframe (no Node process, session-scoped APIs). */
+export function patchRadiantClientForPreview(source: string): string {
+  let next = source;
+
+  if (next.includes("process.env") && !next.includes("function readPublicEnv")) {
+    next = next.replace(
+      "declare global {",
+      `function readPublicEnv(key: string): string {
+  try {
+    if (typeof process !== "undefined" && process.env && typeof process.env[key] === "string") {
+      return process.env[key] as string;
+    }
+  } catch {
+    // Preview iframe has no Node process global.
+  }
+  return "";
+}
+
+declare global {`,
+    );
+    next = next.replace(
+      /return process\.env\.([A-Z0-9_]+)\s*\?\?\s*"";/g,
+      'return readPublicEnv("$1");',
+    );
+  }
+
+  if (!next.includes("__RADIANT_SESSION_ID__")) {
+    next = patchRadiantClientForSessionPreview(next);
+  }
+
+  return next;
+}
+
+/** Legacy v4 client in chat drafts — patch session API paths without an async template fetch. */
+export function patchRadiantClientForSessionPreview(source: string): string {
+  if (source.includes("__RADIANT_SESSION_ID__")) {
+    return source;
+  }
+
+  let next = source.replace(
+    "__RADIANT_INSTALLATION_ID__?: string;",
+    "__RADIANT_INSTALLATION_ID__?: string;\n    __RADIANT_SESSION_ID__?: string;",
+  );
+
+  if (!next.includes("function sessionId()")) {
+    next = next.replace(
+      `function installationId(): string {
+  if (typeof window !== "undefined" && window.__RADIANT_INSTALLATION_ID__) {
+    return window.__RADIANT_INSTALLATION_ID__;
+  }
+  return process.env.NEXT_PUBLIC_RADIANT_INSTALLATION_ID ?? "";
+}
+
+function scopeIds(): { projectId: string; installationId: string | null } {`,
+      `function installationId(): string {
+  if (typeof window !== "undefined" && window.__RADIANT_INSTALLATION_ID__) {
+    return window.__RADIANT_INSTALLATION_ID__;
+  }
+  return process.env.NEXT_PUBLIC_RADIANT_INSTALLATION_ID ?? "";
+}
+
+function sessionId(): string {
+  if (typeof window !== "undefined" && window.__RADIANT_SESSION_ID__) {
+    return window.__RADIANT_SESSION_ID__;
+  }
+  return process.env.NEXT_PUBLIC_RADIANT_SESSION_ID ?? "";
+}
+
+function scopeIds(): {
+  projectId: string;
+  installationId: string | null;
+  sessionId: string;
+} {`,
+    );
+  }
+
+  if (!next.includes("const session = sessionId()")) {
+    next = next.replace(
+      `  const install = installationId();
+  const project = projectId();`,
+      `  const install = installationId();
+  const project = projectId();
+  const session = sessionId();`,
+    );
+  }
+
+  next = next.replace(
+    `    return { projectId: project, installationId: install };`,
+    `    return { projectId: project, installationId: install, sessionId: session };`,
+  );
+
+  next = next.replace(
+    `  if (!project) {
+    throw new Error("Missing Radiant project id");
+  }
+  return { projectId: project, installationId: null };`,
+    `  if (project) {
+    return { projectId: project, installationId: null, sessionId: session };
+  }
+  if (session) {
+    return { projectId: "", installationId: null, sessionId: session };
+  }
+  throw new Error("Missing Radiant project or session id");`,
+  );
+
+  next = next.replace(
+    `function projectApiPrefix(): string {
+  const { projectId: id } = scopeIds();
+  return "/api/v1/projects/" + id;
+}`,
+    `function projectApiPrefix(): string {
+  const { projectId: id, sessionId: sid } = scopeIds();
+  if (sid && !id) {
+    return "/api/v1/chat/sessions/" + sid;
+  }
+  return "/api/v1/projects/" + id;
+}`,
+  );
+
+  next = next.replace(
+    `function actionApiPath(action: string): string {
+  const { projectId: id, installationId: install } = scopeIds();
+  if (install) {
+    return "/api/v1/installations/" + install + "/actions/" + action;
+  }
+  return "/api/v1/projects/" + id + "/actions/" + action;
+}`,
+    `function actionApiPath(action: string): string {
+  const { projectId: id, installationId: install, sessionId: sid } = scopeIds();
+  if (install) {
+    return "/api/v1/installations/" + install + "/actions/" + action;
+  }
+  if (sid && !id) {
+    return "/api/v1/chat/sessions/" + sid + "/actions/" + action;
+  }
+  return "/api/v1/projects/" + id + "/actions/" + action;
+}`,
+  );
+
+  return next;
 }
 
 /** Client-side preview HTML — no E2B. Uses CDN React + Babel in iframe srcdoc. */
@@ -58,7 +207,7 @@ export function buildArtifactPreviewSrcdoc(
   options: ArtifactPreviewOptions = {},
 ): string {
   const entry = pickAppModulePath(files);
-  const modules = prepareModuleMap(files);
+  const modules = prepareModuleMap(files, options);
   const css = escapeStyleClose(collectCss(files));
   const payload = JSON.stringify({
     entry,
@@ -115,6 +264,9 @@ ${css}
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"><\/script>
 <script>
 (function () {
+  if (typeof process === "undefined") {
+    window.process = { env: {} };
+  }
   const payload = ${payload};
   const errEl = document.getElementById("error");
   const SOURCE_EXTS = [".tsx", ".ts", ".jsx", ".js"];

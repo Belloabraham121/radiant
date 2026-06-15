@@ -12,18 +12,20 @@ import { useActivePreviewSessionRegistration } from "@/lib/active-preview-sessio
 export function ArtifactPreviewWithApproval({
   files,
   revision,
+  streaming = false,
   projectId,
   installationId,
   sessionId,
 }: {
   files: ArtifactFile[];
   revision: number;
+  streaming?: boolean;
   projectId?: string;
   installationId?: string;
   sessionId?: string;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const previewEnabled = Boolean(projectId || installationId);
+  const previewEnabled = Boolean(projectId || installationId || sessionId);
   const { forward } = usePreviewAgentEventRelay(iframeRef, sessionId, previewEnabled);
   const pendingActionRef = useRef<string | undefined>(undefined);
 
@@ -44,7 +46,7 @@ export function ArtifactPreviewWithApproval({
   pendingActionRef.current = approval.pending?.action;
 
   useActivePreviewSessionRegistration(
-    projectId || installationId
+    projectId || installationId || sessionId
       ? { sessionId, projectId, installationId }
       : null,
   );
@@ -78,6 +80,7 @@ export function ArtifactPreviewWithApproval({
           iframeRef={iframeRef}
           files={files}
           revision={revision}
+          streaming={streaming}
           projectId={projectId}
           installationId={installationId}
           sessionId={sessionId}

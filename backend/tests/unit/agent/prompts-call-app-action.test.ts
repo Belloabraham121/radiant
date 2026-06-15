@@ -9,7 +9,7 @@ describe("buildSystemPrompt call_app_action routing", () => {
     assert.match(prompt, /call_app_action/);
     assert.match(prompt, /execute_transaction for chat-only/);
     assert.match(prompt, /query_chain project_actions/);
-    assert.match(prompt, /generate_app only/);
+    assert.match(prompt, /generate_app/);
     assert.match(prompt, /Do NOT call swap_quote, execute_transaction, or call_app_action unless they clearly ask to trade/);
   });
 });

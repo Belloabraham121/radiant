@@ -12,6 +12,26 @@ import {
 import { saveSessionDraftToProjectForUser } from "../../../../services/projects/generate-app.service.js";
 import { listSessionTransactions } from "../../../../services/agent-transaction/agent-transaction.service.js";
 import {
+  listAppActionsCatalogForSession,
+} from "../../../../services/projects/app-action-catalog.service.js";
+import { parseAppActionName } from "../../../../services/projects/app-action-mapper.js";
+import {
+  executeAppActionForSession,
+} from "../../../../services/projects/app-action.service.js";
+import {
+  flashLoanQuoteForSession,
+  governanceStateForSession,
+  openOrdersForSession,
+  poolInfoForSession,
+  stakeBalanceForSession,
+  swapQuoteForSession,
+} from "../../../../services/projects/session-platform.service.js";
+import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
+import {
+  RADIANT_CLIENT_TEMPLATE_VERSION,
+  RADIANT_CLIENT_TS,
+} from "../../../../services/projects/radiant-client-template.js";
+import {
   requireAgentStreamSession,
   subscribeAgentStream,
 } from "../../../../services/agent/agent-stream.service.js";
@@ -19,6 +39,13 @@ import { fail, ok } from "../../../../utils/http-response.js";
 import { writeSseComment, writeSseEvent } from "../../../../utils/chat-sse.js";
 
 export const chatSessionsRouter = Router();
+
+chatSessionsRouter.get("/api/v1/platform/radiant-client", requireAuth, async (req, res) => {
+  return ok(req, res, {
+    version: RADIANT_CLIENT_TEMPLATE_VERSION,
+    content: RADIANT_CLIENT_TS,
+  });
+});
 
 chatSessionsRouter.get("/api/v1/chat/sessions", requireAuth, async (req, res, next) => {
   try {
@@ -149,6 +176,148 @@ chatSessionsRouter.get(
 
       const items = await listSessionTransactions(req.user.privyUserId, sessionId);
       return ok(req, res, { items });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.post(
+  "/api/v1/chat/sessions/:sessionId/swap/quote",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await swapQuoteForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.body,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/pool-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await poolInfoForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.post(
+  "/api/v1/chat/sessions/:sessionId/deepbook/flash-loan/quote",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await flashLoanQuoteForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.body,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/open-orders",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await openOrdersForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/stake-balance",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await stakeBalanceForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/governance-state",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await governanceStateForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/actions",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await listAppActionsCatalogForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.post(
+  "/api/v1/chat/sessions/:sessionId/actions/:actionName",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const action = parseAppActionName(req.params.actionName);
+      const headerSessionId = readAppActionSessionId(req);
+      const result = await executeAppActionForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        action,
+        req.body,
+        {
+          source: "ui",
+          ...(headerSessionId ? { sessionId: headerSessionId } : {}),
+        },
+      );
+      return ok(req, res, result);
     } catch (err) {
       next(err);
     }

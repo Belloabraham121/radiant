@@ -1,7 +1,7 @@
-/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v4 — query helpers for DeepBook tabs. */
-export const RADIANT_CLIENT_TEMPLATE_VERSION = 4;
+/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v6 — browser-safe env + swap helpers. */
+export const RADIANT_CLIENT_TEMPLATE_VERSION = 6;
 
-export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v4. */
+export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v6. */
 
 export type SwapQuoteParams = {
   amount: number;
@@ -17,6 +17,9 @@ export type SwapQuoteResult = {
   output_amount_display: number;
   input_coin: string;
   output_coin: string;
+  min_out_display?: number;
+  /** Alias for output_amount_display — use in UI labels. */
+  estimated_out_display?: number;
 };
 
 export type PoolInfoResult = {
@@ -75,48 +78,81 @@ declare global {
   interface Window {
     __RADIANT_PROJECT_ID__?: string;
     __RADIANT_INSTALLATION_ID__?: string;
+    __RADIANT_SESSION_ID__?: string;
     __RADIANT_PREVIEW_FETCH__?: (path: string, init?: RequestInit) => Promise<Response>;
   }
+}
+
+function readPublicEnv(key: string): string {
+  try {
+    if (typeof process !== "undefined" && process.env && typeof process.env[key] === "string") {
+      return process.env[key] as string;
+    }
+  } catch {
+    // Browser preview has no Node process global.
+  }
+  return "";
 }
 
 function projectId(): string {
   if (typeof window !== "undefined" && window.__RADIANT_PROJECT_ID__) {
     return window.__RADIANT_PROJECT_ID__;
   }
-  return process.env.NEXT_PUBLIC_RADIANT_PROJECT_ID ?? "";
+  return readPublicEnv("NEXT_PUBLIC_RADIANT_PROJECT_ID");
 }
 
 function installationId(): string {
   if (typeof window !== "undefined" && window.__RADIANT_INSTALLATION_ID__) {
     return window.__RADIANT_INSTALLATION_ID__;
   }
-  return process.env.NEXT_PUBLIC_RADIANT_INSTALLATION_ID ?? "";
+  return readPublicEnv("NEXT_PUBLIC_RADIANT_INSTALLATION_ID");
 }
 
-function scopeIds(): { projectId: string; installationId: string | null } {
+function sessionId(): string {
+  if (typeof window !== "undefined" && window.__RADIANT_SESSION_ID__) {
+    return window.__RADIANT_SESSION_ID__;
+  }
+  return readPublicEnv("NEXT_PUBLIC_RADIANT_SESSION_ID");
+}
+
+function scopeIds(): {
+  projectId: string;
+  installationId: string | null;
+  sessionId: string;
+} {
   const install = installationId();
   const project = projectId();
+  const session = sessionId();
   if (install) {
     if (!project) {
       throw new Error("Missing Radiant project id for installed app");
     }
-    return { projectId: project, installationId: install };
+    return { projectId: project, installationId: install, sessionId: session };
   }
-  if (!project) {
-    throw new Error("Missing Radiant project id");
+  if (project) {
+    return { projectId: project, installationId: null, sessionId: session };
   }
-  return { projectId: project, installationId: null };
+  if (session) {
+    return { projectId: "", installationId: null, sessionId: session };
+  }
+  throw new Error("Missing Radiant project or session id");
 }
 
 function projectApiPrefix(): string {
-  const { projectId: id } = scopeIds();
+  const { projectId: id, sessionId: sid } = scopeIds();
+  if (sid && !id) {
+    return "/api/v1/chat/sessions/" + sid;
+  }
   return "/api/v1/projects/" + id;
 }
 
 function actionApiPath(action: string): string {
-  const { projectId: id, installationId: install } = scopeIds();
+  const { projectId: id, installationId: install, sessionId: sid } = scopeIds();
   if (install) {
     return "/api/v1/installations/" + install + "/actions/" + action;
+  }
+  if (sid && !id) {
+    return "/api/v1/chat/sessions/" + sid + "/actions/" + action;
   }
   return "/api/v1/projects/" + id + "/actions/" + action;
 }
@@ -187,15 +223,42 @@ export async function executeUnstake(params: Record<string, unknown>): Promise<A
   return executeAction("unstake", params);
 }
 
+/** Map from/to coins to DeepBook side for a pool (base_quote pool_key). */
+export function resolveSwapSide(pool_key: string, from_coin: string): "buy" | "sell" {
+  const parts = pool_key.split("_");
+  const base = parts[0] ?? "";
+  const quote = parts[1] ?? "";
+  if (from_coin === base) return "sell";
+  if (from_coin === quote) return "buy";
+  return "sell";
+}
+
+function normalizePoolKey(pool_keyOrParams: string | { pool_key?: string }): string {
+  if (typeof pool_keyOrParams === "string") {
+    return pool_keyOrParams || "SUI_USDC";
+  }
+  return pool_keyOrParams.pool_key ?? "SUI_USDC";
+}
+
 export async function swapQuote(params: SwapQuoteParams): Promise<SwapQuoteResult> {
   const res = await platformFetch(projectApiPrefix() + "/swap/quote", {
     method: "POST",
     body: JSON.stringify(params),
   });
-  return parseEnvelope<SwapQuoteResult>(res);
+  const data = await parseEnvelope<
+    SwapQuoteResult & { min_out_display?: number; estimated_out_display?: number }
+  >(res);
+  return {
+    ...data,
+    estimated_out_display: data.estimated_out_display ?? data.output_amount_display,
+    min_out_display: data.min_out_display ?? data.output_amount_display,
+  };
 }
 
-export async function poolInfo(pool_key = "SUI_USDC"): Promise<PoolInfoResult> {
+export async function poolInfo(
+  pool_keyOrParams: string | { pool_key?: string } = "SUI_USDC",
+): Promise<PoolInfoResult> {
+  const pool_key = normalizePoolKey(pool_keyOrParams);
   const res = await platformFetch(
     projectApiPrefix() +
       "/deepbook/pool-info?pool_key=" +

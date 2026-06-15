@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { ArtifactPreviewNavBar } from "@/components/app/ArtifactPreviewNavBar";
 import { buildArtifactPreviewSrcdoc } from "@/lib/artifact-preview";
 import { extractArtifactPreviewRoutes } from "@/lib/artifact-preview-routes";
@@ -40,9 +47,18 @@ function PreviewLoadingOverlay() {
   );
 }
 
+function hashSrcdoc(srcdoc: string): string {
+  let hash = 0;
+  for (let index = 0; index < srcdoc.length; index += 1) {
+    hash = (hash * 31 + srcdoc.charCodeAt(index)) | 0;
+  }
+  return String(hash);
+}
+
 export function ArtifactPreview({
   files,
   revision,
+  streaming = false,
   projectId,
   installationId,
   sessionId,
@@ -51,6 +67,7 @@ export function ArtifactPreview({
 }: {
   files: ArtifactFile[];
   revision: number;
+  streaming?: boolean;
   projectId?: string;
   installationId?: string;
   sessionId?: string;
@@ -62,24 +79,30 @@ export function ArtifactPreview({
   const previewPathRef = useRef("/");
   const [previewPath, setPreviewPath] = useState("/");
   const [refreshKey, setRefreshKey] = useState(0);
-  const iframeKey = `${revision}-${refreshKey}`;
   const [readyIframeKey, setReadyIframeKey] = useState<string | null>(null);
-  const loading = readyIframeKey !== iframeKey;
+  const deferredFiles = useDeferredValue(files);
+  const renderFiles = streaming ? deferredFiles : files;
   const routes = useMemo(() => extractArtifactPreviewRoutes(files), [files]);
+
   const srcdoc = useMemo(
-    () => buildArtifactPreviewSrcdoc(files, { projectId, installationId, sessionId }),
-    [files, projectId, installationId, sessionId],
+    () => buildArtifactPreviewSrcdoc(renderFiles, { projectId, installationId, sessionId }),
+    [renderFiles, projectId, installationId, sessionId],
   );
+
+  const iframeKey = useMemo(
+    () => `${revision}-${refreshKey}-${hashSrcdoc(srcdoc)}`,
+    [revision, refreshKey, srcdoc],
+  );
+
+  const loading = readyIframeKey !== iframeKey;
 
   useEffect(() => {
     previewPathRef.current = previewPath;
   }, [previewPath]);
 
-  const postNavigate = useCallback((path: string) => {
-    const win = iframeRef.current?.contentWindow;
-    if (!win) return;
-    win.postMessage({ type: PREVIEW_NAVIGATE_TYPE, path }, "*");
-  }, []);
+  function navigatePreview(path: string) {
+    iframeRef.current?.contentWindow?.postMessage({ type: PREVIEW_NAVIGATE_TYPE, path }, "*");
+  }
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -125,24 +148,27 @@ export function ArtifactPreview({
 
       if (data.status === "ready" || data.status === "error") {
         setReadyIframeKey(iframeKey);
-        postNavigate(previewPathRef.current);
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: PREVIEW_NAVIGATE_TYPE, path: previewPathRef.current },
+          "*",
+        );
       }
     }
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [
-    postNavigate,
     installationId,
     projectId,
     sessionId,
     onProxiedApiResponse,
     iframeKey,
+    iframeRef,
   ]);
 
   function handlePathChange(path: string) {
     setPreviewPath(path);
-    postNavigate(path);
+    navigatePreview(path);
   }
 
   function handleRefresh() {

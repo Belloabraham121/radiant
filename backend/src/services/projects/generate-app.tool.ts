@@ -30,8 +30,7 @@ export const generateAppToolDefinition = {
         type: "string",
         enum: ["custom", "escrow", "swap", "prediction"],
         description:
-          "Use swap for DeepBook DEX / Uniswap-like apps (auto-injects DexApp with swap, flash loan, stake, governance, orders tabs). " +
-          "Infer swap from build+a+swap+app/deepbook/uniswap/tabs — user does not need to say template.",
+          "Use custom for agent-generated UI (default). swap/escrow/prediction are legacy metadata labels only — no prebuilt scaffold is injected.",
       },
       files: {
         type: "array",

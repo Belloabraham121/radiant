@@ -7,7 +7,6 @@ import {
 import {
   AGENT_INDICATOR_TSX,
   AGENT_STYLES_CSS,
-  DEX_APP_SCAFFOLD_TSX,
   RADIANT_AGENT_RUNTIME_TS,
 } from "./radiant-agent-runtime-template.js";
 
@@ -25,20 +24,6 @@ function normalizeClientPath(path: string): string {
 
 function hasPath(files: ArtifactFileInput[], target: string): boolean {
   return files.some((file) => normalizeClientPath(file.path) === target);
-}
-
-function hasSwapFormComponent(files: ArtifactFileInput[]): boolean {
-  return files.some((file) => {
-    const path = normalizeClientPath(file.path);
-    return path.includes("SwapForm") && (path.endsWith(".tsx") || path.endsWith(".jsx"));
-  });
-}
-
-function hasDexAppComponent(files: ArtifactFileInput[]): boolean {
-  return files.some((file) => {
-    const path = normalizeClientPath(file.path);
-    return path.includes("DexApp") && (path.endsWith(".tsx") || path.endsWith(".jsx"));
-  });
 }
 
 function pickPrimaryComponent(files: ArtifactFileInput[]): ArtifactFileInput | null {
@@ -83,8 +68,16 @@ function normalizeGlobalsCssFiles(files: ArtifactFileInput[]): ArtifactFileInput
   });
 }
 
-function injectPlatformFiles(files: ArtifactFileInput[], options: EnsureAppEntryOptions): ArtifactFileInput[] {
-  const next = [...files];
+function injectPlatformFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
+  const next = files.map((file) => {
+    if (normalizeClientPath(file.path) !== "lib/radiant-client.ts") {
+      return file;
+    }
+    if (file.content.includes(`Template v${RADIANT_CLIENT_TEMPLATE_VERSION}`)) {
+      return file;
+    }
+    return { ...file, content: RADIANT_CLIENT_TS };
+  });
 
   if (!hasPath(next, "lib/radiant-client.ts")) {
     next.push({ path: "lib/radiant-client.ts", content: RADIANT_CLIENT_TS });
@@ -94,10 +87,6 @@ function injectPlatformFiles(files: ArtifactFileInput[], options: EnsureAppEntry
   }
   if (!hasPath(next, "components/AgentIndicator.tsx")) {
     next.push({ path: "components/AgentIndicator.tsx", content: AGENT_INDICATOR_TSX });
-  }
-
-  if (options.template === "swap" && !hasSwapFormComponent(next) && !hasDexAppComponent(next)) {
-    next.push({ path: "components/DexApp.tsx", content: DEX_APP_SCAFFOLD_TSX });
   }
 
   return next;
@@ -113,9 +102,9 @@ function defaultGlobalsCss(): string {
  */
 export function ensureAppEntry(
   files: ArtifactFileInput[],
-  options: EnsureAppEntryOptions = {},
+  _options: EnsureAppEntryOptions = {},
 ): ArtifactFileInput[] {
-  let next = injectPlatformFiles(files, options);
+  let next = injectPlatformFiles(files);
 
   const usesLegacy = hasPath(next, "src/App.tsx") || hasPath(next, "src/App.jsx");
   const usesNext = hasPath(next, "app/page.tsx");
@@ -134,12 +123,7 @@ export function ensureAppEntry(
     return normalizeGlobalsCssFiles(next);
   }
 
-  const primary =
-    options.template === "swap" && hasPath(next, "components/DexApp.tsx")
-      ? (next.find((file) => normalizeClientPath(file.path) === "components/DexApp.tsx") ?? null)
-      : options.template === "swap" && hasPath(next, "components/SwapForm.tsx")
-        ? (next.find((file) => normalizeClientPath(file.path) === "components/SwapForm.tsx") ?? null)
-        : pickPrimaryComponent(next);
+  const primary = pickPrimaryComponent(next);
   const importPath = primary ? componentImportPath(primary.path) : null;
 
   if (!hasPath(next, "app/layout.tsx")) {
@@ -165,6 +149,7 @@ export function ensureAppEntry(
       path: "app/page.tsx",
       content:
         `"use client";\n\n` +
+        `import "../lib/radiant-agent-runtime";\n\n` +
         `export default function Page() {\n` +
         `  return (\n` +
         `    <main style={{ padding: 24 }}>\n` +

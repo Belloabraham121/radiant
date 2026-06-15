@@ -117,12 +117,8 @@ function concatArtifactSource(files: ArtifactFileInput[]): string {
 /** Heuristic: generated app exposes DeFi actions via radiant-client helpers or swap UI. */
 export function detectDefiActionNamesFromArtifact(
   files: ArtifactFileInput[],
-  template?: string,
+  _template?: string,
 ): AppActionName[] {
-  if (template === "swap") {
-    return [...DEFAULT_SWAP_TEMPLATE_ACTIONS];
-  }
-
   const source = concatArtifactSource(files);
   const detected = new Set<AppActionName>();
 
@@ -151,9 +147,6 @@ export function shouldPersistDefiActionSchema(input: {
   template?: string;
   files: ArtifactFileInput[];
 }): boolean {
-  if (input.template === "swap") {
-    return true;
-  }
   return detectDefiActionNamesFromArtifact(input.files, input.template).length > 0;
 }
 
@@ -166,10 +159,7 @@ export function inferProjectActionSchemaForArtifact(
     return null;
   }
 
-  const actionNames =
-    input.template === "swap"
-      ? DEFAULT_SWAP_TEMPLATE_ACTIONS
-      : detectDefiActionNamesFromArtifact(input.files, input.template);
+  const actionNames = detectDefiActionNamesFromArtifact(input.files, input.template);
 
   if (actionNames.length === 0) {
     return null;

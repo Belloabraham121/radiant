@@ -40,21 +40,27 @@ describe("app-action schema", () => {
     assert.ok(names.includes("stake"));
   });
 
-  it("persists schema for swap template and skips plain custom apps", () => {
+  it("persists schema when DeFi helpers are in generated files", () => {
     const projectId = "22222222-2222-4222-8222-222222222222";
 
-    const swapSchema = inferProjectActionSchemaForArtifact(projectId, {
+    const defiSchema = inferProjectActionSchemaForArtifact(projectId, {
+      template: "custom",
+      files: [
+        {
+          path: "components/SwapForm.tsx",
+          content:
+            'import { executeSwap } from "../lib/radiant-client";\nexport default function SwapForm() { return null; }',
+        },
+      ],
+    });
+    assert.ok(defiSchema);
+    assert.equal(defiSchema?.protocol, "deepbook");
+
+    const emptySchema = inferProjectActionSchemaForArtifact(projectId, {
       template: "swap",
       files: [{ path: "app/page.tsx", content: "export default function Page() { return null; }" }],
     });
-    assert.ok(swapSchema);
-    assert.equal(swapSchema?.protocol, "deepbook");
-
-    const customSchema = inferProjectActionSchemaForArtifact(projectId, {
-      template: "custom",
-      files: [{ path: "app/page.tsx", content: "export default function Page() { return <h1>Hi</h1>; }" }],
-    });
-    assert.equal(customSchema, null);
+    assert.equal(emptySchema, null);
     assert.equal(
       shouldPersistDefiActionSchema({
         template: "custom",

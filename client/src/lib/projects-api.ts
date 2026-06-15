@@ -104,6 +104,13 @@ export async function saveSessionDraftToProject(
   });
 }
 
+export async function fetchRadiantClientTemplate(): Promise<{
+  version: number;
+  content: string;
+}> {
+  return apiFetch("/api/v1/platform/radiant-client");
+}
+
 export async function deleteProject(projectId: string): Promise<{ deleted: boolean; project_id: string }> {
   return apiFetch(`/api/v1/projects/${projectId}`, { method: "DELETE" });
 }

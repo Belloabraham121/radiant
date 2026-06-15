@@ -87,8 +87,10 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
         const activePath = pickActivePath(merged, options.activePath ?? prev.activePath);
 
         let panelOpen = prev.panelOpen;
+        let userDismissed = prev.userDismissed;
         if (options.open === true) {
-          panelOpen = !prev.userDismissed;
+          panelOpen = true;
+          userDismissed = false;
         } else if (options.open === false) {
           panelOpen = false;
         }
@@ -100,7 +102,7 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
             payload: merged,
             activePath,
             streaming,
-            userDismissed: prev.userDismissed,
+            userDismissed,
           },
         };
       });
