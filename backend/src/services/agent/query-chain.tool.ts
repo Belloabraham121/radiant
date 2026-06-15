@@ -34,6 +34,16 @@ import { findProjectByIdForUser } from "../projects/project.repository.js";
 import { buildProjectActionsCatalogResponse } from "../projects/app-action-schema.service.js";
 import { listAppActionsCatalogForSession } from "../projects/app-action-catalog.service.js";
 import { resolveAppScope } from "../projects/app-scope-resolver.service.js";
+import {
+  getPredictState,
+  getOracleState,
+  getTradeAmounts,
+  getRangeTradeAmounts,
+  getVaultSummary,
+  getManagerSummary,
+} from "../defi/deepbook/deepbook-predict-server.client.js";
+import { getPredictObjectId } from "../defi/deepbook/deepbook-predict.service.js";
+import { MARGIN_POOL_CONFIGS } from "../defi/deepbook/deepbook-margin.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -90,9 +100,16 @@ export const queryChainToolDefinition = {
           "agent_transactions",
           "project_actions",
           "session_actions",
+          "margin_pool_info",
+          "margin_manager_info",
+          "predict_markets",
+          "predict_trade_amounts",
+          "predict_range_amounts",
+          "predict_manager_info",
+          "predict_vault_summary",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, or session_actions.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, margin_pool_info, margin_manager_info, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, or predict_vault_summary.",
       },
       params: {
         type: "object",
@@ -114,6 +131,13 @@ export const queryChainToolDefinition = {
           "returns recent agent wallet activity; response includes summary (date, amount, status, digest) to quote in chat. " +
           "project_actions: { project_id } OR { app_name } — saved project action schema. Never pass an app name as project_id. " +
           "session_actions: optional { app_name } — chat draft artifact action schema (unsaved preview). Uses current chat session. " +
+          "margin_pool_info: { pool_key? } — margin pool state (supply, borrow, interest rate, utilization, max leverage). " +
+          "margin_manager_info: { margin_manager_key? } — margin manager balances, borrowed amounts, risk ratio. " +
+          "predict_markets: {} — active oracles with spot/forward prices, lifecycle, expiry. " +
+          "predict_trade_amounts: { oracle_id, expiry, strike, is_up, quantity } — preview mint cost and redeem payout for a binary position. " +
+          "predict_range_amounts: { oracle_id, expiry, lower_strike, higher_strike, quantity } — preview for range position. " +
+          "predict_manager_info: { manager_id? } — predict manager balances and positions. " +
+          "predict_vault_summary: {} — vault total value, PLP supply, max payout, withdrawal available. " +
           "EVM balances: { evm_chain_id }.",
         additionalProperties: true,
       },
@@ -255,6 +279,134 @@ export async function runQueryChainTool(
         sessionId: parsed.params.session_id,
         transactionId: parsed.params.transaction_id,
       });
+    }
+    case "margin_pool_info": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      const poolKey = parsed.params.pool_key ?? "SUI_DBUSDC";
+      const config = MARGIN_POOL_CONFIGS[poolKey];
+      return {
+        pool_key: poolKey,
+        max_leverage: config?.maxLeverage ?? 3,
+        liquidation_ratio: config?.liquidationRatio ?? 1.2,
+        borrow_threshold: config?.borrowThreshold ?? 1.25,
+        available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+      };
+    }
+    case "margin_manager_info": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return {
+        note: "Margin manager info requires live SDK calls. Use execute_transaction with margin_deposit/margin_borrow to interact.",
+        available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+      };
+    }
+    case "predict_markets": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      const predictId = getPredictObjectId();
+      const state = await getPredictState(predictId);
+      return {
+        predict_id: state.predictId,
+        trading_paused: state.tradingPaused,
+        quote_assets: state.quoteAssets,
+        oracles: state.oracles.map((o) => ({
+          oracle_id: o.oracleId,
+          spot: o.spot,
+          forward: o.forward,
+          expiry: o.expiry,
+          lifecycle: o.lifecycle,
+          settlement_price: o.settlementPrice,
+        })),
+      };
+    }
+    case "predict_trade_amounts": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      const oracleId = String(parsed.params.oracle_id ?? "");
+      const tradeExpiry = Number(parsed.params.expiry);
+      const tradeStrike = Number(parsed.params.strike);
+      const tradeIsUp = Boolean(parsed.params.is_up);
+      const tradeQty = Number(parsed.params.quantity);
+      if (!oracleId || !tradeExpiry || isNaN(tradeStrike) || !tradeQty) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "predict_trade_amounts requires: oracle_id, expiry, strike, is_up, quantity",
+        );
+      }
+      const amounts = await getTradeAmounts(oracleId, tradeExpiry, tradeStrike, tradeIsUp, tradeQty);
+      return {
+        oracle_id: oracleId,
+        expiry: tradeExpiry,
+        strike: tradeStrike,
+        is_up: tradeIsUp,
+        quantity: tradeQty,
+        mint_cost: amounts.mintCost,
+        redeem_payout: amounts.redeemPayout,
+      };
+    }
+    case "predict_range_amounts": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      const rangeOracleId = String(parsed.params.oracle_id ?? "");
+      const rangeExpiry = Number(parsed.params.expiry);
+      const rangeLower = Number(parsed.params.lower_strike);
+      const rangeHigher = Number(parsed.params.higher_strike);
+      const rangeQty = Number(parsed.params.quantity);
+      if (!rangeOracleId || !rangeExpiry || isNaN(rangeLower) || isNaN(rangeHigher) || !rangeQty) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "predict_range_amounts requires: oracle_id, expiry, lower_strike, higher_strike, quantity",
+        );
+      }
+      const amounts = await getRangeTradeAmounts(rangeOracleId, rangeExpiry, rangeLower, rangeHigher, rangeQty);
+      return {
+        oracle_id: rangeOracleId,
+        expiry: rangeExpiry,
+        lower_strike: rangeLower,
+        higher_strike: rangeHigher,
+        quantity: rangeQty,
+        mint_cost: amounts.mintCost,
+        redeem_payout: amounts.redeemPayout,
+      };
+    }
+    case "predict_manager_info": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      const managerId = parsed.params.manager_id as string | undefined;
+      if (!managerId) {
+        return {
+          note: "Predict manager info requires a manager_id. Use predict_markets first to discover active oracles, then use execute_transaction predict_deposit to set up a manager.",
+        };
+      }
+      const info = await getManagerSummary(managerId);
+      return {
+        address: info.address,
+        owner: info.owner,
+        balances: info.balances,
+        positions: info.positions.map((p) => ({
+          oracle_id: p.marketKey.oracleId,
+          expiry: p.marketKey.expiry,
+          strike: p.marketKey.strike,
+          is_up: p.marketKey.isUp,
+          quantity: p.quantity,
+        })),
+        ranges: info.ranges.map((r) => ({
+          oracle_id: r.rangeKey.oracleId,
+          expiry: r.rangeKey.expiry,
+          lower_strike: r.rangeKey.lowerStrike,
+          higher_strike: r.rangeKey.higherStrike,
+          quantity: r.quantity,
+        })),
+      };
+    }
+    case "predict_vault_summary": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      const predictId = getPredictObjectId();
+      const vault = await getVaultSummary(predictId);
+      return {
+        total_value: vault.totalValue,
+        total_plp: vault.totalPLP,
+        max_payout: vault.maxPayout,
+        accepted_quote_assets: vault.acceptedQuoteAssets,
+        withdrawal_available: vault.withdrawalAvailable,
+      };
     }
     case "project_actions":
     case "session_actions": {

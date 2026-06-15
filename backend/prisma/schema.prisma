@@ -56,6 +56,10 @@ model User {
   agent_auto_approve_flash_loans Boolean @default(false)
   /// When true, agent may submit DeepBook governance proposals and vote (always require approval).
   agent_allow_governance       Boolean  @default(false)
+  /// When true, agent may use margin trading (deposit, borrow, leveraged orders).
+  agent_allow_margin           Boolean  @default(false)
+  /// When true, agent may use prediction markets (mint/redeem positions).
+  agent_allow_predict          Boolean  @default(false)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

@@ -25,6 +25,7 @@ import type {
   DeepBookVolumeResult,
 } from "../defi/deepbook/deepbook-indexer-analytics.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
+import type { ProjectActionsCatalogResponse } from "../projects/app-action-schema.types.js";
 import type { ArtifactPayload } from "../projects/project.types.js";
 import {
   agentTransactionCategorySchema,
@@ -145,6 +146,13 @@ const queryChainInputObjectSchema = z.object({
     "agent_transactions",
     "project_actions",
     "session_actions",
+    "margin_pool_info",
+    "margin_manager_info",
+    "predict_markets",
+    "predict_trade_amounts",
+    "predict_range_amounts",
+    "predict_manager_info",
+    "predict_vault_summary",
   ]),
   params: z
     .object({
@@ -283,7 +291,9 @@ export type QueryChainResult =
   | DeepBookTradesResult
   | DeepBookVolumeResult
   | DeepBookOhlcvResult
-  | AgentTransactionsQueryResult;
+  | AgentTransactionsQueryResult
+  | ProjectActionsCatalogResponse
+  | Record<string, unknown>;
 
 export type ExecuteToolOutcome =
   | { status: "executed"; result: TxResult; agent_transaction_id?: string }

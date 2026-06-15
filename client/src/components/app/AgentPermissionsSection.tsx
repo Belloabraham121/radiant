@@ -60,6 +60,8 @@ function permissionsSummary(permissions: AgentPermissions, loading: boolean): st
     );
   }
   if (permissions.allow_governance) parts.push("Governance on");
+  if (permissions.allow_margin) parts.push("Margin on");
+  if (permissions.allow_predict) parts.push("Predict on");
 
   return parts.join(" · ");
 }
@@ -77,6 +79,8 @@ export function AgentPermissionsSection() {
     setAllowFlashLoans,
     setAutoApproveFlashLoans,
     setAllowGovernance,
+    setAllowMargin,
+    setAllowPredict,
   } = useAgentPermissions(authenticated);
   const serverMaxSui = String(permissions.auto_approve_max_sui);
   const [draftMaxSui, setDraftMaxSui] = useState(serverMaxSui);
@@ -128,8 +132,8 @@ export function AgentPermissionsSection() {
         {open ? (
           <div className="border-t-2 border-[var(--hero-ink)]/10 px-5 pb-5 pt-4">
             <p className="mb-5 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
-              Control how much freedom your agent has — auto-approvals, flash loans, and
-              governance actions all live here.
+              Control how much freedom your agent has — auto-approvals, flash loans,
+              governance, margin trading, and prediction markets all live here.
             </p>
 
             {error ? (
@@ -232,6 +236,34 @@ export function AgentPermissionsSection() {
                 on={permissions.allow_governance}
                 disabled={loading || saving}
                 onToggle={() => void setAllowGovernance(!permissions.allow_governance)}
+              />
+
+              <PermissionToggle
+                label="Allow margin trading"
+                detail={
+                  loading
+                    ? "Loading…"
+                    : permissions.allow_margin
+                      ? "Leveraged trading enabled. The agent can deposit collateral, borrow from margin pools, and place leveraged orders. Every margin transaction shows an approval dialog."
+                      : "Margin trading stays disabled. The agent cannot borrow or place leveraged orders until you turn this on."
+                }
+                on={permissions.allow_margin}
+                disabled={loading || saving}
+                onToggle={() => void setAllowMargin(!permissions.allow_margin)}
+              />
+
+              <PermissionToggle
+                label="Allow prediction markets"
+                detail={
+                  loading
+                    ? "Loading…"
+                    : permissions.allow_predict
+                      ? "Prediction markets enabled. The agent can mint and redeem binary/range positions on DeepBook Predict (testnet). Every prediction shows an approval dialog."
+                      : "Prediction markets stay disabled. The agent cannot mint or redeem positions until you turn this on."
+                }
+                on={permissions.allow_predict}
+                disabled={loading || saving}
+                onToggle={() => void setAllowPredict(!permissions.allow_predict)}
               />
             </div>
           </div>

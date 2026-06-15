@@ -11,6 +11,8 @@ import {
 import { extractDepositIntent } from "../deepbook/deposit-approval-flow.js";
 import { userAskedMarketPrice } from "../deepbook/compound-request-flow.js";
 import { extractWithdrawIntent } from "../deepbook/withdraw-approval-flow.js";
+import { extractMarginDepositIntent, extractMarginBorrowIntent, extractLeverageOrderIntent } from "../deepbook/margin-approval-flow.js";
+import { extractPredictMintIntent, extractPredictRangeIntent } from "../deepbook/predict-approval-flow.js";
 import type {
   WorkflowAgentStep,
   WorkflowBuildStep,
@@ -565,6 +567,96 @@ export function classifyWorkflowSegment(segment: string): WorkflowStep {
         chain_id: "sui",
         action: "deepbook_provision_manager",
         params: {},
+      },
+    };
+  }
+
+  const marginDeposit = extractMarginDepositIntent(segment);
+  if (marginDeposit) {
+    return {
+      kind: "execute",
+      label: `Margin deposit ${marginDeposit.amount} ${marginDeposit.coin_type}`,
+      input: {
+        chain_id: "sui",
+        action: "deepbook_margin_deposit",
+        params: {
+          margin_manager_key: "default",
+          coin_type: marginDeposit.coin_type,
+          amount: marginDeposit.amount,
+        },
+      },
+    };
+  }
+
+  const marginBorrow = extractMarginBorrowIntent(segment);
+  if (marginBorrow) {
+    return {
+      kind: "execute",
+      label: `Margin borrow ${marginBorrow.amount} ${marginBorrow.asset}`,
+      input: {
+        chain_id: "sui",
+        action: "deepbook_margin_borrow",
+        params: {
+          margin_manager_key: "default",
+          asset: marginBorrow.asset,
+          amount: marginBorrow.amount,
+        },
+      },
+    };
+  }
+
+  const leverageOrder = extractLeverageOrderIntent(segment);
+  if (leverageOrder) {
+    return {
+      kind: "execute",
+      label: `${leverageOrder.leverage}x ${leverageOrder.is_bid ? "long" : "short"} ${leverageOrder.quantity}`,
+      input: {
+        chain_id: "sui",
+        action: "deepbook_margin_place_market_order",
+        params: {
+          pool_key: leverageOrder.pool_key,
+          margin_manager_key: "default",
+          quantity: leverageOrder.quantity,
+          is_bid: leverageOrder.is_bid,
+        },
+      },
+    };
+  }
+
+  const predictMint = extractPredictMintIntent(segment);
+  if (predictMint) {
+    return {
+      kind: "execute",
+      label: `Predict ${predictMint.is_up ? "UP" : "DOWN"} @ ${predictMint.strike ?? "TBD"} × ${predictMint.quantity}`,
+      input: {
+        chain_id: "sui",
+        action: "deepbook_predict_mint",
+        params: {
+          oracle_id: predictMint.oracle_id ?? "",
+          expiry: predictMint.expiry ?? 0,
+          strike: predictMint.strike ?? 0,
+          is_up: predictMint.is_up,
+          quantity: predictMint.quantity,
+        },
+      },
+    };
+  }
+
+  const predictRange = extractPredictRangeIntent(segment);
+  if (predictRange) {
+    return {
+      kind: "execute",
+      label: `Predict range [${predictRange.lower_strike}–${predictRange.higher_strike}] × ${predictRange.quantity}`,
+      input: {
+        chain_id: "sui",
+        action: "deepbook_predict_mint_range",
+        params: {
+          oracle_id: predictRange.oracle_id ?? "",
+          expiry: predictRange.expiry ?? 0,
+          lower_strike: predictRange.lower_strike,
+          higher_strike: predictRange.higher_strike,
+          quantity: predictRange.quantity,
+        },
       },
     };
   }
