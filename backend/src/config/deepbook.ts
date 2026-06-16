@@ -1,12 +1,16 @@
 import {
   mainnetCoins,
+  mainnetMarginPools,
   mainnetPools,
   testnetCoins,
+  testnetMarginPools,
   testnetPools,
   type CoinMap,
   type PoolMap,
 } from "@mysten/deepbook-v3";
 import { optional } from "./optional-env.js";
+
+export type MarginPoolMap = Record<string, { address: string; type: string }>;
 
 const DEFAULT_INDEXER_MAINNET = "https://deepbook-indexer.mainnet.mystenlabs.com";
 const DEFAULT_INDEXER_TESTNET = "https://deepbook-indexer.testnet.mystenlabs.com";
@@ -27,6 +31,7 @@ export type DeepBookEnv = {
   defaultManagerKey: string;
   coins: CoinMap;
   pools: PoolMap;
+  marginPools: MarginPoolMap;
 };
 
 let cached: DeepBookEnv | undefined;
@@ -87,6 +92,7 @@ export function getDeepBookEnv(): DeepBookEnv {
         ? popularRaw.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean)
         : [...DEFAULT_POPULAR_SYMBOLS];
     const { coins, pools } = resolveCoinsAndPools(env);
+    const marginPools = (env === "testnet" ? testnetMarginPools : mainnetMarginPools) as MarginPoolMap;
 
     cached = {
       env,
@@ -97,9 +103,30 @@ export function getDeepBookEnv(): DeepBookEnv {
       defaultManagerKey: DEFAULT_BALANCE_MANAGER_KEY,
       coins,
       pools,
+      marginPools,
     };
   }
   return cached;
+}
+
+/**
+ * Returns trading pool keys where both the base and quote coins have
+ * corresponding margin (lending) pools — meaning margin trading is supported.
+ */
+export function getMarginEnabledPoolKeys(): string[] {
+  const env = getDeepBookEnv();
+  const marginAssets = new Set(Object.keys(env.marginPools).map((k) => k.toUpperCase()));
+  const results: string[] = [];
+
+  for (const [poolKey, pool] of Object.entries(env.pools)) {
+    const baseCoin = String((pool as { baseCoin?: string }).baseCoin ?? "").toUpperCase();
+    const quoteCoin = String((pool as { quoteCoin?: string }).quoteCoin ?? "").toUpperCase();
+    if (marginAssets.has(baseCoin) && marginAssets.has(quoteCoin)) {
+      results.push(poolKey);
+    }
+  }
+
+  return results;
 }
 
 /** Test hook — reset cached env. */

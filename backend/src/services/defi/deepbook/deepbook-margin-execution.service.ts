@@ -2,7 +2,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { deepbook, type DeepBookClient } from "@mysten/deepbook-v3";
 import type { TxResult } from "../../chains/types.js";
 import { AppError } from "../../../errors/app-error.js";
-import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { getDeepBookEnv, getMarginEnabledPoolKeys } from "../../../config/deepbook.js";
 import { getSuiClient } from "../../../infrastructure/sui/client.js";
 import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
 import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
@@ -187,14 +187,44 @@ export type MarginProvisionResult = TxResult & {
   already_provisioned: boolean;
 };
 
+function resolveMarginPoolKey(params: Record<string, unknown>): string {
+  const marginPools = getMarginEnabledPoolKeys();
+
+  if (marginPools.length === 0) {
+    throw new AppError(
+      503,
+      "NO_MARGIN_POOLS",
+      "No margin-enabled trading pools found in this environment. Margin trading may not be available.",
+    );
+  }
+
+  const raw = params.pool_key ?? params.poolKey;
+  if (!raw) {
+    throw new AppError(
+      400,
+      "MARGIN_POOL_REQUIRED",
+      `You must specify a pool_key for the margin manager. Available margin-enabled pools: ${marginPools.join(", ")}. Ask the user which pool they want.`,
+    );
+  }
+
+  const requested = String(raw).toUpperCase();
+  if (!marginPools.includes(requested)) {
+    throw new AppError(
+      400,
+      "INVALID_MARGIN_POOL",
+      `Pool "${requested}" is not margin-enabled. Available margin pools: ${marginPools.join(", ")}`,
+    );
+  }
+
+  return requested;
+}
+
 export async function executeProvisionMarginManager(
   privyUserId: string,
   params: Record<string, unknown>,
 ): Promise<MarginProvisionResult> {
   const wallet = await resolveSuiAgentWallet(privyUserId);
-  const poolKey = String(
-    params.pool_key ?? params.poolKey ?? getDeepBookEnv().defaultPool,
-  ).toUpperCase();
+  const poolKey = resolveMarginPoolKey(params);
 
   const client = getDeepBookClient({ address: wallet.address });
   const existingIds = await client.getMarginManagerIdsForOwner(wallet.address);

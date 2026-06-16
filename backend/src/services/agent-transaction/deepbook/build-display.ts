@@ -1,4 +1,4 @@
-import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { getDeepBookEnv, getMarginEnabledPoolKeys } from "../../../config/deepbook.js";
 import {
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
@@ -89,7 +89,8 @@ export async function buildTransactionDisplay(
   let amount_display = formatAmountDisplay(input.chain_id, amount);
 
   if (input.action === "deepbook_provision_margin_manager") {
-    const poolKey = String(input.params.pool_key ?? input.params.poolKey ?? "SUI_DBUSDC");
+    const marginPools = getMarginEnabledPoolKeys();
+    const poolKey = String(input.params.pool_key ?? input.params.poolKey ?? marginPools[0] ?? "SUI_USDC");
     title = `Create DeepBook margin manager (${poolKey})`;
     amount_display = "Network fee only (~0.01 SUI)";
   } else if (isDeepBookProvisionAction(input.action)) {

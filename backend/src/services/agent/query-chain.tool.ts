@@ -44,6 +44,7 @@ import {
 } from "../defi/deepbook/deepbook-predict-server.client.js";
 import { getPredictObjectId } from "../defi/deepbook/deepbook-predict.service.js";
 import { MARGIN_POOL_CONFIGS } from "../defi/deepbook/deepbook-margin.service.js";
+import { getMarginEnabledPoolKeys } from "../../config/deepbook.js";
 import { getDeepBookClient } from "../defi/deepbook/providers/sui-deepbook.provider.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
@@ -283,24 +284,26 @@ export async function runQueryChainTool(
     }
     case "margin_pool_info": {
       assertSuiDeepBookQuery(parsed.chain_id);
-      const poolKey = parsed.params.pool_key ?? "SUI_DBUSDC";
+      const marginEnabledPools = getMarginEnabledPoolKeys();
+      const poolKey = parsed.params.pool_key ?? marginEnabledPools[0] ?? "SUI_USDC";
       const config = MARGIN_POOL_CONFIGS[poolKey];
       return {
         pool_key: poolKey,
         max_leverage: config?.maxLeverage ?? 3,
         liquidation_ratio: config?.liquidationRatio ?? 1.2,
         borrow_threshold: config?.borrowThreshold ?? 1.25,
-        available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+        available_margin_pools: marginEnabledPools,
       };
     }
     case "margin_manager_info": {
       assertSuiDeepBookQuery(parsed.chain_id);
+      const marginEnabledPoolsForManager = getMarginEnabledPoolKeys();
       const marginWallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
       if (!marginWallet) {
         return {
           provisioned: false,
           note: "No Sui agent wallet found. The user needs to set up their wallet first.",
-          available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+          available_margin_pools: marginEnabledPoolsForManager,
         };
       }
       const marginClient = getDeepBookClient({ address: marginWallet.address });
@@ -308,15 +311,15 @@ export async function runQueryChainTool(
       if (marginManagerIds.length === 0) {
         return {
           provisioned: false,
-          note: "No margin manager found on-chain. Create one with execute_transaction action deepbook_provision_margin_manager { pool_key }.",
-          available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+          note: "No margin manager found on-chain. Create one with execute_transaction action deepbook_provision_margin_manager {}.",
+          available_margin_pools: marginEnabledPoolsForManager,
         };
       }
       return {
         provisioned: true,
         margin_manager_address: marginManagerIds[0],
         manager_count: marginManagerIds.length,
-        available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+        available_margin_pools: marginEnabledPoolsForManager,
         note: "Margin manager exists. Proceed with execute_transaction for the requested margin action — the system validates balances at approval time.",
       };
     }
