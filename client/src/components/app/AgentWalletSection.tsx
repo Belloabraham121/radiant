@@ -77,6 +77,7 @@ function collapsedSummary(assets: WalletAssetRow[]): string {
 function AssetRow({ asset }: { asset: WalletAssetRow }) {
   const accent = ASSET_ACCENT[asset.symbol] ?? "var(--hero-ink)";
   const isZero = asset.balance_atomic === "0";
+  const logoUrl = asset.logo_url?.trim() || null;
 
   return (
     <div
@@ -86,12 +87,24 @@ function AssetRow({ asset }: { asset: WalletAssetRow }) {
           : "border-[var(--hero-ink)]/20 bg-white"
       }`}
     >
-      <span
-        className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--hero-ink)] font-heading text-sm font-extrabold text-white"
-        style={{ backgroundColor: accent }}
-      >
-        {asset.symbol.slice(0, 3)}
-      </span>
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt=""
+          width={40}
+          height={40}
+          loading="lazy"
+          decoding="async"
+          className="size-10 shrink-0 rounded-xl border-2 border-[var(--hero-ink)]/15 bg-white object-cover"
+        />
+      ) : (
+        <span
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--hero-ink)] font-heading text-sm font-extrabold text-white"
+          style={{ backgroundColor: accent }}
+        >
+          {asset.symbol.slice(0, 3)}
+        </span>
+      )}
       <div className="min-w-0 flex-1">
         <p className="font-heading text-sm font-extrabold tracking-tight">{asset.symbol}</p>
         <p className="truncate text-xs font-medium text-[var(--hero-ink)]/50">{asset.name}</p>

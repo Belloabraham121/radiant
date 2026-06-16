@@ -9,6 +9,7 @@ import {
   fetchSolanaPrivyWalletAssets,
 } from "./privy-balance.service.js";
 import { fetchSuiCoinBalances } from "./sui-coin-balances.js";
+import { enrichWalletAssetsWithMarketData } from "../market/coingecko.service.js";
 
 function sumUsd(assets: WalletAssetsData["assets"]): number | null {
   const values = assets.map((a) => a.usd_value).filter((v): v is number => v !== null);
@@ -42,17 +43,26 @@ function filterAssets(
 }
 
 function finalizeAssets(
-  data: Omit<WalletAssetsData, "total_usd">,
+  data: Omit<WalletAssetsData, "total_usd" | "prices_updated_at">,
   query: WalletAssetsQuery,
-): WalletAssetsData {
+): Promise<WalletAssetsData> {
+  return finalizeAssetsAsync(data, query);
+}
+
+async function finalizeAssetsAsync(
+  data: Omit<WalletAssetsData, "total_usd" | "prices_updated_at">,
+  query: WalletAssetsQuery,
+): Promise<WalletAssetsData> {
   const includeZero = query.include_zero ?? true;
   const includeUsd = query.include_usd ?? true;
   let assets = applyStablecoinUsd(data.assets, includeUsd);
+  assets = await enrichWalletAssetsWithMarketData(assets, includeUsd);
   assets = filterAssets(assets, includeZero);
   return {
     ...data,
     assets,
     total_usd: sumUsd(assets),
+    prices_updated_at: includeUsd ? new Date().toISOString() : null,
   };
 }
 
