@@ -9,7 +9,14 @@ export type DeepBookDepositIntent = {
 
 const DEPOSIT_COIN_PATTERN = "sui|usdc|deep|wal|usdt";
 
+const RESEARCH_QUESTION_PATTERN =
+  /\b(what can i|what would|what happens|what are|tell me|explain|how do|if i .{0,30}\bwhat\b|possibilities)/i;
+
 export function extractDepositIntent(message: string): DeepBookDepositIntent | null {
+  if (RESEARCH_QUESTION_PATTERN.test(message) || (message.includes("?") && /\bif\s+i\b/i.test(message))) {
+    return null;
+  }
+
   const normalized = message.replace(/^\s*eposit\b/i, "deposit");
   const patterns = [
     new RegExp(`deposit\\s+([\\d.,]+)\\s*(${DEPOSIT_COIN_PATTERN})\\b`, "i"),

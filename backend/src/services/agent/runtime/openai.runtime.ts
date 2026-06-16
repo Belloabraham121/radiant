@@ -411,8 +411,10 @@ export const openaiRuntime: AgentRuntime = {
               onToolCallDelta: (toolCall) => {
                 if (!toolCallSeenDuringStream && streamedReplyText) {
                   toolCallSeenDuringStream = true;
-                  emitReplyClear();
-                  streamedReplyAccum = "";
+                  if (streamedReplyAccum.length < 200) {
+                    emitReplyClear();
+                    streamedReplyAccum = "";
+                  }
                 }
                 toolCallSeenDuringStream = true;
 
@@ -473,8 +475,10 @@ export const openaiRuntime: AgentRuntime = {
 
       const toolCallList = choice.tool_calls ?? [];
       if (toolCallList.length > 0 && streamedReplyText && streamedReplyAccum) {
-        emitReplyClear();
-        streamedReplyAccum = "";
+        if (streamedReplyAccum.length < 200) {
+          emitReplyClear();
+          streamedReplyAccum = "";
+        }
       }
       if (toolCallList.length === 0) {
         const unsupported = detectUnsupportedCapability(lastUserMessage);

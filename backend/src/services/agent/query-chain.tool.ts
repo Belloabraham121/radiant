@@ -45,7 +45,7 @@ import {
 import { getPredictObjectId } from "../defi/deepbook/deepbook-predict.service.js";
 import { MARGIN_POOL_CONFIGS } from "../defi/deepbook/deepbook-margin.service.js";
 import { getMarginEnabledPoolKeys } from "../../config/deepbook.js";
-import { getDeepBookClient } from "../defi/deepbook/providers/sui-deepbook.provider.js";
+import { resolveMarginManagerIdsForUser } from "../defi/deepbook/margin-manager-lookup.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -306,8 +306,8 @@ export async function runQueryChainTool(
           available_margin_pools: marginEnabledPoolsForManager,
         };
       }
-      const marginClient = getDeepBookClient({ address: marginWallet.address });
-      const marginManagerIds = await marginClient.getMarginManagerIdsForOwner(marginWallet.address);
+      const lookup = await resolveMarginManagerIdsForUser(privyUserId, marginWallet.address);
+      const marginManagerIds = lookup.margin_manager_ids;
       if (marginManagerIds.length === 0) {
         return {
           provisioned: false,
@@ -317,10 +317,17 @@ export async function runQueryChainTool(
       }
       return {
         provisioned: true,
+        margin_manager_key: "default",
         margin_manager_address: marginManagerIds[0],
         manager_count: marginManagerIds.length,
+        lookup_source: lookup.source,
+        ...(lookup.rpc_warning ? { rpc_warning: lookup.rpc_warning } : {}),
         available_margin_pools: marginEnabledPoolsForManager,
-        note: "Margin manager exists. Proceed with execute_transaction for the requested margin action — the system validates balances at approval time.",
+        note:
+          lookup.source === "agent_ledger_fallback"
+            ? "Margin manager address recovered from your recent executed agent transaction because live Sui RPC lookup failed. Use margin_manager_key \"default\" for follow-up margin actions."
+            : "Margin manager exists on-chain. For execute_transaction margin actions pass margin_manager_key: \"default\" — " +
+              "the platform resolves the address from your wallet. Share margin_manager_address with the user when they ask for their key.",
       };
     }
     case "predict_markets": {

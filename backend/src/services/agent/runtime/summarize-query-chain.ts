@@ -126,6 +126,30 @@ export function summarizeQueryChainResult(result: unknown): string | null {
       : "DeepBook manager not provisioned yet";
   }
 
+  const marginInfo = result as {
+    provisioned?: boolean;
+    margin_manager_address?: string;
+    margin_manager_key?: string;
+    manager_count?: number;
+    lookup_source?: string;
+    note?: string;
+  };
+  if (typeof marginInfo.provisioned === "boolean" && "margin_manager_address" in marginInfo) {
+    if (!marginInfo.provisioned) {
+      return marginInfo.note ?? "No margin manager found on-chain for this wallet.";
+    }
+    const key = marginInfo.margin_manager_key ?? "default";
+    const source =
+      marginInfo.lookup_source === "agent_ledger_fallback"
+        ? " (recovered from recent transaction — live RPC was temporarily unavailable)"
+        : "";
+    return (
+      `Margin manager address: ${marginInfo.margin_manager_address}. ` +
+      `Use margin_manager_key "${key}" for deposits, borrows, and orders${source}. ` +
+      (marginInfo.note ?? "")
+    );
+  }
+
   const managerBalances = result as DeepBookManagerBalancesResult;
   if (
     Array.isArray(managerBalances.balances) &&

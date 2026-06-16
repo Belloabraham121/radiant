@@ -3,6 +3,7 @@ import { deepbook, type DeepBookClient } from "@mysten/deepbook-v3";
 import type { TxResult } from "../../chains/types.js";
 import { AppError } from "../../../errors/app-error.js";
 import { getDeepBookEnv, getMarginEnabledPoolKeys } from "../../../config/deepbook.js";
+import { fetchMarginManagerIdsForOwner } from "./margin-manager-lookup.service.js";
 import { getSuiClient } from "../../../infrastructure/sui/client.js";
 import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
 import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
@@ -72,8 +73,8 @@ async function resolveMarginManagerKey(
     return { managerKey: "MARGIN_1", marginManagerAddress: rawKey, poolKey };
   }
 
-  const client = getDeepBookClient({ address: walletAddress });
-  const managerIds = await client.getMarginManagerIdsForOwner(walletAddress);
+  // "default" or omitted — resolve from on-chain margin managers for this wallet
+  const managerIds = await fetchMarginManagerIdsForOwner(walletAddress);
 
   if (managerIds.length === 0) {
     throw new AppError(
@@ -227,7 +228,7 @@ export async function executeProvisionMarginManager(
   const poolKey = resolveMarginPoolKey(params);
 
   const client = getDeepBookClient({ address: wallet.address });
-  const existingIds = await client.getMarginManagerIdsForOwner(wallet.address);
+  const existingIds = await fetchMarginManagerIdsForOwner(wallet.address);
   if (existingIds.length > 0) {
     return {
       chain_id: "sui",
@@ -263,7 +264,7 @@ export async function executeProvisionMarginManager(
     suiAddress: wallet.address,
   });
 
-  const newIds = await client.getMarginManagerIdsForOwner(wallet.address);
+  const newIds = await fetchMarginManagerIdsForOwner(wallet.address);
   const newManagerAddress = newIds.find((id) => !existingIds.includes(id)) ?? newIds[0] ?? "";
 
   return {
@@ -632,8 +633,7 @@ export async function preflightMarginAction(
   }
 
   const wallet = await resolveSuiAgentWallet(privyUserId);
-  const client = getDeepBookClient({ address: wallet.address });
-  const managerIds = await client.getMarginManagerIdsForOwner(wallet.address);
+  const managerIds = await fetchMarginManagerIdsForOwner(wallet.address);
 
   if (managerIds.length === 0) {
     throw new AppError(

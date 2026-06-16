@@ -281,8 +281,14 @@ export function parseSingleSwapIntent(message: string): WorkflowExecuteStep | nu
   return swap;
 }
 
+const HYPOTHETICAL_PATTERN =
+  /\b(what can i|what would|what happens|what are|tell me|explain|how do|if i .{0,30}\bwhat\b|possibilities)/i;
+
 /** True when the message states a concrete on-chain swap (amount + coin pair), not a UI/build request. */
 export function messageHasExecutableSwapIntent(message: string): boolean {
+  if (HYPOTHETICAL_PATTERN.test(message) || (message.includes("?") && /\bif\s+i\b/i.test(message))) {
+    return false;
+  }
   return parseSingleSwapIntent(message) !== null;
 }
 

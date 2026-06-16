@@ -8,6 +8,7 @@ import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.j
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { UPDATE_MEMORY_TOOL_NAME } from "../update-memory.tool.js";
 import type { AppActionResult } from "../../projects/app-action.types.js";
+import type { TxResult } from "../../chains/types.js";
 
 function isToolError(result: unknown): result is AgentToolErrorResult {
   return (
@@ -15,6 +16,39 @@ function isToolError(result: unknown): result is AgentToolErrorResult {
     result !== null &&
     "error" in result &&
     typeof (result as AgentToolErrorResult).error?.message === "string"
+  );
+}
+
+/** Short note for chat approval replies when a margin manager is involved. */
+export function formatMarginManagerApprovalNote(result: TxResult): string {
+  const margin = result.deepbook?.margin;
+  if (!margin?.margin_manager) {
+    return "";
+  }
+  const poolPart = margin.pool_key ? ` on ${margin.pool_key}` : "";
+  return (
+    ` Margin manager address: ${margin.margin_manager}${poolPart}. ` +
+    `Use margin_manager_key "default" for follow-up margin actions.`
+  );
+}
+
+/** Human- and model-readable summary after a successful on-chain execute. */
+export function formatExecutedTxSummary(result: TxResult): string {
+  const digestPart = result.digest
+    ? `Tx digest: ${result.digest}`
+    : "Transaction succeeded (no digest — already provisioned on-chain).";
+
+  const margin = result.deepbook?.margin;
+  if (!margin?.margin_manager) {
+    return digestPart;
+  }
+
+  const poolPart = margin.pool_key ? ` on pool ${margin.pool_key}` : "";
+  const actionPart = margin.action ? ` (${margin.action})` : "";
+  return (
+    `${digestPart}${actionPart}. Margin manager address: ${margin.margin_manager}${poolPart}. ` +
+    `For follow-up margin actions use margin_manager_key: "default" — the platform resolves it from your wallet; ` +
+    `you do not need to copy the address unless you want it for Sui Explorer.`
   );
 }
 
@@ -58,5 +92,5 @@ export function summarizeToolResult(name: string, result: unknown): string {
     return `Approval required: ${outcome.pending.summary}`;
   }
 
-  return `Tx digest: ${outcome.result.digest}`;
+  return formatExecutedTxSummary(outcome.result);
 }
