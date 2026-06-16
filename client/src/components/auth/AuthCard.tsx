@@ -70,6 +70,7 @@ export function AuthCard() {
   const [oauthProvider, setOauthProvider] = useState<"google" | "github" | null>(null);
   const oauthProviderRef = useRef<"google" | "github" | null>(null);
   const handledAuthRef = useRef(false);
+  const userInitiatedLoginRef = useRef(false);
   const { ready, authenticated } = usePrivy();
 
   const completeLogin = useCallback(async () => {
@@ -81,7 +82,7 @@ export function AuthCard() {
     setMergeRequired(false);
     try {
       await fetchAuthMe();
-      router.push("/app");
+      router.replace("/app");
     } catch (err) {
       const merge = isAccountMergeOrTransferError(err);
       setMergeRequired(merge);
@@ -146,14 +147,28 @@ export function AuthCard() {
     }
     if (!authenticated) {
       handledAuthRef.current = false;
+      userInitiatedLoginRef.current = false;
       return;
     }
     if (handledAuthRef.current) {
       return;
     }
+
+    const oauthReturn = isPrivyOAuthReturn();
+
+    if (userInitiatedLoginRef.current && !oauthReturn) {
+      return;
+    }
+
+    if (oauthReturn) {
+      handledAuthRef.current = true;
+      void completeLogin();
+      return;
+    }
+
     handledAuthRef.current = true;
-    void completeLogin();
-  }, [ready, authenticated, completeLogin]);
+    router.replace("/app");
+  }, [ready, authenticated, completeLogin, router]);
 
   const resetEmailFlow = () => {
     setEmailStep("idle");
@@ -171,6 +186,7 @@ export function AuthCard() {
     setMergeRequired(false);
     resetEmailFlow();
     handledAuthRef.current = false;
+    userInitiatedLoginRef.current = true;
     setOauthProvider(provider);
     oauthProviderRef.current = provider;
 
@@ -207,6 +223,7 @@ export function AuthCard() {
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    userInitiatedLoginRef.current = true;
     try {
       await loginWithCode({ code: otpCode.trim() });
     } catch (err) {
@@ -300,6 +317,11 @@ export function AuthCard() {
         ) : authLoading ? (
           <p className="mb-4 text-center text-sm font-medium text-[var(--hero-ink)]/55">
             Loading sign-in…
+          </p>
+        ) : syncing ? (
+          <p className="mb-4 flex items-center justify-center gap-2 rounded-2xl border-2 border-[var(--hero-blue)] bg-[var(--hero-blue)]/10 px-4 py-3 text-sm font-semibold text-[var(--hero-ink)]">
+            <Loader2 className="size-4 animate-spin" />
+            Setting up your agent…
           </p>
         ) : null}
 
