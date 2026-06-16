@@ -53,6 +53,9 @@ import {
   queryMarginLiquidations,
   queryMarginLoanHistory,
   queryMarginManagersInfo,
+  queryMarginManagerCreated,
+  queryMarginSupplyHistory,
+  queryMarginIndexerSupply,
 } from "../defi/deepbook/deepbook-margin-indexer-read.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
@@ -119,6 +122,9 @@ export const queryChainToolDefinition = {
           "margin_loan_history",
           "margin_at_risk_states",
           "margin_managers_info",
+          "margin_manager_created",
+          "margin_supply_history",
+          "margin_indexer_supply",
           "predict_markets",
           "predict_trade_amounts",
           "predict_range_amounts",
@@ -158,6 +164,9 @@ export const queryChainToolDefinition = {
           "margin_loan_history: { margin_manager_id?, margin_pool_id?, start_time?, end_time?, limit? } — borrow and repay events. " +
           "margin_at_risk_states: { pool_key?, deepbook_pool_id?, max_risk_ratio?, limit? } — margin manager states filtered by risk (defaults to wallet managers when scoped). " +
           "margin_managers_info: {} — indexed margin managers across DeepBook pools. " +
+          "margin_manager_created: { margin_manager_id?, margin_manager_key?, start_time?, end_time?, limit? } — margin manager provisioning events (scoped to wallet when unfiltered). " +
+          "margin_supply_history: { margin_pool_id?, supplier?, start_time?, end_time?, limit? } — margin pool LP supply/withdraw events (defaults supplier to agent wallet). " +
+          "margin_indexer_supply: {} — live total supply per margin pool from indexer /margin_supply. " +
           "predict_markets: {} — active oracles with spot/forward prices, lifecycle, expiry. " +
           "predict_trade_amounts: { oracle_id, expiry, strike, is_up, quantity } — preview mint cost and redeem payout for a binary position. " +
           "predict_range_amounts: { oracle_id, expiry, lower_strike, higher_strike, quantity } — preview for range position. " +
@@ -340,6 +349,18 @@ export async function runQueryChainTool(
     case "margin_managers_info": {
       assertSuiDeepBookQuery(parsed.chain_id);
       return queryMarginManagersInfo(privyUserId, parsed.params);
+    }
+    case "margin_manager_created": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginManagerCreated(privyUserId, parsed.params);
+    }
+    case "margin_supply_history": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginSupplyHistory(privyUserId, parsed.params);
+    }
+    case "margin_indexer_supply": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginIndexerSupply(privyUserId, parsed.params);
     }
     case "predict_markets": {
       assertSuiDeepBookQuery(parsed.chain_id);

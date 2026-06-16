@@ -343,6 +343,68 @@ export async function marginOpenOrders(params?: {
   return parseEnvelope<Record<string, unknown>>(res);
 }
 
+function marginReadQuery(params?: Record<string, unknown>): string {
+  if (!params) {
+    return "";
+  }
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && typeof value !== "object") {
+      search.set(key, String(value));
+    }
+  }
+  const qs = search.toString();
+  return qs.length > 0 ? "?" + qs : "";
+}
+
+async function marginDeepbookRead(
+  path: string,
+  params?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/" + path + marginReadQuery(params));
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function marginTpslInfo(params?: {
+  margin_manager_key?: string;
+  pool_key?: string;
+  conditional_order_id?: string;
+}): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-tpsl-info", params);
+}
+
+export async function marginLiquidations(params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-liquidations", params);
+}
+
+export async function marginCollateralHistory(params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-collateral-history", params);
+}
+
+export async function marginLoanHistory(params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-loan-history", params);
+}
+
+export async function marginAtRiskStates(params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-at-risk-states", params);
+}
+
+export async function marginManagersInfo(): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-managers-info");
+}
+
+export async function marginManagerCreated(params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-manager-created", params);
+}
+
+export async function marginSupplyHistory(params?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-supply-history", params);
+}
+
+export async function marginIndexerSupply(): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-indexer-supply");
+}
+
 // --- DeepBook Predict helpers ---
 
 export async function predictMarkets(): Promise<Record<string, unknown>> {

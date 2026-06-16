@@ -76,6 +76,37 @@ export type MarginIndexerManagersInfoRecord = {
   quote_margin_pool_id: string;
 };
 
+export type MarginIndexerManagerCreatedRecord = MarginIndexerEventBase & {
+  margin_manager_id: string;
+  balance_manager_id: string;
+  deepbook_pool_id: string;
+  owner: string;
+};
+
+export type MarginIndexerAssetSuppliedRecord = MarginIndexerEventBase & {
+  margin_pool_id: string;
+  asset_type: string;
+  supplier: string;
+  amount: number;
+  shares: number;
+};
+
+export type MarginIndexerAssetWithdrawnRecord = MarginIndexerEventBase & {
+  margin_pool_id: string;
+  asset_type: string;
+  supplier: string;
+  amount: number;
+  shares: number;
+};
+
+export type MarginIndexerSupplySnapshotRecord = {
+  margin_pool_id: string;
+  asset_type: string;
+  asset_symbol?: string;
+  total_supply?: number | string;
+  total_shares?: number | string;
+};
+
 export type MarginIndexerQueryOptions = {
   start_time?: number;
   end_time?: number;

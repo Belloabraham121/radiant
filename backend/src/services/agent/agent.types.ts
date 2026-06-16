@@ -155,6 +155,9 @@ const queryChainInputObjectSchema = z.object({
     "margin_loan_history",
     "margin_at_risk_states",
     "margin_managers_info",
+    "margin_manager_created",
+    "margin_supply_history",
+    "margin_indexer_supply",
     "predict_markets",
     "predict_trade_amounts",
     "predict_range_amounts",
@@ -251,6 +254,8 @@ export const queryChainInputSchema = z.preprocess((input) => {
     margin_collateral_history: 200,
     margin_loan_history: 200,
     margin_at_risk_states: 200,
+    margin_manager_created: 200,
+    margin_supply_history: 200,
     deepbook_ohlcv: 500,
     deepbook_volume: 365,
   };

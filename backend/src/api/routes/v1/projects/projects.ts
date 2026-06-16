@@ -35,6 +35,7 @@ import { executeAppActionForProject } from "../../../../services/projects/app-ac
 import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { ok } from "../../../../utils/http-response.js";
+import { registerMarginDeepbookReadRoutes } from "../margin-deepbook-read.routes.js";
 
 const listProjectsQuerySchema = z.object({
   session_id: z.string().uuid().optional(),
@@ -455,3 +456,5 @@ projectsRouter.delete("/api/v1/projects/:projectId", requireAuth, async (req, re
     next(err);
   }
 });
+
+registerMarginDeepbookReadRoutes(projectsRouter, "project");

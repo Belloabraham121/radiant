@@ -42,6 +42,7 @@ import {
 } from "../../../../services/agent/agent-stream.service.js";
 import { drainPendingExecuteInApp } from "../../../../services/agent/agent-stream-pending-execute.js";
 import { fail, ok } from "../../../../utils/http-response.js";
+import { registerMarginDeepbookReadRoutes } from "../margin-deepbook-read.routes.js";
 import { writeSseComment, writeSseEvent } from "../../../../utils/chat-sse.js";
 
 export const chatSessionsRouter = Router();
@@ -448,3 +449,7 @@ chatSessionsRouter.post(
     }
   },
 );
+
+registerMarginDeepbookReadRoutes(chatSessionsRouter, "session");
+
+registerMarginDeepbookReadRoutes(chatSessionsRouter, "session");

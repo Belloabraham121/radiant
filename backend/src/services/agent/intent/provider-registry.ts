@@ -39,6 +39,9 @@ const PROVIDERS: IntentProvider[] = [
       "margin_loan_history",
       "margin_at_risk_states",
       "margin_managers_info",
+      "margin_manager_created",
+      "margin_supply_history",
+      "margin_indexer_supply",
     ],
   },
   {

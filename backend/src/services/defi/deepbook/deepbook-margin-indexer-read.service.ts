@@ -10,6 +10,10 @@ import {
   fetchMarginIndexerLoanRepaid,
   fetchMarginIndexerManagerStates,
   fetchMarginIndexerManagersInfo,
+  fetchMarginIndexerManagerCreated,
+  fetchMarginIndexerAssetSupplied,
+  fetchMarginIndexerAssetWithdrawn,
+  fetchMarginIndexerSupplySnapshot,
 } from "./indexer/deepbook-margin-indexer.client.js";
 import type {
   MarginIndexerCollateralRecord,
@@ -17,6 +21,10 @@ import type {
   MarginIndexerLoanBorrowedRecord,
   MarginIndexerLoanRepaidRecord,
   MarginIndexerManagerStateRecord,
+  MarginIndexerManagerCreatedRecord,
+  MarginIndexerAssetSuppliedRecord,
+  MarginIndexerAssetWithdrawnRecord,
+  MarginIndexerSupplySnapshotRecord,
   MarginIndexerQueryOptions,
 } from "./indexer/margin-indexer.types.js";
 
@@ -243,6 +251,77 @@ export async function queryMarginManagersInfo(_privyUserId: string, _params: Rec
   });
 }
 
+export async function queryMarginManagerCreated(
+  privyUserId: string,
+  params: Record<string, unknown>,
+) {
+  const options = normalizeIndexerOptions(params);
+  const marginManagerId = await resolveMarginManagerId(privyUserId, params);
+
+  const events = await fetchMarginIndexerManagerCreated({
+    ...options,
+    margin_manager_id: marginManagerId ?? options.margin_manager_id,
+  });
+
+  const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
+  const scoped =
+    wallet && !marginManagerId && !options.margin_manager_id
+      ? events.filter((row) => row.owner.toLowerCase() === wallet.address.toLowerCase())
+      : events;
+
+  return withSource({
+    margin_manager_id: marginManagerId,
+    count: scoped.length,
+    events: scoped,
+    summary: formatMarginManagerCreatedSummary(scoped),
+  });
+}
+
+export async function queryMarginSupplyHistory(
+  privyUserId: string,
+  params: Record<string, unknown>,
+) {
+  const options = normalizeIndexerOptions(params);
+  const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
+  const supplier =
+    options.supplier ??
+    (typeof params.supplier === "string" ? params.supplier : undefined) ??
+    wallet?.address;
+
+  const queryBase: MarginIndexerQueryOptions = {
+    ...options,
+    margin_pool_id: options.margin_pool_id,
+    supplier,
+  };
+
+  const [supplied, withdrawn] = await Promise.all([
+    fetchMarginIndexerAssetSupplied(queryBase),
+    fetchMarginIndexerAssetWithdrawn(queryBase),
+  ]);
+
+  return withSource({
+    margin_pool_id: options.margin_pool_id ?? null,
+    supplier: supplier ?? null,
+    supplied_count: supplied.length,
+    withdrawn_count: withdrawn.length,
+    supplied,
+    withdrawn,
+    summary: formatMarginSupplyHistorySummary(supplied, withdrawn),
+  });
+}
+
+export async function queryMarginIndexerSupply(_privyUserId: string, _params: Record<string, unknown>) {
+  const pools = await fetchMarginIndexerSupplySnapshot();
+  return withSource({
+    count: pools.length,
+    pools,
+    summary:
+      pools.length === 0
+        ? "No margin pool supply data from indexer."
+        : `${pools.length} margin pool(s) with indexed supply totals.`,
+  });
+}
+
 function formatIsoTime(ms: number): string {
   return new Date(ms).toISOString();
 }
@@ -314,4 +393,36 @@ export function formatMarginAtRiskSummary(
   });
   const suffix = states.length > 5 ? `\n… and ${states.length - 5} more.` : "";
   return `Found ${states.length} margin manager state(s):\n${lines.join("\n")}${suffix}`;
+}
+
+export function formatMarginManagerCreatedSummary(events: MarginIndexerManagerCreatedRecord[]): string {
+  if (events.length === 0) {
+    return "No margin manager creation events in the requested window.";
+  }
+  const lines = events.slice(0, 5).map((event, index) => {
+    return (
+      `${index + 1}. manager ${event.margin_manager_id.slice(0, 10)}… ` +
+      `owner ${event.owner.slice(0, 10)}… at ${formatIsoTime(event.onchain_timestamp)}`
+    );
+  });
+  const suffix = events.length > 5 ? `\n… and ${events.length - 5} more.` : "";
+  return `Found ${events.length} margin manager creation event(s):\n${lines.join("\n")}${suffix}`;
+}
+
+export function formatMarginSupplyHistorySummary(
+  supplied: MarginIndexerAssetSuppliedRecord[],
+  withdrawn: MarginIndexerAssetWithdrawnRecord[],
+): string {
+  if (supplied.length === 0 && withdrawn.length === 0) {
+    return "No margin pool supply or withdraw events in the requested window.";
+  }
+  return (
+    `Margin pool LP history: ${supplied.length} supply event(s), ${withdrawn.length} withdraw event(s).` +
+    (supplied[0]
+      ? ` Latest supply: ${supplied[0].amount} at ${formatIsoTime(supplied[0].onchain_timestamp)}.`
+      : "") +
+    (withdrawn[0]
+      ? ` Latest withdraw: ${withdrawn[0].amount} at ${formatIsoTime(withdrawn[0].onchain_timestamp)}.`
+      : "")
+  );
 }

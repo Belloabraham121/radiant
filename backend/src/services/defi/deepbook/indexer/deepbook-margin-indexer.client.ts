@@ -8,6 +8,10 @@ import type {
   MarginIndexerLoanRepaidRecord,
   MarginIndexerManagerStateRecord,
   MarginIndexerManagersInfoRecord,
+  MarginIndexerManagerCreatedRecord,
+  MarginIndexerAssetSuppliedRecord,
+  MarginIndexerAssetWithdrawnRecord,
+  MarginIndexerSupplySnapshotRecord,
   MarginIndexerQueryOptions,
 } from "./margin-indexer.types.js";
 
@@ -147,6 +151,56 @@ export async function fetchMarginIndexerManagersInfo(
   try {
     const body = await marginIndexerFetch<MarginIndexerManagersInfoRecord[]>(
       "/margin_managers_info",
+      indexerUrl,
+    );
+    return Array.isArray(body) ? body : [];
+  } catch (err) {
+    if (err instanceof IndexerRequestError && (err.status === 404 || err.status === 400)) {
+      return [];
+    }
+    throw err;
+  }
+}
+
+export async function fetchMarginIndexerManagerCreated(
+  options?: MarginIndexerQueryOptions,
+  indexerUrl?: string,
+): Promise<MarginIndexerManagerCreatedRecord[]> {
+  return fetchMarginIndexerArray<MarginIndexerManagerCreatedRecord>(
+    "/margin_manager_created",
+    options,
+    indexerUrl,
+  );
+}
+
+export async function fetchMarginIndexerAssetSupplied(
+  options?: MarginIndexerQueryOptions,
+  indexerUrl?: string,
+): Promise<MarginIndexerAssetSuppliedRecord[]> {
+  return fetchMarginIndexerArray<MarginIndexerAssetSuppliedRecord>(
+    "/asset_supplied",
+    options,
+    indexerUrl,
+  );
+}
+
+export async function fetchMarginIndexerAssetWithdrawn(
+  options?: MarginIndexerQueryOptions,
+  indexerUrl?: string,
+): Promise<MarginIndexerAssetWithdrawnRecord[]> {
+  return fetchMarginIndexerArray<MarginIndexerAssetWithdrawnRecord>(
+    "/asset_withdrawn",
+    options,
+    indexerUrl,
+  );
+}
+
+export async function fetchMarginIndexerSupplySnapshot(
+  indexerUrl?: string,
+): Promise<MarginIndexerSupplySnapshotRecord[]> {
+  try {
+    const body = await marginIndexerFetch<MarginIndexerSupplySnapshotRecord[]>(
+      "/margin_supply",
       indexerUrl,
     );
     return Array.isArray(body) ? body : [];
