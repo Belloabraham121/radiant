@@ -325,6 +325,24 @@ export async function marginRiskRatio(margin_manager_key?: string): Promise<Reco
   return parseEnvelope<Record<string, unknown>>(res);
 }
 
+export async function marginOpenOrders(params?: {
+  pool_key?: string;
+  margin_manager_key?: string;
+}): Promise<Record<string, unknown>> {
+  const search = new URLSearchParams();
+  if (params?.pool_key) {
+    search.set("pool_key", params.pool_key);
+  }
+  if (params?.margin_manager_key) {
+    search.set("margin_manager_key", params.margin_manager_key);
+  }
+  const qs = search.toString();
+  const res = await platformFetch(
+    projectApiPrefix() + "/deepbook/margin-open-orders" + (qs ? "?" + qs : ""),
+  );
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
 // --- DeepBook Predict helpers ---
 
 export async function predictMarkets(): Promise<Record<string, unknown>> {

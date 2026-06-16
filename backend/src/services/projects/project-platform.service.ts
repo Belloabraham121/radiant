@@ -6,6 +6,12 @@ import { getDeepBookOpenOrders } from "../defi/deepbook/deepbook-orders.service.
 import { getDeepBookSwapQuote } from "../defi/deepbook/deepbook-swap.service.js";
 import { getDeepBookPoolInfo } from "../defi/deepbook/deepbook-pools.service.js";
 import { getDeepBookStakeBalance } from "../defi/deepbook/deepbook-stake.service.js";
+import {
+  getMarginManagerInfoForHttp,
+  getMarginOpenOrdersForHttp,
+  getMarginPoolInfoForHttp,
+  getMarginRiskRatioForHttp,
+} from "../defi/deepbook/deepbook-margin-app-read.service.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findProjectByIdForUser } from "./project.repository.js";
 
@@ -115,4 +121,40 @@ export async function governanceStateForProject(
   await assertProjectOwner(privyUserId, projectId);
   const { pool_key } = poolInfoQuerySchema.parse(query);
   return getDeepBookGovernanceState(privyUserId, { pool_key });
+}
+
+export async function marginManagerInfoForProject(
+  privyUserId: string,
+  projectId: string,
+  query: unknown,
+) {
+  await assertProjectOwner(privyUserId, projectId);
+  return getMarginManagerInfoForHttp(privyUserId, query);
+}
+
+export async function marginPoolInfoForProject(
+  privyUserId: string,
+  projectId: string,
+  query: unknown,
+) {
+  await assertProjectOwner(privyUserId, projectId);
+  return getMarginPoolInfoForHttp(privyUserId, query);
+}
+
+export async function marginRiskRatioForProject(
+  privyUserId: string,
+  projectId: string,
+  query: unknown,
+) {
+  await assertProjectOwner(privyUserId, projectId);
+  return getMarginRiskRatioForHttp(privyUserId, query);
+}
+
+export async function marginOpenOrdersForProject(
+  privyUserId: string,
+  projectId: string,
+  query: unknown,
+) {
+  await assertProjectOwner(privyUserId, projectId);
+  return getMarginOpenOrdersForHttp(privyUserId, query);
 }

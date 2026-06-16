@@ -241,7 +241,7 @@ Wire SDK read functions into `query_chain margin_pool_info` ([Margin Pool SDK �
 | [x]    | Unit tests                                               | Extend `deepbook-margin-predict.test.ts`             |
 | [ ]    | `validate-execute-transaction.ts`                        | Zod / validation for new params                      |
 | [ ]    | `summarize-tool-result.ts`                               | Margin maintainer / referral execute summaries       |
-| [ ]    | `radiant-client-template.ts`                             | REST helpers once Phase 7.4 routes ship              |
+| [x]    | `radiant-client-template.ts`                             | REST helpers wired to live margin read routes        |
 | [x]    | Update [deepbook-v3-TODO.md](./deepbook-v3-TODO.md)      | Margin removed from "out of scope" list |
 
 ---
@@ -344,7 +344,7 @@ Generated app iframe
 | ------ | --- | ---------------- |
 | [x] | **Action schema not inferred** for margin apps | `EXECUTE_MARGIN_PATTERNS`, `DEFAULT_MARGIN_TEMPLATE_ACTIONS`, `template: "margin"`, manifest/register onchain detection |
 | [ ] | **No `margin_provision_manager` app action** | `deepbook_provision_margin_manager` exists on `execute_transaction` only; not in `ONCHAIN_ACTION_NAMES` / registry |
-| [ ] | **REST read routes missing** for generated apps | `radiant-client-template.ts` calls `/deepbook/margin-manager-info` etc.; no routes in `projects.ts` / `sessions.ts` / `installations.ts` (swap routes exist as template) |
+| [x] | **REST read routes missing** for generated apps | `GET .../deepbook/margin-*` on project, session, installation scopes |
 | [x] | **`data-radiant-id` ≠ schema param names** | `MARGIN_RADIANT_ID_GUIDE` in `prompts.ts` aligns generated apps with schema param keys |
 | [ ] | **No margin param coercion** | `normalizeAppActionParams()` has no `margin_*` cases (`app-action-param-coerce.ts`) |
 | [ ] | **No dedicated margin agent handlers** | Only `swap` has `defaultSwapAgentHandler`; margin relies on generic fallback |
@@ -419,17 +419,17 @@ Handlers must call **`ctx.executeAction` with canonical app action names** (`mar
 
 | Status | Route (per scope) | Handler | Backing service |
 | ------ | ----------------- | ------- | --------------- |
-| [ ] | `GET .../deepbook/margin-manager-info` | project + session + installation | Phase 1.1 read service |
-| [ ] | `GET .../deepbook/margin-pool-info?pool_key=` | project + session + installation | Phase 1.2 read service |
-| [ ] | `GET .../deepbook/margin-risk-ratio` | optional alias of manager state | same as manager-info |
-| [ ] | `GET .../deepbook/margin-open-orders?pool_key=` | when Phase 2.2 ships | margin orders read |
+| [x] | `GET .../deepbook/margin-manager-info` | project + session + installation | Phase 1.1 read service |
+| [x] | `GET .../deepbook/margin-pool-info?pool_key=` | project + session + installation | Phase 1.2 read service |
+| [x] | `GET .../deepbook/margin-risk-ratio` | optional alias of manager state | same as manager-info |
+| [x] | `GET .../deepbook/margin-open-orders?pool_key=` | when Phase 2.2 ships | margin orders read |
 
 Copy the **project / session / installation triplet** from `projects.ts` + `sessions.ts` + `installations.ts` (see `pool-info`, `open-orders` handlers). Use shared service functions like existing `poolInfoForProject`.
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `deepbook-margin-app-read.service.ts` — thin wrapper calling query_chain-equivalent logic for HTTP |
-| [ ] | Wire auth via `requireAuth` + project/session ownership (same as swap quote) |
+| [x] | `deepbook-margin-app-read.service.ts` — thin wrapper calling query_chain-equivalent logic for HTTP |
+| [x] | Wire auth via `requireAuth` + project/session ownership (same as swap quote) |
 
 ---
 

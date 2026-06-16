@@ -16,6 +16,10 @@ import {
 import {
   flashLoanQuoteForProject,
   governanceStateForProject,
+  marginManagerInfoForProject,
+  marginOpenOrdersForProject,
+  marginPoolInfoForProject,
+  marginRiskRatioForProject,
   openOrdersForProject,
   poolInfoForProject,
   stakeBalanceForProject,
@@ -293,6 +297,74 @@ projectsRouter.get(
   async (req, res, next) => {
     try {
       const data = await governanceStateForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/margin-manager-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginManagerInfoForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/margin-pool-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginPoolInfoForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/margin-risk-ratio",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginRiskRatioForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/margin-open-orders",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginOpenOrdersForProject(
         req.user.privyUserId,
         req.params.projectId,
         req.query,

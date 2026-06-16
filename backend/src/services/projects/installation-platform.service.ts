@@ -6,6 +6,12 @@ import { getDeepBookOpenOrders } from "../defi/deepbook/deepbook-orders.service.
 import { getDeepBookSwapQuote } from "../defi/deepbook/deepbook-swap.service.js";
 import { getDeepBookPoolInfo } from "../defi/deepbook/deepbook-pools.service.js";
 import { getDeepBookStakeBalance } from "../defi/deepbook/deepbook-stake.service.js";
+import {
+  getMarginManagerInfoForHttp,
+  getMarginOpenOrdersForHttp,
+  getMarginPoolInfoForHttp,
+  getMarginRiskRatioForHttp,
+} from "../defi/deepbook/deepbook-margin-app-read.service.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findInstallationForUser } from "../apps/app-installation.repository.js";
 
@@ -118,4 +124,40 @@ export async function governanceStateForInstallation(
   await assertInstallationAccess(privyUserId, installationId);
   const { pool_key } = poolInfoQuerySchema.parse(query);
   return getDeepBookGovernanceState(privyUserId, { pool_key });
+}
+
+export async function marginManagerInfoForInstallation(
+  privyUserId: string,
+  installationId: string,
+  query: unknown,
+) {
+  await assertInstallationAccess(privyUserId, installationId);
+  return getMarginManagerInfoForHttp(privyUserId, query);
+}
+
+export async function marginPoolInfoForInstallation(
+  privyUserId: string,
+  installationId: string,
+  query: unknown,
+) {
+  await assertInstallationAccess(privyUserId, installationId);
+  return getMarginPoolInfoForHttp(privyUserId, query);
+}
+
+export async function marginRiskRatioForInstallation(
+  privyUserId: string,
+  installationId: string,
+  query: unknown,
+) {
+  await assertInstallationAccess(privyUserId, installationId);
+  return getMarginRiskRatioForHttp(privyUserId, query);
+}
+
+export async function marginOpenOrdersForInstallation(
+  privyUserId: string,
+  installationId: string,
+  query: unknown,
+) {
+  await assertInstallationAccess(privyUserId, installationId);
+  return getMarginOpenOrdersForHttp(privyUserId, query);
 }
