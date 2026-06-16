@@ -229,18 +229,20 @@ Wire SDK read functions into `query_chain margin_pool_info` ([Margin Pool SDK �
 
 | Status | Task                                                     | Files                                                |
 | ------ | -------------------------------------------------------- | ---------------------------------------------------- |
-| [ ]    | `execute-transaction.tool.ts`                            | New action names + param docs                        |
+| [x]    | `execute-transaction.tool.ts`                            | New action names + param docs                        |
+| [x]    | `classify-execute-action.ts`                             | Ledger categories for new actions                    |
+| [x]    | `app-action-registry.ts` + `app-action-param-schemas.ts` | App builder handlers                                 |
+| [x]    | `build-display.ts`                                       | Approval card copy                                   |
+| [x]    | `summarize-query-chain.ts`                               | Post-execute and query summaries                     |
+| [x]    | `prompts.ts`                                             | Agent guidance per new capability                    |
+| [x]    | `transaction-error-context.ts`                           | User-friendly error hints                            |
+| [x]    | `sui.ts` adapter                                         | Route new actions to execution services              |
+| [x]    | `radiant-agent-runtime-template.ts`                      | Client SDK helpers for generated apps                |
+| [x]    | Unit tests                                               | Extend `deepbook-margin-predict.test.ts`             |
 | [ ]    | `validate-execute-transaction.ts`                        | Zod / validation for new params                      |
-| [ ]    | `classify-execute-action.ts`                             | Ledger categories for new actions                    |
-| [ ]    | `app-action-registry.ts` + `app-action-param-schemas.ts` | App builder handlers                                 |
-| [ ]    | `build-display.ts`                                       | Approval card copy                                   |
-| [ ]    | `summarize-tool-result.ts` / `summarize-query-chain.ts`  | Post-execute and query summaries                     |
-| [ ]    | `prompts.ts`                                             | Agent guidance per new capability                    |
-| [ ]    | `transaction-error-context.ts`                           | User-friendly error hints                            |
-| [ ]    | `sui.ts` adapter                                         | Route new actions to execution services              |
-| [ ]    | `radiant-client-template.ts`                             | Client SDK helpers for generated apps                |
-| [ ]    | Unit tests                                               | Extend `deepbook-margin-predict.test.ts`             |
-| [ ]    | Update [deepbook-v3-TODO.md](./deepbook-v3-TODO.md)      | Remove "margin out of scope" note when Phase 1 ships |
+| [ ]    | `summarize-tool-result.ts`                               | Margin maintainer / referral execute summaries       |
+| [ ]    | `radiant-client-template.ts`                             | REST helpers once Phase 7.4 routes ship              |
+| [x]    | Update [deepbook-v3-TODO.md](./deepbook-v3-TODO.md)      | Margin removed from "out of scope" list |
 
 ---
 
@@ -340,10 +342,10 @@ Generated app iframe
 
 | Status | Gap | Evidence in code |
 | ------ | --- | ---------------- |
-| [ ] | **Action schema not inferred** for margin apps | `detectDefiActionNamesFromArtifact()` only detects swap/flash_loan/stake/deposit — no margin patterns (`app-action-schema.service.ts`) |
+| [x] | **Action schema not inferred** for margin apps | `EXECUTE_MARGIN_PATTERNS`, `DEFAULT_MARGIN_TEMPLATE_ACTIONS`, `template: "margin"`, manifest/register onchain detection |
 | [ ] | **No `margin_provision_manager` app action** | `deepbook_provision_margin_manager` exists on `execute_transaction` only; not in `ONCHAIN_ACTION_NAMES` / registry |
 | [ ] | **REST read routes missing** for generated apps | `radiant-client-template.ts` calls `/deepbook/margin-manager-info` etc.; no routes in `projects.ts` / `sessions.ts` / `installations.ts` (swap routes exist as template) |
-| [ ] | **`data-radiant-id` ≠ schema param names** | Prompts suggest `collateral-amount`, `borrow-amount`; schema fields are `amount`, `coin_type`, `asset` — `genericFallbackHandler` only matches param **keys** |
+| [x] | **`data-radiant-id` ≠ schema param names** | `MARGIN_RADIANT_ID_GUIDE` in `prompts.ts` aligns generated apps with schema param keys |
 | [ ] | **No margin param coercion** | `normalizeAppActionParams()` has no `margin_*` cases (`app-action-param-coerce.ts`) |
 | [ ] | **No dedicated margin agent handlers** | Only `swap` has `defaultSwapAgentHandler`; margin relies on generic fallback |
 | [ ] | **No reference margin app artifact** | No generated template with registered handlers + manifest for agent to copy |
@@ -357,12 +359,12 @@ Extend `app-action-schema.service.ts` so margin UIs get the correct catalog **au
 
 | Status | Task | Implementation detail |
 | ------ | ---- | --------------------- |
-| [ ] | Add `EXECUTE_MARGIN_PATTERNS` | Mirror `EXECUTE_HELPER_PATTERNS`: e.g. `executeAction\s*\(\s*['"]margin_deposit['"]`, `executeAction\s*\(\s*['"]margin_borrow['"]`, … for all 10 margin actions |
-| [ ] | Add component heuristics | e.g. `MarginApp`, `MarginTrading`, `marginManagerInfo`, `marginPoolInfo`, `margin-order` in artifact source |
-| [ ] | Add `DEFAULT_MARGIN_TEMPLATE_ACTIONS` constant | List: `margin_deposit`, `margin_withdraw`, `margin_borrow`, `margin_repay`, `margin_place_limit_order`, `margin_place_market_order`, `margin_cancel_order`, `margin_modify_order` (+ supply/withdraw when Phase 4 live) |
-| [ ] | Optional `template: "margin"` in generate_app | When set, persist full `DEFAULT_MARGIN_TEMPLATE_ACTIONS` via `buildDefaultDeepBookActionSchema(projectId, DEFAULT_MARGIN_TEMPLATE_ACTIONS)` |
-| [ ] | Support `lib/radiant-actions.ts` manifest | Document pattern: export `actions: [{ name: "margin_deposit", description, params }]` — already parsed by `detectAppLocalActionsFromArtifact` for **onchain** names if added to manifest with param hints |
-| [ ] | Unit tests | `tests/unit/app-action-schema.test.ts` — margin artifact detects all declared actions |
+| [x] | Add `EXECUTE_MARGIN_PATTERNS` | Mirror `EXECUTE_HELPER_PATTERNS`: e.g. `executeAction('margin_deposit')`, … |
+| [x] | Add component heuristics | e.g. `MarginApp`, `MarginTrading`, `marginManagerInfo`, `margin-order` in artifact source |
+| [x] | Add `DEFAULT_MARGIN_TEMPLATE_ACTIONS` constant | Includes deposit/borrow/orders/TPSL/supply actions |
+| [x] | Optional `template: "margin"` in generate_app | When set, persist full `DEFAULT_MARGIN_TEMPLATE_ACTIONS` |
+| [x] | Support `lib/radiant-actions.ts` manifest | On-chain names in manifest are detected for schema inference |
+| [x] | Unit tests | `tests/unit/app-action-schema.test.ts` — margin artifact detects actions |
 
 **Do not** change `ProjectActionSchema` shape (`schema_version: 2`) — extend detection only.
 
@@ -388,10 +390,10 @@ Extend `app-action-schema.service.ts` so margin UIs get the correct catalog **au
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Add `MARGIN_RADIANT_ID_GUIDE` constant in `prompts.ts` — table above, not ad-hoc ids |
-| [ ] | Hidden field pattern: `<input type="hidden" data-radiant-id="margin-manager-key" value="default" />` on every margin form |
-| [ ] | Submit buttons: `data-radiant-id="margin-deposit-submit"`, `margin-borrow-submit`, … (generic fallback also matches `*[data-radiant-id*="submit"]`) |
-| [ ] | Display-only elements (no param key): `data-radiant-id="risk-ratio-display"` — update via React + `ctx.dispatchEvent`, not generic fallback |
+| [x] | Add `MARGIN_RADIANT_ID_GUIDE` constant in `prompts.ts` — table above, not ad-hoc ids |
+| [x] | Hidden field pattern: `<input type="hidden" data-radiant-id="margin-manager-key" value="default" />` on every margin form |
+| [x] | Submit buttons: `data-radiant-id="margin-deposit-submit"`, `margin-borrow-submit`, … (generic fallback also matches `*[data-radiant-id*="submit"]`) |
+| [x] | Display-only elements (no param key): `data-radiant-id="risk-ratio-display"` — update via React + `ctx.dispatchEvent`, not generic fallback |
 
 ---
 

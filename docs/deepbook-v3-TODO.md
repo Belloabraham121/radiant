@@ -31,7 +31,6 @@ Composable onchain DeFi for Radiant on **Sui**, starting with **DeepBook V3** (`
 
 ### Explicitly out of scope (v1)
 
-- DeepBook **margin** trading (`deepbook-margin` indexer package — not on mainnet yet)
 - EVM Uniswap / other DEX providers (future `services/defi/providers/evm-uniswap.provider.ts`)
 - Full trading terminal UI (order ladder, depth chart) — agent + lightweight receipts first
 - Running a **self-hosted** indexer in production (use public indexer v1; self-host is Phase I optional)

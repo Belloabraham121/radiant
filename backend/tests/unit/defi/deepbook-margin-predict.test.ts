@@ -194,6 +194,7 @@ describe("ONCHAIN_ACTION_NAMES includes margin and predict", () => {
     assert.ok(names.includes("margin_tpsl_add"));
     assert.ok(names.includes("margin_tpsl_cancel"));
     assert.ok(names.includes("margin_tpsl_cancel_all"));
+    assert.ok(names.includes("margin_tpsl_execute"));
   });
 
   it("includes all predict actions", () => {

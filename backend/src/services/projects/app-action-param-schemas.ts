@@ -427,6 +427,14 @@ export const appActionParamSchemas = {
     })
     .passthrough(),
 
+  margin_tpsl_execute: z
+    .object({
+      margin_manager_key: z.string().min(1).optional(),
+      pool_key: z.string().min(1).optional(),
+      max_orders: z.number().int().positive().optional(),
+    })
+    .passthrough(),
+
   // DeepBook Predict actions
   predict_deposit: z
     .object({
@@ -809,6 +817,13 @@ export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array
     fields: [
       { name: "margin_manager_key", type: "string" },
       { name: "pool_key", type: "string" },
+    ],
+  },
+  margin_tpsl_execute: {
+    fields: [
+      { name: "margin_manager_key", type: "string", description: 'Use "default"' },
+      { name: "pool_key", type: "string" },
+      { name: "max_orders", type: "number", description: "Max conditional orders to execute (default 10)" },
     ],
   },
   // DeepBook Predict

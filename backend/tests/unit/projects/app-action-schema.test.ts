@@ -70,6 +70,37 @@ describe("app-action schema", () => {
     );
   });
 
+  it("detects margin actions from artifact source and template", () => {
+    const fromTemplate = detectDefiActionNamesFromArtifact([], "margin");
+    assert.ok(fromTemplate.includes("margin_deposit"));
+    assert.ok(fromTemplate.includes("margin_tpsl_execute"));
+
+    const fromHeuristic = detectDefiActionNamesFromArtifact(
+      [
+        {
+          path: "components/MarginApp.tsx",
+          content:
+            'import { marginManagerInfo } from "../lib/radiant-client";\nexport default function MarginApp() { return null; }',
+        },
+      ],
+      "custom",
+    );
+    assert.ok(fromHeuristic.includes("margin_deposit"));
+    assert.ok(fromHeuristic.includes("margin_borrow"));
+
+    const fromExecute = detectDefiActionNamesFromArtifact(
+      [
+        {
+          path: "lib/radiant-agent-runtime.ts",
+          content:
+            'await ctx.executeAction("margin_deposit", { amount: 1, coin_type: "SUI" });',
+        },
+      ],
+      "custom",
+    );
+    assert.ok(fromExecute.includes("margin_deposit"));
+  });
+
   it("buildProjectActionsCatalogResponse uses stored schema when valid", () => {
     const projectId = "33333333-3333-4333-8333-333333333333";
     const stored = buildDefaultDeepBookActionSchema(projectId, ["swap", "stake"]);

@@ -356,6 +356,13 @@ export const APP_ACTION_REGISTRY: Record<OnchainActionName, AppActionDefinition>
     default_chain_id: "sui",
     execute_action: "deepbook_margin_tpsl_cancel_all",
   }),
+  margin_tpsl_execute: defineAction({
+    name: "margin_tpsl_execute",
+    description: "Execute triggered margin TPSL conditional orders (permissionless keeper).",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_tpsl_execute",
+  }),
   // DeepBook Predict
   predict_deposit: defineAction({
     name: "predict_deposit",
