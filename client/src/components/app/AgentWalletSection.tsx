@@ -264,7 +264,8 @@ function AgentWalletAssetsInline({
 
 function AgentWalletChainCard({
   wallet,
-  loading,
+  provisioning,
+  balancesLoading,
   onDeposit,
   onCopy,
   copied,
@@ -273,7 +274,8 @@ function AgentWalletChainCard({
   refreshBalancesOnly,
 }: {
   wallet: ChainWalletState;
-  loading: boolean;
+  provisioning: boolean;
+  balancesLoading: boolean;
   onDeposit: () => void;
   copied: boolean;
   onCopy: () => void;
@@ -285,6 +287,8 @@ function AgentWalletChainCard({
   const address = wallet.address ?? "";
   const short = address ? formatChainAddress(wallet.chainId, address) : "—";
   const explorerUrl = chainExplorerAccountUrl(wallet.chainId, address);
+  const showProvisioning = provisioning && !address;
+  const showBalanceLoading = balancesLoading && wallet.balanceDisplay === null && Boolean(address);
   return (
     <div className="rounded-3xl border-2 border-[var(--hero-ink)] bg-white p-5 shadow-[4px_4px_0_var(--hero-ink)]">
       <div className="flex items-start justify-between gap-3">
@@ -296,10 +300,15 @@ function AgentWalletChainCard({
             Available {wallet.nativeSymbol}
           </p>
           <p className="mt-1 font-heading text-3xl font-extrabold tracking-tight">
-            {loading ? (
+            {showProvisioning ? (
               <span className="inline-flex items-center gap-2 text-lg text-[var(--hero-ink)]/40">
                 <Loader2 className="size-5 animate-spin" />
                 Setting up…
+              </span>
+            ) : showBalanceLoading ? (
+              <span className="inline-flex items-center gap-2 text-lg text-[var(--hero-ink)]/40">
+                <Loader2 className="size-5 animate-spin" />
+                Updating…
               </span>
             ) : wallet.balanceDisplay === null ? (
               <span className="text-lg text-[var(--hero-ink)]/45">— {wallet.nativeSymbol}</span>
@@ -330,7 +339,7 @@ function AgentWalletChainCard({
       <div className="mt-4 rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-[var(--hero-bg)] px-3 py-3">
         <div className="flex items-center justify-between gap-2">
           <p className="font-mono text-xs font-semibold text-[var(--hero-ink)]/70">
-            {loading ? "Provisioning…" : address || "—"}
+            {showProvisioning ? "Provisioning…" : address || "—"}
           </p>
           <button
             type="button"
@@ -362,13 +371,13 @@ function AgentWalletChainCard({
         <button
           type="button"
           onClick={onDeposit}
-          disabled={!address || loading}
+          disabled={!address || showProvisioning}
           className="inline-flex items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2 text-xs font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-coral)] disabled:opacity-50"
         >
           <WalletMinimal className="size-3.5" />
           Deposit
         </button>
-        {!wallet.signerAdded && !loading && (
+        {!wallet.signerAdded && !showProvisioning && (
           <span className="text-[10px] font-semibold text-[var(--hero-coral)]">
             Signer pending
           </span>
@@ -390,6 +399,8 @@ function AgentWalletChainCard({
 export function AgentWalletSection() {
   const {
     status: walletStatus,
+    provisioning,
+    balancesLoading,
     wallets,
     defaultChainId,
     enabledChains,
@@ -404,7 +415,6 @@ export function AgentWalletSection() {
   const [depositChain, setDepositChain] = useState<AgentChainId | null>(null);
   const [depositHint, setDepositHint] = useState<string | null>(null);
 
-  const walletLoading = walletStatus === "loading" || walletStatus === "idle";
   const walletReady = walletStatus === "ready";
   const [refreshingAll, setRefreshingAll] = useState(false);
 
@@ -413,6 +423,8 @@ export function AgentWalletSection() {
   }, [defaultChainId]);
 
   const selectedWallet = wallets.find((w) => w.chainId === selectedChainId);
+  const walletActionsDisabled =
+    provisioning || (!walletReady && !selectedWallet?.address);
 
   const handleRefreshAll = async () => {
     setRefreshingAll(true);
@@ -489,7 +501,7 @@ export function AgentWalletSection() {
             )}
             <button
               type="button"
-              disabled={walletLoading || !walletReady || refreshingAll}
+              disabled={walletActionsDisabled || refreshingAll}
               onClick={() => void handleRefreshAll()}
               className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -542,7 +554,8 @@ export function AgentWalletSection() {
                     ? `${selectedWallet.label} · default`
                     : selectedWallet.label,
               }}
-              loading={walletLoading}
+              provisioning={provisioning}
+              balancesLoading={balancesLoading}
               copied={copiedChain === selectedWallet.chainId}
               walletReady={walletReady}
               refreshBalancesOnly={refreshBalancesOnly}
