@@ -346,6 +346,30 @@ export const appActionParamSchemas = {
     })
     .passthrough(),
 
+  margin_liquidate: z
+    .object({
+      margin_manager_address: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+      repay_amount: positiveNumber,
+      debt_is_base: z.boolean().optional(),
+      asset: z.enum(["base", "quote"]).optional(),
+    })
+    .passthrough(),
+
+  margin_set_referral: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      referral_id: z.string().min(1),
+    })
+    .passthrough(),
+
+  margin_unset_referral: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
   margin_supply_pool: z
     .object({
       coin_type: z.string().min(1),
@@ -700,6 +724,27 @@ export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array
     ],
   },
   margin_claim_rebate: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+    ],
+  },
+  margin_liquidate: {
+    fields: [
+      { name: "margin_manager_address", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+      { name: "repay_amount", type: "number", required: true },
+      { name: "debt_is_base", type: "boolean", description: "Optional; inferred from chain if omitted" },
+      { name: "asset", type: "string", description: "base|quote debt side if debt_is_base omitted" },
+    ],
+  },
+  margin_set_referral: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "referral_id", type: "string", required: true, description: "DeepBookPoolReferral object ID" },
+    ],
+  },
+  margin_unset_referral: {
     fields: [
       { name: "margin_manager_key", type: "string", required: true },
       { name: "pool_key", type: "string" },

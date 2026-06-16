@@ -419,6 +419,18 @@ export async function buildTransactionDisplay(
         amount_display = "Claim margin trading rebates";
         title = "Claim margin rebate";
         break;
+      case "liquidate":
+        amount_display = `Liquidate ${String(input.params.margin_manager_address ?? "").slice(0, 12)}… repay ${input.params.repay_amount ?? input.params.amount ?? "?"}`;
+        title = "Liquidate margin position";
+        break;
+      case "set_referral":
+        amount_display = `Set referral ${String(input.params.referral_id ?? "").slice(0, 12)}…`;
+        title = "Set margin referral";
+        break;
+      case "unset_referral":
+        amount_display = "Unset margin pool referral";
+        title = "Unset margin referral";
+        break;
       default:
         amount_display = `Margin: ${marginAction}`;
         title = "DeepBook margin action";

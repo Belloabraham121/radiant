@@ -192,6 +192,7 @@ const ONCHAIN_ACTIONS = new Set([
   "margin_cancel_orders", "margin_cancel_all_orders",
   "margin_withdraw_settled", "margin_withdraw_settled_permissionless", "margin_update_price",
   "margin_stake", "margin_unstake", "margin_submit_proposal", "margin_vote", "margin_claim_rebate",
+  "margin_liquidate", "margin_set_referral", "margin_unset_referral",
   "margin_supply_pool", "margin_withdraw_pool",
   "margin_tpsl_add", "margin_tpsl_cancel", "margin_tpsl_cancel_all",
   // DeepBook Predict

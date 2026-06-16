@@ -71,6 +71,12 @@ const MARGIN_GOVERNANCE_ACTIONS = new Set([
 
 const MARGIN_REBATE_ACTIONS = new Set(["deepbook_margin_claim_rebate"]);
 
+const MARGIN_LIQUIDATE_ACTIONS = new Set(["deepbook_margin_liquidate"]);
+const MARGIN_REFERRAL_ACTIONS = new Set([
+  "deepbook_margin_set_referral",
+  "deepbook_margin_unset_referral",
+]);
+
 const PREDICT_ACTIONS = new Set([
   "deepbook_predict_deposit",
   "deepbook_predict_withdraw",
@@ -177,6 +183,14 @@ export function classifyExecuteAction(action: string): ExecuteActionClass {
   }
 
   if (MARGIN_REBATE_ACTIONS.has(action)) {
+    return "margin";
+  }
+
+  if (MARGIN_LIQUIDATE_ACTIONS.has(action)) {
+    return "margin";
+  }
+
+  if (MARGIN_REFERRAL_ACTIONS.has(action)) {
     return "margin";
   }
 

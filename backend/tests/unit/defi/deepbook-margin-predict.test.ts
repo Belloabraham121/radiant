@@ -54,6 +54,12 @@ describe("DeepBook Margin action classification", () => {
     assert.equal(classifyExecuteAction("deepbook_margin_vote"), "governance");
   });
 
+  it("classifies margin liquidate and referral as 'margin'", () => {
+    assert.equal(classifyExecuteAction("deepbook_margin_liquidate"), "margin");
+    assert.equal(classifyExecuteAction("deepbook_margin_set_referral"), "margin");
+    assert.equal(classifyExecuteAction("deepbook_margin_unset_referral"), "margin");
+  });
+
   it("classifies margin TPSL execute as 'margin'", () => {
     assert.equal(classifyExecuteAction("deepbook_margin_tpsl_execute"), "margin");
   });
@@ -94,6 +100,9 @@ describe("DeepBook Margin action classification", () => {
     assert.equal(isDeepBookMarginAction("deepbook_margin_submit_proposal"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_vote"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_claim_rebate"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_liquidate"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_set_referral"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_unset_referral"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_supply_pool"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_withdraw_pool"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_tpsl_add"), true);
@@ -157,6 +166,9 @@ describe("ONCHAIN_ACTION_NAMES includes margin and predict", () => {
     assert.ok(names.includes("margin_submit_proposal"));
     assert.ok(names.includes("margin_vote"));
     assert.ok(names.includes("margin_claim_rebate"));
+    assert.ok(names.includes("margin_liquidate"));
+    assert.ok(names.includes("margin_set_referral"));
+    assert.ok(names.includes("margin_unset_referral"));
     assert.ok(names.includes("margin_supply_pool"));
     assert.ok(names.includes("margin_withdraw_pool"));
     assert.ok(names.includes("margin_tpsl_add"));

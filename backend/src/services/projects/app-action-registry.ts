@@ -286,6 +286,27 @@ export const APP_ACTION_REGISTRY: Record<OnchainActionName, AppActionDefinition>
     default_chain_id: "sui",
     execute_action: "deepbook_margin_claim_rebate",
   }),
+  margin_liquidate: defineAction({
+    name: "margin_liquidate",
+    description: "Liquidate an undercollateralized margin manager position (permissionless keeper).",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_liquidate",
+  }),
+  margin_set_referral: defineAction({
+    name: "margin_set_referral",
+    description: "Attach a DeepBook pool referral to a margin manager.",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_set_referral",
+  }),
+  margin_unset_referral: defineAction({
+    name: "margin_unset_referral",
+    description: "Remove the pool referral from a margin manager.",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_unset_referral",
+  }),
   margin_supply_pool: defineAction({
     name: "margin_supply_pool",
     description: "Supply liquidity to a DeepBook margin pool to earn interest.",

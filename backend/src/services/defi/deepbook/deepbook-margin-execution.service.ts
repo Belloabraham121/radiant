@@ -34,6 +34,13 @@ import {
   executeMarginVote,
   preflightMarginStakeGovernanceAction,
 } from "./deepbook-margin-stake-governance.service.js";
+import {
+  executeMarginLiquidate,
+  executeMarginSetReferral,
+  executeMarginUnsetReferral,
+  preflightMarginManagerExtrasAction,
+  resolveSdkCoinKeyForPool,
+} from "./deepbook-margin-manager-extras.service.js";
 
 type CoinSide = "base" | "quote" | "deep";
 
@@ -246,6 +253,7 @@ export type MarginProvisionResult = TxResult & {
   margin_manager_address: string;
   pool_key: string;
   already_provisioned: boolean;
+  initial_deposit?: { coin_type: string; amount: number };
 };
 
 function resolveMarginPoolKey(params: Record<string, unknown>): string {
@@ -280,6 +288,37 @@ function resolveMarginPoolKey(params: Record<string, unknown>): string {
   return requested;
 }
 
+function parseOptionalInitialDeposit(
+  params: Record<string, unknown>,
+  poolKey: string,
+): { sdkCoinKey: string; amount: number; coinSide: CoinSide } | null {
+  const initialDepositObj =
+    typeof params.initial_deposit === "object" && params.initial_deposit !== null
+      ? (params.initial_deposit as Record<string, unknown>)
+      : null;
+  const amountRaw =
+    params.initial_deposit_amount ??
+    initialDepositObj?.amount ??
+    params.amount ??
+    params.amount_display;
+  const coinRaw =
+    params.initial_deposit_coin_type ??
+    initialDepositObj?.coin_type ??
+    params.coin_type;
+
+  if (amountRaw == null || coinRaw == null) {
+    return null;
+  }
+
+  const coinSide = normalizeCoinSide(coinRaw);
+  const amount = parsePositiveAmount(amountRaw);
+  return {
+    coinSide,
+    amount,
+    sdkCoinKey: resolveSdkCoinKeyForPool(poolKey, coinSide),
+  };
+}
+
 export async function executeProvisionMarginManager(
   privyUserId: string,
   params: Record<string, unknown>,
@@ -308,7 +347,22 @@ export async function executeProvisionMarginManager(
 
   const tx = new Transaction();
   tx.setSender(wallet.address);
-  tx.add(client.marginManager.newMarginManager(poolKey));
+
+  const initialDeposit = parseOptionalInitialDeposit(params, poolKey);
+  if (initialDeposit) {
+    const { manager, initializer } = client.marginManager.newMarginManagerWithInitializer(poolKey)(tx);
+    tx.add(
+      client.marginManager.depositDuringInitialization({
+        manager,
+        poolKey,
+        coinType: initialDeposit.sdkCoinKey,
+        amount: initialDeposit.amount,
+      }),
+    );
+    tx.add(client.marginManager.shareMarginManager(poolKey, manager, initializer));
+  } else {
+    tx.add(client.marginManager.newMarginManager(poolKey));
+  }
 
   const transactionBytes = await tx.build({ client: getSuiClient() });
   const serializedSignature = await signSuiTransactionBytes({
@@ -335,6 +389,14 @@ export async function executeProvisionMarginManager(
     margin_manager_address: newManagerAddress,
     pool_key: poolKey,
     already_provisioned: false,
+    ...(initialDeposit
+      ? {
+          initial_deposit: {
+            coin_type: initialDeposit.coinSide,
+            amount: initialDeposit.amount,
+          },
+        }
+      : {}),
   };
 }
 
@@ -1068,6 +1130,15 @@ export async function preflightMarginAction(
     return;
   }
 
+  if (
+    action === "deepbook_margin_liquidate" ||
+    action === "deepbook_margin_set_referral" ||
+    action === "deepbook_margin_unset_referral"
+  ) {
+    await preflightMarginManagerExtrasAction(privyUserId, action, params);
+    return;
+  }
+
   if (action === "deepbook_margin_cancel_orders") {
     parseOrderIds(params);
   }
@@ -1161,6 +1232,12 @@ export async function executeMarginAction(
       return executeMarginVote(privyUserId, params);
     case "deepbook_margin_claim_rebate":
       return executeMarginClaimRebate(privyUserId, params);
+    case "deepbook_margin_liquidate":
+      return executeMarginLiquidate(privyUserId, params);
+    case "deepbook_margin_set_referral":
+      return executeMarginSetReferral(privyUserId, params);
+    case "deepbook_margin_unset_referral":
+      return executeMarginUnsetReferral(privyUserId, params);
     default:
       throw new AppError(400, "UNKNOWN_MARGIN_ACTION", `Unknown margin action: ${action}`);
   }

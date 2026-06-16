@@ -29,6 +29,9 @@ const MARGIN_ACTIONS = new Set([
   "deepbook_margin_submit_proposal",
   "deepbook_margin_vote",
   "deepbook_margin_claim_rebate",
+  "deepbook_margin_liquidate",
+  "deepbook_margin_set_referral",
+  "deepbook_margin_unset_referral",
   "deepbook_margin_supply_pool",
   "deepbook_margin_withdraw_pool",
   "deepbook_margin_tpsl_add",
@@ -92,6 +95,12 @@ export function buildMarginActionSummary(
       return `Vote on margin pool proposal ${params.proposal_id}`;
     case "deepbook_margin_claim_rebate":
       return "Claim margin trading rebates";
+    case "deepbook_margin_liquidate":
+      return `Liquidate margin manager ${params.margin_manager_address ?? ""} (repay ${params.repay_amount ?? params.amount ?? "?"})`;
+    case "deepbook_margin_set_referral":
+      return `Set margin pool referral ${params.referral_id}`;
+    case "deepbook_margin_unset_referral":
+      return "Unset margin pool referral";
     case "deepbook_margin_supply_pool":
       return `Supply ${params.amount} ${params.coin_type ?? ""} to margin pool`;
     case "deepbook_margin_withdraw_pool":

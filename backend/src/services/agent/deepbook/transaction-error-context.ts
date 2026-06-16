@@ -184,6 +184,18 @@ export function buildTransactionErrorUserContext(
         "The user requested claiming unclaimed trading rebates from their margin manager.",
       );
       break;
+    case "deepbook_margin_liquidate":
+      parts.push(
+        "The user requested liquidating an undercollateralized margin manager.",
+        "The liquidator wallet must hold enough of the debt asset (repay_amount) to repay debt.",
+      );
+      break;
+    case "deepbook_margin_set_referral":
+    case "deepbook_margin_unset_referral":
+      parts.push(
+        "The user requested changing margin manager pool referral settings.",
+      );
+      break;
     case "deepbook_predict_deposit":
     case "deepbook_predict_withdraw":
       parts.push(

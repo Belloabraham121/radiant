@@ -39,6 +39,7 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_cancel_orders, deepbook_margin_cancel_all_orders, " +
           "deepbook_margin_withdraw_settled, deepbook_margin_withdraw_settled_permissionless, deepbook_margin_update_price, " +
           "deepbook_margin_stake, deepbook_margin_unstake, deepbook_margin_submit_proposal, deepbook_margin_vote, deepbook_margin_claim_rebate, " +
+          "deepbook_margin_liquidate, deepbook_margin_set_referral, deepbook_margin_unset_referral, " +
           "deepbook_margin_supply_pool, deepbook_margin_withdraw_pool, " +
           "deepbook_margin_tpsl_add, deepbook_margin_tpsl_cancel, deepbook_margin_tpsl_cancel_all, deepbook_margin_tpsl_execute, " +
           "deepbook_predict_deposit, deepbook_predict_withdraw, deepbook_predict_mint, deepbook_predict_redeem, " +
@@ -85,6 +86,9 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_submit_proposal: { margin_manager_key, pool_key?, taker_fee, maker_fee, stake_required } — requires Allow governance in Settings. " +
           "deepbook_margin_vote: { margin_manager_key, pool_key?, proposal_id } — requires Allow governance in Settings. " +
           "deepbook_margin_claim_rebate: { margin_manager_key, pool_key? }. " +
+          "deepbook_margin_liquidate: { margin_manager_address, pool_key?, repay_amount, debt_is_base? | asset? } — permissionless liquidation; provide repay coin from wallet. " +
+          "deepbook_margin_set_referral: { margin_manager_key, referral_id }. deepbook_margin_unset_referral: { margin_manager_key, pool_key? }. " +
+          "deepbook_provision_margin_manager: { pool_key, coin_type?, amount? } — optional atomic initial deposit during create. " +
           "deepbook_margin_tpsl_add: { pool_key?, margin_manager_key?, tpsl_type: take_profit|stop_loss, trigger_price, order_kind?: limit|market, quantity, price? (limit), is_bid or side }. " +
           "deepbook_margin_tpsl_cancel: { margin_manager_key?, conditional_order_id }. " +
           "deepbook_margin_tpsl_cancel_all: { margin_manager_key?, pool_key? }. " +
