@@ -46,6 +46,7 @@ import { getPredictObjectId } from "../defi/deepbook/deepbook-predict.service.js
 import { queryMarginManagerInfo } from "../defi/deepbook/deepbook-margin-read.service.js";
 import { queryMarginPoolInfo } from "../defi/deepbook/deepbook-margin-pool-read.service.js";
 import { queryMarginTpslInfo } from "../defi/deepbook/deepbook-margin-tpsl-read.service.js";
+import { queryMarginOpenOrders } from "../defi/deepbook/deepbook-margin-open-orders-read.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -105,6 +106,7 @@ export const queryChainToolDefinition = {
           "margin_pool_info",
           "margin_manager_info",
           "margin_tpsl_info",
+          "margin_open_orders",
           "predict_markets",
           "predict_trade_amounts",
           "predict_range_amounts",
@@ -112,7 +114,7 @@ export const queryChainToolDefinition = {
           "predict_vault_summary",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, margin_pool_info, margin_manager_info, margin_tpsl_info, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, or predict_vault_summary.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, margin_pool_info, margin_manager_info, margin_tpsl_info, margin_open_orders, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, or predict_vault_summary.",
       },
       params: {
         type: "object",
@@ -138,6 +140,7 @@ export const queryChainToolDefinition = {
           "Use pool_key to list margin-enabled trading pools; coin_type selects the lending asset (defaults to quote coin). " +
           "margin_manager_info: { margin_manager_key?, pool_key? } — margin manager address, live balances, borrowed amounts, and risk ratio. " +
           "margin_tpsl_info: { conditional_order_id? } — conditional TPSL order IDs, take-profit/stop-loss trigger bounds. " +
+          "margin_open_orders: { margin_manager_key?, pool_key? } — open leveraged margin orders (not balance-manager deepbook_open_orders). " +
           "predict_markets: {} — active oracles with spot/forward prices, lifecycle, expiry. " +
           "predict_trade_amounts: { oracle_id, expiry, strike, is_up, quantity } — preview mint cost and redeem payout for a binary position. " +
           "predict_range_amounts: { oracle_id, expiry, lower_strike, higher_strike, quantity } — preview for range position. " +
@@ -296,6 +299,10 @@ export async function runQueryChainTool(
     case "margin_tpsl_info": {
       assertSuiDeepBookQuery(parsed.chain_id);
       return queryMarginTpslInfo(privyUserId, parsed.params);
+    }
+    case "margin_open_orders": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginOpenOrders(privyUserId, parsed.params);
     }
     case "predict_markets": {
       assertSuiDeepBookQuery(parsed.chain_id);

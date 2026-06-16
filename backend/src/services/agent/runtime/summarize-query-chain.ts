@@ -25,6 +25,10 @@ import {
   formatMarginTpslInfoSummary,
   type MarginTpslInfoQueryResult,
 } from "../../defi/deepbook/deepbook-margin-tpsl-read.service.js";
+import {
+  formatMarginOpenOrdersSummary,
+  type MarginOpenOrdersQueryResult,
+} from "../../defi/deepbook/deepbook-margin-open-orders-read.service.js";
 
 function isAgentTransactionsResult(result: unknown): result is AgentTransactionsQueryResult {
   return (
@@ -155,6 +159,16 @@ export function summarizeQueryChainResult(result: unknown): string | null {
       Array.isArray(marginTpslInfo.conditional_order_ids))
   ) {
     return formatMarginTpslInfoSummary(marginTpslInfo);
+  }
+
+  const marginOpenOrders = result as MarginOpenOrdersQueryResult;
+  if (
+    typeof marginOpenOrders.provisioned === "boolean" &&
+    marginOpenOrders.margin_manager_address &&
+    Array.isArray(marginOpenOrders.orders) &&
+    marginOpenOrders.source === "sdk"
+  ) {
+    return formatMarginOpenOrdersSummary(marginOpenOrders);
   }
 
   const marginInfo = result as MarginManagerInfoQueryResult;

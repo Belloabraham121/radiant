@@ -159,7 +159,7 @@ Wire SDK read functions into `query_chain margin_pool_info` ([Margin Pool SDK â€
 
 | Status | Task                           | Implementation detail                                                                                                             |
 | ------ | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| [ ]    | Margin open orders query       | New `query_chain` type e.g. `margin_open_orders` (do not reuse balance-manager `deepbook_open_orders`)                            |
+| [x]    | Margin open orders query       | New `query_chain` type e.g. `margin_open_orders` (do not reuse balance-manager `deepbook_open_orders`)                            |
 | [ ]    | Indexer integration (optional) | [DeepBook Margin Indexer](https://docs.sui.io/onchain-finance/deepbook-margin/deepbook-margin-indexer) for history / liquidations |
 
 ### 2.3 Orders â€” stake, governance, rebates

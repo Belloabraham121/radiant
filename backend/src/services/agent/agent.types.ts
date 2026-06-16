@@ -149,6 +149,7 @@ const queryChainInputObjectSchema = z.object({
     "margin_pool_info",
     "margin_manager_info",
     "margin_tpsl_info",
+    "margin_open_orders",
     "predict_markets",
     "predict_trade_amounts",
     "predict_range_amounts",
