@@ -99,18 +99,25 @@ function MessageCopyButton({
 function ArtifactViewButton({
   artifact,
   onClick,
+  compact = false,
 }: {
   artifact: ArtifactPayload;
   onClick: () => void;
+  compact?: boolean;
 }) {
+  const label = compact ? `Open — ${artifact.name}` : `View app — ${artifact.name}`;
   return (
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex max-w-full items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-4 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+      className={
+        compact
+          ? "inline-flex max-w-[min(100%,14rem)] items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-3 py-1.5 text-xs font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+          : "inline-flex max-w-full items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-4 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+      }
     >
       <LayoutPanelLeft className="size-4 shrink-0 text-[var(--hero-violet)]" strokeWidth={2.5} />
-      <span className="truncate">View app — {artifact.name}</span>
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -456,10 +463,15 @@ export function ChatView({ sessionId }: ChatViewProps) {
             {title}
           </h1>
         </div>
-        <span className="flex shrink-0 items-center gap-2 rounded-full border-2  bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold text-[var(--hero-mint)]">
-          <span className="size-2 rounded-full bg-current" />
-          agent online
-        </span>
+        <div className="flex min-w-0 shrink items-center justify-end">
+          {artifactPayload && !panelOpen ? (
+            <ArtifactViewButton
+              artifact={artifactPayload}
+              compact
+              onClick={() => updateArtifact(artifactPayload, { open: true })}
+            />
+          ) : null}
+        </div>
       </header>
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">

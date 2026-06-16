@@ -78,7 +78,7 @@ export function ArtifactPanel({
 
   return (
     <aside
-      className={`flex min-h-0 flex-col border-t border-[var(--hero-ink)]/10 bg-white lg:border-t-0 lg:border-l lg:border-[var(--hero-ink)]/10 ${className}`}
+      className={`flex min-h-0 flex-col bg-white lg:border-l lg:border-[var(--hero-ink)]/10 ${className}`}
     >
       <div className="flex items-start justify-between gap-3 border-b-2 border-[var(--hero-ink)]/10 px-4 py-3">
         <div className="min-w-0">
@@ -160,8 +160,8 @@ export function ArtifactPanel({
         ) : null}
 
         {tab === "code" ? (
-          <div className="flex h-full min-h-0">
-            <div className="w-52 shrink-0 border-r-2 border-[var(--hero-ink)]/10 bg-[var(--hero-bg)]/40 overflow-y-auto">
+          <div className="flex h-full min-h-0 flex-col lg:flex-row">
+            <div className="max-h-[30%] shrink-0 overflow-y-auto border-b-2 border-[var(--hero-ink)]/10 bg-[var(--hero-bg)]/40 lg:max-h-none lg:w-52 lg:border-b-0 lg:border-r-2">
               <ArtifactFileTree
                 files={payload.files}
                 activePath={activePath}
