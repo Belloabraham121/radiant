@@ -196,6 +196,18 @@ export function buildTransactionErrorUserContext(
         "The user requested changing margin manager pool referral settings.",
       );
       break;
+    case "deepbook_margin_mint_supply_referral":
+      parts.push(
+        "The user requested minting a margin pool supply referral to earn LP referral fees.",
+        "Pass the referral id when supplying liquidity (referral_id on deepbook_margin_supply_pool).",
+      );
+      break;
+    case "deepbook_margin_withdraw_referral_fees":
+      parts.push(
+        "The user requested withdrawing accumulated margin pool supply referral fees.",
+        "Requires a previously minted SupplyReferral for the pool asset.",
+      );
+      break;
     case "deepbook_predict_deposit":
     case "deepbook_predict_withdraw":
       parts.push(

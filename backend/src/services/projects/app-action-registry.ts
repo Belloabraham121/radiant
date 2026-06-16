@@ -321,6 +321,20 @@ export const APP_ACTION_REGISTRY: Record<OnchainActionName, AppActionDefinition>
     default_chain_id: "sui",
     execute_action: "deepbook_margin_withdraw_pool",
   }),
+  margin_mint_supply_referral: defineAction({
+    name: "margin_mint_supply_referral",
+    description: "Mint a supply referral for a DeepBook margin pool to earn referral fees.",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_mint_supply_referral",
+  }),
+  margin_withdraw_referral_fees: defineAction({
+    name: "margin_withdraw_referral_fees",
+    description: "Withdraw accumulated referral fees from a margin pool supply referral.",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_withdraw_referral_fees",
+  }),
   margin_tpsl_add: defineAction({
     name: "margin_tpsl_add",
     description: "Add a take-profit or stop-loss conditional order on a margin manager.",

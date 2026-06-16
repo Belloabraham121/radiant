@@ -34,6 +34,8 @@ const MARGIN_ACTIONS = new Set([
   "deepbook_margin_unset_referral",
   "deepbook_margin_supply_pool",
   "deepbook_margin_withdraw_pool",
+  "deepbook_margin_mint_supply_referral",
+  "deepbook_margin_withdraw_referral_fees",
   "deepbook_margin_tpsl_add",
   "deepbook_margin_tpsl_cancel",
   "deepbook_margin_tpsl_cancel_all",
@@ -107,6 +109,10 @@ export function buildMarginActionSummary(
       return params.amount
         ? `Withdraw ${params.amount} ${params.coin_type ?? ""} from margin pool`
         : `Withdraw all from margin pool`;
+    case "deepbook_margin_mint_supply_referral":
+      return `Mint margin pool supply referral for ${params.coin_type ?? params.coin_key ?? "pool"}`;
+    case "deepbook_margin_withdraw_referral_fees":
+      return `Withdraw margin pool referral fees for ${params.coin_type ?? params.coin_key ?? "pool"}`;
     case "deepbook_margin_tpsl_add":
       return `Add margin ${params.tpsl_type ?? "TPSL"} at trigger ${params.trigger_price} (${params.order_kind ?? "market"} ${params.is_bid || params.side === "buy" ? "buy" : "sell"} ${params.quantity})`;
     case "deepbook_margin_tpsl_cancel":

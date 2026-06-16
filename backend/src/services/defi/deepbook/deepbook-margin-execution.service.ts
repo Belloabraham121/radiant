@@ -18,6 +18,10 @@ import {
   requireSupplierCapForWithdraw,
   resolveSupplierCapObjectId,
 } from "./margin-supplier-cap.service.js";
+import {
+  persistSupplyReferralAfterMint,
+  requireSupplyReferralForWithdraw,
+} from "./margin-supply-referral.service.js";
 import { getDeepBookClient } from "./providers/sui-deepbook.provider.js";
 import {
   executeMarginTpslAdd,
@@ -246,6 +250,7 @@ export type MarginExecResult = TxResult & {
     amount?: number;
     asset?: string;
     supplier_cap?: string;
+    referral_id?: string;
   };
 };
 
@@ -1082,6 +1087,63 @@ export async function executeMarginWithdrawPool(
   };
 }
 
+export async function executeMarginMintSupplyReferral(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const coinKey = resolveMarginPoolCoinKey(params.coin_type ?? params.coin_key);
+
+  const result = await buildAndSignExecuteMarginPool(privyUserId, wallet.address, (tx, client) => {
+    tx.add(client.marginPool.mintSupplyReferral(coinKey));
+  });
+
+  const referralId = await persistSupplyReferralAfterMint(privyUserId, coinKey, result.digest);
+
+  return {
+    ...result,
+    margin: {
+      action: "mint_supply_referral",
+      margin_manager: referralId,
+      referral_id: referralId,
+      pool_key: coinKey,
+      coin_type: coinKey,
+    },
+  };
+}
+
+export async function executeMarginWithdrawReferralFees(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const coinKey = resolveMarginPoolCoinKey(params.coin_type ?? params.coin_key);
+  const explicitReferralId =
+    typeof params.referral_id === "string" && params.referral_id.startsWith("0x")
+      ? params.referral_id
+      : undefined;
+  const referralId = await requireSupplyReferralForWithdraw(
+    privyUserId,
+    coinKey,
+    explicitReferralId,
+  );
+
+  const result = await buildAndSignExecuteMarginPool(privyUserId, wallet.address, (tx, client) => {
+    tx.add(client.marginPool.withdrawReferralFees(coinKey, referralId));
+  });
+
+  return {
+    ...result,
+    margin: {
+      action: "withdraw_referral_fees",
+      margin_manager: referralId,
+      referral_id: referralId,
+      pool_key: coinKey,
+      coin_type: coinKey,
+    },
+  };
+}
+
 /**
  * Preflight check for margin actions — validates prerequisites before showing
  * the approval card. Throws AppError if the user can't proceed (e.g. no margin
@@ -1107,6 +1169,21 @@ export async function preflightMarginAction(
     if (rawAmount != null) {
       parsePositiveAmount(rawAmount);
     }
+    return;
+  }
+
+  if (action === "deepbook_margin_mint_supply_referral") {
+    resolveMarginPoolCoinKey(params.coin_type ?? params.coin_key);
+    return;
+  }
+
+  if (action === "deepbook_margin_withdraw_referral_fees") {
+    const coinKey = resolveMarginPoolCoinKey(params.coin_type ?? params.coin_key);
+    const explicitReferralId =
+      typeof params.referral_id === "string" && params.referral_id.startsWith("0x")
+        ? params.referral_id
+        : undefined;
+    await requireSupplyReferralForWithdraw(privyUserId, coinKey, explicitReferralId);
     return;
   }
 
@@ -1214,6 +1291,10 @@ export async function executeMarginAction(
       return executeMarginSupplyPool(privyUserId, params);
     case "deepbook_margin_withdraw_pool":
       return executeMarginWithdrawPool(privyUserId, params);
+    case "deepbook_margin_mint_supply_referral":
+      return executeMarginMintSupplyReferral(privyUserId, params);
+    case "deepbook_margin_withdraw_referral_fees":
+      return executeMarginWithdrawReferralFees(privyUserId, params);
     case "deepbook_margin_tpsl_add":
       return executeMarginTpslAdd(privyUserId, params);
     case "deepbook_margin_tpsl_cancel":

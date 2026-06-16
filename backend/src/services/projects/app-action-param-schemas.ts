@@ -384,6 +384,19 @@ export const appActionParamSchemas = {
     })
     .passthrough(),
 
+  margin_mint_supply_referral: z
+    .object({
+      coin_type: z.string().min(1),
+    })
+    .passthrough(),
+
+  margin_withdraw_referral_fees: z
+    .object({
+      coin_type: z.string().min(1),
+      referral_id: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
   margin_tpsl_add: z
     .object({
       pool_key: z.string().min(1).optional(),
@@ -760,6 +773,17 @@ export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array
     fields: [
       { name: "coin_type", type: "string", required: true },
       { name: "amount", type: "number", description: "Omit to withdraw all" },
+    ],
+  },
+  margin_mint_supply_referral: {
+    fields: [
+      { name: "coin_type", type: "string", required: true, description: "Margin pool asset (e.g. DBUSDC)" },
+    ],
+  },
+  margin_withdraw_referral_fees: {
+    fields: [
+      { name: "coin_type", type: "string", required: true },
+      { name: "referral_id", type: "string", description: "Optional if previously minted via Radiant" },
     ],
   },
   margin_tpsl_add: {

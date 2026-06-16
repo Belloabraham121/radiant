@@ -48,6 +48,8 @@ export const ONCHAIN_ACTION_NAMES = [
   "margin_unset_referral",
   "margin_supply_pool",
   "margin_withdraw_pool",
+  "margin_mint_supply_referral",
+  "margin_withdraw_referral_fees",
   "margin_tpsl_add",
   "margin_tpsl_cancel",
   "margin_tpsl_cancel_all",

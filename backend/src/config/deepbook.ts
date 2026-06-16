@@ -143,6 +143,11 @@ export function getMarginSupplierCapType(): string {
   return `${getMarginPackageId()}::margin_pool::SupplierCap`;
 }
 
+/** Fully qualified SupplyReferral struct type for created-object lookups. */
+export function getMarginSupplyReferralType(): string {
+  return `${getMarginPackageId()}::protocol_fees::SupplyReferral`;
+}
+
 /** Test hook — reset cached env. */
 export function resetDeepBookEnvForTests(): void {
   cached = undefined;

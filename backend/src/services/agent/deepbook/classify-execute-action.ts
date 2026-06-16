@@ -31,6 +31,8 @@ const MARGIN_BALANCE_ACTIONS = new Set([
   "deepbook_margin_repay",
   "deepbook_margin_supply_pool",
   "deepbook_margin_withdraw_pool",
+  "deepbook_margin_mint_supply_referral",
+  "deepbook_margin_withdraw_referral_fees",
   "deepbook_margin_tpsl_execute",
 ]);
 

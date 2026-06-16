@@ -41,6 +41,7 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_stake, deepbook_margin_unstake, deepbook_margin_submit_proposal, deepbook_margin_vote, deepbook_margin_claim_rebate, " +
           "deepbook_margin_liquidate, deepbook_margin_set_referral, deepbook_margin_unset_referral, " +
           "deepbook_margin_supply_pool, deepbook_margin_withdraw_pool, " +
+          "deepbook_margin_mint_supply_referral, deepbook_margin_withdraw_referral_fees, " +
           "deepbook_margin_tpsl_add, deepbook_margin_tpsl_cancel, deepbook_margin_tpsl_cancel_all, deepbook_margin_tpsl_execute, " +
           "deepbook_predict_deposit, deepbook_predict_withdraw, deepbook_predict_mint, deepbook_predict_redeem, " +
           "deepbook_predict_mint_range, deepbook_predict_redeem_range, deepbook_predict_supply, deepbook_predict_lp_withdraw.",
