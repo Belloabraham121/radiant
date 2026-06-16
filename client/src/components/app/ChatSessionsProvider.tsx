@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import {
-  createChatSession,
-  fetchChatSessions,
-  type ChatSessionListItem,
-} from "@/lib/chat-api";
+import { fetchChatSessions, type ChatSessionListItem } from "@/lib/chat-api";
 import { ChatSessionsContext, type RefreshSessionsOptions } from "./chat-sessions-context";
 
 export function ChatSessionsProvider({ children }: { children: React.ReactNode }) {
@@ -78,21 +74,14 @@ export function ChatSessionsProvider({ children }: { children: React.ReactNode }
     };
   }, [authenticated, ready]);
 
-  const createSession = useCallback(async () => {
-    const session = await createChatSession();
-    await refreshSessions({ silent: true });
-    return session.id;
-  }, [refreshSessions]);
-
   const value = useMemo(
     () => ({
       sessions,
       loading,
       error,
       refreshSessions,
-      createSession,
     }),
-    [sessions, loading, error, refreshSessions, createSession],
+    [sessions, loading, error, refreshSessions],
   );
 
   return (

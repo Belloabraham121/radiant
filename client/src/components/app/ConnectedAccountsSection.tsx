@@ -173,13 +173,15 @@ export function ConnectedAccountsSection() {
         Connected accounts
       </h2>
       <p className="mb-5 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
-        Link Google, GitHub, and email to one profile so you always land on the same agent
-        wallet — no matter which sign-in you use.
+        Link Google, GitHub, and email to one profile so you always land on the
+        same agent wallet — no matter which sign-in you use.
       </p>
 
       {error ? (
         <div className="mb-4 rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
-          <p className="text-sm font-semibold text-[var(--hero-coral)]">{error}</p>
+          <p className="text-sm font-semibold text-[var(--hero-coral)]">
+            {error}
+          </p>
         </div>
       ) : null}
 
@@ -198,7 +200,9 @@ export function ConnectedAccountsSection() {
                   <ProviderIcon id={provider.id} />
                 </span>
                 <span>
-                  <span className="block text-sm font-bold">{provider.label}</span>
+                  <span className="block text-sm font-bold">
+                    {provider.label}
+                  </span>
                   <span className="block text-xs font-medium text-[var(--hero-ink)]/50">
                     {provider.description}
                   </span>

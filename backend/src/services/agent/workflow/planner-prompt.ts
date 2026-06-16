@@ -25,6 +25,7 @@ Rules:
   - after_step_index is 0-based index of the prior step.
   - only_if_condition "flash_loan_feasible" gates execute steps on a prior flash_loan_quote with repay_feasible true.
 - is_multi_step: true when 2+ distinct on-chain, query, or build steps (including "swap X and tell me my balance")
+- NOT a workflow: questions asking for recommendations, advice, opinions, explanations, or strategy — e.g. "what position should I open?", "what would you recommend?", "how does this work?", "what can I do with X?". These should return is_multi_step: false even if you could imagine query steps to answer them. The agent handles research questions directly.
 - confidence: 0-1. Below 0.9 with assumptions → needs_clarification true
 - assumptions: list each interpretation you made from typos or implicit refs
 

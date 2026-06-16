@@ -38,6 +38,12 @@ import {
   isDeepBookFlashLoanAction,
   preflightDeepBookFlashLoan,
 } from "../defi/deepbook/deepbook-flash-loan.service.js";
+import { isDeepBookMarginAction } from "../defi/deepbook/deepbook-margin.service.js";
+import { preflightMarginAction } from "../defi/deepbook/deepbook-margin-execution.service.js";
+import {
+  isDeepBookMarginMaintainerAction,
+  preflightMarginMaintainerAction,
+} from "../defi/deepbook/deepbook-margin-maintainer.service.js";
 
 type ExecuteWithApprovalHandler = (
   privyUserId: string,
@@ -109,6 +115,12 @@ export async function runExecuteTransactionToolWithApproval(
         }
         if (isDeepBookFlashLoanAction(input.action)) {
           await preflightDeepBookFlashLoan(privyUserId, input.params);
+        }
+        if (isDeepBookMarginMaintainerAction(input.action)) {
+          await preflightMarginMaintainerAction(input.action, input.params);
+        }
+        if (isDeepBookMarginAction(input.action)) {
+          await preflightMarginAction(privyUserId, input.action, input.params);
         }
         const pending = await createPendingTransaction(privyUserId, input, context);
         const outcome = {

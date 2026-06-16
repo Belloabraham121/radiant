@@ -28,9 +28,9 @@ export const generateAppToolDefinition = {
       tagline: { type: "string", description: "Optional one-line description." },
       template: {
         type: "string",
-        enum: ["custom", "escrow", "swap", "prediction"],
+        enum: ["custom", "escrow", "swap", "prediction", "margin"],
         description:
-          "Use custom for agent-generated UI (default). swap/escrow/prediction are legacy metadata labels only — no prebuilt scaffold is injected.",
+          "Use custom for agent-generated UI (default). template margin injects the reference MarginTradingApp scaffold. swap/escrow/prediction are legacy metadata labels only.",
       },
       files: {
         type: "array",

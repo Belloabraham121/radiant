@@ -1,6 +1,6 @@
 /** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_VERSION = 6;
+export const RADIANT_AGENT_RUNTIME_VERSION = 7;
 
 export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
 import {
@@ -156,6 +156,42 @@ async function defaultSwapAgentHandler(
 
 handlers.set("swap", defaultSwapAgentHandler);
 
+const MARGIN_SUBMIT_IDS: Record<string, string> = {
+  margin_provision_manager: "margin-provision-submit",
+  margin_deposit: "margin-deposit-submit",
+  margin_borrow: "margin-borrow-submit",
+  margin_repay: "margin-repay-submit",
+  margin_place_limit_order: "margin-order-submit",
+  margin_place_market_order: "margin-order-submit",
+  margin_tpsl_add: "margin-tpsl-submit",
+};
+
+async function defaultMarginAgentHandler(
+  action: string,
+  params: Record<string, unknown>,
+  ctx: RadiantAgentContext,
+): Promise<AppActionResult> {
+  ctx.dispatchEvent("radiant-agent-action-start", { action, params });
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value == null || typeof value === "object") continue;
+    const radiantId = key.replace(/_/g, "-");
+    ctx.setField(radiantId, value);
+    ctx.highlight(radiantId);
+    ctx.dispatchEvent("radiant-agent-set-field", { field: key, value });
+    await ctx.delay(350);
+  }
+
+  const submitId = MARGIN_SUBMIT_IDS[action] ?? "margin-deposit-submit";
+  ctx.highlight(submitId, "agent-clicking");
+  await ctx.delay(450);
+  return ctx.executeAction(action, params);
+}
+
+for (const marginAction of Object.keys(MARGIN_SUBMIT_IDS)) {
+  handlers.set(marginAction, (params, ctx) => defaultMarginAgentHandler(marginAction, params, ctx));
+}
+
 function agentDelay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -181,9 +217,24 @@ function createContext(animate: boolean): RadiantAgentContext {
 /** Known on-chain actions that need the backend tx pipeline. */
 const ONCHAIN_ACTIONS = new Set([
   "swap", "flash_loan", "stake", "unstake", "deposit", "withdraw",
-  "provision_manager", "place_limit_order", "place_market_order",
+  "provision_manager", "margin_provision_manager", "place_limit_order", "place_market_order",
   "cancel_order", "cancel_orders", "cancel_all_orders", "modify_order",
   "withdraw_settled", "submit_proposal", "vote", "transfer",
+  // DeepBook Margin
+  "margin_deposit", "margin_withdraw", "margin_borrow", "margin_repay",
+  "margin_place_limit_order", "margin_place_market_order",
+  "margin_cancel_order", "margin_modify_order",
+  "margin_place_reduce_only_limit_order", "margin_place_reduce_only_market_order",
+  "margin_cancel_orders", "margin_cancel_all_orders",
+  "margin_withdraw_settled", "margin_withdraw_settled_permissionless", "margin_update_price",
+  "margin_stake", "margin_unstake", "margin_submit_proposal", "margin_vote", "margin_claim_rebate",
+  "margin_liquidate", "margin_set_referral", "margin_unset_referral",
+  "margin_supply_pool", "margin_withdraw_pool",
+  "margin_mint_supply_referral", "margin_withdraw_referral_fees",
+  "margin_tpsl_add", "margin_tpsl_cancel", "margin_tpsl_cancel_all", "margin_tpsl_execute",
+  // DeepBook Predict
+  "predict_deposit", "predict_withdraw", "predict_mint", "predict_redeem",
+  "predict_mint_range", "predict_redeem_range", "predict_supply", "predict_lp_withdraw",
 ]);
 
 /**

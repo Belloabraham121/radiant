@@ -60,6 +60,23 @@ export function subscribePreviewApprovalResolution(
   };
 }
 
+/**
+ * Actions that the preview iframe can handle (swap UI with confirm button).
+ * Wallet-only actions (margin, predict, stake, governance, etc.) should
+ * always use the chat-level approval bar — never relay to the preview.
+ */
+const PREVIEW_RELAYABLE_ACTIONS = new Set([
+  "swap",
+  "deepbook_swap",
+  "deepbook_deposit",
+  "deepbook_withdraw",
+  "deepbook_provision_manager",
+]);
+
+function isPreviewRelayableAction(action: string): boolean {
+  return PREVIEW_RELAYABLE_ACTIONS.has(action);
+}
+
 /** Forward a chat pending transaction into the artifact iframe for in-app approval. */
 export function tryRelayPendingApprovalToPreview(
   pending: PendingTransaction,
@@ -67,6 +84,10 @@ export function tryRelayPendingApprovalToPreview(
   action?: string,
 ): boolean {
   if (!sessionId) {
+    return false;
+  }
+
+  if (!isPreviewRelayableAction(pending.action)) {
     return false;
   }
 

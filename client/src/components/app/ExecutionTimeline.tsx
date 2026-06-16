@@ -1,7 +1,10 @@
 "use client";
 
 import { Check, Circle, ExternalLink, Loader2, Minus, X } from "lucide-react";
+import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
 import type { ExecutionStep } from "@/lib/chat-execution-steps";
+import { inferStatusCategoryFromExecutionSteps } from "@/lib/agent-status-category";
+import type { AgentStatusCategory } from "@/lib/agent-status-category";
 import { chainExplorerTxUrl } from "@/lib/chain-meta";
 
 function StepIcon({ status }: { status: ExecutionStep["status"] }) {
@@ -48,15 +51,27 @@ function StepIcon({ status }: { status: ExecutionStep["status"] }) {
 export function ExecutionTimeline({
   steps,
   live = false,
+  statusCategory,
 }: {
   steps: ExecutionStep[];
   live?: boolean;
+  statusCategory?: AgentStatusCategory;
 }) {
+  const liveCategory =
+    statusCategory ??
+    (live ? inferStatusCategoryFromExecutionSteps(steps) : undefined);
+
   return (
     <div className="w-full max-w-full rounded-2xl border-2 border-[var(--hero-ink)]/15 bg-[var(--hero-bg)]/60 px-4 py-3">
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--hero-ink)]/40">
-        {live ? "Executing…" : "Execution"}
-      </p>
+      {live && liveCategory ? (
+        <div className="mb-3 border-b border-[var(--hero-ink)]/10 pb-2">
+          <AgentWorkingIndicator active size="compact" category={liveCategory} />
+        </div>
+      ) : (
+        <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--hero-ink)]/40">
+          Execution
+        </p>
+      )}
       <ol className="flex flex-col gap-0">
         {steps.map((step, index) => {
           const explorerUrl = step.digest

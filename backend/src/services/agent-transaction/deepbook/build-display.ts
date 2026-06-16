@@ -1,4 +1,4 @@
-import { getDeepBookEnv } from "../../../config/deepbook.js";
+import { getDeepBookEnv, getMarginEnabledPoolKeys } from "../../../config/deepbook.js";
 import {
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
@@ -35,6 +35,14 @@ import type { ExecuteTransactionInput, ChainId, TxResult } from "../../chains/ty
 import { fmtDisplayNumber } from "../../../utils/format-display-number.js";
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
+
+function resolveMarginCoinLabel(coinType: string): string {
+  const normalized = coinType.toLowerCase().trim();
+  if (normalized === "base" || normalized === "sui") return "SUI";
+  if (normalized === "quote" || normalized === "usdc" || normalized === "dbusdc") return "USDC";
+  if (normalized === "deep") return "DEEP";
+  return coinType.toUpperCase();
+}
 
 export type TransactionDisplay = {
   title: string;
@@ -80,7 +88,12 @@ export async function buildTransactionDisplay(
   let title = `Send ${formatAmountDisplay(input.chain_id, amount)} to ${recipient.slice(0, 12)}… on ${input.chain_id}`;
   let amount_display = formatAmountDisplay(input.chain_id, amount);
 
-  if (isDeepBookProvisionAction(input.action)) {
+  if (input.action === "deepbook_provision_margin_manager") {
+    const marginPools = getMarginEnabledPoolKeys();
+    const poolKey = String(input.params.pool_key ?? input.params.poolKey ?? marginPools[0] ?? "SUI_USDC");
+    title = `Create DeepBook margin manager (${poolKey})`;
+    amount_display = "Network fee only (~0.01 SUI)";
+  } else if (isDeepBookProvisionAction(input.action)) {
     title = "Create DeepBook balance manager";
     amount_display = "Network fee only (~0.01 SUI)";
   } else if (DEEPBOOK_WRITE_ACTIONS.has(input.action)) {
@@ -251,6 +264,240 @@ export async function buildTransactionDisplay(
     } catch {
       amount_display = "Governance vote";
       title = "Vote on DeepBook proposal";
+    }
+  } else if (input.action.startsWith("deepbook_margin_")) {
+    const marginAction = input.action.replace("deepbook_margin_", "");
+    const rawCoinType = String(input.params.coin_type ?? input.params.asset ?? "quote");
+    const coinLabel = resolveMarginCoinLabel(rawCoinType);
+    const marginAmount =
+      typeof input.params.amount === "number"
+        ? input.params.amount
+        : typeof input.params.amount === "string"
+          ? Number(input.params.amount)
+          : typeof input.params.amount_display === "number"
+            ? input.params.amount_display
+            : null;
+
+    switch (marginAction) {
+      case "deposit":
+        amount_display = marginAmount != null
+          ? `${fmtDisplayNumber(marginAmount)} ${coinLabel}`
+          : `${coinLabel} deposit`;
+        title = "Margin deposit";
+        break;
+      case "withdraw":
+        amount_display = marginAmount != null
+          ? `${fmtDisplayNumber(marginAmount)} ${coinLabel}`
+          : `${coinLabel} withdrawal`;
+        title = "Margin withdraw";
+        break;
+      case "borrow":
+        amount_display = marginAmount != null
+          ? `Borrow ${fmtDisplayNumber(marginAmount)} ${coinLabel}`
+          : `Borrow ${coinLabel}`;
+        title = "Margin borrow";
+        break;
+      case "repay":
+        amount_display = marginAmount != null
+          ? `Repay ${fmtDisplayNumber(marginAmount)} ${coinLabel}`
+          : `Repay all ${coinLabel}`;
+        title = "Margin repay";
+        break;
+      case "place_limit_order": {
+        const price = input.params.price;
+        const qty = input.params.quantity;
+        const side = input.params.is_bid === true || input.params.side === "buy" ? "buy" : "sell";
+        amount_display = `${side} ${qty != null ? fmtDisplayNumber(Number(qty)) : "?"} @ ${price != null ? fmtDisplayNumber(Number(price)) : "?"}`;
+        title = "Margin limit order";
+        break;
+      }
+      case "place_market_order": {
+        const qty = input.params.quantity;
+        const side = input.params.is_bid === true || input.params.side === "buy" ? "buy" : "sell";
+        amount_display = `${side} ${qty != null ? fmtDisplayNumber(Number(qty)) : "?"} market`;
+        title = "Margin market order";
+        break;
+      }
+      case "place_reduce_only_limit_order": {
+        const price = input.params.price;
+        const qty = input.params.quantity;
+        const side = input.params.is_bid === true || input.params.side === "buy" ? "buy" : "sell";
+        amount_display = `Reduce-only ${side} ${qty != null ? fmtDisplayNumber(Number(qty)) : "?"} @ ${price != null ? fmtDisplayNumber(Number(price)) : "?"}`;
+        title = "Reduce-only margin limit";
+        break;
+      }
+      case "place_reduce_only_market_order": {
+        const qty = input.params.quantity;
+        const side = input.params.is_bid === true || input.params.side === "buy" ? "buy" : "sell";
+        amount_display = `Reduce-only ${side} ${qty != null ? fmtDisplayNumber(Number(qty)) : "?"} market`;
+        title = "Reduce-only margin market";
+        break;
+      }
+      case "cancel_order":
+        amount_display = `Cancel margin order ${String(input.params.order_id ?? "").slice(0, 12)}…`;
+        title = "Cancel margin order";
+        break;
+      case "cancel_orders": {
+        const ids = input.params.order_ids;
+        const count = Array.isArray(ids) ? ids.length : "?";
+        amount_display = `Cancel ${count} margin orders`;
+        title = "Cancel margin orders";
+        break;
+      }
+      case "cancel_all_orders":
+        amount_display = "Cancel all margin orders";
+        title = "Cancel all margin orders";
+        break;
+      case "withdraw_settled":
+        amount_display = "Withdraw settled margin proceeds";
+        title = "Withdraw margin settled";
+        break;
+      case "withdraw_settled_permissionless":
+        amount_display = "Withdraw settled margin (permissionless)";
+        title = "Withdraw margin settled";
+        break;
+      case "update_price":
+        amount_display = `Refresh oracle price (${String(input.params.pool_key ?? "pool")})`;
+        title = "Update margin pool price";
+        break;
+      case "modify_order":
+        amount_display = `Modify margin order → qty ${input.params.new_quantity ?? input.params.quantity ?? "?"}`;
+        title = "Modify margin order";
+        break;
+      case "supply_pool":
+        amount_display = marginAmount != null
+          ? `Supply ${fmtDisplayNumber(marginAmount)} ${coinLabel} to margin pool`
+          : "Supply to margin pool";
+        title = "Margin pool supply";
+        break;
+      case "withdraw_pool":
+        amount_display = marginAmount != null
+          ? `Withdraw ${fmtDisplayNumber(marginAmount)} ${coinLabel} from margin pool`
+          : "Withdraw from margin pool";
+        title = "Margin pool withdrawal";
+        break;
+      case "tpsl_add": {
+        const tpslType = String(input.params.tpsl_type ?? "TPSL");
+        const trigger = input.params.trigger_price;
+        const qty = input.params.quantity;
+        amount_display = `${tpslType} @ ${trigger ?? "?"} → ${qty != null ? fmtDisplayNumber(Number(qty)) : "?"} qty`;
+        title = "Margin TPSL add";
+        break;
+      }
+      case "tpsl_cancel":
+        amount_display = `Cancel TPSL order ${String(input.params.conditional_order_id ?? "").slice(0, 12)}…`;
+        title = "Cancel margin TPSL";
+        break;
+      case "tpsl_cancel_all":
+        amount_display = "Cancel all margin TPSL orders";
+        title = "Cancel all margin TPSL";
+        break;
+      case "tpsl_execute":
+        amount_display = `Execute triggered TPSL (max ${input.params.max_orders ?? 10})`;
+        title = "Execute margin TPSL";
+        break;
+      case "stake":
+        amount_display =
+          input.params.amount != null || input.params.amount_display != null
+            ? `Stake ${input.params.amount ?? input.params.amount_display} DEEP`
+            : "Stake DEEP via margin manager";
+        title = "Margin stake DEEP";
+        break;
+      case "unstake":
+        amount_display = "Unstake all margin DEEP";
+        title = "Margin unstake DEEP";
+        break;
+      case "submit_proposal":
+        amount_display = `Proposal taker ${input.params.taker_fee ?? "?"} / maker ${input.params.maker_fee ?? "?"}`;
+        title = "Margin governance proposal";
+        break;
+      case "vote":
+        amount_display = `Vote for ${String(input.params.proposal_id ?? "").slice(0, 12)}…`;
+        title = "Margin governance vote";
+        break;
+      case "claim_rebate":
+        amount_display = "Claim margin trading rebates";
+        title = "Claim margin rebate";
+        break;
+      case "liquidate":
+        amount_display = `Liquidate ${String(input.params.margin_manager_address ?? "").slice(0, 12)}… repay ${input.params.repay_amount ?? input.params.amount ?? "?"}`;
+        title = "Liquidate margin position";
+        break;
+      case "set_referral":
+        amount_display = `Set referral ${String(input.params.referral_id ?? "").slice(0, 12)}…`;
+        title = "Set margin referral";
+        break;
+      case "unset_referral":
+        amount_display = "Unset margin pool referral";
+        title = "Unset margin referral";
+        break;
+      default:
+        amount_display = `Margin: ${marginAction}`;
+        title = "DeepBook margin action";
+    }
+  } else if (input.action.startsWith("deepbook_predict_")) {
+    const predictAction = input.action.replace("deepbook_predict_", "");
+    const predictAmount =
+      typeof input.params.amount === "number"
+        ? input.params.amount
+        : typeof input.params.amount === "string"
+          ? Number(input.params.amount)
+          : typeof input.params.quantity === "number"
+            ? input.params.quantity
+            : null;
+
+    switch (predictAction) {
+      case "deposit":
+        amount_display = predictAmount != null
+          ? `${fmtDisplayNumber(predictAmount)} USDC`
+          : "Deposit to Predict";
+        title = "Predict deposit";
+        break;
+      case "withdraw":
+        amount_display = predictAmount != null
+          ? `${fmtDisplayNumber(predictAmount)} USDC`
+          : "Withdraw from Predict";
+        title = "Predict withdraw";
+        break;
+      case "mint":
+        amount_display = predictAmount != null
+          ? `Mint ${fmtDisplayNumber(predictAmount)} position(s)`
+          : "Mint predict position";
+        title = "Mint prediction position";
+        break;
+      case "redeem":
+        amount_display = predictAmount != null
+          ? `Redeem ${fmtDisplayNumber(predictAmount)} position(s)`
+          : "Redeem predict position";
+        title = "Redeem prediction position";
+        break;
+      case "mint_range":
+        amount_display = predictAmount != null
+          ? `Mint ${fmtDisplayNumber(predictAmount)} range position(s)`
+          : "Mint range position";
+        title = "Mint range prediction";
+        break;
+      case "redeem_range":
+        amount_display = predictAmount != null
+          ? `Redeem ${fmtDisplayNumber(predictAmount)} range position(s)`
+          : "Redeem range position";
+        title = "Redeem range prediction";
+        break;
+      case "supply":
+        amount_display = predictAmount != null
+          ? `Supply ${fmtDisplayNumber(predictAmount)} to predict LP`
+          : "Supply to predict LP";
+        title = "Predict LP supply";
+        break;
+      case "lp_withdraw":
+        amount_display = predictAmount != null
+          ? `Withdraw ${fmtDisplayNumber(predictAmount)} from predict LP`
+          : "Withdraw from predict LP";
+        title = "Predict LP withdraw";
+        break;
+      default:
+        amount_display = `Predict: ${predictAction}`;
+        title = "DeepBook predict action";
     }
   }
 

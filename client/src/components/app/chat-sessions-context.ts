@@ -13,7 +13,6 @@ export type ChatSessionsContextValue = {
   loading: boolean;
   error: string | null;
   refreshSessions: (options?: RefreshSessionsOptions) => Promise<void>;
-  createSession: () => Promise<string>;
 };
 
 export const ChatSessionsContext = createContext<ChatSessionsContextValue | null>(null);

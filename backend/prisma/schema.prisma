@@ -34,6 +34,8 @@ enum AgentTransactionCategory {
   flash_loan
   stake
   governance
+  margin
+  predict
   other
 }
 
@@ -54,6 +56,10 @@ model User {
   agent_auto_approve_flash_loans Boolean @default(false)
   /// When true, agent may submit DeepBook governance proposals and vote (always require approval).
   agent_allow_governance       Boolean  @default(false)
+  /// When true, agent may use margin trading (deposit, borrow, leveraged orders).
+  agent_allow_margin           Boolean  @default(false)
+  /// When true, agent may use prediction markets (mint/redeem positions).
+  agent_allow_predict          Boolean  @default(false)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
@@ -62,6 +68,8 @@ model User {
   agent_transactions       AgentTransaction[]
   agent_memory             AgentMemory?
   deepbook_balance_manager DeepBookBalanceManager?
+  deepbook_margin_supplier_cap DeepBookMarginSupplierCap?
+  deepbook_margin_supply_referrals DeepBookMarginSupplyReferral[]
   projects                 Project[]
   app_installations        AppInstallation[]
 }
@@ -173,6 +181,29 @@ model DeepBookBalanceManager {
   trade_cap_id      String?
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
+}
+
+model DeepBookMarginSupplierCap {
+  id                     String   @id @default(uuid()) @db.Uuid
+  user_id                BigInt   @unique
+  user                   User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chain_id               String   @default("sui")
+  supplier_cap_object_id String
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+}
+
+model DeepBookMarginSupplyReferral {
+  id                   String   @id @default(uuid()) @db.Uuid
+  user_id              BigInt
+  user                 User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chain_id             String   @default("sui")
+  coin_key             String
+  referral_object_id   String
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  @@unique([user_id, coin_key])
 }
 
 model AgentWallet {

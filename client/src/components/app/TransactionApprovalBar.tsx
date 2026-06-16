@@ -22,7 +22,7 @@ export function TransactionApprovalBar({
   className?: string;
 }) {
   const isSwap = pending.action === "swap" || pending.action === "deepbook_swap";
-  const isProvision = pending.action === "deepbook_provision_manager";
+  const isProvision = pending.action === "deepbook_provision_manager" || pending.action === "deepbook_provision_margin_manager";
   const isDeposit =
     pending.action === "deepbook_deposit" || pending.action === "deepbook_withdraw";
   const isLimitOrder = pending.action === "deepbook_place_limit_order";
@@ -40,6 +40,8 @@ export function TransactionApprovalBar({
   const isUnstake = pending.action === "deepbook_unstake";
   const isSubmitProposal = pending.action === "deepbook_submit_proposal";
   const isVote = pending.action === "deepbook_vote";
+  const isMargin = pending.action.startsWith("deepbook_margin_");
+  const isPredict = pending.action.startsWith("deepbook_predict_");
   const flashStrategy =
     isFlashLoan && typeof pending.params.strategy === "string"
       ? pending.params.strategy
@@ -81,6 +83,10 @@ export function TransactionApprovalBar({
                       ? "Approve proposal"
                       : isVote
                         ? "Approve vote"
+                        : isMargin
+                          ? "Approve margin action"
+                          : isPredict
+                            ? "Approve prediction"
                 : isOrder
                 ? "Approve order"
                 : isCancelOrder
@@ -108,6 +114,10 @@ export function TransactionApprovalBar({
                       ? "Submits proposed taker/maker fees and stake requirement for the next epoch. Requires active stake."
                       : isVote
                         ? "Casts your stake-weighted vote for the named proposal on this pool."
+                        : isMargin
+                          ? "Review the margin action details. Margin trading involves leverage and liquidation risk."
+                          : isPredict
+                            ? "Review the prediction market action. Positions expire and may lose value if the outcome is unfavorable."
                 : isLimitOrder
                 ? "Review price and size, then approve to place the limit order on DeepBook."
                 : isMarketOrder

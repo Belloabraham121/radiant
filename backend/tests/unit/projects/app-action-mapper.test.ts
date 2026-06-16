@@ -122,6 +122,25 @@ describe("app-action mapper", () => {
   it("mapExecuteActionToAppActionName maps swap and deepbook_deposit", () => {
     assert.equal(mapExecuteActionToAppActionName("swap"), "swap");
     assert.equal(mapExecuteActionToAppActionName("deepbook_deposit"), "deposit");
+    assert.equal(
+      mapExecuteActionToAppActionName("deepbook_provision_margin_manager"),
+      "margin_provision_manager",
+    );
     assert.equal(mapExecuteActionToAppActionName("execute_bytes"), null);
+  });
+
+  it("validateAppActionInput maps margin_provision_manager to deepbook_provision_margin_manager", () => {
+    const input = validateAppActionInput("margin_provision_manager", {
+      pool_key: "SUI_DBUSDC",
+    });
+    assert.equal(input.action, "deepbook_provision_margin_manager");
+    assert.equal(input.params.pool_key, "SUI_DBUSDC");
+  });
+
+  it("parseAppActionParams requires pool_key for margin_provision_manager", () => {
+    assert.throws(
+      () => parseAppActionParams("margin_provision_manager", {}),
+      (err: unknown) => err instanceof AppError && err.code === "VALIDATION_ERROR",
+    );
   });
 });

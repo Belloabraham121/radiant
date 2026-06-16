@@ -32,7 +32,22 @@ function parsePlannerJson(raw: string): PlannerOutput {
   };
 }
 
+const RESEARCH_ONLY_PATTERN =
+  /\b(recommend|suggest|advise|what.*(?:should|would|could) (?:i|you)|what (?:position|strategy|option)|explain|walk me through|tell me (?:about|what|how)|how (?:does|do|can|would)|what (?:can|are|is) )/i;
+
+function isResearchOnlyMessage(message: string): boolean {
+  if (!RESEARCH_ONLY_PATTERN.test(message)) return false;
+  const hasExplicitMultiAction =
+    /\b(then|after that|when you're done|and (?:also|then)|,\s*(?:then|also))\b/i.test(message) &&
+    /\b(swap|deposit|withdraw|transfer|stake|cancel|place)\b/i.test(message);
+  return !hasExplicitMultiAction;
+}
+
 async function planWorkflowWithOpenAi(message: string): Promise<PlannerOutput | null> {
+  if (isResearchOnlyMessage(message)) {
+    return null;
+  }
+
   const { apiKey, model } = getOpenAiConfig();
   if (!apiKey) {
     return planWorkflowHeuristic(message);

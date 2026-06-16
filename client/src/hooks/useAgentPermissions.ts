@@ -14,6 +14,8 @@ const DEFAULT_PERMISSIONS: AgentPermissions = {
   allow_flash_loans: false,
   auto_approve_flash_loans: false,
   allow_governance: false,
+  allow_margin: false,
+  allow_predict: false,
 };
 
 export function useAgentPermissions(authenticated: boolean) {
@@ -100,5 +102,9 @@ export function useAgentPermissions(authenticated: boolean) {
       savePermissions({ auto_approve_flash_loans: enabled }),
     setAllowGovernance: (enabled: boolean) =>
       savePermissions({ allow_governance: enabled }),
+    setAllowMargin: (enabled: boolean) =>
+      savePermissions({ allow_margin: enabled }),
+    setAllowPredict: (enabled: boolean) =>
+      savePermissions({ allow_predict: enabled }),
   };
 }

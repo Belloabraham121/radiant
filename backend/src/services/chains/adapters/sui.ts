@@ -39,6 +39,13 @@ import {
   executeDeepBookUnstake,
   isDeepBookStakeAction,
 } from "../../defi/deepbook/deepbook-stake.service.js";
+import { isDeepBookMarginAction } from "../../defi/deepbook/deepbook-margin.service.js";
+import { executeMarginAction, executeProvisionMarginManager } from "../../defi/deepbook/deepbook-margin-execution.service.js";
+import {
+  executeMarginMaintainerAction,
+  isDeepBookMarginMaintainerAction,
+} from "../../defi/deepbook/deepbook-margin-maintainer.service.js";
+import { isDeepBookPredictAction, buildPredictActionSummary } from "../../defi/deepbook/deepbook-predict.service.js";
 import {
   executeDeepBookSubmitProposal,
   executeDeepBookVote,
@@ -371,6 +378,55 @@ export const suiAdapter: ChainAdapter = {
           },
         },
       };
+    }
+
+    if (action === "deepbook_provision_margin_manager") {
+      const provisionResult = await executeProvisionMarginManager(privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: provisionResult.digest,
+        address: provisionResult.address,
+        effects_status: provisionResult.effects_status,
+        deepbook: {
+          margin: {
+            action: "provision_margin_manager",
+            margin_manager: provisionResult.margin_manager_address,
+            pool_key: provisionResult.pool_key,
+          },
+          already_provisioned: provisionResult.already_provisioned,
+        },
+      };
+    }
+
+    if (isDeepBookMarginMaintainerAction(action)) {
+      const maintainerResult = await executeMarginMaintainerAction(action, privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: maintainerResult.digest,
+        address: maintainerResult.address,
+        effects_status: maintainerResult.effects_status,
+        deepbook: { margin_maintainer: maintainerResult.margin_maintainer },
+      };
+    }
+
+    if (isDeepBookMarginAction(action)) {
+      const marginResult = await executeMarginAction(action, privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: marginResult.digest,
+        address: marginResult.address,
+        effects_status: marginResult.effects_status,
+        deepbook: { margin: marginResult.margin },
+      };
+    }
+
+    if (isDeepBookPredictAction(action)) {
+      throw new AppError(
+        501,
+        "PREDICT_NOT_LIVE",
+        `Predict action "${action}" is registered but on-chain execution requires the DeepBook Predict contract integration (testnet). ` +
+        `This feature is under development. ${buildPredictActionSummary(action, params)}`,
+      );
     }
 
     const suiAction = toSuiExecuteAction(action, params);

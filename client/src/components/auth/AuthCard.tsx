@@ -65,9 +65,8 @@ export function AuthCard() {
   const [otpCode, setOtpCode] = useState("");
   const [emailStep, setEmailStep] = useState<EmailStep>("idle");
   const [mergeRequired, setMergeRequired] = useState(false);
-  const [oauthReturn] = useState(() =>
-    typeof window !== "undefined" ? isPrivyOAuthReturn() : false,
-  );
+  const [mounted, setMounted] = useState(false);
+  const [oauthReturn, setOauthReturn] = useState(false);
   const [oauthProvider, setOauthProvider] = useState<"google" | "github" | null>(null);
   const oauthProviderRef = useRef<"google" | "github" | null>(null);
   const handledAuthRef = useRef(false);
@@ -135,6 +134,11 @@ export function AuthCard() {
     },
     { scope: ref },
   );
+
+  useEffect(() => {
+    setOauthReturn(isPrivyOAuthReturn());
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!ready) {
@@ -214,9 +218,9 @@ export function AuthCard() {
   const emailVerifying =
     otpState.status === "sending-code" || otpState.status === "submitting-code";
   const oauthCompleting =
-    oauthReturn || (oauthState.status === "loading" && !displayError);
+    mounted && (oauthReturn || (oauthState.status === "loading" && !displayError));
   const busy = oauthLoading || syncing || emailVerifying || oauthCompleting;
-  const authLoading = !ready;
+  const authLoading = !mounted || !ready;
 
   return (
     <div
@@ -293,6 +297,10 @@ export function AuthCard() {
             <Loader2 className="size-4 animate-spin" />
             Completing sign in…
           </p>
+        ) : authLoading ? (
+          <p className="mb-4 text-center text-sm font-medium text-[var(--hero-ink)]/55">
+            Loading sign-in…
+          </p>
         ) : null}
 
         {displayError ? (
@@ -310,12 +318,6 @@ export function AuthCard() {
               </p>
             ) : null}
           </div>
-        ) : null}
-
-        {authLoading ? (
-          <p className="mb-4 text-center text-sm font-medium text-[var(--hero-ink)]/55">
-            Loading sign-in…
-          </p>
         ) : null}
 
         <Captcha />

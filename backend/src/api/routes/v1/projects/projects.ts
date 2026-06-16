@@ -16,6 +16,10 @@ import {
 import {
   flashLoanQuoteForProject,
   governanceStateForProject,
+  marginManagerInfoForProject,
+  marginOpenOrdersForProject,
+  marginPoolInfoForProject,
+  marginRiskRatioForProject,
   openOrdersForProject,
   poolInfoForProject,
   stakeBalanceForProject,
@@ -31,6 +35,7 @@ import { executeAppActionForProject } from "../../../../services/projects/app-ac
 import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { ok } from "../../../../utils/http-response.js";
+import { registerMarginDeepbookReadRoutes } from "../margin-deepbook-read.routes.js";
 
 const listProjectsQuerySchema = z.object({
   session_id: z.string().uuid().optional(),
@@ -304,6 +309,74 @@ projectsRouter.get(
   },
 );
 
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/margin-manager-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginManagerInfoForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/margin-pool-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginPoolInfoForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/margin-risk-ratio",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginRiskRatioForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/margin-open-orders",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginOpenOrdersForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 projectsRouter.get("/api/v1/projects/:projectId/actions", requireAuth, async (req, res, next) => {
   try {
     const user = await findUserByPrivyId(req.user.privyUserId);
@@ -383,3 +456,5 @@ projectsRouter.delete("/api/v1/projects/:projectId", requireAuth, async (req, re
     next(err);
   }
 });
+
+registerMarginDeepbookReadRoutes(projectsRouter, "project");

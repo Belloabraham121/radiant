@@ -247,6 +247,27 @@
   animation-delay: 0.4s;
 }
 
+@keyframes agent-status-phrase-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.agent-status-phrase {
+  animation: agent-status-phrase-in 0.45s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-status-phrase {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-marquee,
   .hero-marquee-slow,

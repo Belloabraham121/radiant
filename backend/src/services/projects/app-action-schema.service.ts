@@ -58,6 +58,30 @@ const DEFAULT_SWAP_TEMPLATE_ACTIONS: AppActionName[] = [
   "vote",
 ];
 
+/** Default on-chain actions for generated margin trading apps. */
+export const DEFAULT_MARGIN_TEMPLATE_ACTIONS: AppActionName[] = [
+  "margin_provision_manager",
+  "margin_deposit",
+  "margin_withdraw",
+  "margin_borrow",
+  "margin_repay",
+  "margin_place_limit_order",
+  "margin_place_market_order",
+  "margin_cancel_order",
+  "margin_modify_order",
+  "margin_place_reduce_only_limit_order",
+  "margin_place_reduce_only_market_order",
+  "margin_cancel_orders",
+  "margin_cancel_all_orders",
+  "margin_withdraw_settled",
+  "margin_tpsl_add",
+  "margin_tpsl_cancel",
+  "margin_tpsl_cancel_all",
+  "margin_tpsl_execute",
+  "margin_supply_pool",
+  "margin_withdraw_pool",
+];
+
 const EXECUTE_HELPER_PATTERNS: Array<{ pattern: RegExp; action: AppActionName }> = [
   { pattern: /\bexecuteSwap\b/, action: "swap" },
   { pattern: /\bexecuteFlashLoan\b/, action: "flash_loan" },
@@ -71,6 +95,33 @@ const EXECUTE_HELPER_PATTERNS: Array<{ pattern: RegExp; action: AppActionName }>
   { pattern: /\bexecuteAction\s*\(\s*["']swap["']/, action: "swap" },
 ];
 
+const EXECUTE_MARGIN_PATTERNS: Array<{ pattern: RegExp; action: AppActionName }> = [
+  {
+    pattern: /\bexecuteAction\s*\(\s*["']margin_provision_manager["']/,
+    action: "margin_provision_manager",
+  },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_deposit["']/, action: "margin_deposit" },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_withdraw["']/, action: "margin_withdraw" },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_borrow["']/, action: "margin_borrow" },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_repay["']/, action: "margin_repay" },
+  {
+    pattern: /\bexecuteAction\s*\(\s*["']margin_place_limit_order["']/,
+    action: "margin_place_limit_order",
+  },
+  {
+    pattern: /\bexecuteAction\s*\(\s*["']margin_place_market_order["']/,
+    action: "margin_place_market_order",
+  },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_cancel_order["']/, action: "margin_cancel_order" },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_modify_order["']/, action: "margin_modify_order" },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_tpsl_add["']/, action: "margin_tpsl_add" },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_tpsl_execute["']/, action: "margin_tpsl_execute" },
+  { pattern: /\bexecuteAction\s*\(\s*["']margin_supply_pool["']/, action: "margin_supply_pool" },
+];
+
+const MARGIN_COMPONENT_HEURISTIC =
+  /MarginApp|MarginTrading|marginManagerInfo|marginPoolInfo|margin-order|MarginDashboard/i;
+
 /**
  * Detect app-local action registrations from __radiantAgent.register() calls.
  * Matches: window.__radiantAgent.register('action_name', ...) or .register("action_name", ...)
@@ -82,6 +133,39 @@ const REGISTER_ACTION_PATTERN = /__radiantAgent\s*\.\s*register\s*\(\s*['"]([a-z
  * Matches: { name: "action_name", ... } inside an exported actions array.
  */
 const MANIFEST_ACTION_PATTERN = /name:\s*["']([a-z_][a-z0-9_]*)["']/g;
+
+function detectOnchainActionsFromManifest(files: ArtifactFileInput[]): AppActionName[] {
+  const manifestFile = files.find(
+    (f) => f.path === "lib/radiant-actions.ts" || f.path === "lib/radiant-actions.js",
+  );
+  if (!manifestFile) {
+    return [];
+  }
+
+  const names: AppActionName[] = [];
+  const seen = new Set<string>();
+  for (const match of manifestFile.content.matchAll(MANIFEST_ACTION_PATTERN)) {
+    const name = match[1]!;
+    if (isOnchainAction(name) && !seen.has(name)) {
+      seen.add(name);
+      names.push(name);
+    }
+  }
+  return names;
+}
+
+function detectOnchainActionsFromRegisterCalls(source: string): AppActionName[] {
+  const names: AppActionName[] = [];
+  const seen = new Set<string>();
+  for (const match of source.matchAll(REGISTER_ACTION_PATTERN)) {
+    const name = match[1]!;
+    if (isOnchainAction(name) && !seen.has(name)) {
+      seen.add(name);
+      names.push(name);
+    }
+  }
+  return names;
+}
 
 function paramDocToFields(name: AppActionName): AppActionParamField[] {
   return getAppActionParamSchemaDoc(name).fields.map((field) => ({
@@ -132,8 +216,12 @@ function concatArtifactSource(files: ArtifactFileInput[]): string {
 /** Heuristic: generated app exposes DeFi actions via radiant-client helpers or swap UI. */
 export function detectDefiActionNamesFromArtifact(
   files: ArtifactFileInput[],
-  _template?: string,
+  template?: string,
 ): AppActionName[] {
+  if (template === "margin") {
+    return [...DEFAULT_MARGIN_TEMPLATE_ACTIONS];
+  }
+
   const source = concatArtifactSource(files);
   const detected = new Set<AppActionName>();
 
@@ -147,12 +235,32 @@ export function detectDefiActionNamesFromArtifact(
     }
   }
 
+  for (const { pattern, action } of EXECUTE_MARGIN_PATTERNS) {
+    if (pattern.test(source)) {
+      detected.add(action);
+    }
+  }
+
+  for (const name of detectOnchainActionsFromManifest(files)) {
+    detected.add(name);
+  }
+
+  for (const name of detectOnchainActionsFromRegisterCalls(source)) {
+    detected.add(name);
+  }
+
   if (/SwapForm|DexApp|FlashLoan|executeSwap|executeFlashLoan|executeStake|executeUnstake/.test(source)) {
     detected.add("swap");
   }
 
   if (/DexApp|executeFlashLoan|flashLoanQuote/.test(source)) {
     detected.add("flash_loan");
+  }
+
+  if (MARGIN_COMPONENT_HEURISTIC.test(source)) {
+    for (const action of DEFAULT_MARGIN_TEMPLATE_ACTIONS) {
+      detected.add(action);
+    }
   }
 
   return [...detected];
@@ -259,6 +367,10 @@ function resolveStoredOrInferredSchema(project: ProjectActionSchemaSource): Proj
 
   if (project.template === "swap") {
     return buildDefaultDeepBookActionSchema(project.id, DEFAULT_SWAP_TEMPLATE_ACTIONS);
+  }
+
+  if (project.template === "margin") {
+    return buildDefaultDeepBookActionSchema(project.id, DEFAULT_MARGIN_TEMPLATE_ACTIONS);
   }
 
   return emptyCustomSchema(project.id);

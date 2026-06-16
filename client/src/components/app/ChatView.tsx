@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles } from "lucide-react";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
-import { AgentThinkingDots } from "@/components/app/AgentThinkingDots";
+import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
 import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
 import { ChatAgentStreamProvider } from "@/components/app/ChatAgentStreamBridge";
 import { ResizableArtifactPanel } from "@/components/app/ResizableArtifactPanel";
@@ -152,24 +152,35 @@ function Bubble({
           <ExecutionTimeline
             steps={message.executionSteps}
             live={message.streaming === true}
+            statusCategory={message.statusCategory}
           />
         ) : null}
 
+        {!isUser &&
+        message.streaming &&
+        !message.text &&
+        !(message.executionSteps && message.executionSteps.length > 0) ? (
+          <AgentWorkingIndicator
+            active={message.streaming}
+            category={message.statusCategory ?? "thinking"}
+          />
+        ) : null}
+
+        {(isUser || message.text || !message.streaming) && (
         <div
-          className={`rounded-3xl border-2 border-(--hero-ink) px-5 py-3.5 text-sm font-medium leading-relaxed ${
+          className={`text-sm font-medium leading-relaxed ${
             isUser
-              ? "rounded-br-md bg-[var(--hero-ink)] text-(--hero-bg)"
-              : "rounded-bl-md bg-white shadow-[4px_4px_0_var(--hero-ink)]"
+              ? "rounded-3xl rounded-br-md border-2 border-(--hero-ink) bg-[var(--hero-ink)] px-5 py-3.5 text-(--hero-bg)"
+              : "max-w-full py-0.5 text-[var(--hero-ink)]"
           }`}
         >
           {isUser ? (
             message.text
-          ) : message.streaming && !message.text ? (
-            <AgentThinkingDots />
           ) : (
             <AgentMessageMarkdown text={message.text} />
           )}
         </div>
+        )}
 
         {isUser && message.appScope ? (
           <UserMessageAppScopeChip scope={message.appScope} />
@@ -226,6 +237,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const initialBatchDoneRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const resizeInput = useCallback(() => {
     const el = inputRef.current;
@@ -308,6 +320,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       const distanceFromBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight;
       stickToBottomRef.current = distanceFromBottom < 96;
+      setShowScrollToBottom(distanceFromBottom > 200);
     };
 
     container.addEventListener("scroll", onScroll, { passive: true });
@@ -492,6 +505,25 @@ export function ChatView({ sessionId }: ChatViewProps) {
           </div>
         )}
       </div>
+
+      {showScrollToBottom ? (
+        <div className="pointer-events-none relative z-10 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              const container = scrollRef.current;
+              if (container) {
+                container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+              }
+              setShowScrollToBottom(false);
+            }}
+            className="pointer-events-auto -mt-6 flex size-9 items-center justify-center rounded-full border-2 border-[var(--hero-ink)] bg-white shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            aria-label="Scroll to bottom"
+          >
+            <ArrowDown className="size-4" strokeWidth={2.5} />
+          </button>
+        </div>
+      ) : null}
 
       {chatError ? (
         <p

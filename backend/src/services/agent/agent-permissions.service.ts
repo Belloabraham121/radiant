@@ -12,6 +12,8 @@ export function defaultAgentPermissions(): AgentPermissions {
     allow_flash_loans: false,
     auto_approve_flash_loans: false,
     allow_governance: false,
+    allow_margin: false,
+    allow_predict: false,
   };
 }
 
@@ -21,6 +23,8 @@ export function agentPermissionsFromUser(user: {
   agent_allow_flash_loans?: boolean;
   agent_auto_approve_flash_loans?: boolean;
   agent_allow_governance?: boolean;
+  agent_allow_margin?: boolean;
+  agent_allow_predict?: boolean;
 }): AgentPermissions {
   return {
     auto_approve_enabled: user.agent_auto_approve_enabled,
@@ -28,6 +32,8 @@ export function agentPermissionsFromUser(user: {
     allow_flash_loans: user.agent_allow_flash_loans ?? false,
     auto_approve_flash_loans: user.agent_auto_approve_flash_loans ?? false,
     allow_governance: user.agent_allow_governance ?? false,
+    allow_margin: user.agent_allow_margin ?? false,
+    allow_predict: user.agent_allow_predict ?? false,
   };
 }
 
@@ -61,6 +67,28 @@ export async function assertGovernanceEnabled(privyUserId: string): Promise<void
   }
 }
 
+export async function assertMarginEnabled(privyUserId: string): Promise<void> {
+  const permissions = await getAgentPermissions(privyUserId);
+  if (!permissions.allow_margin) {
+    throw new AppError(
+      403,
+      "MARGIN_DISABLED",
+      "DeepBook Margin trading is disabled for this account. Enable Allow margin trading in Settings → Agent permissions.",
+    );
+  }
+}
+
+export async function assertPredictEnabled(privyUserId: string): Promise<void> {
+  const permissions = await getAgentPermissions(privyUserId);
+  if (!permissions.allow_predict) {
+    throw new AppError(
+      403,
+      "PREDICT_DISABLED",
+      "DeepBook Predict markets are disabled for this account. Enable Allow prediction markets in Settings → Agent permissions.",
+    );
+  }
+}
+
 export async function updateAgentPermissions(
   privyUserId: string,
   patch: Partial<AgentPermissions>,
@@ -87,6 +115,12 @@ export async function updateAgentPermissions(
         : {}),
       ...(patch.allow_governance !== undefined
         ? { agent_allow_governance: patch.allow_governance }
+        : {}),
+      ...(patch.allow_margin !== undefined
+        ? { agent_allow_margin: patch.allow_margin }
+        : {}),
+      ...(patch.allow_predict !== undefined
+        ? { agent_allow_predict: patch.allow_predict }
         : {}),
     },
   });

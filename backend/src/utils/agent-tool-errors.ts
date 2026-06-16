@@ -56,6 +56,15 @@ export function mapAgentToolError(err: unknown): AppError {
     );
   }
 
+  if (/fetch failed|ECONNRESET|ETIMEDOUT|network request failed/i.test(message)) {
+    return new AppError(
+      503,
+      "SUI_RPC_UNAVAILABLE",
+      "Could not reach Sui RPC. Try again in a moment.",
+      { cause: message },
+    );
+  }
+
   return new AppError(400, "TRANSACTION_ERROR", message.slice(0, 500));
 }
 
@@ -87,6 +96,8 @@ function guidanceForErrorCode(code: string): string {
       return "Explain the wallet lacks enough of the required token. Suggest funding the agent wallet or using a smaller amount.";
     case "SLIPPAGE_EXCEEDED":
       return "Explain the swap could not complete due to price movement. Suggest a smaller amount or higher slippage.";
+    case "SUI_RPC_UNAVAILABLE":
+      return "Explain Sui RPC was temporarily unreachable. Suggest retrying the query shortly.";
     case "TRANSACTION_ERROR":
     case "TRANSACTION_FAILED":
       return "Explain the transaction failed on chain in plain language.";

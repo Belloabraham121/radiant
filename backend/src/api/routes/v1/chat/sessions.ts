@@ -22,6 +22,10 @@ import {
 import {
   flashLoanQuoteForSession,
   governanceStateForSession,
+  marginManagerInfoForSession,
+  marginOpenOrdersForSession,
+  marginPoolInfoForSession,
+  marginRiskRatioForSession,
   openOrdersForSession,
   poolInfoForSession,
   stakeBalanceForSession,
@@ -38,6 +42,7 @@ import {
 } from "../../../../services/agent/agent-stream.service.js";
 import { drainPendingExecuteInApp } from "../../../../services/agent/agent-stream-pending-execute.js";
 import { fail, ok } from "../../../../utils/http-response.js";
+import { registerMarginDeepbookReadRoutes } from "../margin-deepbook-read.routes.js";
 import { writeSseComment, writeSseEvent } from "../../../../utils/chat-sse.js";
 
 export const chatSessionsRouter = Router();
@@ -338,6 +343,74 @@ chatSessionsRouter.get(
 );
 
 chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/margin-manager-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginManagerInfoForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/margin-pool-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginPoolInfoForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/margin-risk-ratio",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginRiskRatioForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/margin-open-orders",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginOpenOrdersForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
   "/api/v1/chat/sessions/:sessionId/actions",
   requireAuth,
   async (req, res, next) => {
@@ -376,3 +449,7 @@ chatSessionsRouter.post(
     }
   },
 );
+
+registerMarginDeepbookReadRoutes(chatSessionsRouter, "session");
+
+registerMarginDeepbookReadRoutes(chatSessionsRouter, "session");

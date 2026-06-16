@@ -24,6 +24,7 @@ import {
   continueWorkflowAfterApproval,
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
+import { formatMarginManagerApprovalNote } from "./runtime/summarize-tool-result.js";
 
 export async function handleChatMessage(
   privyUserId: string,
@@ -111,9 +112,10 @@ export async function handleChatMessage(
       }
 
       const explorerUrl = buildExplorerTxUrl(outcome.result.chain_id, outcome.result.digest);
+      const marginNote = formatMarginManagerApprovalNote(outcome.result);
       const reply = explorerUrl
-        ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [View on Sui Explorer](${explorerUrl}) — Digest: ${outcome.result.digest}`
-        : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
+        ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [View on Sui Explorer](${explorerUrl}) — Digest: ${outcome.result.digest}.${marginNote}`
+        : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}.${marginNote}`;
 
       return persistApprovalTurn(privyUserId, request, reply, [
         {

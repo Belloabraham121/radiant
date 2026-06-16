@@ -8,6 +8,10 @@ import {
 import {
   flashLoanQuoteForInstallation,
   governanceStateForInstallation,
+  marginManagerInfoForInstallation,
+  marginOpenOrdersForInstallation,
+  marginPoolInfoForInstallation,
+  marginRiskRatioForInstallation,
   openOrdersForInstallation,
   poolInfoForInstallation,
   stakeBalanceForInstallation,
@@ -20,6 +24,7 @@ import { parseAppActionName } from "../../../../services/projects/app-action-map
 import { executeAppActionForInstallation } from "../../../../services/projects/app-action.service.js";
 import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
 import { ok } from "../../../../utils/http-response.js";
+import { registerMarginDeepbookReadRoutes } from "../margin-deepbook-read.routes.js";
 
 export const installationsRouter = Router();
 
@@ -147,6 +152,74 @@ installationsRouter.get(
 );
 
 installationsRouter.get(
+  "/api/v1/installations/:installationId/deepbook/margin-manager-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginManagerInfoForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.get(
+  "/api/v1/installations/:installationId/deepbook/margin-pool-info",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginPoolInfoForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.get(
+  "/api/v1/installations/:installationId/deepbook/margin-risk-ratio",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginRiskRatioForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.get(
+  "/api/v1/installations/:installationId/deepbook/margin-open-orders",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await marginOpenOrdersForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.get(
   "/api/v1/installations/:installationId/actions",
   requireAuth,
   async (req, res, next) => {
@@ -188,3 +261,7 @@ installationsRouter.post(
     }
   },
 );
+
+registerMarginDeepbookReadRoutes(installationsRouter, "installation");
+
+registerMarginDeepbookReadRoutes(installationsRouter, "installation");

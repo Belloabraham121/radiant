@@ -1,4 +1,4 @@
-import type { WorkflowExecuteStep } from "../workflow/workflow.types.js";
+import type { WorkflowExecuteStep } from "./workflow/workflow.types.js";
 import {
   inferSwapSideForPool,
   resolveSwapPoolKey,

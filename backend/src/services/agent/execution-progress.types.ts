@@ -1,5 +1,6 @@
 import type { ChatResponse } from "./agent.types.js";
 import type { ArtifactPayload } from "../projects/project.types.js";
+import type { AgentStatusCategory } from "./agent-status-category.js";
 
 export type ExecutionStepStatus =
   | "pending"
@@ -17,10 +18,16 @@ export type ExecutionProgressStep = {
   agent_transaction_id?: string;
   digest?: string;
   chain_id?: string;
+  /** Drives playful status phrases on the client (thinking, defi, etc.). */
+  status_category?: AgentStatusCategory;
 };
 
 export type ExecutionProgressEvent = {
   step: ExecutionProgressStep;
+};
+
+export type AgentStatusEvent = {
+  category: AgentStatusCategory;
 };
 
 export type ChatStreamStepEvent = ExecutionProgressEvent;
@@ -36,9 +43,18 @@ export type ChatStreamDoneEvent = {
 };
 
 export type ChatStreamSender = (
-  event: "step" | "artifact" | "reply" | "reply_clear" | "session" | "done" | "error",
+  event:
+    | "step"
+    | "status"
+    | "artifact"
+    | "reply"
+    | "reply_clear"
+    | "session"
+    | "done"
+    | "error",
   data:
     | ExecutionProgressEvent
+    | AgentStatusEvent
     | { artifact: ArtifactPayload; streaming: boolean }
     | { delta: string }
     | { session_id: string }

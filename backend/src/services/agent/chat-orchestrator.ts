@@ -45,6 +45,7 @@ export async function runChatTurn(
 
   if (options.onStream) {
     options.onStream("session", { session_id: session.id });
+    options.onStream("status", { category: "thinking" });
   }
 
   const [priorMessages, memory, agentPermissions] = await Promise.all([
@@ -69,6 +70,7 @@ export async function runChatTurn(
     isClarificationContinuationRequest(request);
 
   if (options.onStream && isTransactionContinuation) {
+    options.onStream("status", { category: "thinking" });
     options.onStream("step", {
       step: {
         id: "agent",
@@ -136,6 +138,9 @@ export async function runChatTurn(
     {
       onProgress: (event) => {
         options.onStream?.("step", event);
+      },
+      onStatus: (event) => {
+        options.onStream?.("status", event);
       },
       onArtifact: (data) => {
         options.onStream?.("artifact", data);

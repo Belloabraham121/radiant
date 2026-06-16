@@ -30,11 +30,12 @@ export async function runInstallAppTool(
   }
 
   const result = await installPublicAppForUser(privyUserId, projectId);
+  const open_path = `/app/installed/${result.installation_id}/run`;
   return {
     ...result,
-    open_path: `/app/installed/${result.installation_id}/run`,
+    open_path,
     message: result.already_installed
-      ? `Already installed — open at ${result.open_path}`
-      : `Installed ${result.app_name} — open at ${result.open_path}`,
+      ? `Already installed — open at ${open_path}`
+      : `Installed ${result.app_name} — open at ${open_path}`,
   };
 }

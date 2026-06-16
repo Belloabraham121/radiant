@@ -23,10 +23,15 @@ import {
   executionStepFromPreviewResult,
 } from "@/lib/chat-execution-steps";
 import { postChatStream } from "@/lib/chat-stream";
-import { cacheChatSession, takeCachedChatSession } from "@/lib/chat-session-cache";
+import {
+  cacheChatSession,
+  takeCachedChatSession,
+} from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useArtifactContext } from "@/components/app/ArtifactContext";
 import type { ChatAppScope } from "@/lib/chat-app-scope";
+import type { AgentStatusCategory } from "@/lib/agent-status-category";
+import { inferStatusCategoryFromStep } from "@/lib/agent-status-category";
 import {
   subscribePreviewApprovalResolution,
   tryRelayPendingApprovalToPreview,
@@ -73,8 +78,12 @@ function initialChatSessionState(sessionId?: string) {
 export function useChatSession(sessionId?: string) {
   const router = useRouter();
   const { refreshSessions } = useChatSessions();
-  const { openArtifact, updateArtifact, setArtifactStreaming, migrateArtifactSession } =
-    useArtifactContext();
+  const {
+    openArtifact,
+    updateArtifact,
+    setArtifactStreaming,
+    migrateArtifactSession,
+  } = useArtifactContext();
   const [boot] = useState(() => initialChatSessionState(sessionId));
 
   const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
@@ -93,7 +102,8 @@ export function useChatSession(sessionId?: string) {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [respondingClarification, setRespondingClarification] = useState(false);
-  const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] = useState(false);
+  const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] =
+    useState(false);
 
   const applyPendingTransaction = useCallback(
     (pending: PendingTransaction | null, sessionKey?: string) => {
@@ -113,12 +123,16 @@ export function useChatSession(sessionId?: string) {
 
   useEffect(() => {
     return subscribePreviewApprovalResolution((message) => {
-      setPendingTx((current) => (current?.id === message.pendingId ? null : current));
+      setPendingTx((current) =>
+        current?.id === message.pendingId ? null : current,
+      );
       setPendingTxRelayedToPreview(false);
 
       if (message.status === "executed" && message.digest) {
         setMessages((current) => {
-          const agentIndex = [...current].reverse().findIndex((m) => m.role === "agent");
+          const agentIndex = [...current]
+            .reverse()
+            .findIndex((m) => m.role === "agent");
           if (agentIndex === -1) return current;
           const index = current.length - 1 - agentIndex;
           const messageRow = current[index];
@@ -156,7 +170,9 @@ export function useChatSession(sessionId?: string) {
       }
 
       setMessages((current) => {
-        const agentIndex = [...current].reverse().findIndex((m) => m.role === "agent");
+        const agentIndex = [...current]
+          .reverse()
+          .findIndex((m) => m.role === "agent");
         if (agentIndex === -1) return current;
         const index = current.length - 1 - agentIndex;
         const messageRow = current[index];
@@ -212,7 +228,9 @@ export function useChatSession(sessionId?: string) {
         if (cancelled) return;
         setMessages((current) => (current.length > 0 ? current : []));
         setLoadError(
-          err instanceof ApiError ? err.message : "Could not load this conversation.",
+          err instanceof ApiError
+            ? err.message
+            : "Could not load this conversation.",
         );
       } finally {
         if (!cancelled) {
@@ -248,6 +266,7 @@ export function useChatSession(sessionId?: string) {
           role: "agent",
           text: "",
           streaming: true,
+          statusCategory: "thinking",
         },
       ]);
       setStreaming(true);
@@ -266,10 +285,20 @@ export function useChatSession(sessionId?: string) {
             onSession: (streamSessionId) => {
               setActiveSessionId(streamSessionId);
             },
+            onStatus: (category: AgentStatusCategory) => {
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === liveAgentId
+                    ? { ...message, statusCategory: category }
+                    : message,
+                ),
+              );
+            },
             onStep: (step) => {
               if (step.id === "agent") {
                 return;
               }
+              const stepCategory = inferStatusCategoryFromStep(step);
               setMessages((current) =>
                 current.map((message) => {
                   if (message.id !== liveAgentId) {
@@ -282,6 +311,7 @@ export function useChatSession(sessionId?: string) {
                   const digestReceipt = receiptFromExecutionStep(nextStep);
                   return {
                     ...message,
+                    statusCategory: step.status_category ?? stepCategory,
                     executionSteps,
                     ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
                   };
@@ -290,9 +320,12 @@ export function useChatSession(sessionId?: string) {
             },
             onArtifact: ({ artifact, streaming }) => {
               const focusPath =
-                artifact.files.find((file) => file.path === "app/page.tsx")?.path ??
-                artifact.files.find((file) => file.path === "src/App.tsx")?.path ??
-                artifact.files.find((file) => file.path === "src/App.jsx")?.path ??
+                artifact.files.find((file) => file.path === "app/page.tsx")
+                  ?.path ??
+                artifact.files.find((file) => file.path === "src/App.tsx")
+                  ?.path ??
+                artifact.files.find((file) => file.path === "src/App.jsx")
+                  ?.path ??
                 artifact.files[artifact.files.length - 1]?.path;
               updateArtifact(artifactSessionKey, artifact, {
                 streaming,
@@ -329,20 +362,28 @@ export function useChatSession(sessionId?: string) {
           },
         );
 
-        const nextTitle =
-          title === "New chat" ? text.slice(0, 60) : title;
+        const nextTitle = title === "New chat" ? text.slice(0, 60) : title;
 
         setActiveSessionId(data.session_id);
         setTitle(nextTitle);
         setMessages((current) => {
-          const liveMessage = current.find((message) => message.id === liveAgentId);
+          const liveMessage = current.find(
+            (message) => message.id === liveAgentId,
+          );
           const liveSteps = liveMessage?.executionSteps ?? [];
-          const finalReply = data.reply.trim() || liveMessage?.text.trim() || "";
+          const finalReply =
+            data.reply.trim() || liveMessage?.text.trim() || "";
           const nextMessages: ChatMessage[] = [
             ...current.filter(
-              (message) => message.id !== optimisticId && message.id !== liveAgentId,
+              (message) =>
+                message.id !== optimisticId && message.id !== liveAgentId,
             ),
-            { id: optimisticId, role: "user", text, ...(appScope ? { appScope } : {}) },
+            {
+              id: optimisticId,
+              role: "user",
+              text,
+              ...(appScope ? { appScope } : {}),
+            },
             {
               id: data.message_id,
               role: "agent",
@@ -377,7 +418,10 @@ export function useChatSession(sessionId?: string) {
 
         const finalArtifactKey = sessionId ?? data.session_id;
         if (data.artifact) {
-          updateArtifact(finalArtifactKey, data.artifact, { streaming: false, open: true });
+          updateArtifact(finalArtifactKey, data.artifact, {
+            streaming: false,
+            open: true,
+          });
         } else {
           setArtifactStreaming(finalArtifactKey, false);
         }
@@ -389,7 +433,9 @@ export function useChatSession(sessionId?: string) {
         void refreshSessions({ silent: true });
       } catch (err) {
         const message =
-          err instanceof ApiError ? err.message : "Could not reach your agent. Try again.";
+          err instanceof ApiError
+            ? err.message
+            : "Could not reach your agent. Try again.";
         setChatError(message);
         setMessages((current) =>
           current.filter((entry) => entry.id !== liveAgentId),
@@ -429,7 +475,10 @@ export function useChatSession(sessionId?: string) {
       });
 
       setActiveSessionId(data.session_id);
-      applyPendingTransaction(data.pending_transaction ?? null, data.session_id);
+      applyPendingTransaction(
+        data.pending_transaction ?? null,
+        data.session_id,
+      );
       setPendingClarification(data.pending_clarification ?? null);
       setMessages((current) => [
         ...current,
@@ -454,7 +503,14 @@ export function useChatSession(sessionId?: string) {
     } finally {
       setApproving(false);
     }
-  }, [activeSessionId, applyPendingTransaction, approving, openArtifact, pendingTx, refreshSessions]);
+  }, [
+    activeSessionId,
+    applyPendingTransaction,
+    approving,
+    openArtifact,
+    pendingTx,
+    refreshSessions,
+  ]);
 
   const rejectPending = useCallback(async () => {
     if (!pendingTx || rejecting || approving) return;
@@ -474,7 +530,11 @@ export function useChatSession(sessionId?: string) {
       setPendingClarification(data.pending_clarification ?? null);
       setMessages((current) => [
         ...current,
-        { id: `u-reject-${Date.now()}`, role: "user", text: "Cancel transaction" },
+        {
+          id: `u-reject-${Date.now()}`,
+          role: "user",
+          text: "Cancel transaction",
+        },
         {
           id: data.message_id,
           role: "agent",
@@ -491,12 +551,21 @@ export function useChatSession(sessionId?: string) {
       void refreshSessions({ silent: true });
     } catch (err) {
       const message =
-        err instanceof ApiError ? err.message : "Could not cancel the transaction. Try again.";
+        err instanceof ApiError
+          ? err.message
+          : "Could not cancel the transaction. Try again.";
       setChatError(message);
     } finally {
       setRejecting(false);
     }
-  }, [activeSessionId, approving, openArtifact, pendingTx, refreshSessions, rejecting]);
+  }, [
+    activeSessionId,
+    approving,
+    openArtifact,
+    pendingTx,
+    refreshSessions,
+    rejecting,
+  ]);
 
   const respondClarification = useCallback(
     async (answer: ClarificationAnswer) => {
@@ -509,7 +578,9 @@ export function useChatSession(sessionId?: string) {
             : "No"
           : answer.value !== undefined
             ? String(answer.value)
-            : answer.selected_option_id ?? answer.selected_option_ids?.join(", ") ?? "Answered";
+            : (answer.selected_option_id ??
+              answer.selected_option_ids?.join(", ") ??
+              "Answered");
 
       setRespondingClarification(true);
       setChatError(null);
@@ -522,7 +593,9 @@ export function useChatSession(sessionId?: string) {
           ...(answer.confirm !== undefined
             ? { clarification_confirm: answer.confirm }
             : {}),
-          ...(answer.value !== undefined ? { clarification_value: answer.value } : {}),
+          ...(answer.value !== undefined
+            ? { clarification_value: answer.value }
+            : {}),
           ...(answer.selected_option_id
             ? { clarification_option_id: answer.selected_option_id }
             : {}),
@@ -549,20 +622,29 @@ export function useChatSession(sessionId?: string) {
         ]);
 
         if (data.artifact) {
-          const artifactSessionKey = sessionId ?? activeSessionId ?? data.session_id;
+          const artifactSessionKey =
+            sessionId ?? activeSessionId ?? data.session_id;
           openArtifact(artifactSessionKey, data.artifact);
         }
 
         void refreshSessions({ silent: true });
       } catch (err) {
         const message =
-          err instanceof ApiError ? err.message : "Could not process your response.";
+          err instanceof ApiError
+            ? err.message
+            : "Could not process your response.";
         setChatError(message);
       } finally {
         setRespondingClarification(false);
       }
     },
-    [activeSessionId, openArtifact, pendingClarification, refreshSessions, respondingClarification],
+    [
+      activeSessionId,
+      openArtifact,
+      pendingClarification,
+      refreshSessions,
+      respondingClarification,
+    ],
   );
 
   return {

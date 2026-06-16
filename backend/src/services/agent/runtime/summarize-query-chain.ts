@@ -13,6 +13,22 @@ import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-fl
 import type { DeepBookOpenOrdersResult } from "../../defi/deepbook/deepbook-orders.service.js";
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
 import type { AgentTransactionsQueryResult } from "../../agent-transaction/agent-transaction.types.js";
+import {
+  formatMarginManagerLiveStateSummary,
+  type MarginManagerInfoQueryResult,
+} from "../../defi/deepbook/deepbook-margin-read.service.js";
+import {
+  formatMarginPoolInfoSummary,
+  type MarginPoolInfoQueryResult,
+} from "../../defi/deepbook/deepbook-margin-pool-read.service.js";
+import {
+  formatMarginTpslInfoSummary,
+  type MarginTpslInfoQueryResult,
+} from "../../defi/deepbook/deepbook-margin-tpsl-read.service.js";
+import {
+  formatMarginOpenOrdersSummary,
+  type MarginOpenOrdersQueryResult,
+} from "../../defi/deepbook/deepbook-margin-open-orders-read.service.js";
 
 function isAgentTransactionsResult(result: unknown): result is AgentTransactionsQueryResult {
   return (
@@ -24,12 +40,25 @@ function isAgentTransactionsResult(result: unknown): result is AgentTransactions
   );
 }
 
+function isMarginIndexerResult(result: unknown): result is { source: "indexer"; summary: string } {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    (result as { source?: string }).source === "indexer" &&
+    typeof (result as { summary?: string }).summary === "string"
+  );
+}
+
 export function summarizeQueryChainResult(result: unknown): string | null {
   if (typeof result !== "object" || result === null) {
     return null;
   }
 
   if (isAgentTransactionsResult(result)) {
+    return result.summary;
+  }
+
+  if (isMarginIndexerResult(result)) {
     return result.summary;
   }
 
@@ -124,6 +153,58 @@ export function summarizeQueryChainResult(result: unknown): string | null {
     return managerInfo.provisioned
       ? `DeepBook manager provisioned (${managerInfo.manager_object_id})`
       : "DeepBook manager not provisioned yet";
+  }
+
+  const marginPoolInfo = result as MarginPoolInfoQueryResult;
+  if (
+    Array.isArray(marginPoolInfo.available_margin_pools) &&
+    typeof marginPoolInfo.coin_key === "string" &&
+    typeof marginPoolInfo.pool_key === "string"
+  ) {
+    return formatMarginPoolInfoSummary(marginPoolInfo);
+  }
+
+  const marginTpslInfo = result as MarginTpslInfoQueryResult;
+  if (
+    typeof marginTpslInfo.provisioned === "boolean" &&
+    ("lowest_trigger_above_price" in marginTpslInfo ||
+      "highest_trigger_below_price" in marginTpslInfo ||
+      Array.isArray(marginTpslInfo.conditional_order_ids))
+  ) {
+    return formatMarginTpslInfoSummary(marginTpslInfo);
+  }
+
+  const marginOpenOrders = result as MarginOpenOrdersQueryResult;
+  if (
+    typeof marginOpenOrders.provisioned === "boolean" &&
+    marginOpenOrders.margin_manager_address &&
+    Array.isArray(marginOpenOrders.orders) &&
+    marginOpenOrders.source === "sdk"
+  ) {
+    return formatMarginOpenOrdersSummary(marginOpenOrders);
+  }
+
+  const marginInfo = result as MarginManagerInfoQueryResult;
+  if (typeof marginInfo.provisioned === "boolean") {
+    if (!marginInfo.provisioned || !marginInfo.margin_manager_address) {
+      return marginInfo.note ?? "No margin manager found on-chain for this wallet.";
+    }
+    const key = marginInfo.margin_manager_key ?? "default";
+    const source =
+      marginInfo.lookup_source === "agent_ledger_fallback"
+        ? " (recovered from recent transaction — live RPC was temporarily unavailable)"
+        : "";
+    const liveSummary = marginInfo.live_state
+      ? `\nLive state: ${formatMarginManagerLiveStateSummary(marginInfo.live_state)}`
+      : marginInfo.live_state_error
+        ? `\nLive state unavailable: ${marginInfo.live_state_error}`
+        : "";
+    return (
+      `Margin manager address: ${marginInfo.margin_manager_address}. ` +
+      `Use margin_manager_key "${key}" for deposits, borrows, and orders${source}.` +
+      liveSummary +
+      (marginInfo.note ? `\n${marginInfo.note}` : "")
+    );
   }
 
   const managerBalances = result as DeepBookManagerBalancesResult;

@@ -24,6 +24,8 @@ export type AgentTransactionCategory =
   | "flash_loan"
   | "stake"
   | "governance"
+  | "margin"
+  | "predict"
   | "other";
 
 /** Row shape returned from the agent transaction repository. */

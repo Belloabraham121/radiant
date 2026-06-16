@@ -98,7 +98,8 @@ export function normalizeGenerateAppInput(
     templateRaw === "custom" ||
     templateRaw === "escrow" ||
     templateRaw === "swap" ||
-    templateRaw === "prediction"
+    templateRaw === "prediction" ||
+    templateRaw === "margin"
       ? templateRaw
       : undefined;
 

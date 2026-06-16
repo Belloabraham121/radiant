@@ -9,7 +9,10 @@ export async function listSessionsByUserId(
   userId: bigint,
 ): Promise<ChatSessionWithLatestMessage[]> {
   return prisma.chatSession.findMany({
-    where: { user_id: userId },
+    where: {
+      user_id: userId,
+      messages: { some: {} },
+    },
     orderBy: { updated_at: "desc" },
     include: {
       messages: {
