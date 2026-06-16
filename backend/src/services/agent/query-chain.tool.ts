@@ -43,9 +43,8 @@ import {
   getManagerSummary,
 } from "../defi/deepbook/deepbook-predict-server.client.js";
 import { getPredictObjectId } from "../defi/deepbook/deepbook-predict.service.js";
-import { MARGIN_POOL_CONFIGS } from "../defi/deepbook/deepbook-margin.service.js";
-import { getMarginEnabledPoolKeys } from "../../config/deepbook.js";
 import { queryMarginManagerInfo } from "../defi/deepbook/deepbook-margin-read.service.js";
+import { queryMarginPoolInfo } from "../defi/deepbook/deepbook-margin-pool-read.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -133,7 +132,8 @@ export const queryChainToolDefinition = {
           "returns recent agent wallet activity; response includes summary (date, amount, status, digest) to quote in chat. " +
           "project_actions: { project_id } OR { app_name } — saved project action schema. Never pass an app name as project_id. " +
           "session_actions: optional { app_name } — chat draft artifact action schema (unsaved preview). Uses current chat session. " +
-          "margin_pool_info: { pool_key? } — margin pool state (supply, borrow, interest rate, utilization, max leverage). " +
+          "margin_pool_info: { pool_key?, coin_type? } — margin pool live supply/borrow/interest/utilization plus trading-pool leverage config. " +
+          "Use pool_key to list margin-enabled trading pools; coin_type selects the lending asset (defaults to quote coin). " +
           "margin_manager_info: { margin_manager_key?, pool_key? } — margin manager address, live balances, borrowed amounts, and risk ratio. " +
           "predict_markets: {} — active oracles with spot/forward prices, lifecycle, expiry. " +
           "predict_trade_amounts: { oracle_id, expiry, strike, is_up, quantity } — preview mint cost and redeem payout for a binary position. " +
@@ -284,16 +284,7 @@ export async function runQueryChainTool(
     }
     case "margin_pool_info": {
       assertSuiDeepBookQuery(parsed.chain_id);
-      const marginEnabledPools = getMarginEnabledPoolKeys();
-      const poolKey = parsed.params.pool_key ?? marginEnabledPools[0] ?? "SUI_USDC";
-      const config = MARGIN_POOL_CONFIGS[poolKey];
-      return {
-        pool_key: poolKey,
-        max_leverage: config?.maxLeverage ?? 3,
-        liquidation_ratio: config?.liquidationRatio ?? 1.2,
-        borrow_threshold: config?.borrowThreshold ?? 1.25,
-        available_margin_pools: marginEnabledPools,
-      };
+      return queryMarginPoolInfo(privyUserId, parsed.params);
     }
     case "margin_manager_info": {
       assertSuiDeepBookQuery(parsed.chain_id);

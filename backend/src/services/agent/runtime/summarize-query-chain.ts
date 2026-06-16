@@ -17,6 +17,10 @@ import {
   formatMarginManagerLiveStateSummary,
   type MarginManagerInfoQueryResult,
 } from "../../defi/deepbook/deepbook-margin-read.service.js";
+import {
+  formatMarginPoolInfoSummary,
+  type MarginPoolInfoQueryResult,
+} from "../../defi/deepbook/deepbook-margin-pool-read.service.js";
 
 function isAgentTransactionsResult(result: unknown): result is AgentTransactionsQueryResult {
   return (
@@ -128,6 +132,15 @@ export function summarizeQueryChainResult(result: unknown): string | null {
     return managerInfo.provisioned
       ? `DeepBook manager provisioned (${managerInfo.manager_object_id})`
       : "DeepBook manager not provisioned yet";
+  }
+
+  const marginPoolInfo = result as MarginPoolInfoQueryResult;
+  if (
+    Array.isArray(marginPoolInfo.available_margin_pools) &&
+    typeof marginPoolInfo.coin_key === "string" &&
+    typeof marginPoolInfo.pool_key === "string"
+  ) {
+    return formatMarginPoolInfoSummary(marginPoolInfo);
   }
 
   const marginInfo = result as MarginManagerInfoQueryResult;
