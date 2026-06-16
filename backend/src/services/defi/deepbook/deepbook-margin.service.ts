@@ -17,6 +17,13 @@ const MARGIN_ACTIONS = new Set([
   "deepbook_margin_place_market_order",
   "deepbook_margin_cancel_order",
   "deepbook_margin_modify_order",
+  "deepbook_margin_place_reduce_only_limit_order",
+  "deepbook_margin_place_reduce_only_market_order",
+  "deepbook_margin_cancel_orders",
+  "deepbook_margin_cancel_all_orders",
+  "deepbook_margin_withdraw_settled",
+  "deepbook_margin_withdraw_settled_permissionless",
+  "deepbook_margin_update_price",
   "deepbook_margin_supply_pool",
   "deepbook_margin_withdraw_pool",
   "deepbook_margin_tpsl_add",
@@ -56,6 +63,20 @@ export function buildMarginActionSummary(
       return `Cancel margin order ${params.order_id}`;
     case "deepbook_margin_modify_order":
       return `Modify margin order ${params.order_id} → qty ${params.new_quantity}`;
+    case "deepbook_margin_place_reduce_only_limit_order":
+      return `Place reduce-only margin limit order: ${params.is_bid ? "buy" : "sell"} ${params.quantity} @ ${params.price}`;
+    case "deepbook_margin_place_reduce_only_market_order":
+      return `Place reduce-only margin market order: ${params.is_bid ? "buy" : "sell"} ${params.quantity}`;
+    case "deepbook_margin_cancel_orders":
+      return `Cancel ${Array.isArray(params.order_ids) ? params.order_ids.length : "?"} margin orders`;
+    case "deepbook_margin_cancel_all_orders":
+      return "Cancel all margin orders";
+    case "deepbook_margin_withdraw_settled":
+      return "Withdraw settled amounts from margin manager";
+    case "deepbook_margin_withdraw_settled_permissionless":
+      return "Withdraw settled margin amounts (permissionless)";
+    case "deepbook_margin_update_price":
+      return `Refresh Pyth oracle price for margin pool ${params.pool_key ?? ""}`.trim();
     case "deepbook_margin_supply_pool":
       return `Supply ${params.amount} ${params.coin_type ?? ""} to margin pool`;
     case "deepbook_margin_withdraw_pool":

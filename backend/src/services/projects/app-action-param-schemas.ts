@@ -246,6 +246,64 @@ export const appActionParamSchemas = {
     })
     .passthrough(),
 
+  margin_place_reduce_only_limit_order: z
+    .object({
+      pool_key: z.string().min(1),
+      margin_manager_key: z.string().min(1),
+      price: positiveNumber,
+      quantity: positiveNumber,
+      is_bid: z.boolean(),
+      pay_with_deep: z.boolean().optional(),
+      client_order_id: z.string().optional(),
+    })
+    .passthrough(),
+
+  margin_place_reduce_only_market_order: z
+    .object({
+      pool_key: z.string().min(1),
+      margin_manager_key: z.string().min(1),
+      quantity: positiveNumber,
+      is_bid: z.boolean(),
+      pay_with_deep: z.boolean().optional(),
+      client_order_id: z.string().optional(),
+    })
+    .passthrough(),
+
+  margin_cancel_orders: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      order_ids: z.array(z.string().min(1)).min(1),
+    })
+    .passthrough(),
+
+  margin_cancel_all_orders: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
+  margin_withdraw_settled: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
+  margin_withdraw_settled_permissionless: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
+  margin_update_price: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1),
+    })
+    .passthrough(),
+
   margin_supply_pool: z
     .object({
       coin_type: z.string().min(1),
@@ -519,6 +577,55 @@ export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array
       { name: "margin_manager_key", type: "string", required: true },
       { name: "order_id", type: "string", required: true },
       { name: "new_quantity", type: "number", required: true },
+    ],
+  },
+  margin_place_reduce_only_limit_order: {
+    fields: [
+      { name: "pool_key", type: "string", required: true },
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "price", type: "number", required: true },
+      { name: "quantity", type: "number", required: true },
+      { name: "is_bid", type: "boolean", required: true, description: "true = buy, false = sell" },
+      { name: "pay_with_deep", type: "boolean" },
+    ],
+  },
+  margin_place_reduce_only_market_order: {
+    fields: [
+      { name: "pool_key", type: "string", required: true },
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "quantity", type: "number", required: true },
+      { name: "is_bid", type: "boolean", required: true },
+      { name: "pay_with_deep", type: "boolean" },
+    ],
+  },
+  margin_cancel_orders: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "order_ids", type: "array", required: true, description: "Protocol order IDs" },
+    ],
+  },
+  margin_cancel_all_orders: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+    ],
+  },
+  margin_withdraw_settled: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+    ],
+  },
+  margin_withdraw_settled_permissionless: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+    ],
+  },
+  margin_update_price: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string", required: true },
     ],
   },
   margin_supply_pool: {

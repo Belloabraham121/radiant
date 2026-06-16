@@ -21,13 +21,26 @@ describe("DeepBook Margin action classification", () => {
   it("classifies margin order actions as 'order'", () => {
     assert.equal(classifyExecuteAction("deepbook_margin_place_limit_order"), "order");
     assert.equal(classifyExecuteAction("deepbook_margin_place_market_order"), "order");
+    assert.equal(classifyExecuteAction("deepbook_margin_place_reduce_only_limit_order"), "order");
+    assert.equal(classifyExecuteAction("deepbook_margin_place_reduce_only_market_order"), "order");
     assert.equal(classifyExecuteAction("deepbook_margin_tpsl_add"), "order");
   });
 
   it("classifies margin cancel as 'cancel'", () => {
     assert.equal(classifyExecuteAction("deepbook_margin_cancel_order"), "cancel");
+    assert.equal(classifyExecuteAction("deepbook_margin_cancel_orders"), "cancel");
+    assert.equal(classifyExecuteAction("deepbook_margin_cancel_all_orders"), "cancel");
     assert.equal(classifyExecuteAction("deepbook_margin_tpsl_cancel"), "cancel");
     assert.equal(classifyExecuteAction("deepbook_margin_tpsl_cancel_all"), "cancel");
+  });
+
+  it("classifies margin settled withdraw as 'settled'", () => {
+    assert.equal(classifyExecuteAction("deepbook_margin_withdraw_settled"), "settled");
+    assert.equal(classifyExecuteAction("deepbook_margin_withdraw_settled_permissionless"), "settled");
+  });
+
+  it("classifies margin oracle refresh as 'margin'", () => {
+    assert.equal(classifyExecuteAction("deepbook_margin_update_price"), "margin");
   });
 
   it("classifies margin TPSL execute as 'margin'", () => {
@@ -43,6 +56,8 @@ describe("DeepBook Margin action classification", () => {
     assert.equal(categorizeAgentTransactionAction("deepbook_margin_borrow"), "margin");
     assert.equal(categorizeAgentTransactionAction("deepbook_margin_place_limit_order"), "deepbook_order");
     assert.equal(categorizeAgentTransactionAction("deepbook_margin_cancel_order"), "deepbook_cancel");
+    assert.equal(categorizeAgentTransactionAction("deepbook_margin_withdraw_settled"), "deepbook_settled");
+    assert.equal(categorizeAgentTransactionAction("deepbook_margin_update_price"), "margin");
   });
 
   it("isDeepBookMarginAction recognizes all margin actions", () => {
@@ -54,6 +69,13 @@ describe("DeepBook Margin action classification", () => {
     assert.equal(isDeepBookMarginAction("deepbook_margin_place_market_order"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_cancel_order"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_modify_order"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_place_reduce_only_limit_order"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_place_reduce_only_market_order"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_cancel_orders"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_cancel_all_orders"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_withdraw_settled"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_withdraw_settled_permissionless"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_update_price"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_supply_pool"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_withdraw_pool"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_tpsl_add"), true);
@@ -105,6 +127,13 @@ describe("ONCHAIN_ACTION_NAMES includes margin and predict", () => {
     assert.ok(names.includes("margin_place_market_order"));
     assert.ok(names.includes("margin_cancel_order"));
     assert.ok(names.includes("margin_modify_order"));
+    assert.ok(names.includes("margin_place_reduce_only_limit_order"));
+    assert.ok(names.includes("margin_place_reduce_only_market_order"));
+    assert.ok(names.includes("margin_cancel_orders"));
+    assert.ok(names.includes("margin_cancel_all_orders"));
+    assert.ok(names.includes("margin_withdraw_settled"));
+    assert.ok(names.includes("margin_withdraw_settled_permissionless"));
+    assert.ok(names.includes("margin_update_price"));
     assert.ok(names.includes("margin_supply_pool"));
     assert.ok(names.includes("margin_withdraw_pool"));
     assert.ok(names.includes("margin_tpsl_add"));

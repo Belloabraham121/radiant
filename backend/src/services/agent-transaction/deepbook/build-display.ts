@@ -318,9 +318,47 @@ export async function buildTransactionDisplay(
         title = "Margin market order";
         break;
       }
+      case "place_reduce_only_limit_order": {
+        const price = input.params.price;
+        const qty = input.params.quantity;
+        const side = input.params.is_bid === true || input.params.side === "buy" ? "buy" : "sell";
+        amount_display = `Reduce-only ${side} ${qty != null ? fmtDisplayNumber(Number(qty)) : "?"} @ ${price != null ? fmtDisplayNumber(Number(price)) : "?"}`;
+        title = "Reduce-only margin limit";
+        break;
+      }
+      case "place_reduce_only_market_order": {
+        const qty = input.params.quantity;
+        const side = input.params.is_bid === true || input.params.side === "buy" ? "buy" : "sell";
+        amount_display = `Reduce-only ${side} ${qty != null ? fmtDisplayNumber(Number(qty)) : "?"} market`;
+        title = "Reduce-only margin market";
+        break;
+      }
       case "cancel_order":
         amount_display = `Cancel margin order ${String(input.params.order_id ?? "").slice(0, 12)}…`;
         title = "Cancel margin order";
+        break;
+      case "cancel_orders": {
+        const ids = input.params.order_ids;
+        const count = Array.isArray(ids) ? ids.length : "?";
+        amount_display = `Cancel ${count} margin orders`;
+        title = "Cancel margin orders";
+        break;
+      }
+      case "cancel_all_orders":
+        amount_display = "Cancel all margin orders";
+        title = "Cancel all margin orders";
+        break;
+      case "withdraw_settled":
+        amount_display = "Withdraw settled margin proceeds";
+        title = "Withdraw margin settled";
+        break;
+      case "withdraw_settled_permissionless":
+        amount_display = "Withdraw settled margin (permissionless)";
+        title = "Withdraw margin settled";
+        break;
+      case "update_price":
+        amount_display = `Refresh oracle price (${String(input.params.pool_key ?? "pool")})`;
+        title = "Update margin pool price";
         break;
       case "modify_order":
         amount_display = `Modify margin order → qty ${input.params.new_quantity ?? input.params.quantity ?? "?"}`;

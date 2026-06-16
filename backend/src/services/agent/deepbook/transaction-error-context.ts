@@ -136,10 +136,32 @@ export function buildTransactionErrorUserContext(
       break;
     case "deepbook_margin_place_limit_order":
     case "deepbook_margin_place_market_order":
+    case "deepbook_margin_place_reduce_only_limit_order":
+    case "deepbook_margin_place_reduce_only_market_order":
       parts.push(
         "The user requested a leveraged margin order on DeepBook.",
         ctx.amount_display ? `Order: ${ctx.amount_display}.` : "",
         "If it fails with risk ratio error, the position would become too leveraged. Suggest reducing size or adding collateral.",
+      );
+      break;
+    case "deepbook_margin_cancel_orders":
+    case "deepbook_margin_cancel_all_orders":
+      parts.push(
+        "The user requested cancelling margin orders on DeepBook.",
+        "If order IDs are stale, suggest querying open orders first.",
+      );
+      break;
+    case "deepbook_margin_withdraw_settled":
+    case "deepbook_margin_withdraw_settled_permissionless":
+      parts.push(
+        "The user requested withdrawing settled trade proceeds from their margin manager.",
+        "If nothing settles, explain there may be no settled amounts yet.",
+      );
+      break;
+    case "deepbook_margin_update_price":
+      parts.push(
+        "The user requested refreshing the Pyth oracle price for a margin pool.",
+        "This is often needed before borrow/repay or risk checks when the on-chain price is stale.",
       );
       break;
     case "deepbook_predict_deposit":

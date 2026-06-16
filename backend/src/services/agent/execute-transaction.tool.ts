@@ -35,6 +35,9 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_deposit, deepbook_margin_withdraw, deepbook_margin_borrow, deepbook_margin_repay, " +
           "deepbook_margin_place_limit_order, deepbook_margin_place_market_order, " +
           "deepbook_margin_cancel_order, deepbook_margin_modify_order, " +
+          "deepbook_margin_place_reduce_only_limit_order, deepbook_margin_place_reduce_only_market_order, " +
+          "deepbook_margin_cancel_orders, deepbook_margin_cancel_all_orders, " +
+          "deepbook_margin_withdraw_settled, deepbook_margin_withdraw_settled_permissionless, deepbook_margin_update_price, " +
           "deepbook_margin_supply_pool, deepbook_margin_withdraw_pool, " +
           "deepbook_margin_tpsl_add, deepbook_margin_tpsl_cancel, deepbook_margin_tpsl_cancel_all, deepbook_margin_tpsl_execute, " +
           "deepbook_predict_deposit, deepbook_predict_withdraw, deepbook_predict_mint, deepbook_predict_redeem, " +
@@ -67,6 +70,15 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_repay: { margin_manager_key, asset, amount? }. " +
           "deepbook_margin_place_limit_order: { pool_key, margin_manager_key, price, quantity, is_bid, pay_with_deep? }. " +
           "deepbook_margin_place_market_order: { pool_key, margin_manager_key, quantity, is_bid }. " +
+          "deepbook_margin_cancel_order: { margin_manager_key, order_id }. " +
+          "deepbook_margin_modify_order: { margin_manager_key, order_id, new_quantity }. " +
+          "deepbook_margin_place_reduce_only_limit_order: { pool_key, margin_manager_key, price, quantity, is_bid, pay_with_deep? }. " +
+          "deepbook_margin_place_reduce_only_market_order: { pool_key, margin_manager_key, quantity, is_bid, pay_with_deep? }. " +
+          "deepbook_margin_cancel_orders: { margin_manager_key, order_ids: string[] }. " +
+          "deepbook_margin_cancel_all_orders: { margin_manager_key, pool_key? }. " +
+          "deepbook_margin_withdraw_settled: { margin_manager_key, pool_key? }. " +
+          "deepbook_margin_withdraw_settled_permissionless: { margin_manager_key, pool_key? }. " +
+          "deepbook_margin_update_price: { margin_manager_key, pool_key } — refresh Pyth oracle for margin pool. " +
           "deepbook_margin_tpsl_add: { pool_key?, margin_manager_key?, tpsl_type: take_profit|stop_loss, trigger_price, order_kind?: limit|market, quantity, price? (limit), is_bid or side }. " +
           "deepbook_margin_tpsl_cancel: { margin_manager_key?, conditional_order_id }. " +
           "deepbook_margin_tpsl_cancel_all: { margin_manager_key?, pool_key? }. " +

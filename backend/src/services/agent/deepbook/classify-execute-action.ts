@@ -37,6 +37,8 @@ const MARGIN_BALANCE_ACTIONS = new Set([
 const MARGIN_ORDER_ACTIONS = new Set([
   "deepbook_margin_place_limit_order",
   "deepbook_margin_place_market_order",
+  "deepbook_margin_place_reduce_only_limit_order",
+  "deepbook_margin_place_reduce_only_market_order",
 ]);
 
 const MARGIN_TPSL_ADD_ACTIONS = new Set(["deepbook_margin_tpsl_add"]);
@@ -44,7 +46,18 @@ const MARGIN_TPSL_CANCEL_ACTIONS = new Set([
   "deepbook_margin_tpsl_cancel",
   "deepbook_margin_tpsl_cancel_all",
 ]);
-const MARGIN_CANCEL_ACTIONS = new Set(["deepbook_margin_cancel_order"]);
+const MARGIN_CANCEL_ACTIONS = new Set([
+  "deepbook_margin_cancel_order",
+  "deepbook_margin_cancel_orders",
+  "deepbook_margin_cancel_all_orders",
+]);
+
+const MARGIN_SETTLED_ACTIONS = new Set([
+  "deepbook_margin_withdraw_settled",
+  "deepbook_margin_withdraw_settled_permissionless",
+]);
+
+const MARGIN_ORACLE_ACTIONS = new Set(["deepbook_margin_update_price"]);
 
 const PREDICT_ACTIONS = new Set([
   "deepbook_predict_deposit",
@@ -133,6 +146,14 @@ export function classifyExecuteAction(action: string): ExecuteActionClass {
 
   if (MARGIN_CANCEL_ACTIONS.has(action) || MARGIN_TPSL_CANCEL_ACTIONS.has(action)) {
     return "cancel";
+  }
+
+  if (MARGIN_SETTLED_ACTIONS.has(action)) {
+    return "settled";
+  }
+
+  if (MARGIN_ORACLE_ACTIONS.has(action)) {
+    return "margin";
   }
 
   if (action === "deepbook_margin_modify_order") {

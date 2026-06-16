@@ -665,6 +665,281 @@ export async function executeMarginModifyOrder(
   };
 }
 
+function parseOrderIds(params: Record<string, unknown>): string[] {
+  const raw = params.order_ids ?? params.orderIds;
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "order_ids must be a non-empty array of order id strings.",
+    );
+  }
+  const ids = raw.map((id) => String(id).trim()).filter((id) => id.length > 0);
+  if (ids.length === 0) {
+    throw new AppError(400, "VALIDATION_ERROR", "order_ids must contain at least one valid order id.");
+  }
+  return ids;
+}
+
+function resolveIsBid(params: Record<string, unknown>): boolean {
+  return params.is_bid === true || params.is_bid === "true" || params.side === "buy";
+}
+
+export async function executeMarginPlaceReduceOnlyLimitOrder(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const { managerKey, marginManagerAddress, poolKey } = await resolveMarginManagerKey(
+    privyUserId,
+    wallet.address,
+    params,
+  );
+  const price = parsePositiveAmount(params.price);
+  const quantity = parsePositiveAmount(params.quantity);
+  const isBid = resolveIsBid(params);
+  const payWithDeep = params.pay_with_deep === true || params.pay_with_deep === "true";
+  const clientOrderId = String(params.client_order_id ?? "0");
+
+  const result = await buildAndSignExecute(
+    privyUserId,
+    wallet.address,
+    (tx, client) => {
+      tx.add(
+        client.poolProxy.placeReduceOnlyLimitOrder({
+          poolKey,
+          marginManagerKey: managerKey,
+          clientOrderId,
+          price,
+          quantity,
+          isBid,
+          payWithDeep,
+        }),
+      );
+    },
+    marginManagerAddress,
+    managerKey,
+    poolKey,
+  );
+
+  return {
+    ...result,
+    margin: {
+      action: "place_reduce_only_limit_order",
+      margin_manager: marginManagerAddress,
+      pool_key: poolKey,
+      amount: quantity,
+    },
+  };
+}
+
+export async function executeMarginPlaceReduceOnlyMarketOrder(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const { managerKey, marginManagerAddress, poolKey } = await resolveMarginManagerKey(
+    privyUserId,
+    wallet.address,
+    params,
+  );
+  const quantity = parsePositiveAmount(params.quantity);
+  const isBid = resolveIsBid(params);
+  const payWithDeep = params.pay_with_deep === true || params.pay_with_deep === "true";
+  const clientOrderId = String(params.client_order_id ?? "0");
+
+  const result = await buildAndSignExecute(
+    privyUserId,
+    wallet.address,
+    (tx, client) => {
+      tx.add(
+        client.poolProxy.placeReduceOnlyMarketOrder({
+          poolKey,
+          marginManagerKey: managerKey,
+          clientOrderId,
+          quantity,
+          isBid,
+          payWithDeep,
+        }),
+      );
+    },
+    marginManagerAddress,
+    managerKey,
+    poolKey,
+  );
+
+  return {
+    ...result,
+    margin: {
+      action: "place_reduce_only_market_order",
+      margin_manager: marginManagerAddress,
+      pool_key: poolKey,
+      amount: quantity,
+    },
+  };
+}
+
+export async function executeMarginCancelOrders(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const { managerKey, marginManagerAddress, poolKey } = await resolveMarginManagerKey(
+    privyUserId,
+    wallet.address,
+    params,
+  );
+  const orderIds = parseOrderIds(params);
+
+  const result = await buildAndSignExecute(
+    privyUserId,
+    wallet.address,
+    (tx, client) => {
+      tx.add(client.poolProxy.cancelOrders(managerKey, orderIds));
+    },
+    marginManagerAddress,
+    managerKey,
+    poolKey,
+  );
+
+  return {
+    ...result,
+    margin: {
+      action: "cancel_orders",
+      margin_manager: marginManagerAddress,
+      pool_key: poolKey,
+    },
+  };
+}
+
+export async function executeMarginCancelAllOrders(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const { managerKey, marginManagerAddress, poolKey } = await resolveMarginManagerKey(
+    privyUserId,
+    wallet.address,
+    params,
+  );
+
+  const result = await buildAndSignExecute(
+    privyUserId,
+    wallet.address,
+    (tx, client) => {
+      tx.add(client.poolProxy.cancelAllOrders(managerKey));
+    },
+    marginManagerAddress,
+    managerKey,
+    poolKey,
+  );
+
+  return {
+    ...result,
+    margin: {
+      action: "cancel_all_orders",
+      margin_manager: marginManagerAddress,
+      pool_key: poolKey,
+    },
+  };
+}
+
+export async function executeMarginWithdrawSettled(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const { managerKey, marginManagerAddress, poolKey } = await resolveMarginManagerKey(
+    privyUserId,
+    wallet.address,
+    params,
+  );
+
+  const result = await buildAndSignExecute(
+    privyUserId,
+    wallet.address,
+    (tx, client) => {
+      tx.add(client.poolProxy.withdrawSettledAmounts(managerKey));
+    },
+    marginManagerAddress,
+    managerKey,
+    poolKey,
+  );
+
+  return {
+    ...result,
+    margin: {
+      action: "withdraw_settled",
+      margin_manager: marginManagerAddress,
+      pool_key: poolKey,
+    },
+  };
+}
+
+export async function executeMarginWithdrawSettledPermissionless(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const { marginManagerAddress, poolKey } = await resolveMarginManagerKey(
+    privyUserId,
+    wallet.address,
+    params,
+  );
+
+  const result = await buildAndSignExecute(
+    privyUserId,
+    wallet.address,
+    (tx, client) => {
+      tx.add(client.poolProxy.withdrawMarginSettledAmounts(poolKey, marginManagerAddress));
+    },
+    marginManagerAddress,
+    "MARGIN_1",
+    poolKey,
+  );
+
+  return {
+    ...result,
+    margin: {
+      action: "withdraw_settled_permissionless",
+      margin_manager: marginManagerAddress,
+      pool_key: poolKey,
+    },
+  };
+}
+
+export async function executeMarginUpdatePrice(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const { managerKey, marginManagerAddress, poolKey } = await resolveMarginManagerKey(
+    privyUserId,
+    wallet.address,
+    params,
+  );
+
+  const result = await buildAndSignExecute(
+    privyUserId,
+    wallet.address,
+    (tx, client) => {
+      tx.add(client.poolProxy.updateCurrentPrice(poolKey));
+    },
+    marginManagerAddress,
+    managerKey,
+    poolKey,
+  );
+
+  return {
+    ...result,
+    margin: {
+      action: "update_price",
+      margin_manager: marginManagerAddress,
+      pool_key: poolKey,
+    },
+  };
+}
+
 export async function executeMarginSupplyPool(
   privyUserId: string,
   params: Record<string, unknown>,
@@ -774,6 +1049,10 @@ export async function preflightMarginAction(
     await preflightMarginTpslAction(action, params);
   }
 
+  if (action === "deepbook_margin_cancel_orders") {
+    parseOrderIds(params);
+  }
+
   const managerIds = await fetchMarginManagerIdsForOwner(wallet.address);
 
   if (managerIds.length === 0) {
@@ -785,14 +1064,19 @@ export async function preflightMarginAction(
   }
 
   const amount = params.amount ?? params.amount_display ?? params.quantity;
-  if (
-    action !== "deepbook_margin_cancel_order" &&
-    action !== "deepbook_margin_modify_order" &&
-    action !== "deepbook_margin_tpsl_cancel" &&
-    action !== "deepbook_margin_tpsl_cancel_all" &&
-    action !== "deepbook_margin_tpsl_execute" &&
-    amount != null
-  ) {
+  const skipAmountValidation =
+    action === "deepbook_margin_cancel_order" ||
+    action === "deepbook_margin_cancel_orders" ||
+    action === "deepbook_margin_cancel_all_orders" ||
+    action === "deepbook_margin_modify_order" ||
+    action === "deepbook_margin_withdraw_settled" ||
+    action === "deepbook_margin_withdraw_settled_permissionless" ||
+    action === "deepbook_margin_update_price" ||
+    action === "deepbook_margin_tpsl_cancel" ||
+    action === "deepbook_margin_tpsl_cancel_all" ||
+    action === "deepbook_margin_tpsl_execute";
+
+  if (!skipAmountValidation && amount != null) {
     const n = Number(amount);
     if (!Number.isFinite(n) || n <= 0) {
       throw new AppError(400, "VALIDATION_ERROR", `amount must be a positive number (got "${amount}")`);
@@ -822,6 +1106,20 @@ export async function executeMarginAction(
       return executeMarginCancelOrder(privyUserId, params);
     case "deepbook_margin_modify_order":
       return executeMarginModifyOrder(privyUserId, params);
+    case "deepbook_margin_place_reduce_only_limit_order":
+      return executeMarginPlaceReduceOnlyLimitOrder(privyUserId, params);
+    case "deepbook_margin_place_reduce_only_market_order":
+      return executeMarginPlaceReduceOnlyMarketOrder(privyUserId, params);
+    case "deepbook_margin_cancel_orders":
+      return executeMarginCancelOrders(privyUserId, params);
+    case "deepbook_margin_cancel_all_orders":
+      return executeMarginCancelAllOrders(privyUserId, params);
+    case "deepbook_margin_withdraw_settled":
+      return executeMarginWithdrawSettled(privyUserId, params);
+    case "deepbook_margin_withdraw_settled_permissionless":
+      return executeMarginWithdrawSettledPermissionless(privyUserId, params);
+    case "deepbook_margin_update_price":
+      return executeMarginUpdatePrice(privyUserId, params);
     case "deepbook_margin_supply_pool":
       return executeMarginSupplyPool(privyUserId, params);
     case "deepbook_margin_withdraw_pool":
