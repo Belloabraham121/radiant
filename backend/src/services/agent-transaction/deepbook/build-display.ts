@@ -88,7 +88,11 @@ export async function buildTransactionDisplay(
   let title = `Send ${formatAmountDisplay(input.chain_id, amount)} to ${recipient.slice(0, 12)}… on ${input.chain_id}`;
   let amount_display = formatAmountDisplay(input.chain_id, amount);
 
-  if (isDeepBookProvisionAction(input.action)) {
+  if (input.action === "deepbook_provision_margin_manager") {
+    const poolKey = String(input.params.pool_key ?? input.params.poolKey ?? "SUI_DBUSDC");
+    title = `Create DeepBook margin manager (${poolKey})`;
+    amount_display = "Network fee only (~0.01 SUI)";
+  } else if (isDeepBookProvisionAction(input.action)) {
     title = "Create DeepBook balance manager";
     amount_display = "Network fee only (~0.01 SUI)";
   } else if (DEEPBOOK_WRITE_ACTIONS.has(input.action)) {

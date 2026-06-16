@@ -22,7 +22,7 @@ export function TransactionApprovalBar({
   className?: string;
 }) {
   const isSwap = pending.action === "swap" || pending.action === "deepbook_swap";
-  const isProvision = pending.action === "deepbook_provision_manager";
+  const isProvision = pending.action === "deepbook_provision_manager" || pending.action === "deepbook_provision_margin_manager";
   const isDeposit =
     pending.action === "deepbook_deposit" || pending.action === "deepbook_withdraw";
   const isLimitOrder = pending.action === "deepbook_place_limit_order";

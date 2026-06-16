@@ -308,7 +308,7 @@ export async function runQueryChainTool(
       if (marginManagerIds.length === 0) {
         return {
           provisioned: false,
-          note: "No margin manager found on-chain. The user needs to create a margin manager before using margin trading.",
+          note: "No margin manager found on-chain. Create one with execute_transaction action deepbook_provision_margin_manager { pool_key }.",
           available_pools: Object.keys(MARGIN_POOL_CONFIGS),
         };
       }

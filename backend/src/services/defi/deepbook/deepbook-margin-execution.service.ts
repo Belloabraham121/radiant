@@ -181,6 +181,72 @@ export type MarginExecResult = TxResult & {
   };
 };
 
+export type MarginProvisionResult = TxResult & {
+  margin_manager_address: string;
+  pool_key: string;
+  already_provisioned: boolean;
+};
+
+export async function executeProvisionMarginManager(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginProvisionResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const poolKey = String(
+    params.pool_key ?? params.poolKey ?? getDeepBookEnv().defaultPool,
+  ).toUpperCase();
+
+  const client = getDeepBookClient({ address: wallet.address });
+  const existingIds = await client.getMarginManagerIdsForOwner(wallet.address);
+  if (existingIds.length > 0) {
+    return {
+      chain_id: "sui",
+      digest: "",
+      address: wallet.address,
+      effects_status: "success",
+      margin_manager_address: existingIds[0],
+      pool_key: poolKey,
+      already_provisioned: true,
+    };
+  }
+
+  const privyWallet = await getPrivyClient().wallets().get(wallet.privy_wallet_id);
+  if (!privyWallet.public_key) {
+    throw new AppError(502, "WALLET_METADATA_MISSING", "Missing public key on wallet");
+  }
+
+  const tx = new Transaction();
+  tx.setSender(wallet.address);
+  tx.add(client.marginManager.newMarginManager(poolKey));
+
+  const transactionBytes = await tx.build({ client: getSuiClient() });
+  const serializedSignature = await signSuiTransactionBytes({
+    privyWalletId: wallet.privy_wallet_id,
+    suiAddress: wallet.address,
+    publicKeyBase58: privyWallet.public_key,
+    transactionBytes,
+  });
+
+  const result = await executeSignedSuiTransaction({
+    transactionBytes,
+    serializedSignature,
+    suiAddress: wallet.address,
+  });
+
+  const newIds = await client.getMarginManagerIdsForOwner(wallet.address);
+  const newManagerAddress = newIds.find((id) => !existingIds.includes(id)) ?? newIds[0] ?? "";
+
+  return {
+    chain_id: "sui",
+    digest: result.digest,
+    address: wallet.address,
+    effects_status: result.effects_status,
+    margin_manager_address: newManagerAddress,
+    pool_key: poolKey,
+    already_provisioned: false,
+  };
+}
+
 export async function executeMarginDeposit(
   privyUserId: string,
   params: Record<string, unknown>,
