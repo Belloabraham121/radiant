@@ -419,6 +419,8 @@ export function AgentWalletSection() {
   const suiWallets = useWallets();
   const [selectedChainId, setSelectedChainId] =
     useState<AgentChainId>(defaultChainId);
+  const [prevDefaultChainId, setPrevDefaultChainId] =
+    useState<AgentChainId>(defaultChainId);
   const [copiedChain, setCopiedChain] = useState<AgentChainId | null>(null);
   const [depositChain, setDepositChain] = useState<AgentChainId | null>(null);
   const [depositHint, setDepositHint] = useState<string | null>(null);
@@ -426,11 +428,15 @@ export function AgentWalletSection() {
   const walletReady = walletStatus === "ready";
   const [refreshingAll, setRefreshingAll] = useState(false);
 
-  useEffect(() => {
+  if (defaultChainId !== prevDefaultChainId) {
+    setPrevDefaultChainId(defaultChainId);
     setSelectedChainId(defaultChainId);
-  }, [defaultChainId]);
+  }
 
-  const selectedWallet = wallets.find((w) => w.chainId === selectedChainId);
+  const activeChainId = enabledChains.includes(selectedChainId)
+    ? selectedChainId
+    : defaultChainId;
+  const selectedWallet = wallets.find((w) => w.chainId === activeChainId);
   const walletActionsDisabled =
     provisioning || (!walletReady && !selectedWallet?.address);
 
@@ -486,7 +492,7 @@ export function AgentWalletSection() {
             {enabledChains.length > 1 ? (
               <div className="relative">
                 <select
-                  value={selectedChainId}
+                  value={activeChainId}
                   onChange={(e) =>
                     setSelectedChainId(e.target.value as AgentChainId)
                   }
@@ -529,7 +535,7 @@ export function AgentWalletSection() {
 
         <p className="mb-5 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
           Your agent&apos;s embedded wallet on{" "}
-          {getChainMeta(selectedChainId).label}. Switch chains to view other
+          {getChainMeta(activeChainId).label}. Switch chains to view other
           wallets
           {enabledChains.includes("ethereum")
             ? " — the same 0x address is used across EVM networks"
