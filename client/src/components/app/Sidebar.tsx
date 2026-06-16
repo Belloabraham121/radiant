@@ -16,8 +16,6 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { useAgentWallet } from "@/components/wallet/AgentWalletProvider";
-import { formatChainAddress, getChainMeta } from "@/lib/chain-meta";
 import { formatSessionTime } from "@/lib/chat-messages";
 import { useSidebar } from "./SidebarContext";
 
@@ -33,15 +31,7 @@ export function Sidebar() {
   const router = useRouter();
   const { open, setOpen } = useSidebar();
   const { seed, displayName } = useUserProfile();
-  const { primaryWallet, defaultChainId, status } = useAgentWallet();
   const { sessions, loading, error } = useChatSessions();
-
-  const walletLabel =
-    primaryWallet?.address != null
-      ? `${getChainMeta(defaultChainId).nativeSymbol} ${formatChainAddress(defaultChainId, primaryWallet.address)}`
-      : status === "loading"
-        ? "Setting up wallet…"
-        : "No wallet";
 
   const activeSessionId = pathname.startsWith("/app/chat/")
     ? pathname.split("/app/chat/")[1]?.split("/")[0]
@@ -164,13 +154,13 @@ export function Sidebar() {
         </div>
 
         <div className="flex items-center gap-3 border-t-2 border-[var(--hero-ink)] px-5 py-4">
-          <UserAvatar seed={seed} alt={displayName} size={40} rounded="full" />
-          <div className="min-w-0 flex-1">
+          <Link
+            href="/app/settings"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl border-2 border-transparent px-1 py-1 transition-all hover:border-[var(--hero-ink)] hover:bg-[var(--hero-bg)]"
+          >
+            <UserAvatar seed={seed} alt={displayName} size={40} rounded="full" />
             <p className="truncate text-sm font-bold">{displayName}</p>
-            <p className="truncate font-mono text-[11px] font-semibold text-[var(--hero-ink)]/45">
-              {walletLabel}
-            </p>
-          </div>
+          </Link>
           <LogoutButton />
         </div>
       </aside>
