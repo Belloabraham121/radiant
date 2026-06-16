@@ -75,7 +75,9 @@ export function receiptFromExecutionStep(step: ExecutionStep): Receipt | null {
     detail: formatDigestShort(step.digest),
     digest: step.digest,
     chainId: step.chainId ?? "sui",
-    ...(step.agentTransactionId ? { agentTransactionId: step.agentTransactionId } : {}),
+    ...(step.agentTransactionId
+      ? { agentTransactionId: step.agentTransactionId }
+      : {}),
   };
 }
 
@@ -101,10 +103,16 @@ export function buildActionLinkReceipts(
 
   if (executeStep?.digest) {
     const chainId = executeStep.chainId ?? "sui";
-    const executeCall = toolCalls.find((call) => call.name === "execute_transaction");
+    const executeCall = toolCalls.find(
+      (call) => call.name === "execute_transaction",
+    );
     const flashLoanResult = (
       executeCall?.result as {
-        result?: { deepbook?: { flash_loan?: { borrow_amount?: number; coin_key?: string } } };
+        result?: {
+          deepbook?: {
+            flash_loan?: { borrow_amount?: number; coin_key?: string };
+          };
+        };
       }
     )?.result?.deepbook?.flash_loan;
 
@@ -112,7 +120,9 @@ export function buildActionLinkReceipts(
       {
         label: flashLoan ? "Flash loan executed" : "Transaction sent",
         detail:
-          flashLoan && flashLoanResult?.borrow_amount != null && flashLoanResult.coin_key
+          flashLoan &&
+          flashLoanResult?.borrow_amount != null &&
+          flashLoanResult.coin_key
             ? `Borrow ${flashLoanResult.borrow_amount} ${flashLoanResult.coin_key} · ${formatDigestShort(executeStep.digest)}`
             : formatDigestShort(executeStep.digest),
         digest: executeStep.digest,
@@ -121,7 +131,11 @@ export function buildActionLinkReceipts(
     ];
   }
 
-  if (executeStep?.agentTransactionId && executeStep.status === "skipped" && flashLoan) {
+  if (
+    executeStep?.agentTransactionId &&
+    executeStep.status === "skipped" &&
+    flashLoan
+  ) {
     return [];
   }
 
@@ -132,7 +146,13 @@ export function buildActionLinkReceipts(
     const outcome = call.result as {
       status?: string;
       agent_transaction_id?: string;
-      result?: { digest?: string; chain_id?: AgentChainId; deepbook?: { flash_loan?: { borrow_amount?: number; coin_key?: string } } };
+      result?: {
+        digest?: string;
+        chain_id?: AgentChainId;
+        deepbook?: {
+          flash_loan?: { borrow_amount?: number; coin_key?: string };
+        };
+      };
     };
     if (outcome.status !== "executed" || !outcome.result?.digest) {
       continue;
@@ -158,7 +178,8 @@ export function buildActionLinkReceipts(
 export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
   const receipts: Receipt[] = [];
   const suppressQueryFailures = shouldSuppressQueryFailureReceipts(toolCalls);
-  const hasExecutionTimeline = mapToolCallsToExecutionSteps(toolCalls) !== undefined;
+  const hasExecutionTimeline =
+    mapToolCallsToExecutionSteps(toolCalls) !== undefined;
   const executeFailed = toolCalls.some(
     (call) =>
       call.name === "execute_transaction" &&
@@ -240,9 +261,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         receipts.push({
           label: count === 0 ? "No open orders" : "Open orders",
           detail:
-            count === 0
-              ? result.pool_key
-              : `${count} on ${result.pool_key}`,
+            count === 0 ? result.pool_key : `${count} on ${result.pool_key}`,
         });
       }
 
@@ -291,7 +310,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       if (result.balance_display != null) {
         receipts.push({
           label: "Balance checked",
-          detail: `${result.balance_display.toFixed(4)} ${result.native_symbol ?? ""}`.trim(),
+          detail:
+            `${result.balance_display.toFixed(4)} ${result.native_symbol ?? ""}`.trim(),
         });
       }
 
@@ -364,7 +384,12 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             };
           };
         };
-        pending?: { id?: string; chain_id?: AgentChainId; action?: string; amount_display?: string };
+        pending?: {
+          id?: string;
+          chain_id?: AgentChainId;
+          action?: string;
+          amount_display?: string;
+        };
       };
 
       if (raw.error?.message) {
@@ -380,8 +405,7 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
       const outcome = raw;
       const agentTransactionId =
         outcome.agent_transaction_id ?? outcome.pending?.id;
-      const chainId =
-        outcome.result?.chain_id ?? outcome.pending?.chain_id;
+      const chainId = outcome.result?.chain_id ?? outcome.pending?.chain_id;
 
       const receiptMeta = {
         ...(agentTransactionId ? { agentTransactionId } : {}),
@@ -396,7 +420,10 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             detail: outcome.pending.amount_display,
             ...receiptMeta,
           });
-        } else if (action === "deepbook_deposit" || action === "deepbook_withdraw") {
+        } else if (
+          action === "deepbook_deposit" ||
+          action === "deepbook_withdraw"
+        ) {
           const verb = action === "deepbook_deposit" ? "Deposit" : "Withdraw";
           receipts.push({
             label: `${verb} approval required`,
@@ -443,15 +470,27 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
             detail: outcome.pending.amount_display,
             ...receiptMeta,
           });
-        } else if (action === "deepbook_stake" || action === "deepbook_unstake") {
+        } else if (
+          action === "deepbook_stake" ||
+          action === "deepbook_unstake"
+        ) {
           receipts.push({
-            label: action === "deepbook_stake" ? "Stake approval required" : "Unstake approval required",
+            label:
+              action === "deepbook_stake"
+                ? "Stake approval required"
+                : "Unstake approval required",
             detail: outcome.pending.amount_display,
             ...receiptMeta,
           });
-        } else if (action === "deepbook_submit_proposal" || action === "deepbook_vote") {
+        } else if (
+          action === "deepbook_submit_proposal" ||
+          action === "deepbook_vote"
+        ) {
           receipts.push({
-            label: action === "deepbook_submit_proposal" ? "Proposal approval required" : "Vote approval required",
+            label:
+              action === "deepbook_submit_proposal"
+                ? "Proposal approval required"
+                : "Vote approval required",
             detail: outcome.pending.amount_display,
             ...receiptMeta,
           });
@@ -474,7 +513,8 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const coinKey = outcome.result.deepbook?.coin_key;
         const amount = outcome.result.deepbook?.amount_display;
         const managerObjectId = outcome.result.deepbook?.manager_object_id;
-        const alreadyProvisioned = outcome.result.deepbook?.already_provisioned === true;
+        const alreadyProvisioned =
+          outcome.result.deepbook?.already_provisioned === true;
         const isSwap = swap?.input_coin && swap.output_coin;
         const isOrder = order?.action?.includes("place");
         const isCancel = order?.action?.includes("cancel");
@@ -482,72 +522,79 @@ export function mapToolCallsToReceipts(toolCalls: ChatToolCall[]): Receipt[] {
         const isSettledWithdraw = order?.action?.includes("withdraw_settled");
         const isStake = stake?.action === "deepbook_stake";
         const isUnstake = stake?.action === "deepbook_unstake";
-        const isSubmitProposal = governance?.action === "deepbook_submit_proposal";
+        const isSubmitProposal =
+          governance?.action === "deepbook_submit_proposal";
         const isVote = governance?.action === "deepbook_vote";
-        const isFlashLoan = flashLoan?.borrow_amount != null && flashLoan.coin_key;
+        const isFlashLoan =
+          flashLoan?.borrow_amount != null && flashLoan.coin_key;
         const isDeepBookTransfer =
           coinKey !== undefined && amount !== undefined && amount !== null;
-        const isProvision = managerObjectId !== undefined && !isSwap && !isDeepBookTransfer && !isOrder && !isCancel;
+        const isProvision =
+          managerObjectId !== undefined &&
+          !isSwap &&
+          !isDeepBookTransfer &&
+          !isOrder &&
+          !isCancel;
 
         receipts.push({
           label: isSwap
             ? "Swap executed"
             : isFlashLoan
               ? "Flash loan executed"
-            : isStake
-              ? "DEEP staked"
-              : isUnstake
-                ? "DEEP unstaked"
-              : isSubmitProposal
-                ? "Proposal submitted"
-                : isVote
-                  ? "Vote cast"
-            : isOrder
-              ? "Order placed"
-              : isCancel
-                ? "Order cancelled"
-                : isModify
-                  ? "Order modified"
-                  : isSettledWithdraw
-                    ? "Settled proceeds claimed"
-                    : isProvision
-                  ? alreadyProvisioned
-                    ? "Balance manager ready"
-                    : "Balance manager created"
-                  : isDeepBookTransfer
-                    ? "DeepBook transfer"
-                    : "Transaction sent",
+              : isStake
+                ? "DEEP staked"
+                : isUnstake
+                  ? "DEEP unstaked"
+                  : isSubmitProposal
+                    ? "Proposal submitted"
+                    : isVote
+                      ? "Vote cast"
+                      : isOrder
+                        ? "Order placed"
+                        : isCancel
+                          ? "Order cancelled"
+                          : isModify
+                            ? "Order modified"
+                            : isSettledWithdraw
+                              ? "Settled proceeds claimed"
+                              : isProvision
+                                ? alreadyProvisioned
+                                  ? "Balance manager ready"
+                                  : "Balance manager created"
+                                : isDeepBookTransfer
+                                  ? "DeepBook transfer"
+                                  : "Transaction sent",
           detail: isSwap
             ? `${swap.in_amount_display} ${swap.input_coin} → ${swap.out_amount_display} ${swap.output_coin} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
             : isFlashLoan && flashLoan
               ? `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-            : isStake && stake
-              ? `${stake.amount_display ?? "?"} DEEP on ${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-              : isUnstake && stake
-                ? `${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-              : isSubmitProposal && governance
-                ? `${governance.pool_key ?? "?"} · fees/stake proposed · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-                : isVote && governance
-                  ? `${governance.proposal_id?.slice(0, 12) ?? "?"}… on ${governance.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-            : isOrder && order
-              ? `${order.is_bid ? "buy" : "sell"} ${order.quantity ?? ""}${order.price != null ? ` @ ${order.price}` : ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-              : isCancel && order
-                ? `${order.cancelled_count ?? 1} order(s) · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-                : isModify && order
-                  ? `qty ${order.quantity ?? ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-                  : isSettledWithdraw
-                    ? digest.length > 12
-                      ? `${digest.slice(0, 10)}…`
-                      : digest
-                    : isProvision
-                  ? managerObjectId.length > 12
-                    ? `${managerObjectId.slice(0, 10)}…`
-                    : managerObjectId
-                  : isDeepBookTransfer
-                    ? `${amount} ${coinKey} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
-                    : digest.length > 12
-                      ? `${digest.slice(0, 10)}…`
-                      : digest,
+              : isStake && stake
+                ? `${stake.amount_display ?? "?"} DEEP on ${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                : isUnstake && stake
+                  ? `${stake.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                  : isSubmitProposal && governance
+                    ? `${governance.pool_key ?? "?"} · fees/stake proposed · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                    : isVote && governance
+                      ? `${governance.proposal_id?.slice(0, 12) ?? "?"}… on ${governance.pool_key ?? "?"} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                      : isOrder && order
+                        ? `${order.is_bid ? "buy" : "sell"} ${order.quantity ?? ""}${order.price != null ? ` @ ${order.price}` : ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                        : isCancel && order
+                          ? `${order.cancelled_count ?? 1} order(s) · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                          : isModify && order
+                            ? `qty ${order.quantity ?? ""} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                            : isSettledWithdraw
+                              ? digest.length > 12
+                                ? `${digest.slice(0, 10)}…`
+                                : digest
+                              : isProvision
+                                ? managerObjectId.length > 12
+                                  ? `${managerObjectId.slice(0, 10)}…`
+                                  : managerObjectId
+                                : isDeepBookTransfer
+                                  ? `${amount} ${coinKey} · ${digest.length > 12 ? `${digest.slice(0, 10)}…` : digest}`
+                                  : digest.length > 12
+                                    ? `${digest.slice(0, 10)}…`
+                                    : digest,
           ...receiptMeta,
           digest,
         });
@@ -569,14 +616,19 @@ export function mapToolCallsToMessageExtras(
 } {
   const artifact = extractArtifactFromToolCalls(toolCalls);
   const executionSteps = resolveExecutionSteps(toolCalls, streamedSteps);
-  const transactionReceipts = resolveTransactionReceipts(toolCalls, executionSteps);
+  const transactionReceipts = resolveTransactionReceipts(
+    toolCalls,
+    executionSteps,
+  );
   const artifactField = artifact ? { artifact } : {};
 
   if (executionSteps) {
     return {
       executionSteps,
       ...artifactField,
-      ...(transactionReceipts.length > 0 ? { receipts: transactionReceipts } : {}),
+      ...(transactionReceipts.length > 0
+        ? { receipts: transactionReceipts }
+        : {}),
     };
   }
   const receipts = mapToolCallsToReceipts(toolCalls);
@@ -594,7 +646,9 @@ function parseToolCalls(raw: unknown): ChatToolCall[] {
   );
 }
 
-export function apiMessageToChatMessage(message: ApiChatMessage): ChatMessage | null {
+export function apiMessageToChatMessage(
+  message: ApiChatMessage,
+): ChatMessage | null {
   if (message.role === "user") {
     const appScope = parseChatAppScope(message.app_scope);
     return {
@@ -618,7 +672,9 @@ export function apiMessageToChatMessage(message: ApiChatMessage): ChatMessage | 
   return null;
 }
 
-export function apiMessagesToChatMessages(messages: ApiChatMessage[]): ChatMessage[] {
+export function apiMessagesToChatMessages(
+  messages: ApiChatMessage[],
+): ChatMessage[] {
   return messages
     .map(apiMessageToChatMessage)
     .filter((message): message is ChatMessage => message !== null);

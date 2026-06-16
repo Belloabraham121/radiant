@@ -68,7 +68,13 @@ import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.j
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
-import { emitArtifactPreview, emitExecutionProgress, emitReplyClear, emitReplyDelta, hasExecutionProgressContext } from "../execution-progress-context.js";
+import {
+  emitArtifactPreview,
+  emitExecutionProgress,
+  emitReplyClear,
+  emitReplyDelta,
+  hasExecutionProgressContext,
+} from "../execution-progress-context.js";
 import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
 import { parsePartialGenerateAppArgs } from "../../projects/parse-partial-generate-app.js";
 import { buildPreviewArtifactPayload } from "../../projects/preview-artifact.js";
@@ -84,7 +90,11 @@ import type { AgentToolErrorResult } from "../tools.js";
 function mapOpenAiError(err: unknown): AppError {
   if (err instanceof OpenAI.APIError) {
     if (err.status === 401) {
-      return new AppError(502, "OPENAI_AUTH_ERROR", "OpenAI API authentication failed.");
+      return new AppError(
+        502,
+        "OPENAI_AUTH_ERROR",
+        "OpenAI API authentication failed.",
+      );
     }
     if (err.status === 429) {
       return new AppError(
@@ -104,7 +114,11 @@ function mapOpenAiError(err: unknown): AppError {
     return err;
   }
 
-  return new AppError(500, "OPENAI_UNEXPECTED", "Unexpected OpenAI client error.");
+  return new AppError(
+    500,
+    "OPENAI_UNEXPECTED",
+    "Unexpected OpenAI client error.",
+  );
 }
 
 function emitExecuteProgressFromResult(
@@ -113,7 +127,13 @@ function emitExecuteProgressFromResult(
 ): void {
   if (isAgentToolErrorResult(result)) {
     const message = result.error.message;
-    if (isFlashLoanToolValidationError(EXECUTE_TRANSACTION_TOOL_NAME, toolInput, result.error.code)) {
+    if (
+      isFlashLoanToolValidationError(
+        EXECUTE_TRANSACTION_TOOL_NAME,
+        toolInput,
+        result.error.code,
+      )
+    ) {
       emitExecutionProgress({
         step: {
           id: "quote",
@@ -181,7 +201,10 @@ function appActionExecuteLabel(action?: string): string {
   return action ? `Execute ${action.replace(/_/g, " ")}` : "Execute app action";
 }
 
-function emitAppActionProgressFromResult(result: unknown, action?: string): void {
+function emitAppActionProgressFromResult(
+  result: unknown,
+  action?: string,
+): void {
   if (isAgentToolErrorResult(result)) {
     emitExecutionProgress({
       step: {
@@ -312,7 +335,11 @@ export const openaiRuntime: AgentRuntime = {
   async runTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
     const { apiKey, model, maxToolSteps } = getOpenAiConfig();
     if (!apiKey) {
-      throw new AppError(503, "OPENAI_NOT_CONFIGURED", "OPENAI_API_KEY is not set");
+      throw new AppError(
+        503,
+        "OPENAI_NOT_CONFIGURED",
+        "OPENAI_API_KEY is not set",
+      );
     }
 
     const client = new OpenAI({ apiKey });
@@ -339,16 +366,21 @@ export const openaiRuntime: AgentRuntime = {
     let streamedReplyAccum = "";
     let lastExecuteInput: ExecuteTransactionInput | null = null;
     const lastUserMessage =
-      [...input.messages].reverse().find((message) => message.role === "user")?.content ?? "";
+      [...input.messages].reverse().find((message) => message.role === "user")
+        ?.content ?? "";
     const flashLoanTurnIntent = classifyFlashLoanTurnIntent(lastUserMessage);
 
-    let streamingArtifactPreview: import("../../projects/project.types.js").ArtifactPayload | null =
-      null;
+    let streamingArtifactPreview:
+      | import("../../projects/project.types.js").ArtifactPayload
+      | null = null;
     let lastStreamedGenerateAppArgsLength = 0;
 
     const emitGenerateAppPreview = (rawArgs: string, streaming = true) => {
       const partial = parsePartialGenerateAppArgs(rawArgs);
-      const preview = buildPreviewArtifactPayload(partial, streamingArtifactPreview);
+      const preview = buildPreviewArtifactPayload(
+        partial,
+        streamingArtifactPreview,
+      );
       if (!preview) return;
       streamingArtifactPreview = preview;
       emitArtifactPreview(preview, streaming);
@@ -360,35 +392,56 @@ export const openaiRuntime: AgentRuntime = {
       streamedReplyAccum = "";
       try {
         if (hasExecutionProgressContext()) {
-          choice = await streamChatCompletion(client, {
-            model,
-            messages,
-            tools,
-            max_tokens: 4096,
-          }, {
-            onContentDelta: (delta) => {
-              streamedReplyText = true;
-              streamedReplyAccum += delta;
-              emitReplyDelta(delta);
+          let toolCallSeenDuringStream = false;
+          choice = await streamChatCompletion(
+            client,
+            {
+              model,
+              messages,
+              tools,
+              max_tokens: 4096,
             },
-            onToolCallDelta: (toolCall) => {
-              if (toolCall.name !== GENERATE_APP_TOOL_NAME) return;
-              if (lastStreamedGenerateAppArgsLength === 0) {
-                emitExecutionProgress({
-                  step: {
-                    id: "generate-app",
-                    status: "running",
-                    label: "Building app",
-                    detail: "Writing source files…",
-                  },
-                });
-              }
-              if (toolCall.arguments.length <= lastStreamedGenerateAppArgsLength) return;
-              if (toolCall.arguments.length - lastStreamedGenerateAppArgsLength < 24) return;
-              lastStreamedGenerateAppArgsLength = toolCall.arguments.length;
-              emitGenerateAppPreview(toolCall.arguments, true);
+            {
+              onContentDelta: (delta) => {
+                if (toolCallSeenDuringStream) return;
+                streamedReplyText = true;
+                streamedReplyAccum += delta;
+                emitReplyDelta(delta);
+              },
+              onToolCallDelta: (toolCall) => {
+                if (!toolCallSeenDuringStream && streamedReplyText) {
+                  toolCallSeenDuringStream = true;
+                  emitReplyClear();
+                  streamedReplyAccum = "";
+                }
+                toolCallSeenDuringStream = true;
+
+                if (toolCall.name !== GENERATE_APP_TOOL_NAME) return;
+                if (lastStreamedGenerateAppArgsLength === 0) {
+                  emitExecutionProgress({
+                    step: {
+                      id: "generate-app",
+                      status: "running",
+                      label: "Building app",
+                      detail: "Writing source files…",
+                    },
+                  });
+                }
+                if (
+                  toolCall.arguments.length <= lastStreamedGenerateAppArgsLength
+                )
+                  return;
+                if (
+                  toolCall.arguments.length -
+                    lastStreamedGenerateAppArgsLength <
+                  24
+                )
+                  return;
+                lastStreamedGenerateAppArgsLength = toolCall.arguments.length;
+                emitGenerateAppPreview(toolCall.arguments, true);
+              },
             },
-          });
+          );
         } else {
           const completion = await client.chat.completions.create({
             model,
@@ -399,7 +452,11 @@ export const openaiRuntime: AgentRuntime = {
           });
           choice = completion.choices[0]?.message;
           if (!choice) {
-            throw new AppError(502, "OPENAI_EMPTY_RESPONSE", "OpenAI returned no completion choice.");
+            throw new AppError(
+              502,
+              "OPENAI_EMPTY_RESPONSE",
+              "OpenAI returned no completion choice.",
+            );
           }
         }
       } catch (err) {
@@ -407,25 +464,28 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       if (!choice) {
-        throw new AppError(502, "OPENAI_EMPTY_RESPONSE", "OpenAI returned no completion choice.");
+        throw new AppError(
+          502,
+          "OPENAI_EMPTY_RESPONSE",
+          "OpenAI returned no completion choice.",
+        );
       }
 
       const toolCallList = choice.tool_calls ?? [];
-      if (toolCallList.length > 0 && streamedReplyText) {
+      if (toolCallList.length > 0 && streamedReplyText && streamedReplyAccum) {
         emitReplyClear();
         streamedReplyAccum = "";
       }
       if (toolCallList.length === 0) {
         const unsupported = detectUnsupportedCapability(lastUserMessage);
         const lastUserContent =
-          messages.length > 0 ? messages[messages.length - 1]?.content : undefined;
+          messages.length > 0
+            ? messages[messages.length - 1]?.content
+            : undefined;
         const lastContentStr =
           typeof lastUserContent === "string" ? lastUserContent : "";
 
-        if (
-          unsupported &&
-          !isUnsupportedCapabilityNudge(lastContentStr)
-        ) {
+        if (unsupported && !isUnsupportedCapabilityNudge(lastContentStr)) {
           messages.push({
             role: "user",
             content: buildUnsupportedCapabilityNudge(unsupported),
@@ -514,7 +574,10 @@ export const openaiRuntime: AgentRuntime = {
 
         let args: Record<string, unknown>;
         try {
-          args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+          args = JSON.parse(toolCall.function.arguments) as Record<
+            string,
+            unknown
+          >;
         } catch {
           args = {};
         }
@@ -538,7 +601,8 @@ export const openaiRuntime: AgentRuntime = {
             priorInfeasibleQuote !== null &&
             !priorInfeasibleQuote.repay_feasible;
           const blockResearchExecute =
-            args.action === "deepbook_flash_loan" && flashLoanTurnIntent === "research";
+            args.action === "deepbook_flash_loan" &&
+            flashLoanTurnIntent === "research";
 
           if (!blockInfeasibleExecute && !blockResearchExecute) {
             emitExecutionProgress({
@@ -597,17 +661,23 @@ export const openaiRuntime: AgentRuntime = {
           ? buildInfeasibleFlashLoanExecuteBlock(priorInfeasibleQuote)
           : blockResearchFlashLoanExecute
             ? buildFlashLoanResearchExecuteBlock()
-          : await runAgentTool(input.privyUserId, toolCall.function.name, args, {
-              sessionId: input.sessionId,
-              flashLoanTurnIntent,
-              pinnedAppScope: input.pinnedAppScope,
-              ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
-                ? { rawArguments: toolCall.function.arguments }
-                : {}),
-            });
+            : await runAgentTool(
+                input.privyUserId,
+                toolCall.function.name,
+                args,
+                {
+                  sessionId: input.sessionId,
+                  flashLoanTurnIntent,
+                  pinnedAppScope: input.pinnedAppScope,
+                  ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
+                    ? { rawArguments: toolCall.function.arguments }
+                    : {}),
+                },
+              );
         tool_calls.push({
           name: toolCall.function.name,
-          ...(toolCall.function.name === QUERY_CHAIN_TOOL_NAME && typeof args.query === "string"
+          ...(toolCall.function.name === QUERY_CHAIN_TOOL_NAME &&
+          typeof args.query === "string"
             ? { query: args.query }
             : {}),
           ...(toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME &&
@@ -729,7 +799,11 @@ export const openaiRuntime: AgentRuntime = {
           content: summarizeToolResult(toolCall.function.name, result),
         });
 
-        if (infeasibleFlashLoanQuote && !pending_transaction && hasFlashLoanExecutionAttempt(tool_calls)) {
+        if (
+          infeasibleFlashLoanQuote &&
+          !pending_transaction &&
+          hasFlashLoanExecutionAttempt(tool_calls)
+        ) {
           break;
         }
       }
@@ -744,7 +818,9 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       if (pending_transaction) {
-        const usedAppAction = tool_calls.some((call) => call.name === CALL_APP_ACTION_TOOL_NAME);
+        const usedAppAction = tool_calls.some(
+          (call) => call.name === CALL_APP_ACTION_TOOL_NAME,
+        );
         reply = usedAppAction
           ? "Confirm the transaction in your app preview."
           : "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
@@ -767,7 +843,10 @@ export const openaiRuntime: AgentRuntime = {
           executeToolError,
         );
 
-        if (executeToolError.error.code === "VALIDATION_ERROR" && !compoundReply) {
+        if (
+          executeToolError.error.code === "VALIDATION_ERROR" &&
+          !compoundReply
+        ) {
           const quote = findLatestFlashLoanQuote(tool_calls);
           if (quote && !quote.repay_feasible) {
             reply = formatFlashLoanQuoteReply(quote);
@@ -831,7 +910,10 @@ export const openaiRuntime: AgentRuntime = {
           } catch (err) {
             throw mapOpenAiError(err);
           }
-        } else if (hasSuccessfulQueryResults(tool_calls) || hasSuccessfulAppActionResult(tool_calls)) {
+        } else if (
+          hasSuccessfulQueryResults(tool_calls) ||
+          hasSuccessfulAppActionResult(tool_calls)
+        ) {
           const streamed = streamedReplyAccum.trim();
           if (streamed) {
             reply = streamed;

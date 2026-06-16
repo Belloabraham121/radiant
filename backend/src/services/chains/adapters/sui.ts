@@ -39,6 +39,9 @@ import {
   executeDeepBookUnstake,
   isDeepBookStakeAction,
 } from "../../defi/deepbook/deepbook-stake.service.js";
+import { isDeepBookMarginAction } from "../../defi/deepbook/deepbook-margin.service.js";
+import { executeMarginAction } from "../../defi/deepbook/deepbook-margin-execution.service.js";
+import { isDeepBookPredictAction, buildPredictActionSummary } from "../../defi/deepbook/deepbook-predict.service.js";
 import {
   executeDeepBookSubmitProposal,
   executeDeepBookVote,
@@ -371,6 +374,26 @@ export const suiAdapter: ChainAdapter = {
           },
         },
       };
+    }
+
+    if (isDeepBookMarginAction(action)) {
+      const marginResult = await executeMarginAction(action, privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: marginResult.digest,
+        address: marginResult.address,
+        effects_status: marginResult.effects_status,
+        deepbook: { margin: marginResult.margin },
+      };
+    }
+
+    if (isDeepBookPredictAction(action)) {
+      throw new AppError(
+        501,
+        "PREDICT_NOT_LIVE",
+        `Predict action "${action}" is registered but on-chain execution requires the DeepBook Predict contract integration (testnet). ` +
+        `This feature is under development. ${buildPredictActionSummary(action, params)}`,
+      );
     }
 
     const suiAction = toSuiExecuteAction(action, params);

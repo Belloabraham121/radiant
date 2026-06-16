@@ -31,7 +31,13 @@ export const executeTransactionToolDefinition = {
           "deepbook_place_limit_order, deepbook_place_market_order, deepbook_cancel_order, " +
           "deepbook_cancel_orders, deepbook_cancel_all_orders, deepbook_modify_order, " +
           "deepbook_withdraw_settled_amounts, deepbook_withdraw_settled_amounts_permissionless, " +
-          "deepbook_flash_loan, deepbook_stake, deepbook_unstake, deepbook_submit_proposal, deepbook_vote.",
+          "deepbook_flash_loan, deepbook_stake, deepbook_unstake, deepbook_submit_proposal, deepbook_vote, " +
+          "deepbook_margin_deposit, deepbook_margin_withdraw, deepbook_margin_borrow, deepbook_margin_repay, " +
+          "deepbook_margin_place_limit_order, deepbook_margin_place_market_order, " +
+          "deepbook_margin_cancel_order, deepbook_margin_modify_order, " +
+          "deepbook_margin_supply_pool, deepbook_margin_withdraw_pool, " +
+          "deepbook_predict_deposit, deepbook_predict_withdraw, deepbook_predict_mint, deepbook_predict_redeem, " +
+          "deepbook_predict_mint_range, deepbook_predict_redeem_range, deepbook_predict_supply, deepbook_predict_lp_withdraw.",
       },
       params: {
         type: "object",
@@ -54,6 +60,19 @@ export const executeTransactionToolDefinition = {
           "deepbook_unstake: { pool_key? } — unstake all active DEEP from the pool back to the balance manager. " +
           "deepbook_submit_proposal: { pool_key?, taker_fee, maker_fee, stake_required } — propose next-epoch trade params; requires Allow governance in Settings and active stake. " +
           "deepbook_vote: { pool_key?, proposal_id } — vote for a proposal by Sui object ID; requires Allow governance in Settings and active stake. " +
+          "deepbook_margin_deposit: { margin_manager_key, coin_type: base|quote|deep, amount }. " +
+          "deepbook_margin_withdraw: { margin_manager_key, coin_type, amount }. " +
+          "deepbook_margin_borrow: { margin_manager_key, asset: base|quote, amount }. " +
+          "deepbook_margin_repay: { margin_manager_key, asset, amount? }. " +
+          "deepbook_margin_place_limit_order: { pool_key, margin_manager_key, price, quantity, is_bid, pay_with_deep? }. " +
+          "deepbook_margin_place_market_order: { pool_key, margin_manager_key, quantity, is_bid }. " +
+          "deepbook_predict_deposit: { amount, quote_asset? }. " +
+          "deepbook_predict_withdraw: { amount, quote_asset? }. " +
+          "deepbook_predict_mint: { oracle_id, expiry, strike, is_up, quantity }. " +
+          "deepbook_predict_redeem: { oracle_id, expiry, strike, is_up, quantity }. " +
+          "deepbook_predict_mint_range: { oracle_id, expiry, lower_strike, higher_strike, quantity }. " +
+          "deepbook_predict_redeem_range: { oracle_id, expiry, lower_strike, higher_strike, quantity }. " +
+          "deepbook_predict_supply: { amount, quote_asset? }. deepbook_predict_lp_withdraw: { plp_amount, quote_asset? }. " +
           "execute_bytes: { transaction_bytes } (base64).",
         additionalProperties: true,
       },

@@ -31,17 +31,26 @@ const MARGIN_BORROW_PATTERN =
 
 const LEVERAGE_PATTERN = /\b(\d+)\s*x\s+(long|short)\b/i;
 
-export function extractMarginDepositIntent(message: string): MarginDepositIntent | null {
+export function extractMarginDepositIntent(
+  message: string,
+): MarginDepositIntent | null {
   const match = message.match(MARGIN_DEPOSIT_PATTERN);
   if (!match) return null;
   const amount = Number(match[1].replace(/,/g, ""));
   if (!Number.isFinite(amount) || amount <= 0) return null;
   const raw = match[2].toLowerCase();
-  const coinType = raw === "sui" || raw === "base" ? "base" : raw === "deep" ? "deep" : "quote";
+  const coinType =
+    raw === "sui" || raw === "base"
+      ? "base"
+      : raw === "deep"
+        ? "deep"
+        : "quote";
   return { coin_type: coinType, amount };
 }
 
-export function extractMarginBorrowIntent(message: string): MarginBorrowIntent | null {
+export function extractMarginBorrowIntent(
+  message: string,
+): MarginBorrowIntent | null {
   const match = message.match(MARGIN_BORROW_PATTERN);
   if (!match) return null;
   const amount = Number(match[1].replace(/,/g, ""));
@@ -51,7 +60,9 @@ export function extractMarginBorrowIntent(message: string): MarginBorrowIntent |
   return { asset, amount };
 }
 
-export function extractLeverageOrderIntent(message: string): MarginOrderIntent | null {
+export function extractLeverageOrderIntent(
+  message: string,
+): MarginOrderIntent | null {
   const match = message.match(LEVERAGE_PATTERN);
   if (!match) return null;
   const leverage = Number(match[1]);
@@ -98,7 +109,9 @@ export function shouldNudgeMarginExecute(
   }
 
   return !toolCalls.some(
-    (c) => c.name === EXECUTE_TRANSACTION_TOOL_NAME && isMarginExecuteOutcome(c.result),
+    (c) =>
+      c.name === EXECUTE_TRANSACTION_TOOL_NAME &&
+      isMarginExecuteOutcome(c.result),
   );
 }
 

@@ -57,9 +57,13 @@ function isBlockedInfeasibleFlashLoanExecute(call: ChatToolCall): boolean {
   );
 }
 
-function hasFlashLoanExecutionAttemptInTurn(toolCalls: ChatToolCall[]): boolean {
+function hasFlashLoanExecutionAttemptInTurn(
+  toolCalls: ChatToolCall[],
+): boolean {
   return toolCalls.some(
-    (call) => call.name === "execute_transaction" && !isBlockedInfeasibleFlashLoanExecute(call),
+    (call) =>
+      call.name === "execute_transaction" &&
+      !isBlockedInfeasibleFlashLoanExecute(call),
   );
 }
 
@@ -80,7 +84,9 @@ const EXECUTION_TIMELINE_TOOL_NAMES = new Set([
 ]);
 
 /** Whether this turn should show the on-chain execution timeline (swaps, flash loans, etc.). */
-export function isExecutionTimelineRelevant(toolCalls: ChatToolCall[]): boolean {
+export function isExecutionTimelineRelevant(
+  toolCalls: ChatToolCall[],
+): boolean {
   return toolCalls.some((call) => EXECUTION_TIMELINE_TOOL_NAMES.has(call.name));
 }
 
@@ -95,14 +101,20 @@ export function filterExecutionStepsForDisplay(
   return steps.filter((step) => step.id !== "agent");
 }
 
-export function mapStreamStepToExecutionStep(step: StreamExecutionStepPayload): ExecutionStep {
-  const chainId = (step.chain_id ?? (step.digest ? "sui" : undefined)) as AgentChainId | undefined;
+export function mapStreamStepToExecutionStep(
+  step: StreamExecutionStepPayload,
+): ExecutionStep {
+  const chainId = (step.chain_id ?? (step.digest ? "sui" : undefined)) as
+    | AgentChainId
+    | undefined;
   return {
     id: step.id,
     status: step.status,
     label: step.label,
     detail: step.detail,
-    ...(step.agent_transaction_id ? { agentTransactionId: step.agent_transaction_id } : {}),
+    ...(step.agent_transaction_id
+      ? { agentTransactionId: step.agent_transaction_id }
+      : {}),
     ...(step.digest ? { digest: step.digest } : {}),
     ...(chainId ? { chainId } : {}),
   };
@@ -135,8 +147,12 @@ export const EXECUTION_STEP_ORDER = [
 export function sortExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
   return normalizeExecutionSteps(
     [...steps].sort((a, b) => {
-      const indexA = EXECUTION_STEP_ORDER.indexOf(a.id as (typeof EXECUTION_STEP_ORDER)[number]);
-      const indexB = EXECUTION_STEP_ORDER.indexOf(b.id as (typeof EXECUTION_STEP_ORDER)[number]);
+      const indexA = EXECUTION_STEP_ORDER.indexOf(
+        a.id as (typeof EXECUTION_STEP_ORDER)[number],
+      );
+      const indexB = EXECUTION_STEP_ORDER.indexOf(
+        b.id as (typeof EXECUTION_STEP_ORDER)[number],
+      );
       const rankA = indexA === -1 ? 100 : indexA;
       const rankB = indexB === -1 ? 100 : indexB;
       if (rankA !== rankB) return rankA - rankB;
@@ -187,18 +203,24 @@ export function isFlashLoanParamValidationError(message: string): boolean {
 }
 
 function isFlashLoanFlow(steps: ExecutionStep[]): boolean {
-  return steps.some((step) => step.id === "quote" || step.id.startsWith("swap-"));
+  return steps.some(
+    (step) => step.id === "quote" || step.id.startsWith("swap-"),
+  );
 }
 
 /** Drop noise and fix execute/quote pairing for flash loan turns. */
-export function normalizeExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
+export function normalizeExecutionSteps(
+  steps: ExecutionStep[],
+): ExecutionStep[] {
   let next = [...steps];
 
   if (isFlashLoanFlow(next)) {
     next = next.filter((step) => step.id !== "swap-quote");
   }
 
-  const quoteFailed = next.some((step) => step.id === "quote" && step.status === "failed");
+  const quoteFailed = next.some(
+    (step) => step.id === "quote" && step.status === "failed",
+  );
   if (quoteFailed) {
     next = next.filter((step) => !step.id.startsWith("query-failed"));
   }
@@ -337,10 +359,16 @@ function buildFlashLoanExecutionSteps(
       const agentTransactionId =
         outcome.agent_transaction_id ?? outcome.pending?.id;
       const chainId =
-        outcome.result?.chain_id ?? outcome.pending?.chain_id ?? ("sui" as AgentChainId);
+        outcome.result?.chain_id ??
+        outcome.pending?.chain_id ??
+        ("sui" as AgentChainId);
       const flashLoan = (
         executeCall.result as {
-          result?: { deepbook?: { flash_loan?: { borrow_amount?: number; coin_key?: string } } };
+          result?: {
+            deepbook?: {
+              flash_loan?: { borrow_amount?: number; coin_key?: string };
+            };
+          };
         }
       )?.result?.deepbook?.flash_loan;
       const meta = {
@@ -373,13 +401,17 @@ function buildFlashLoanExecutionSteps(
     }
   } else if (!quote.repay_feasible) {
     const meta = quote.agent_transaction_id
-      ? { agentTransactionId: quote.agent_transaction_id, chainId: "sui" as AgentChainId }
+      ? {
+          agentTransactionId: quote.agent_transaction_id,
+          chainId: "sui" as AgentChainId,
+        }
       : {};
     steps.push({
       id: "execute",
       status: "skipped",
       label: "Execute bundle",
-      detail: "Blocked — swap outputs would not cover the borrow for atomic repay",
+      detail:
+        "Blocked — swap outputs would not cover the borrow for atomic repay",
       ...meta,
     });
   }
@@ -387,7 +419,9 @@ function buildFlashLoanExecutionSteps(
   return steps;
 }
 
-function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | undefined {
+function buildSwapExecutionSteps(
+  toolCalls: ChatToolCall[],
+): ExecutionStep[] | undefined {
   const quoteCall = toolCalls.find(
     (call) =>
       call.name === "query_chain" &&
@@ -399,7 +433,8 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
   );
 
   const executeCall = toolCalls.find(
-    (call) => call.name === "execute_transaction" || call.name === "call_app_action",
+    (call) =>
+      call.name === "execute_transaction" || call.name === "call_app_action",
   );
   if (!quoteCall && !executeCall) {
     return undefined;
@@ -461,15 +496,15 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
       } else {
         const agentTransactionId =
           outcome.agent_transaction_id ?? outcome.pending?.id;
-        const chainId =
-          outcome.result?.chain_id ?? outcome.pending?.chain_id;
+        const chainId = outcome.result?.chain_id ?? outcome.pending?.chain_id;
         const meta = {
           ...(agentTransactionId ? { agentTransactionId } : {}),
           ...(chainId ? { chainId } : {}),
         };
 
         if (outcome.status === "preview_delegated") {
-          const actionName = (executeCall.result as { action?: string })?.action;
+          const actionName = (executeCall.result as { action?: string })
+            ?.action;
           steps.push({
             id: "execute",
             status: "warning",
@@ -500,7 +535,18 @@ function buildSwapExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | u
         status?: string;
         agent_transaction_id?: string;
         pending?: { id?: string; chain_id?: AgentChainId };
-        result?: { chain_id?: AgentChainId; digest?: string; deepbook?: { swap?: { in_amount_display?: number; input_coin?: string; out_amount_display?: number; output_coin?: string } } };
+        result?: {
+          chain_id?: AgentChainId;
+          digest?: string;
+          deepbook?: {
+            swap?: {
+              in_amount_display?: number;
+              input_coin?: string;
+              out_amount_display?: number;
+              output_coin?: string;
+            };
+          };
+        };
       };
 
       const agentTransactionId =
@@ -562,7 +608,9 @@ function isFlashLoanRelatedError(message: string): boolean {
   return isFlashLoanParamValidationError(message);
 }
 
-function buildFailedToolExecutionSteps(toolCalls: ChatToolCall[]): ExecutionStep[] | undefined {
+function buildFailedToolExecutionSteps(
+  toolCalls: ChatToolCall[],
+): ExecutionStep[] | undefined {
   const steps: ExecutionStep[] = [];
 
   for (const call of toolCalls) {
@@ -657,7 +705,9 @@ export function resolveExecutionSteps(
 }
 
 /** Whether failed query_chain pills should be hidden (execution timeline covers them). */
-export function shouldSuppressQueryFailureReceipts(toolCalls: ChatToolCall[]): boolean {
+export function shouldSuppressQueryFailureReceipts(
+  toolCalls: ChatToolCall[],
+): boolean {
   if (mapToolCallsToExecutionSteps(toolCalls) !== undefined) {
     return true;
   }

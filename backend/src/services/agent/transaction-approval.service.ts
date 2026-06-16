@@ -21,6 +21,8 @@ import {
 import {
   isDeepBookGovernanceAction,
 } from "../defi/deepbook/deepbook-governance.service.js";
+import { isDeepBookMarginAction } from "../defi/deepbook/deepbook-margin.service.js";
+import { isDeepBookPredictAction } from "../defi/deepbook/deepbook-predict.service.js";
 import type { FlashLoanRepaySource } from "../defi/deepbook/deepbook-flash-loan.types.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
@@ -101,6 +103,8 @@ function isMutatingExecuteAction(action: string): boolean {
     isDeepBookFlashLoanAction(action) ||
     isDeepBookStakeAction(action) ||
     isDeepBookGovernanceAction(action) ||
+    isDeepBookMarginAction(action) ||
+    isDeepBookPredictAction(action) ||
     MUTATING_EXECUTE_ACTIONS.has(action)
   );
 }
@@ -233,6 +237,14 @@ export function transferRequiresApprovalWithPermissions(
   }
 
   if (isDeepBookGovernanceAction(input.action)) {
+    return true;
+  }
+
+  if (isDeepBookMarginAction(input.action)) {
+    return true;
+  }
+
+  if (isDeepBookPredictAction(input.action)) {
     return true;
   }
 

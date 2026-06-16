@@ -81,6 +81,14 @@ export type TxResult = {
       maker_fee: number | null;
       stake_required: number | null;
     };
+    margin?: {
+      action: string;
+      margin_manager: string;
+      pool_key: string;
+      coin_type?: string;
+      amount?: number;
+      asset?: string;
+    };
   };
 };
 

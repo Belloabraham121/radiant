@@ -44,6 +44,7 @@ import {
 } from "../defi/deepbook/deepbook-predict-server.client.js";
 import { getPredictObjectId } from "../defi/deepbook/deepbook-predict.service.js";
 import { MARGIN_POOL_CONFIGS } from "../defi/deepbook/deepbook-margin.service.js";
+import { getDeepBookClient } from "../defi/deepbook/providers/sui-deepbook.provider.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -294,9 +295,29 @@ export async function runQueryChainTool(
     }
     case "margin_manager_info": {
       assertSuiDeepBookQuery(parsed.chain_id);
+      const marginWallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
+      if (!marginWallet) {
+        return {
+          provisioned: false,
+          note: "No Sui agent wallet found. The user needs to set up their wallet first.",
+          available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+        };
+      }
+      const marginClient = getDeepBookClient({ address: marginWallet.address });
+      const marginManagerIds = await marginClient.getMarginManagerIdsForOwner(marginWallet.address);
+      if (marginManagerIds.length === 0) {
+        return {
+          provisioned: false,
+          note: "No margin manager found on-chain. The user needs to create a margin manager before using margin trading.",
+          available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+        };
+      }
       return {
-        note: "Margin manager info requires live SDK calls. Use execute_transaction with margin_deposit/margin_borrow to interact.",
+        provisioned: true,
+        margin_manager_address: marginManagerIds[0],
+        manager_count: marginManagerIds.length,
         available_pools: Object.keys(MARGIN_POOL_CONFIGS),
+        note: "Margin manager exists. Proceed with execute_transaction for the requested margin action — the system validates balances at approval time.",
       };
     }
     case "predict_markets": {

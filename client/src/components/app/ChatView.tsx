@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles } from "lucide-react";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
@@ -226,6 +226,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
   const initialBatchDoneRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const resizeInput = useCallback(() => {
     const el = inputRef.current;
@@ -308,6 +309,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
       const distanceFromBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight;
       stickToBottomRef.current = distanceFromBottom < 96;
+      setShowScrollToBottom(distanceFromBottom > 200);
     };
 
     container.addEventListener("scroll", onScroll, { passive: true });
@@ -492,6 +494,25 @@ export function ChatView({ sessionId }: ChatViewProps) {
           </div>
         )}
       </div>
+
+      {showScrollToBottom ? (
+        <div className="pointer-events-none relative z-10 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              const container = scrollRef.current;
+              if (container) {
+                container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+              }
+              setShowScrollToBottom(false);
+            }}
+            className="pointer-events-auto -mt-6 flex size-9 items-center justify-center rounded-full border-2 border-[var(--hero-ink)] bg-white shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            aria-label="Scroll to bottom"
+          >
+            <ArrowDown className="size-4" strokeWidth={2.5} />
+          </button>
+        </div>
+      ) : null}
 
       {chatError ? (
         <p
