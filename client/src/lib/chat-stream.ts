@@ -2,9 +2,12 @@ import { ApiError } from "@/lib/api";
 import type { ChatRequest, ChatResponse } from "@/lib/chat-api";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 import type { StreamExecutionStepPayload } from "@/lib/chat-execution-steps";
+import type { AgentStatusCategory } from "@/lib/agent-status-category";
+import { isAgentStatusCategory } from "@/lib/agent-status-category";
 
 export type ChatStreamHandlers = {
   onStep?: (step: StreamExecutionStepPayload) => void;
+  onStatus?: (category: AgentStatusCategory) => void;
   onArtifact?: (payload: { artifact: ArtifactPayload; streaming: boolean }) => void;
   onReplyDelta?: (delta: string) => void;
   onReplyClear?: () => void;
@@ -86,6 +89,11 @@ export async function postChatStream(
         if (parsed.event === "step") {
           const step = (payload as { step: StreamExecutionStepPayload }).step;
           handlers.onStep?.(step);
+        } else if (parsed.event === "status") {
+          const category = (payload as { category?: string }).category;
+          if (category && isAgentStatusCategory(category)) {
+            handlers.onStatus?.(category);
+          }
         } else if (parsed.event === "reply") {
           const delta = (payload as { delta?: string }).delta;
           if (delta) {

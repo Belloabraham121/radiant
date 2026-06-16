@@ -30,6 +30,8 @@ import {
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useArtifactContext } from "@/components/app/ArtifactContext";
 import type { ChatAppScope } from "@/lib/chat-app-scope";
+import type { AgentStatusCategory } from "@/lib/agent-status-category";
+import { inferStatusCategoryFromStep } from "@/lib/agent-status-category";
 import {
   subscribePreviewApprovalResolution,
   tryRelayPendingApprovalToPreview,
@@ -264,6 +266,7 @@ export function useChatSession(sessionId?: string) {
           role: "agent",
           text: "",
           streaming: true,
+          statusCategory: "thinking",
         },
       ]);
       setStreaming(true);
@@ -282,10 +285,20 @@ export function useChatSession(sessionId?: string) {
             onSession: (streamSessionId) => {
               setActiveSessionId(streamSessionId);
             },
+            onStatus: (category: AgentStatusCategory) => {
+              setMessages((current) =>
+                current.map((message) =>
+                  message.id === liveAgentId
+                    ? { ...message, statusCategory: category }
+                    : message,
+                ),
+              );
+            },
             onStep: (step) => {
               if (step.id === "agent") {
                 return;
               }
+              const stepCategory = inferStatusCategoryFromStep(step);
               setMessages((current) =>
                 current.map((message) => {
                   if (message.id !== liveAgentId) {
@@ -298,6 +311,7 @@ export function useChatSession(sessionId?: string) {
                   const digestReceipt = receiptFromExecutionStep(nextStep);
                   return {
                     ...message,
+                    statusCategory: step.status_category ?? stepCategory,
                     executionSteps,
                     ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
                   };

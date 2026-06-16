@@ -2,6 +2,7 @@ import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 import { parseChatAppScope, type ChatAppScope } from "@/lib/chat-app-scope";
+import type { AgentStatusCategory } from "@/lib/agent-status-category";
 import { extractArtifactFromToolCalls } from "@/lib/extract-artifact";
 import { sanitizeToolErrorMessage } from "@/lib/sanitize-tool-error";
 import {
@@ -31,6 +32,7 @@ export type ChatMessage = {
   executionSteps?: ExecutionStep[];
   artifact?: ArtifactPayload;
   streaming?: boolean;
+  statusCategory?: AgentStatusCategory;
   error?: boolean;
 };
 

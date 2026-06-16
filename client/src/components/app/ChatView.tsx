@@ -8,7 +8,7 @@ import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
-import { AgentThinkingDots } from "@/components/app/AgentThinkingDots";
+import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
 import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
 import { ChatAgentStreamProvider } from "@/components/app/ChatAgentStreamBridge";
 import { ResizableArtifactPanel } from "@/components/app/ResizableArtifactPanel";
@@ -152,24 +152,35 @@ function Bubble({
           <ExecutionTimeline
             steps={message.executionSteps}
             live={message.streaming === true}
+            statusCategory={message.statusCategory}
           />
         ) : null}
 
+        {!isUser &&
+        message.streaming &&
+        !message.text &&
+        !(message.executionSteps && message.executionSteps.length > 0) ? (
+          <AgentWorkingIndicator
+            active={message.streaming}
+            category={message.statusCategory ?? "thinking"}
+          />
+        ) : null}
+
+        {(isUser || message.text || !message.streaming) && (
         <div
-          className={`rounded-3xl border-2 border-(--hero-ink) px-5 py-3.5 text-sm font-medium leading-relaxed ${
+          className={`text-sm font-medium leading-relaxed ${
             isUser
-              ? "rounded-br-md bg-[var(--hero-ink)] text-(--hero-bg)"
-              : "rounded-bl-md bg-white shadow-[4px_4px_0_var(--hero-ink)]"
+              ? "rounded-3xl rounded-br-md border-2 border-(--hero-ink) bg-[var(--hero-ink)] px-5 py-3.5 text-(--hero-bg)"
+              : "max-w-full py-0.5 text-[var(--hero-ink)]"
           }`}
         >
           {isUser ? (
             message.text
-          ) : message.streaming && !message.text ? (
-            <AgentThinkingDots />
           ) : (
             <AgentMessageMarkdown text={message.text} />
           )}
         </div>
+        )}
 
         {isUser && message.appScope ? (
           <UserMessageAppScopeChip scope={message.appScope} />

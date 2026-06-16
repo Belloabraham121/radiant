@@ -75,6 +75,7 @@ export type StreamExecutionStepPayload = {
   agent_transaction_id?: string;
   digest?: string;
   chain_id?: string;
+  status_category?: import("@/lib/agent-status-category").AgentStatusCategory;
 };
 
 const EXECUTION_TIMELINE_TOOL_NAMES = new Set([

@@ -1,0 +1,23 @@
+/** Reassurance during longer multi-step flows. */
+export const WAITING_PHRASES = [
+  "Still on it…",
+  "Almost there…",
+  "One moment…",
+  "Hang tight…",
+  "Working through the steps…",
+  "Making progress…",
+  "Not frozen, promise…",
+  "Crunching the next bit…",
+  "Moving to the next step…",
+  "Patience pays…",
+  "Good things take a sec…",
+  "Steady progress…",
+  "Chipping away at it…",
+  "Nearly ready…",
+  "Just a little longer…",
+  "Keeping at it…",
+  "On the home stretch…",
+  "Wrapping the next piece…",
+  "Still cooking…",
+  "Bear with me…",
+] as const;

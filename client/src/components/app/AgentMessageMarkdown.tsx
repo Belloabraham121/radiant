@@ -1,9 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { isValidElement, useMemo, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import type { Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { AgentMarkdownCodeBlock } from "@/components/app/AgentMarkdownCodeBlock";
 import { linkTransactionDigestsInMarkdown } from "@/lib/link-transaction-digests";
+
+function isFencedCodeBlock(className?: string): boolean {
+  return /language-[\w-]+/.test(className ?? "");
+}
 
 const markdownComponents: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
@@ -41,11 +47,39 @@ const markdownComponents: Components = {
       {children}
     </a>
   ),
-  code: ({ children }) => (
-    <code className="rounded-md bg-[var(--hero-bg)] px-1.5 py-0.5 font-mono text-[0.85em] font-semibold text-[var(--hero-ink)]">
+  blockquote: ({ children }) => (
+    <blockquote className="my-2 border-l-4 border-[var(--hero-amber)] pl-3 text-[var(--hero-ink)]/75">
       {children}
-    </code>
+    </blockquote>
   ),
+  pre: ({ children }) => {
+    if (isValidElement<{ className?: string; children?: ReactNode }>(children)) {
+      return (
+        <AgentMarkdownCodeBlock className={children.props.className}>
+          {children.props.children}
+        </AgentMarkdownCodeBlock>
+      );
+    }
+    return <pre>{children}</pre>;
+  },
+  code: ({ className, children, ...props }) => {
+    if (isFencedCodeBlock(className)) {
+      return (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    }
+
+    return (
+      <code
+        className="rounded-md bg-[var(--hero-bg)] px-1.5 py-0.5 font-mono text-[0.85em] font-semibold text-[var(--hero-ink)]"
+        {...props}
+      >
+        {children}
+      </code>
+    );
+  },
 };
 
 export function AgentMessageMarkdown({ text }: { text: string }) {
@@ -53,7 +87,9 @@ export function AgentMessageMarkdown({ text }: { text: string }) {
 
   return (
     <div className="agent-markdown [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-      <Markdown components={markdownComponents}>{linkedText}</Markdown>
+      <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+        {linkedText}
+      </Markdown>
     </div>
   );
 }

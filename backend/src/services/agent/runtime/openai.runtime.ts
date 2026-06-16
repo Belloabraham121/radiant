@@ -69,12 +69,14 @@ import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import {
+  emitAgentStatusCategory,
   emitArtifactPreview,
   emitExecutionProgress,
   emitReplyClear,
   emitReplyDelta,
   hasExecutionProgressContext,
 } from "../execution-progress-context.js";
+import { resolveCategoryFromTool } from "../agent-status-category.js";
 import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
 import { parsePartialGenerateAppArgs } from "../../projects/parse-partial-generate-app.js";
 import { buildPreviewArtifactPayload } from "../../projects/preview-artifact.js";
@@ -166,6 +168,7 @@ function emitExecuteProgressFromResult(
 
   const outcome = result as ExecuteToolOutcome;
   if (outcome.status === "approval_required") {
+    emitAgentStatusCategory("waiting");
     emitExecutionProgress({
       step: {
         id: "execute",
@@ -247,6 +250,7 @@ function emitAppActionProgressFromResult(
   }
 
   if (outcome.status === "approval_required") {
+    emitAgentStatusCategory("waiting");
     emitExecutionProgress({
       step: {
         id: "execute",
@@ -585,6 +589,10 @@ export const openaiRuntime: AgentRuntime = {
         } catch {
           args = {};
         }
+
+        emitAgentStatusCategory(
+          resolveCategoryFromTool(toolCall.function.name, args),
+        );
 
         if (toolCall.function.name === GENERATE_APP_TOOL_NAME) {
           emitExecutionProgress({
