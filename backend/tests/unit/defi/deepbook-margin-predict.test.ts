@@ -164,6 +164,7 @@ describe("DeepBook Predict action classification", () => {
 describe("ONCHAIN_ACTION_NAMES includes margin and predict", () => {
   it("includes all margin actions", () => {
     const names = ONCHAIN_ACTION_NAMES as readonly string[];
+    assert.ok(names.includes("margin_provision_manager"));
     assert.ok(names.includes("margin_deposit"));
     assert.ok(names.includes("margin_withdraw"));
     assert.ok(names.includes("margin_borrow"));

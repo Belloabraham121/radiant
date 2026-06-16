@@ -12,6 +12,7 @@ export const ONCHAIN_ACTION_NAMES = [
   "deposit",
   "withdraw",
   "provision_manager",
+  "margin_provision_manager",
   "place_limit_order",
   "place_market_order",
   "cancel_order",

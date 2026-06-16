@@ -343,7 +343,7 @@ Generated app iframe
 | Status | Gap | Evidence in code |
 | ------ | --- | ---------------- |
 | [x] | **Action schema not inferred** for margin apps | `EXECUTE_MARGIN_PATTERNS`, `DEFAULT_MARGIN_TEMPLATE_ACTIONS`, `template: "margin"`, manifest/register onchain detection |
-| [ ] | **No `margin_provision_manager` app action** | `deepbook_provision_margin_manager` exists on `execute_transaction` only; not in `ONCHAIN_ACTION_NAMES` / registry |
+| [x] | **No `margin_provision_manager` app action** | `margin_provision_manager` → `deepbook_provision_margin_manager` in registry |
 | [x] | **REST read routes missing** for generated apps | `GET .../deepbook/margin-*` on project, session, installation scopes |
 | [x] | **`data-radiant-id` ≠ schema param names** | `MARGIN_RADIANT_ID_GUIDE` in `prompts.ts` aligns generated apps with schema param keys |
 | [ ] | **No margin param coercion** | `normalizeAppActionParams()` has no `margin_*` cases (`app-action-param-coerce.ts`) |
@@ -439,13 +439,13 @@ Provisioning today bypasses the app pipeline (`execute_transaction` only). For U
 
 | Status | Task | Files |
 | ------ | ---- | ----- |
-| [ ] | Add `margin_provision_manager` to `ONCHAIN_ACTION_NAMES` | `app-action.types.ts` |
-| [ ] | Registry entry → `deepbook_provision_margin_manager` | `app-action-registry.ts` |
-| [ ] | Zod: `{ pool_key: string }` | `app-action-param-schemas.ts` |
-| [ ] | Field docs: `pool_key` required | `appActionParamSchemaDocs` |
-| [ ] | `validate-execute-transaction.ts` | already supports action |
-| [ ] | UI: `data-radiant-id="pool-key"` + `margin-provision-submit` | prompts |
-| [ ] | Default handler or generic fallback | `radiant-agent-runtime-template.ts` |
+| [x] | Add `margin_provision_manager` to `ONCHAIN_ACTION_NAMES` | `app-action.types.ts` |
+| [x] | Registry entry → `deepbook_provision_margin_manager` | `app-action-registry.ts` |
+| [x] | Zod: `{ pool_key: string }` (+ optional `coin_type`, `amount`) | `app-action-param-schemas.ts` |
+| [x] | Field docs: `pool_key` required | `appActionParamSchemaDocs` |
+| [x] | `validate-execute-transaction.ts` | already supports action |
+| [x] | UI: `data-radiant-id="pool-key"` + `margin-provision-submit` | prompts |
+| [x] | Default handler or generic fallback | `radiant-agent-runtime-template.ts` |
 
 ---
 

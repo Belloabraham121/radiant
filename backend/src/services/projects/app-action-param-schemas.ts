@@ -175,6 +175,14 @@ export const appActionParamSchemas = {
     ),
 
   // DeepBook Margin actions
+  margin_provision_manager: z
+    .object({
+      pool_key: z.string().min(1),
+      coin_type: z.enum(["base", "quote", "deep"]).optional(),
+      amount: positiveNumber.optional(),
+    })
+    .passthrough(),
+
   margin_deposit: z
     .object({
       margin_manager_key: z.string().min(1),
@@ -557,6 +565,26 @@ export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array
     ],
   },
   provision_manager: { fields: [] },
+  margin_provision_manager: {
+    fields: [
+      {
+        name: "pool_key",
+        type: "string",
+        required: true,
+        description: "Margin-enabled DeepBook trading pool key",
+      },
+      {
+        name: "coin_type",
+        type: "string",
+        description: "Optional initial deposit: base | quote | deep",
+      },
+      {
+        name: "amount",
+        type: "number",
+        description: "Optional initial deposit amount (requires coin_type)",
+      },
+    ],
+  },
   place_limit_order: {
     fields: [
       { name: "price", type: "number", required: true },

@@ -60,6 +60,7 @@ const DEFAULT_SWAP_TEMPLATE_ACTIONS: AppActionName[] = [
 
 /** Default on-chain actions for generated margin trading apps. */
 export const DEFAULT_MARGIN_TEMPLATE_ACTIONS: AppActionName[] = [
+  "margin_provision_manager",
   "margin_deposit",
   "margin_withdraw",
   "margin_borrow",
@@ -95,6 +96,10 @@ const EXECUTE_HELPER_PATTERNS: Array<{ pattern: RegExp; action: AppActionName }>
 ];
 
 const EXECUTE_MARGIN_PATTERNS: Array<{ pattern: RegExp; action: AppActionName }> = [
+  {
+    pattern: /\bexecuteAction\s*\(\s*["']margin_provision_manager["']/,
+    action: "margin_provision_manager",
+  },
   { pattern: /\bexecuteAction\s*\(\s*["']margin_deposit["']/, action: "margin_deposit" },
   { pattern: /\bexecuteAction\s*\(\s*["']margin_withdraw["']/, action: "margin_withdraw" },
   { pattern: /\bexecuteAction\s*\(\s*["']margin_borrow["']/, action: "margin_borrow" },

@@ -72,6 +72,7 @@ describe("app-action schema", () => {
 
   it("detects margin actions from artifact source and template", () => {
     const fromTemplate = detectDefiActionNamesFromArtifact([], "margin");
+    assert.ok(fromTemplate.includes("margin_provision_manager"));
     assert.ok(fromTemplate.includes("margin_deposit"));
     assert.ok(fromTemplate.includes("margin_tpsl_execute"));
 

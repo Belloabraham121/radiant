@@ -75,6 +75,13 @@ export const APP_ACTION_REGISTRY: Record<OnchainActionName, AppActionDefinition>
     default_chain_id: "sui",
     execute_action: "deepbook_provision_manager",
   }),
+  margin_provision_manager: defineAction({
+    name: "margin_provision_manager",
+    description: "Create an on-chain DeepBook margin manager for leveraged trading on a pool.",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_provision_margin_manager",
+  }),
   place_limit_order: defineAction({
     name: "place_limit_order",
     description: "Place a limit order on the DeepBook order book.",

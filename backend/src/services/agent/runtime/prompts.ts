@@ -12,6 +12,7 @@ import type { PinnedAppScope } from "../../projects/pinned-app-scope.types.js";
 /** Canonical data-radiant-id values for margin app forms — must match app-action-param-schemas field names (kebab-case). */
 export const MARGIN_RADIANT_ID_GUIDE =
   "Margin form data-radiant-id (match schema param names): " +
+  "margin_provision_manager → pool-key, coin-type (optional), amount (optional); " +
   "margin_deposit → margin-manager-key, coin-type, amount; " +
   "margin_borrow → margin-manager-key, asset, amount; " +
   "margin_repay → margin-manager-key, asset, amount (optional); " +
@@ -20,7 +21,7 @@ export const MARGIN_RADIANT_ID_GUIDE =
   "margin_cancel_order → margin-manager-key, order-id; " +
   "margin_tpsl_add → pool-key, margin-manager-key, tpsl-type, trigger-price, quantity, order-kind, is-bid, price (limit only). " +
   "Hidden default: <input type=\"hidden\" data-radiant-id=\"margin-manager-key\" value=\"default\" /> on every margin form. " +
-  "Submit buttons: margin-deposit-submit, margin-borrow-submit, margin-order-submit, margin-tpsl-submit. " +
+  "Submit buttons: margin-provision-submit, margin-deposit-submit, margin-borrow-submit, margin-order-submit, margin-tpsl-submit. " +
   "Display-only (React state, not generic fallback): risk-ratio-display.";
 
 type BuildSystemPromptInput = {
@@ -112,7 +113,7 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     "Margin actions: execute_transaction with action deepbook_provision_margin_manager { pool_key }, deepbook_margin_deposit { margin_manager_key: \"default\", coin_type: base|quote|deep, amount }, deepbook_margin_withdraw { margin_manager_key: \"default\", coin_type, amount }, deepbook_margin_borrow { margin_manager_key: \"default\", asset: base|quote, amount }, deepbook_margin_repay { margin_manager_key: \"default\", asset, amount? }, deepbook_margin_place_limit_order { pool_key, margin_manager_key: \"default\", price, quantity, is_bid, pay_with_deep? }, deepbook_margin_place_market_order { pool_key, margin_manager_key: \"default\", quantity, is_bid }, deepbook_margin_place_reduce_only_limit_order / deepbook_margin_place_reduce_only_market_order (same params, closes position only), deepbook_margin_cancel_order { order_id }, deepbook_margin_cancel_orders { order_ids: string[] }, deepbook_margin_cancel_all_orders {}, deepbook_margin_withdraw_settled {}, deepbook_margin_withdraw_settled_permissionless {}, deepbook_margin_update_price { pool_key }.",
     "Margin TPSL: take-profit triggers when price rises ABOVE trigger_price (tpsl_type: take_profit); stop-loss triggers when price falls BELOW trigger_price (tpsl_type: stop_loss). Query existing orders with query_chain margin_tpsl_info. List open margin limit/market orders with query_chain margin_open_orders (not deepbook_open_orders — that is for the separate balance manager). Add with deepbook_margin_tpsl_add { tpsl_type, trigger_price, quantity, order_kind: market|limit, is_bid, price? }. Cancel one with deepbook_margin_tpsl_cancel { conditional_order_id } or all with deepbook_margin_tpsl_cancel_all. After price crosses a trigger, anyone can run deepbook_margin_tpsl_execute to fill pending orders on-chain.",
     "Margin error recovery: If a margin tool call returns an error (e.g. INVALID_MARGIN_POOL, NO_MARGIN_MANAGER), STOP — do not attempt the next step in a compound request. Report the exact failure clearly. If the user said 'create margin manager AND deposit X', and step 1 (create) fails, do NOT attempt step 2 (deposit). Explain what failed and offer to retry the failed step only. When the user says 'yes' or 'retry', repeat the FAILED step with corrections — do not skip ahead to a later step.",
-    "For margin UIs (generate_app): " + MARGIN_RADIANT_ID_GUIDE + " Register handlers for margin_deposit, margin_borrow, margin_place_limit_order, margin_tpsl_add, etc. Import marginManagerInfo and marginPoolInfo from lib/radiant-client for read-only panels.",
+    "For margin UIs (generate_app): " + MARGIN_RADIANT_ID_GUIDE + " Register handlers for margin_provision_manager, margin_deposit, margin_borrow, margin_place_limit_order, margin_tpsl_add, etc. Import marginManagerInfo and marginPoolInfo from lib/radiant-client for read-only panels.",
     // DeepBook Predict guidance
     "DeepBook Predict is a prediction market protocol. Users mint binary positions (UP/DOWN on a strike price at expiry) or vertical ranges (price within a band). Uses oracle-driven pricing (SVI model). Currently on TESTNET with DUSDC as quote asset. LP providers supply to the vault for PLP shares.",
     "For predictions: first query_chain predict_markets to see active oracles and their spot/forward prices. Then query_chain predict_trade_amounts { oracle_id, expiry, strike, is_up, quantity } to preview the mint cost. Execute with execute_transaction deepbook_predict_mint { oracle_id, expiry, strike, is_up, quantity }. To sell: deepbook_predict_redeem with same market key params. For ranges: predict_mint_range { oracle_id, expiry, lower_strike, higher_strike, quantity }.",

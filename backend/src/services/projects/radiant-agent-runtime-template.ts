@@ -181,7 +181,7 @@ function createContext(animate: boolean): RadiantAgentContext {
 /** Known on-chain actions that need the backend tx pipeline. */
 const ONCHAIN_ACTIONS = new Set([
   "swap", "flash_loan", "stake", "unstake", "deposit", "withdraw",
-  "provision_manager", "place_limit_order", "place_market_order",
+  "provision_manager", "margin_provision_manager", "place_limit_order", "place_market_order",
   "cancel_order", "cancel_orders", "cancel_all_orders", "modify_order",
   "withdraw_settled", "submit_proposal", "vote", "transfer",
   // DeepBook Margin
