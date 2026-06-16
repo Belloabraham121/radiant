@@ -26,6 +26,14 @@ import {
   executeMarginTpslExecute,
   preflightMarginTpslAction,
 } from "./deepbook-margin-tpsl.service.js";
+import {
+  executeMarginClaimRebate,
+  executeMarginStake,
+  executeMarginSubmitProposal,
+  executeMarginUnstake,
+  executeMarginVote,
+  preflightMarginStakeGovernanceAction,
+} from "./deepbook-margin-stake-governance.service.js";
 
 type CoinSide = "base" | "quote" | "deep";
 
@@ -1049,6 +1057,17 @@ export async function preflightMarginAction(
     await preflightMarginTpslAction(action, params);
   }
 
+  if (
+    action === "deepbook_margin_stake" ||
+    action === "deepbook_margin_unstake" ||
+    action === "deepbook_margin_submit_proposal" ||
+    action === "deepbook_margin_vote" ||
+    action === "deepbook_margin_claim_rebate"
+  ) {
+    await preflightMarginStakeGovernanceAction(privyUserId, action, params);
+    return;
+  }
+
   if (action === "deepbook_margin_cancel_orders") {
     parseOrderIds(params);
   }
@@ -1132,6 +1151,16 @@ export async function executeMarginAction(
       return executeMarginTpslCancelAll(privyUserId, params);
     case "deepbook_margin_tpsl_execute":
       return executeMarginTpslExecute(privyUserId, params);
+    case "deepbook_margin_stake":
+      return executeMarginStake(privyUserId, params);
+    case "deepbook_margin_unstake":
+      return executeMarginUnstake(privyUserId, params);
+    case "deepbook_margin_submit_proposal":
+      return executeMarginSubmitProposal(privyUserId, params);
+    case "deepbook_margin_vote":
+      return executeMarginVote(privyUserId, params);
+    case "deepbook_margin_claim_rebate":
+      return executeMarginClaimRebate(privyUserId, params);
     default:
       throw new AppError(400, "UNKNOWN_MARGIN_ACTION", `Unknown margin action: ${action}`);
   }

@@ -164,6 +164,26 @@ export function buildTransactionErrorUserContext(
         "This is often needed before borrow/repay or risk checks when the on-chain price is stale.",
       );
       break;
+    case "deepbook_margin_stake":
+    case "deepbook_margin_unstake":
+      parts.push(
+        "The user requested staking/unstaking DEEP via their margin manager.",
+        ctx.amount_display ? `Amount: ${ctx.amount_display}.` : "",
+        "DEEP must be deposited to the margin manager first (deepbook_margin_deposit coin_type deep).",
+      );
+      break;
+    case "deepbook_margin_submit_proposal":
+    case "deepbook_margin_vote":
+      parts.push(
+        "The user requested margin pool governance (proposal or vote).",
+        "Requires Allow governance in agent settings and active stake on the margin manager.",
+      );
+      break;
+    case "deepbook_margin_claim_rebate":
+      parts.push(
+        "The user requested claiming unclaimed trading rebates from their margin manager.",
+      );
+      break;
     case "deepbook_predict_deposit":
     case "deepbook_predict_withdraw":
       parts.push(

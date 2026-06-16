@@ -304,6 +304,48 @@ export const appActionParamSchemas = {
     })
     .passthrough(),
 
+  margin_stake: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+      amount: positiveNumber.optional(),
+      amount_display: positiveNumber.optional(),
+      stake_amount: positiveNumber.optional(),
+    })
+    .passthrough(),
+
+  margin_unstake: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
+  margin_submit_proposal: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+      taker_fee: z.number().nonnegative(),
+      maker_fee: z.number().nonnegative(),
+      stake_required: z.number().nonnegative(),
+    })
+    .passthrough(),
+
+  margin_vote: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+      proposal_id: z.string().min(1),
+    })
+    .passthrough(),
+
+  margin_claim_rebate: z
+    .object({
+      margin_manager_key: z.string().min(1),
+      pool_key: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
   margin_supply_pool: z
     .object({
       coin_type: z.string().min(1),
@@ -626,6 +668,41 @@ export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array
     fields: [
       { name: "margin_manager_key", type: "string", required: true },
       { name: "pool_key", type: "string", required: true },
+    ],
+  },
+  margin_stake: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+      { name: "amount", type: "number", required: true, description: "DEEP amount to stake" },
+    ],
+  },
+  margin_unstake: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+    ],
+  },
+  margin_submit_proposal: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+      { name: "taker_fee", type: "number", required: true },
+      { name: "maker_fee", type: "number", required: true },
+      { name: "stake_required", type: "number", required: true },
+    ],
+  },
+  margin_vote: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
+      { name: "proposal_id", type: "string", required: true },
+    ],
+  },
+  margin_claim_rebate: {
+    fields: [
+      { name: "margin_manager_key", type: "string", required: true },
+      { name: "pool_key", type: "string" },
     ],
   },
   margin_supply_pool: {

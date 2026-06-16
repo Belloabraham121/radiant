@@ -59,6 +59,18 @@ const MARGIN_SETTLED_ACTIONS = new Set([
 
 const MARGIN_ORACLE_ACTIONS = new Set(["deepbook_margin_update_price"]);
 
+const MARGIN_STAKE_ACTIONS = new Set([
+  "deepbook_margin_stake",
+  "deepbook_margin_unstake",
+]);
+
+const MARGIN_GOVERNANCE_ACTIONS = new Set([
+  "deepbook_margin_submit_proposal",
+  "deepbook_margin_vote",
+]);
+
+const MARGIN_REBATE_ACTIONS = new Set(["deepbook_margin_claim_rebate"]);
+
 const PREDICT_ACTIONS = new Set([
   "deepbook_predict_deposit",
   "deepbook_predict_withdraw",
@@ -153,6 +165,18 @@ export function classifyExecuteAction(action: string): ExecuteActionClass {
   }
 
   if (MARGIN_ORACLE_ACTIONS.has(action)) {
+    return "margin";
+  }
+
+  if (MARGIN_STAKE_ACTIONS.has(action)) {
+    return "stake";
+  }
+
+  if (MARGIN_GOVERNANCE_ACTIONS.has(action)) {
+    return "governance";
+  }
+
+  if (MARGIN_REBATE_ACTIONS.has(action)) {
     return "margin";
   }
 

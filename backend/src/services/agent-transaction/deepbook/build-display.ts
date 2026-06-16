@@ -396,6 +396,29 @@ export async function buildTransactionDisplay(
         amount_display = `Execute triggered TPSL (max ${input.params.max_orders ?? 10})`;
         title = "Execute margin TPSL";
         break;
+      case "stake":
+        amount_display =
+          input.params.amount != null || input.params.amount_display != null
+            ? `Stake ${input.params.amount ?? input.params.amount_display} DEEP`
+            : "Stake DEEP via margin manager";
+        title = "Margin stake DEEP";
+        break;
+      case "unstake":
+        amount_display = "Unstake all margin DEEP";
+        title = "Margin unstake DEEP";
+        break;
+      case "submit_proposal":
+        amount_display = `Proposal taker ${input.params.taker_fee ?? "?"} / maker ${input.params.maker_fee ?? "?"}`;
+        title = "Margin governance proposal";
+        break;
+      case "vote":
+        amount_display = `Vote for ${String(input.params.proposal_id ?? "").slice(0, 12)}…`;
+        title = "Margin governance vote";
+        break;
+      case "claim_rebate":
+        amount_display = "Claim margin trading rebates";
+        title = "Claim margin rebate";
+        break;
       default:
         amount_display = `Margin: ${marginAction}`;
         title = "DeepBook margin action";

@@ -38,6 +38,7 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_place_reduce_only_limit_order, deepbook_margin_place_reduce_only_market_order, " +
           "deepbook_margin_cancel_orders, deepbook_margin_cancel_all_orders, " +
           "deepbook_margin_withdraw_settled, deepbook_margin_withdraw_settled_permissionless, deepbook_margin_update_price, " +
+          "deepbook_margin_stake, deepbook_margin_unstake, deepbook_margin_submit_proposal, deepbook_margin_vote, deepbook_margin_claim_rebate, " +
           "deepbook_margin_supply_pool, deepbook_margin_withdraw_pool, " +
           "deepbook_margin_tpsl_add, deepbook_margin_tpsl_cancel, deepbook_margin_tpsl_cancel_all, deepbook_margin_tpsl_execute, " +
           "deepbook_predict_deposit, deepbook_predict_withdraw, deepbook_predict_mint, deepbook_predict_redeem, " +
@@ -79,6 +80,11 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_withdraw_settled: { margin_manager_key, pool_key? }. " +
           "deepbook_margin_withdraw_settled_permissionless: { margin_manager_key, pool_key? }. " +
           "deepbook_margin_update_price: { margin_manager_key, pool_key } — refresh Pyth oracle for margin pool. " +
+          "deepbook_margin_stake: { margin_manager_key, pool_key?, amount_display } — stake DEEP from margin manager (deposit DEEP first). " +
+          "deepbook_margin_unstake: { margin_manager_key, pool_key? }. " +
+          "deepbook_margin_submit_proposal: { margin_manager_key, pool_key?, taker_fee, maker_fee, stake_required } — requires Allow governance in Settings. " +
+          "deepbook_margin_vote: { margin_manager_key, pool_key?, proposal_id } — requires Allow governance in Settings. " +
+          "deepbook_margin_claim_rebate: { margin_manager_key, pool_key? }. " +
           "deepbook_margin_tpsl_add: { pool_key?, margin_manager_key?, tpsl_type: take_profit|stop_loss, trigger_price, order_kind?: limit|market, quantity, price? (limit), is_bid or side }. " +
           "deepbook_margin_tpsl_cancel: { margin_manager_key?, conditional_order_id }. " +
           "deepbook_margin_tpsl_cancel_all: { margin_manager_key?, pool_key? }. " +

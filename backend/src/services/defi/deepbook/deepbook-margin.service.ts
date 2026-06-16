@@ -24,6 +24,11 @@ const MARGIN_ACTIONS = new Set([
   "deepbook_margin_withdraw_settled",
   "deepbook_margin_withdraw_settled_permissionless",
   "deepbook_margin_update_price",
+  "deepbook_margin_stake",
+  "deepbook_margin_unstake",
+  "deepbook_margin_submit_proposal",
+  "deepbook_margin_vote",
+  "deepbook_margin_claim_rebate",
   "deepbook_margin_supply_pool",
   "deepbook_margin_withdraw_pool",
   "deepbook_margin_tpsl_add",
@@ -77,6 +82,16 @@ export function buildMarginActionSummary(
       return "Withdraw settled margin amounts (permissionless)";
     case "deepbook_margin_update_price":
       return `Refresh Pyth oracle price for margin pool ${params.pool_key ?? ""}`.trim();
+    case "deepbook_margin_stake":
+      return `Stake ${params.amount ?? params.amount_display ?? ""} DEEP via margin manager`;
+    case "deepbook_margin_unstake":
+      return "Unstake all DEEP from margin manager pool stake";
+    case "deepbook_margin_submit_proposal":
+      return `Submit margin pool fee proposal (taker ${params.taker_fee}, maker ${params.maker_fee})`;
+    case "deepbook_margin_vote":
+      return `Vote on margin pool proposal ${params.proposal_id}`;
+    case "deepbook_margin_claim_rebate":
+      return "Claim margin trading rebates";
     case "deepbook_margin_supply_pool":
       return `Supply ${params.amount} ${params.coin_type ?? ""} to margin pool`;
     case "deepbook_margin_withdraw_pool":

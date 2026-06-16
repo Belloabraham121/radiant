@@ -41,6 +41,17 @@ describe("DeepBook Margin action classification", () => {
 
   it("classifies margin oracle refresh as 'margin'", () => {
     assert.equal(classifyExecuteAction("deepbook_margin_update_price"), "margin");
+    assert.equal(classifyExecuteAction("deepbook_margin_claim_rebate"), "margin");
+  });
+
+  it("classifies margin stake actions as 'stake'", () => {
+    assert.equal(classifyExecuteAction("deepbook_margin_stake"), "stake");
+    assert.equal(classifyExecuteAction("deepbook_margin_unstake"), "stake");
+  });
+
+  it("classifies margin governance as 'governance'", () => {
+    assert.equal(classifyExecuteAction("deepbook_margin_submit_proposal"), "governance");
+    assert.equal(classifyExecuteAction("deepbook_margin_vote"), "governance");
   });
 
   it("classifies margin TPSL execute as 'margin'", () => {
@@ -58,6 +69,8 @@ describe("DeepBook Margin action classification", () => {
     assert.equal(categorizeAgentTransactionAction("deepbook_margin_cancel_order"), "deepbook_cancel");
     assert.equal(categorizeAgentTransactionAction("deepbook_margin_withdraw_settled"), "deepbook_settled");
     assert.equal(categorizeAgentTransactionAction("deepbook_margin_update_price"), "margin");
+    assert.equal(categorizeAgentTransactionAction("deepbook_margin_stake"), "stake");
+    assert.equal(categorizeAgentTransactionAction("deepbook_margin_vote"), "governance");
   });
 
   it("isDeepBookMarginAction recognizes all margin actions", () => {
@@ -76,6 +89,11 @@ describe("DeepBook Margin action classification", () => {
     assert.equal(isDeepBookMarginAction("deepbook_margin_withdraw_settled"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_withdraw_settled_permissionless"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_update_price"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_stake"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_unstake"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_submit_proposal"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_vote"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_claim_rebate"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_supply_pool"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_withdraw_pool"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_tpsl_add"), true);
@@ -134,6 +152,11 @@ describe("ONCHAIN_ACTION_NAMES includes margin and predict", () => {
     assert.ok(names.includes("margin_withdraw_settled"));
     assert.ok(names.includes("margin_withdraw_settled_permissionless"));
     assert.ok(names.includes("margin_update_price"));
+    assert.ok(names.includes("margin_stake"));
+    assert.ok(names.includes("margin_unstake"));
+    assert.ok(names.includes("margin_submit_proposal"));
+    assert.ok(names.includes("margin_vote"));
+    assert.ok(names.includes("margin_claim_rebate"));
     assert.ok(names.includes("margin_supply_pool"));
     assert.ok(names.includes("margin_withdraw_pool"));
     assert.ok(names.includes("margin_tpsl_add"));
