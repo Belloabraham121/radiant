@@ -68,6 +68,7 @@ model User {
   agent_transactions       AgentTransaction[]
   agent_memory             AgentMemory?
   deepbook_balance_manager DeepBookBalanceManager?
+  deepbook_margin_supplier_cap DeepBookMarginSupplierCap?
   projects                 Project[]
   app_installations        AppInstallation[]
 }
@@ -179,6 +180,16 @@ model DeepBookBalanceManager {
   trade_cap_id      String?
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
+}
+
+model DeepBookMarginSupplierCap {
+  id                     String   @id @default(uuid()) @db.Uuid
+  user_id                BigInt   @unique
+  user                   User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  chain_id               String   @default("sui")
+  supplier_cap_object_id String
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
 }
 
 model AgentWallet {

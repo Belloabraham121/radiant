@@ -12,6 +12,12 @@ import { getPrivyClient } from "../../../infrastructure/privy/client.js";
 import {
   ensureBalanceManager,
 } from "./deepbook-balance-manager.service.js";
+import { resolveMarginPoolCoinKey } from "./margin-pool-coin-key.js";
+import {
+  persistSupplierCapAfterMint,
+  requireSupplierCapForWithdraw,
+  resolveSupplierCapObjectId,
+} from "./margin-supplier-cap.service.js";
 import { getDeepBookClient } from "./providers/sui-deepbook.provider.js";
 
 type CoinSide = "base" | "quote" | "deep";
@@ -171,6 +177,44 @@ async function buildAndSignExecute(
   };
 }
 
+async function buildAndSignExecuteMarginPool(
+  privyUserId: string,
+  walletAddress: string,
+  build: (tx: Transaction, deepbookClient: DeepBookClient) => void,
+): Promise<TxResult> {
+  const agentWallet = await resolveSuiAgentWallet(privyUserId);
+  const privyWallet = await getPrivyClient().wallets().get(agentWallet.privy_wallet_id);
+  if (!privyWallet.public_key) {
+    throw new AppError(502, "WALLET_METADATA_MISSING", "Missing public key on wallet");
+  }
+
+  const dbClient = getDeepBookClient({ address: walletAddress });
+  const tx = new Transaction();
+  tx.setSender(walletAddress);
+  build(tx, dbClient);
+
+  const transactionBytes = await tx.build({ client: getSuiClient() });
+  const serializedSignature = await signSuiTransactionBytes({
+    privyWalletId: agentWallet.privy_wallet_id,
+    suiAddress: walletAddress,
+    publicKeyBase58: privyWallet.public_key,
+    transactionBytes,
+  });
+
+  const result = await executeSignedSuiTransaction({
+    transactionBytes,
+    serializedSignature,
+    suiAddress: walletAddress,
+  });
+
+  return {
+    chain_id: "sui",
+    digest: result.digest,
+    address: result.sui_address,
+    effects_status: result.effects_status,
+  };
+}
+
 export type MarginExecResult = TxResult & {
   margin: {
     action: string;
@@ -179,6 +223,7 @@ export type MarginExecResult = TxResult & {
     coin_type?: string;
     amount?: number;
     asset?: string;
+    supplier_cap?: string;
   };
 };
 
@@ -613,6 +658,78 @@ export async function executeMarginModifyOrder(
   };
 }
 
+export async function executeMarginSupplyPool(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const coinKey = resolveMarginPoolCoinKey(params.coin_type ?? params.coin_key);
+  const amount = parsePositiveAmount(params.amount ?? params.amount_display);
+  const referralId =
+    typeof params.referral_id === "string" && params.referral_id.startsWith("0x")
+      ? params.referral_id
+      : undefined;
+
+  let existingCapId = await resolveSupplierCapObjectId(privyUserId, wallet.address);
+  let mintedNewCap = false;
+
+  const result = await buildAndSignExecuteMarginPool(privyUserId, wallet.address, (tx, client) => {
+    if (!existingCapId) {
+      const capArg = tx.add(client.marginPool.mintSupplierCap());
+      tx.add(client.marginPool.supplyToMarginPool(coinKey, capArg, amount, referralId));
+      mintedNewCap = true;
+    } else {
+      tx.add(
+        client.marginPool.supplyToMarginPool(coinKey, tx.object(existingCapId), amount, referralId),
+      );
+    }
+  });
+
+  let supplierCapId = existingCapId ?? "";
+  if (mintedNewCap) {
+    supplierCapId = await persistSupplierCapAfterMint(privyUserId, result.digest);
+  }
+
+  return {
+    ...result,
+    margin: {
+      action: "supply_pool",
+      margin_manager: supplierCapId,
+      supplier_cap: supplierCapId,
+      pool_key: coinKey,
+      coin_type: coinKey,
+      amount,
+    },
+  };
+}
+
+export async function executeMarginWithdrawPool(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<MarginExecResult> {
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+  const coinKey = resolveMarginPoolCoinKey(params.coin_type ?? params.coin_key);
+  const rawAmount = params.amount ?? params.amount_display;
+  const amount = rawAmount != null ? parsePositiveAmount(rawAmount) : undefined;
+  const supplierCapId = await requireSupplierCapForWithdraw(privyUserId, wallet.address);
+
+  const result = await buildAndSignExecuteMarginPool(privyUserId, wallet.address, (tx, client) => {
+    tx.add(client.marginPool.withdrawFromMarginPool(coinKey, tx.object(supplierCapId), amount));
+  });
+
+  return {
+    ...result,
+    margin: {
+      action: "withdraw_pool",
+      margin_manager: supplierCapId,
+      supplier_cap: supplierCapId,
+      pool_key: coinKey,
+      coin_type: coinKey,
+      amount,
+    },
+  };
+}
+
 /**
  * Preflight check for margin actions — validates prerequisites before showing
  * the approval card. Throws AppError if the user can't proceed (e.g. no margin
@@ -624,15 +741,23 @@ export async function preflightMarginAction(
   action: string,
   params: Record<string, unknown>,
 ): Promise<void> {
-  if (action === "deepbook_margin_supply_pool" || action === "deepbook_margin_withdraw_pool") {
-    throw new AppError(
-      501,
-      "MARGIN_SUPPLY_NOT_LIVE",
-      "Margin pool supply/withdrawal requires a SupplierCap NFT and is not yet automated.",
-    );
+  const wallet = await resolveSuiAgentWallet(privyUserId);
+
+  if (action === "deepbook_margin_supply_pool") {
+    resolveMarginPoolCoinKey(params.coin_type ?? params.coin_key);
+    parsePositiveAmount(params.amount ?? params.amount_display);
+    return;
   }
 
-  const wallet = await resolveSuiAgentWallet(privyUserId);
+  if (action === "deepbook_margin_withdraw_pool") {
+    resolveMarginPoolCoinKey(params.coin_type ?? params.coin_key);
+    const rawAmount = params.amount ?? params.amount_display;
+    if (rawAmount != null) {
+      parsePositiveAmount(rawAmount);
+    }
+    return;
+  }
+
   const managerIds = await fetchMarginManagerIdsForOwner(wallet.address);
 
   if (managerIds.length === 0) {
@@ -679,19 +804,9 @@ export async function executeMarginAction(
     case "deepbook_margin_modify_order":
       return executeMarginModifyOrder(privyUserId, params);
     case "deepbook_margin_supply_pool":
-      throw new AppError(
-        501,
-        "MARGIN_SUPPLY_NOT_LIVE",
-        "Margin pool supply requires a SupplierCap NFT. This action is not yet automated — " +
-        "use the DeepBook margin UI directly for pool supply operations.",
-      );
+      return executeMarginSupplyPool(privyUserId, params);
     case "deepbook_margin_withdraw_pool":
-      throw new AppError(
-        501,
-        "MARGIN_SUPPLY_NOT_LIVE",
-        "Margin pool withdrawal requires a SupplierCap NFT. This action is not yet automated — " +
-        "use the DeepBook margin UI directly for pool withdrawal operations.",
-      );
+      return executeMarginWithdrawPool(privyUserId, params);
     default:
       throw new AppError(400, "UNKNOWN_MARGIN_ACTION", `Unknown margin action: ${action}`);
   }

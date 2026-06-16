@@ -1,9 +1,11 @@
 import {
   mainnetCoins,
   mainnetMarginPools,
+  mainnetPackageIds,
   mainnetPools,
   testnetCoins,
   testnetMarginPools,
+  testnetPackageIds,
   testnetPools,
   type CoinMap,
   type PoolMap,
@@ -127,6 +129,18 @@ export function getMarginEnabledPoolKeys(): string[] {
   }
 
   return results;
+}
+
+/** Margin Move package id for the active DeepBook network. */
+export function getMarginPackageId(): string {
+  return getDeepBookEnv().env === "testnet"
+    ? testnetPackageIds.MARGIN_PACKAGE_ID
+    : mainnetPackageIds.MARGIN_PACKAGE_ID;
+}
+
+/** Fully qualified SupplierCap struct type for owned-object lookups. */
+export function getMarginSupplierCapType(): string {
+  return `${getMarginPackageId()}::margin_pool::SupplierCap`;
 }
 
 /** Test hook — reset cached env. */
