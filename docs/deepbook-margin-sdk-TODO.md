@@ -29,7 +29,7 @@ Leveraged trading on Sui via **DeepBook Margin** (`@mysten/deepbook-v3` margin m
 | User deposits collateral / borrows / repays       | `deepbook_margin_deposit`, `_borrow`, `_repay`, `_withdraw`                                           | Done                    |
 | User places leveraged limit or market order       | `deepbook_margin_place_limit_order`, `_place_market_order`                                            | Done                    |
 | User cancels or modifies a margin order           | `deepbook_margin_cancel_order`, `_modify_order`                                                       | Done                    |
-| User asks risk ratio, balances, debt              | `margin_manager_info` returns live `managerState` from SDK                                            | **Not done**            |
+| User asks risk ratio, balances, debt              | `margin_manager_info` returns live `managerState` from SDK                                            | Done                    |
 | User asks margin pool utilization / interest rate | `margin_pool_info` returns live on-chain metrics                                                      | **Not done**            |
 | User sets take-profit / stop-loss                 | TPSL conditional order actions + query                                                                | **Not done**            |
 | User supplies liquidity to margin pool            | SupplierCap mint + supply / withdraw                                                                  | **Done** |
@@ -51,6 +51,7 @@ Check off when verified in production; all items below exist in code today.
 | [x]    | `borrowBase`, `borrowQuote`                     | `deepbook_margin_borrow`                                    | `deepbook-margin-execution.service.ts`                    |
 | [x]    | `repayBase`, `repayQuote`                       | `deepbook_margin_repay`                                     | `deepbook-margin-execution.service.ts`                    |
 | [x]    | On-chain address lookup                         | `query_chain` → `margin_manager_info` (address/key only)    | `margin-manager-lookup.service.ts`, `query-chain.tool.ts` |
+| [x]    | Live manager state (SDK reads)                  | `query_chain` → `margin_manager_info` + `live_state`        | `deepbook-margin-read.service.ts`                         |
 
 ### Orders — write
 
@@ -77,7 +78,7 @@ Check off when verified in production; all items below exist in code today.
 | [x]    | `app-action-registry.ts` + `app-action-param-schemas.ts`           |
 | [x]    | `classify-execute-action.ts` margin / order categories             |
 | [x]    | Agent prompts (`prompts.ts`) — provision, deposit, borrow flow     |
-| [x]    | `summarize-query-chain.ts` — `margin_manager_info` address summary |
+| [x]    | `summarize-query-chain.ts` — `margin_manager_info` live state summary |
 | [x]    | `margin-approval-flow.ts` deposit/borrow nudges                    |
 | [x]    | Unit tests for action classification                               | `deepbook-margin-predict.test.ts` |
 
@@ -91,15 +92,15 @@ Wire SDK read functions into `query_chain margin_manager_info` ([Margin Manager 
 
 | Status | Task                                                       | Implementation detail                                                  |
 | ------ | ---------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [ ]    | Create `deepbook-margin-read.service.ts`                   | Build `DeepBookClient` with `marginManagers` map; call SDK read APIs   |
-| [ ]    | `managerState`                                             | Return risk ratio, assets, debts, Pyth price snapshot                  |
-| [ ]    | `baseBalance`, `quoteBalance`, `deepBalance`               | Individual collateral balances                                         |
-| [ ]    | `borrowedBaseShares`, `borrowedQuoteShares`, `hasBaseDebt` | Debt side                                                              |
-| [ ]    | `owner`, `deepbookPool`, `marginPoolId`                    | Metadata                                                               |
-| [ ]    | Extend `margin_manager_info` response                      | Merge lookup + live state; keep `margin_manager_key: "default"`        |
-| [ ]    | Update `summarize-query-chain.ts`                          | Human-readable risk ratio + balances for the model                     |
-| [ ]    | Fix tool description in `query-chain.tool.ts`              | Description already promises balances/risk — align with implementation |
-| [ ]    | Unit tests                                                 | Mock SDK read responses                                                |
+| [x]    | Create `deepbook-margin-read.service.ts`                   | Build `DeepBookClient` with `marginManagers` map; call SDK read APIs   |
+| [x]    | `managerState`                                             | Return risk ratio, assets, debts, Pyth price snapshot                  |
+| [x]    | `baseBalance`, `quoteBalance`, `deepBalance`               | Individual collateral balances                                         |
+| [x]    | `borrowedBaseShares`, `borrowedQuoteShares`, `hasBaseDebt` | Debt side                                                              |
+| [x]    | `owner`, `deepbookPool`, `marginPoolId`                    | Metadata                                                               |
+| [x]    | Extend `margin_manager_info` response                      | Merge lookup + live state; keep `margin_manager_key: "default"`        |
+| [x]    | Update `summarize-query-chain.ts`                          | Human-readable risk ratio + balances for the model                     |
+| [x]    | Fix tool description in `query-chain.tool.ts`              | Description already promises balances/risk — align with implementation |
+| [x]    | Unit tests                                                 | Mock SDK read responses                                                |
 
 ### 1.2 Margin Pool — read-only state
 

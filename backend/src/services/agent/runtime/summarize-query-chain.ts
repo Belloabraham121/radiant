@@ -13,6 +13,10 @@ import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-fl
 import type { DeepBookOpenOrdersResult } from "../../defi/deepbook/deepbook-orders.service.js";
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
 import type { AgentTransactionsQueryResult } from "../../agent-transaction/agent-transaction.types.js";
+import {
+  formatMarginManagerLiveStateSummary,
+  type MarginManagerInfoQueryResult,
+} from "../../defi/deepbook/deepbook-margin-read.service.js";
 
 function isAgentTransactionsResult(result: unknown): result is AgentTransactionsQueryResult {
   return (
@@ -126,16 +130,9 @@ export function summarizeQueryChainResult(result: unknown): string | null {
       : "DeepBook manager not provisioned yet";
   }
 
-  const marginInfo = result as {
-    provisioned?: boolean;
-    margin_manager_address?: string;
-    margin_manager_key?: string;
-    manager_count?: number;
-    lookup_source?: string;
-    note?: string;
-  };
-  if (typeof marginInfo.provisioned === "boolean" && "margin_manager_address" in marginInfo) {
-    if (!marginInfo.provisioned) {
+  const marginInfo = result as MarginManagerInfoQueryResult;
+  if (typeof marginInfo.provisioned === "boolean") {
+    if (!marginInfo.provisioned || !marginInfo.margin_manager_address) {
       return marginInfo.note ?? "No margin manager found on-chain for this wallet.";
     }
     const key = marginInfo.margin_manager_key ?? "default";
@@ -143,10 +140,16 @@ export function summarizeQueryChainResult(result: unknown): string | null {
       marginInfo.lookup_source === "agent_ledger_fallback"
         ? " (recovered from recent transaction — live RPC was temporarily unavailable)"
         : "";
+    const liveSummary = marginInfo.live_state
+      ? `\nLive state: ${formatMarginManagerLiveStateSummary(marginInfo.live_state)}`
+      : marginInfo.live_state_error
+        ? `\nLive state unavailable: ${marginInfo.live_state_error}`
+        : "";
     return (
       `Margin manager address: ${marginInfo.margin_manager_address}. ` +
-      `Use margin_manager_key "${key}" for deposits, borrows, and orders${source}. ` +
-      (marginInfo.note ?? "")
+      `Use margin_manager_key "${key}" for deposits, borrows, and orders${source}.` +
+      liveSummary +
+      (marginInfo.note ? `\n${marginInfo.note}` : "")
     );
   }
 

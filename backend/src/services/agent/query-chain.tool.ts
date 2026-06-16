@@ -45,7 +45,7 @@ import {
 import { getPredictObjectId } from "../defi/deepbook/deepbook-predict.service.js";
 import { MARGIN_POOL_CONFIGS } from "../defi/deepbook/deepbook-margin.service.js";
 import { getMarginEnabledPoolKeys } from "../../config/deepbook.js";
-import { resolveMarginManagerIdsForUser } from "../defi/deepbook/margin-manager-lookup.service.js";
+import { queryMarginManagerInfo } from "../defi/deepbook/deepbook-margin-read.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -134,7 +134,7 @@ export const queryChainToolDefinition = {
           "project_actions: { project_id } OR { app_name } — saved project action schema. Never pass an app name as project_id. " +
           "session_actions: optional { app_name } — chat draft artifact action schema (unsaved preview). Uses current chat session. " +
           "margin_pool_info: { pool_key? } — margin pool state (supply, borrow, interest rate, utilization, max leverage). " +
-          "margin_manager_info: { margin_manager_key? } — margin manager balances, borrowed amounts, risk ratio. " +
+          "margin_manager_info: { margin_manager_key?, pool_key? } — margin manager address, live balances, borrowed amounts, and risk ratio. " +
           "predict_markets: {} — active oracles with spot/forward prices, lifecycle, expiry. " +
           "predict_trade_amounts: { oracle_id, expiry, strike, is_up, quantity } — preview mint cost and redeem payout for a binary position. " +
           "predict_range_amounts: { oracle_id, expiry, lower_strike, higher_strike, quantity } — preview for range position. " +
@@ -297,38 +297,7 @@ export async function runQueryChainTool(
     }
     case "margin_manager_info": {
       assertSuiDeepBookQuery(parsed.chain_id);
-      const marginEnabledPoolsForManager = getMarginEnabledPoolKeys();
-      const marginWallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
-      if (!marginWallet) {
-        return {
-          provisioned: false,
-          note: "No Sui agent wallet found. The user needs to set up their wallet first.",
-          available_margin_pools: marginEnabledPoolsForManager,
-        };
-      }
-      const lookup = await resolveMarginManagerIdsForUser(privyUserId, marginWallet.address);
-      const marginManagerIds = lookup.margin_manager_ids;
-      if (marginManagerIds.length === 0) {
-        return {
-          provisioned: false,
-          note: "No margin manager found on-chain. Create one with execute_transaction action deepbook_provision_margin_manager {}.",
-          available_margin_pools: marginEnabledPoolsForManager,
-        };
-      }
-      return {
-        provisioned: true,
-        margin_manager_key: "default",
-        margin_manager_address: marginManagerIds[0],
-        manager_count: marginManagerIds.length,
-        lookup_source: lookup.source,
-        ...(lookup.rpc_warning ? { rpc_warning: lookup.rpc_warning } : {}),
-        available_margin_pools: marginEnabledPoolsForManager,
-        note:
-          lookup.source === "agent_ledger_fallback"
-            ? "Margin manager address recovered from your recent executed agent transaction because live Sui RPC lookup failed. Use margin_manager_key \"default\" for follow-up margin actions."
-            : "Margin manager exists on-chain. For execute_transaction margin actions pass margin_manager_key: \"default\" — " +
-              "the platform resolves the address from your wallet. Share margin_manager_address with the user when they ask for their key.",
-      };
+      return queryMarginManagerInfo(privyUserId, parsed.params);
     }
     case "predict_markets": {
       assertSuiDeepBookQuery(parsed.chain_id);
