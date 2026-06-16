@@ -148,6 +148,36 @@ export function getMarginSupplyReferralType(): string {
   return `${getMarginPackageId()}::protocol_fees::SupplyReferral`;
 }
 
+/** Whether margin maintainer admin execute actions are enabled (off by default). */
+export function isDeepBookMarginMaintainerEnabled(): boolean {
+  return optional("DEEPBOOK_MARGIN_MAINTAINER_ENABLED", "").toLowerCase() === "true";
+}
+
+/** Maintainer capability object id for createMarginPool and related registry ops. */
+export function getMarginMaintainerCapId(): string | undefined {
+  const id = optional("DEEPBOOK_MARGIN_MAINTAINER_CAP_ID", "").trim();
+  return id.startsWith("0x") ? id : undefined;
+}
+
+/** Margin admin capability for protocol-fee and default-referral withdrawals. */
+export function getMarginAdminCapId(): string | undefined {
+  const id = optional("DEEPBOOK_MARGIN_ADMIN_CAP_ID", "").trim();
+  return id.startsWith("0x") ? id : undefined;
+}
+
+/** Margin pool cap for per-pool maintainer operations (enable/disable loans, maintainer fees). */
+export function getMarginPoolCapId(): string | undefined {
+  const id = optional("DEEPBOOK_MARGIN_POOL_CAP_ID", "").trim();
+  return id.startsWith("0x") ? id : undefined;
+}
+
+/** Registry id for the active DeepBook margin network. */
+export function getMarginRegistryId(): string {
+  return getDeepBookEnv().env === "testnet"
+    ? testnetPackageIds.MARGIN_REGISTRY_ID
+    : mainnetPackageIds.MARGIN_REGISTRY_ID;
+}
+
 /** Test hook — reset cached env. */
 export function resetDeepBookEnvForTests(): void {
   cached = undefined;

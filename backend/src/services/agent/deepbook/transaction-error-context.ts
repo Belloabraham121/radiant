@@ -208,6 +208,19 @@ export function buildTransactionErrorUserContext(
         "Requires a previously minted SupplyReferral for the pool asset.",
       );
       break;
+    case "deepbook_margin_maintainer_create_pool":
+    case "deepbook_margin_maintainer_enable_pool_for_loan":
+    case "deepbook_margin_maintainer_disable_pool_for_loan":
+    case "deepbook_margin_maintainer_update_interest_params":
+    case "deepbook_margin_maintainer_update_pool_config":
+    case "deepbook_margin_maintainer_withdraw_maintainer_fees":
+    case "deepbook_margin_maintainer_withdraw_protocol_fees":
+    case "deepbook_margin_maintainer_admin_withdraw_default_referral_fees":
+      parts.push(
+        "The user requested a margin protocol maintainer/admin action.",
+        "Requires DEEPBOOK_MARGIN_MAINTAINER_ENABLED and server-side capability object IDs.",
+      );
+      break;
     case "deepbook_predict_deposit":
     case "deepbook_predict_withdraw":
       parts.push(

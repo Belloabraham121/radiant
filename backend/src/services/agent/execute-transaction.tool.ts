@@ -42,6 +42,10 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_liquidate, deepbook_margin_set_referral, deepbook_margin_unset_referral, " +
           "deepbook_margin_supply_pool, deepbook_margin_withdraw_pool, " +
           "deepbook_margin_mint_supply_referral, deepbook_margin_withdraw_referral_fees, " +
+          "deepbook_margin_maintainer_create_pool, deepbook_margin_maintainer_enable_pool_for_loan, " +
+          "deepbook_margin_maintainer_disable_pool_for_loan, deepbook_margin_maintainer_update_interest_params, " +
+          "deepbook_margin_maintainer_update_pool_config, deepbook_margin_maintainer_withdraw_maintainer_fees, " +
+          "deepbook_margin_maintainer_withdraw_protocol_fees, deepbook_margin_maintainer_admin_withdraw_default_referral_fees, " +
           "deepbook_margin_tpsl_add, deepbook_margin_tpsl_cancel, deepbook_margin_tpsl_cancel_all, deepbook_margin_tpsl_execute, " +
           "deepbook_predict_deposit, deepbook_predict_withdraw, deepbook_predict_mint, deepbook_predict_redeem, " +
           "deepbook_predict_mint_range, deepbook_predict_redeem_range, deepbook_predict_supply, deepbook_predict_lp_withdraw.",

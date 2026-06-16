@@ -41,6 +41,10 @@ import {
 } from "../../defi/deepbook/deepbook-stake.service.js";
 import { isDeepBookMarginAction } from "../../defi/deepbook/deepbook-margin.service.js";
 import { executeMarginAction, executeProvisionMarginManager } from "../../defi/deepbook/deepbook-margin-execution.service.js";
+import {
+  executeMarginMaintainerAction,
+  isDeepBookMarginMaintainerAction,
+} from "../../defi/deepbook/deepbook-margin-maintainer.service.js";
 import { isDeepBookPredictAction, buildPredictActionSummary } from "../../defi/deepbook/deepbook-predict.service.js";
 import {
   executeDeepBookSubmitProposal,
@@ -391,6 +395,17 @@ export const suiAdapter: ChainAdapter = {
           },
           already_provisioned: provisionResult.already_provisioned,
         },
+      };
+    }
+
+    if (isDeepBookMarginMaintainerAction(action)) {
+      const maintainerResult = await executeMarginMaintainerAction(action, privyUserId, params);
+      return {
+        chain_id: "sui",
+        digest: maintainerResult.digest,
+        address: maintainerResult.address,
+        effects_status: maintainerResult.effects_status,
+        deepbook: { margin_maintainer: maintainerResult.margin_maintainer },
       };
     }
 

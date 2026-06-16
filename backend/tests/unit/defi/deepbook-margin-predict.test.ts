@@ -5,6 +5,7 @@ import {
   classifyExecuteAction,
 } from "../../../src/services/agent/deepbook/classify-execute-action.js";
 import { isDeepBookMarginAction } from "../../../src/services/defi/deepbook/deepbook-margin.service.js";
+import { isDeepBookMarginMaintainerAction } from "../../../src/services/defi/deepbook/deepbook-margin-maintainer.service.js";
 import { isDeepBookPredictAction } from "../../../src/services/defi/deepbook/deepbook-predict.service.js";
 import { ONCHAIN_ACTION_NAMES } from "../../../src/services/projects/app-action.types.js";
 
@@ -68,6 +69,19 @@ describe("DeepBook Margin action classification", () => {
 
   it("classifies margin modify as 'modify'", () => {
     assert.equal(classifyExecuteAction("deepbook_margin_modify_order"), "modify");
+  });
+
+  it("classifies margin maintainer actions as 'other'", () => {
+    assert.equal(classifyExecuteAction("deepbook_margin_maintainer_create_pool"), "other");
+    assert.equal(classifyExecuteAction("deepbook_margin_maintainer_withdraw_protocol_fees"), "other");
+    assert.equal(categorizeAgentTransactionAction("deepbook_margin_maintainer_create_pool"), "other");
+  });
+
+  it("isDeepBookMarginMaintainerAction recognizes maintainer actions", () => {
+    assert.equal(isDeepBookMarginMaintainerAction("deepbook_margin_maintainer_create_pool"), true);
+    assert.equal(isDeepBookMarginMaintainerAction("deepbook_margin_maintainer_enable_pool_for_loan"), true);
+    assert.equal(isDeepBookMarginMaintainerAction("deepbook_margin_deposit"), false);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_maintainer_create_pool"), false);
   });
 
   it("maps margin to correct ledger category", () => {

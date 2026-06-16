@@ -89,6 +89,11 @@ export type TxResult = {
       amount?: number;
       asset?: string;
     };
+    margin_maintainer?: {
+      action: string;
+      coin_type?: string;
+      pool_key?: string;
+    };
   };
 };
 

@@ -79,6 +79,17 @@ const MARGIN_REFERRAL_ACTIONS = new Set([
   "deepbook_margin_unset_referral",
 ]);
 
+const MARGIN_MAINTAINER_ACTIONS = new Set([
+  "deepbook_margin_maintainer_create_pool",
+  "deepbook_margin_maintainer_enable_pool_for_loan",
+  "deepbook_margin_maintainer_disable_pool_for_loan",
+  "deepbook_margin_maintainer_update_interest_params",
+  "deepbook_margin_maintainer_update_pool_config",
+  "deepbook_margin_maintainer_withdraw_maintainer_fees",
+  "deepbook_margin_maintainer_withdraw_protocol_fees",
+  "deepbook_margin_maintainer_admin_withdraw_default_referral_fees",
+]);
+
 const PREDICT_ACTIONS = new Set([
   "deepbook_predict_deposit",
   "deepbook_predict_withdraw",
@@ -194,6 +205,10 @@ export function classifyExecuteAction(action: string): ExecuteActionClass {
 
   if (MARGIN_REFERRAL_ACTIONS.has(action)) {
     return "margin";
+  }
+
+  if (MARGIN_MAINTAINER_ACTIONS.has(action)) {
+    return "other";
   }
 
   if (action === "deepbook_margin_modify_order") {
