@@ -88,6 +88,8 @@ export type TxResult = {
       coin_type?: string;
       amount?: number;
       asset?: string;
+      supplier_cap?: string;
+      referral_id?: string;
     };
     margin_maintainer?: {
       action: string;

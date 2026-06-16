@@ -6,7 +6,7 @@ import {
 import { isDeepBookFlashLoanAction } from "../../defi/deepbook/deepbook-flash-loan.service.js";
 import { isDeepBookStakeAction } from "../../defi/deepbook/deepbook-stake.service.js";
 import { isDeepBookGovernanceAction } from "../../defi/deepbook/deepbook-governance.service.js";
-import { isDeepBookProvisionAction } from "./validate-execute-transaction.js";
+import { isDeepBookProvisionAction } from "./deepbook-provision-actions.js";
 import type { AgentTransactionCategory } from "../../agent-transaction/agent-transaction.types.js";
 
 const TRANSFER_ACTIONS = new Set([

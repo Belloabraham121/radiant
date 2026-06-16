@@ -150,6 +150,11 @@ const queryChainInputObjectSchema = z.object({
     "margin_manager_info",
     "margin_tpsl_info",
     "margin_open_orders",
+    "margin_liquidations",
+    "margin_collateral_history",
+    "margin_loan_history",
+    "margin_at_risk_states",
+    "margin_managers_info",
     "predict_markets",
     "predict_trade_amounts",
     "predict_range_amounts",
@@ -242,6 +247,10 @@ export const queryChainInputSchema = z.preprocess((input) => {
   const queryLimitMax: Partial<Record<string, number>> = {
     agent_transactions: 10,
     deepbook_trades: 200,
+    margin_liquidations: 200,
+    margin_collateral_history: 200,
+    margin_loan_history: 200,
+    margin_at_risk_states: 200,
     deepbook_ohlcv: 500,
     deepbook_volume: 365,
   };

@@ -108,6 +108,37 @@ describe("ensureAppEntry", () => {
     assert.ok(result.some((f) => f.path === "lib/radiant-agent-runtime.ts"));
   });
 
+  it("injects reference MarginTradingApp when template is margin", () => {
+    const result = ensureAppEntry([], { template: "margin" });
+    assert.ok(result.some((f) => f.path === "components/MarginTradingApp.tsx"));
+    assert.ok(result.some((f) => f.path === "lib/radiant-actions.ts"));
+    assert.ok(result.some((f) => f.path === "lib/margin-agent-handlers.ts"));
+    const page = result.find((f) => f.path === "app/page.tsx");
+    assert.ok(page);
+    assert.match(page!.content, /MarginTradingApp/);
+    assert.match(page!.content, /margin-agent-handlers/);
+    const manifest = result.find((f) => f.path === "lib/radiant-actions.ts");
+    assert.ok(manifest);
+    assert.match(manifest!.content, /margin_provision_manager/);
+    assert.match(manifest!.content, /margin_deposit/);
+    const component = result.find((f) => f.path === "components/MarginTradingApp.tsx");
+    assert.ok(component);
+    assert.match(component!.content, /marginManagerInfo/);
+    assert.match(component!.content, /marginRiskRatio/);
+    assert.match(component!.content, /margin-provision-submit/);
+  });
+
+  it("preserves agent-authored margin files over reference defaults", () => {
+    const custom = "export default function MarginTradingApp() { return <div>Custom</div>; }";
+    const result = ensureAppEntry(
+      [{ path: "components/MarginTradingApp.tsx", content: custom }],
+      { template: "margin" },
+    );
+    const component = result.find((f) => f.path === "components/MarginTradingApp.tsx");
+    assert.equal(component?.content, custom);
+    assert.ok(result.some((f) => f.path === "lib/radiant-actions.ts"));
+  });
+
   it("injects Tailwind import into globals.css for deploy builds", () => {
     assert.match(
       ensureTailwindInGlobalsCss(":root { --hero-bg: #fff; }"),

@@ -10,6 +10,7 @@ import {
   RADIANT_AGENT_RUNTIME_TS,
   RADIANT_AGENT_RUNTIME_VERSION,
 } from "./radiant-agent-runtime-template.js";
+import { mergeMarginReferenceFiles } from "./margin-app-reference.template.js";
 import { normalizeArtifactFileContent } from "./artifact-file-content.js";
 
 export { RADIANT_CLIENT_TEMPLATE_VERSION };
@@ -150,10 +151,15 @@ function defaultGlobalsCss(): string {
  */
 export function ensureAppEntry(
   files: ArtifactFileInput[],
-  _options: EnsureAppEntryOptions = {},
+  options: EnsureAppEntryOptions = {},
 ): ArtifactFileInput[] {
+  let seeded = files;
+  if (options.template === "margin") {
+    seeded = mergeMarginReferenceFiles(seeded);
+  }
+
   let next = injectPlatformFiles(
-    files.map((file) => ({
+    seeded.map((file) => ({
       ...file,
       content: normalizeArtifactFileContent(file.content),
     })),

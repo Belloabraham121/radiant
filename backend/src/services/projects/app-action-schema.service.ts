@@ -369,6 +369,10 @@ function resolveStoredOrInferredSchema(project: ProjectActionSchemaSource): Proj
     return buildDefaultDeepBookActionSchema(project.id, DEFAULT_SWAP_TEMPLATE_ACTIONS);
   }
 
+  if (project.template === "margin") {
+    return buildDefaultDeepBookActionSchema(project.id, DEFAULT_MARGIN_TEMPLATE_ACTIONS);
+  }
+
   return emptyCustomSchema(project.id);
 }
 

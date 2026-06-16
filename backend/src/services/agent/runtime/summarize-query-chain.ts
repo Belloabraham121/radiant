@@ -40,12 +40,25 @@ function isAgentTransactionsResult(result: unknown): result is AgentTransactions
   );
 }
 
+function isMarginIndexerResult(result: unknown): result is { source: "indexer"; summary: string } {
+  return (
+    typeof result === "object" &&
+    result !== null &&
+    (result as { source?: string }).source === "indexer" &&
+    typeof (result as { summary?: string }).summary === "string"
+  );
+}
+
 export function summarizeQueryChainResult(result: unknown): string | null {
   if (typeof result !== "object" || result === null) {
     return null;
   }
 
   if (isAgentTransactionsResult(result)) {
+    return result.summary;
+  }
+
+  if (isMarginIndexerResult(result)) {
     return result.summary;
   }
 

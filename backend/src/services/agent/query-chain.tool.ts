@@ -47,6 +47,13 @@ import { queryMarginManagerInfo } from "../defi/deepbook/deepbook-margin-read.se
 import { queryMarginPoolInfo } from "../defi/deepbook/deepbook-margin-pool-read.service.js";
 import { queryMarginTpslInfo } from "../defi/deepbook/deepbook-margin-tpsl-read.service.js";
 import { queryMarginOpenOrders } from "../defi/deepbook/deepbook-margin-open-orders-read.service.js";
+import {
+  queryMarginAtRiskStates,
+  queryMarginCollateralHistory,
+  queryMarginLiquidations,
+  queryMarginLoanHistory,
+  queryMarginManagersInfo,
+} from "../defi/deepbook/deepbook-margin-indexer-read.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -107,6 +114,11 @@ export const queryChainToolDefinition = {
           "margin_manager_info",
           "margin_tpsl_info",
           "margin_open_orders",
+          "margin_liquidations",
+          "margin_collateral_history",
+          "margin_loan_history",
+          "margin_at_risk_states",
+          "margin_managers_info",
           "predict_markets",
           "predict_trade_amounts",
           "predict_range_amounts",
@@ -114,7 +126,7 @@ export const queryChainToolDefinition = {
           "predict_vault_summary",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, margin_pool_info, margin_manager_info, margin_tpsl_info, margin_open_orders, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, or predict_vault_summary.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, margin_pool_info, margin_manager_info, margin_tpsl_info, margin_open_orders, margin_liquidations, margin_collateral_history, margin_loan_history, margin_at_risk_states, margin_managers_info, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, or predict_vault_summary.",
       },
       params: {
         type: "object",
@@ -141,6 +153,11 @@ export const queryChainToolDefinition = {
           "margin_manager_info: { margin_manager_key?, pool_key? } — margin manager address, live balances, borrowed amounts, and risk ratio. " +
           "margin_tpsl_info: { conditional_order_id? } — conditional TPSL order IDs, take-profit/stop-loss trigger bounds. " +
           "margin_open_orders: { margin_manager_key?, pool_key? } — open leveraged margin orders (not balance-manager deepbook_open_orders). " +
+          "margin_liquidations: { margin_manager_id?, margin_pool_id?, start_time?, end_time?, limit? } — liquidation events from DeepBook margin indexer. " +
+          "margin_collateral_history: { margin_manager_id?, margin_manager_key?, type?: Deposit|Withdraw, start_time?, end_time?, limit? } — collateral deposit/withdraw history. " +
+          "margin_loan_history: { margin_manager_id?, margin_pool_id?, start_time?, end_time?, limit? } — borrow and repay events. " +
+          "margin_at_risk_states: { pool_key?, deepbook_pool_id?, max_risk_ratio?, limit? } — margin manager states filtered by risk (defaults to wallet managers when scoped). " +
+          "margin_managers_info: {} — indexed margin managers across DeepBook pools. " +
           "predict_markets: {} — active oracles with spot/forward prices, lifecycle, expiry. " +
           "predict_trade_amounts: { oracle_id, expiry, strike, is_up, quantity } — preview mint cost and redeem payout for a binary position. " +
           "predict_range_amounts: { oracle_id, expiry, lower_strike, higher_strike, quantity } — preview for range position. " +
@@ -303,6 +320,26 @@ export async function runQueryChainTool(
     case "margin_open_orders": {
       assertSuiDeepBookQuery(parsed.chain_id);
       return queryMarginOpenOrders(privyUserId, parsed.params);
+    }
+    case "margin_liquidations": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginLiquidations(privyUserId, parsed.params);
+    }
+    case "margin_collateral_history": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginCollateralHistory(privyUserId, parsed.params);
+    }
+    case "margin_loan_history": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginLoanHistory(privyUserId, parsed.params);
+    }
+    case "margin_at_risk_states": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginAtRiskStates(privyUserId, parsed.params);
+    }
+    case "margin_managers_info": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginManagersInfo(privyUserId, parsed.params);
     }
     case "predict_markets": {
       assertSuiDeepBookQuery(parsed.chain_id);

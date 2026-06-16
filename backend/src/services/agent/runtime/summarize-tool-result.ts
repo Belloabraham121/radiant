@@ -38,8 +38,40 @@ export function formatExecutedTxSummary(result: TxResult): string {
     ? `Tx digest: ${result.digest}`
     : "Transaction succeeded (no digest — already provisioned on-chain).";
 
+  const maintainer = result.deepbook?.margin_maintainer;
+  if (maintainer?.action) {
+    const coinPart = maintainer.coin_type ? ` for ${maintainer.coin_type}` : "";
+    const poolPart = maintainer.pool_key ? ` on ${maintainer.pool_key}` : "";
+    return `${digestPart} Margin maintainer ${maintainer.action.replace(/_/g, " ")}${coinPart}${poolPart}.`;
+  }
+
   const margin = result.deepbook?.margin;
-  if (!margin?.margin_manager) {
+  if (!margin?.margin_manager && !margin?.supplier_cap && !margin?.referral_id) {
+    return digestPart;
+  }
+
+  if (margin.action === "supply_pool" || margin.action === "withdraw_pool") {
+    const capPart = margin.supplier_cap ?? margin.margin_manager;
+    const amountPart = margin.amount != null ? ` ${margin.amount}` : "";
+    const coinPart = margin.coin_type ?? margin.pool_key ?? "pool";
+    return (
+      `${digestPart} Margin pool ${margin.action.replace(/_/g, " ")}:${amountPart} ${coinPart}. ` +
+      `SupplierCap: ${capPart}.`
+    );
+  }
+
+  if (margin.action === "mint_supply_referral" && margin.referral_id) {
+    return (
+      `${digestPart} Minted margin supply referral for ${margin.pool_key ?? margin.coin_type ?? "pool"}. ` +
+      `Referral ID: ${margin.referral_id}.`
+    );
+  }
+
+  if (margin.action === "withdraw_referral_fees") {
+    return `${digestPart} Withdrew margin pool referral fees for ${margin.pool_key ?? margin.coin_type ?? "pool"}.`;
+  }
+
+  if (!margin.margin_manager) {
     return digestPart;
   }
 

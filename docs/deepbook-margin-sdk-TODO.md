@@ -160,7 +160,7 @@ Wire SDK read functions into `query_chain margin_pool_info` ([Margin Pool SDK �
 | Status | Task                           | Implementation detail                                                                                                             |
 | ------ | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
 | [x]    | Margin open orders query       | New `query_chain` type e.g. `margin_open_orders` (do not reuse balance-manager `deepbook_open_orders`)                            |
-| [ ]    | Indexer integration (optional) | [DeepBook Margin Indexer](https://docs.sui.io/onchain-finance/deepbook-margin/deepbook-margin-indexer) for history / liquidations |
+| [x]    | Indexer integration (optional) | [DeepBook Margin Indexer](https://docs.sui.io/onchain-finance/deepbook-margin/deepbook-margin-indexer) for history / liquidations |
 
 ### 2.3 Orders — stake, governance, rebates
 
@@ -239,8 +239,8 @@ Wire SDK read functions into `query_chain margin_pool_info` ([Margin Pool SDK �
 | [x]    | `sui.ts` adapter                                         | Route new actions to execution services              |
 | [x]    | `radiant-agent-runtime-template.ts`                      | Client SDK helpers for generated apps                |
 | [x]    | Unit tests                                               | Extend `deepbook-margin-predict.test.ts`             |
-| [ ]    | `validate-execute-transaction.ts`                        | Zod / validation for new params                      |
-| [ ]    | `summarize-tool-result.ts`                               | Margin maintainer / referral execute summaries       |
+| [x]    | `validate-execute-transaction.ts`                        | Zod / validation for new params                      |
+| [x]    | `summarize-tool-result.ts`                               | Margin maintainer / referral execute summaries       |
 | [x]    | `radiant-client-template.ts`                             | REST helpers wired to live margin read routes        |
 | [x]    | Update [deepbook-v3-TODO.md](./deepbook-v3-TODO.md)      | Margin removed from "out of scope" list |
 
@@ -274,6 +274,8 @@ backend/src/services/defi/deepbook/
 ├── deepbook-margin.types.ts               # extend
 ├── deepbook-margin-tpsl.types.ts          # NEW
 ├── margin-manager-lookup.service.ts       # existing
+├── deepbook-margin-indexer-read.service.ts # NEW — indexer query_chain wrappers
+├── indexer/deepbook-margin-indexer.client.ts # NEW — margin indexer HTTP client
 └── deepbook-margin-orders.service.ts      # existing — extend param builders
 
 backend/src/services/agent/
@@ -347,8 +349,8 @@ Generated app iframe
 | [x] | **REST read routes missing** for generated apps | `GET .../deepbook/margin-*` on project, session, installation scopes |
 | [x] | **`data-radiant-id` ≠ schema param names** | `MARGIN_RADIANT_ID_GUIDE` in `prompts.ts` aligns generated apps with schema param keys |
 | [x] | **No margin param coercion** | `normalizeMarginAppActionParams` in `app-action-param-coerce.ts` |
-| [ ] | **No dedicated margin agent handlers** | Only `swap` has `defaultSwapAgentHandler`; margin relies on generic fallback |
-| [ ] | **No reference margin app artifact** | No generated template with registered handlers + manifest for agent to copy |
+| [x] | **No dedicated margin agent handlers** | Platform `defaultMarginAgentHandler` in `radiant-agent-runtime-template.ts` v7 |
+| [x] | **No reference margin app artifact** | `template: "margin"` injects reference MarginTradingApp via `margin-app-reference.template.ts` |
 | [ ] | **New SDK actions won't appear in apps** until registry chain updated | Same 6-file pattern as Phase 6 |
 
 ---
@@ -463,12 +465,12 @@ Provisioning today bypasses the app pipeline (`execute_transaction` only). For U
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Add minimal `MarginTradingApp` component in agent generate_app examples / system prompt |
-| [ ] | Include: pool picker, provision CTA, deposit/borrow forms, order form, risk ratio panel |
-| [ ] | `lib/radiant-actions.ts` manifest listing all margin actions + param fields |
-| [ ] | Register handlers for each action on mount |
-| [ ] | Use `marginManagerInfo()` / `marginPoolInfo()` from radiant-client for display state |
-| [ ] | E2B scaffold smoke: agent can `call_app_action margin_deposit` on draft |
+| [x] | Add minimal `MarginTradingApp` component in agent generate_app examples / system prompt | `margin-app-reference.template.ts` + `prompts.ts` |
+| [x] | Include: pool picker, provision CTA, deposit/borrow forms, order form, risk ratio panel | reference component |
+| [x] | `lib/radiant-actions.ts` manifest listing all margin actions + param fields | injected with template margin |
+| [x] | Register handlers for each action on mount | `lib/margin-agent-handlers.ts` |
+| [x] | Use `marginManagerInfo()` / `marginPoolInfo()` from radiant-client for display state | reference component |
+| [x] | E2B scaffold smoke: agent can `call_app_action margin_deposit` on draft | integration test in `generate-app.test.ts` |
 
 ---
 

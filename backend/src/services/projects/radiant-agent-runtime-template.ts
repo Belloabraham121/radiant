@@ -1,6 +1,6 @@
 /** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_VERSION = 6;
+export const RADIANT_AGENT_RUNTIME_VERSION = 7;
 
 export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
 import {
@@ -155,6 +155,42 @@ async function defaultSwapAgentHandler(
 }
 
 handlers.set("swap", defaultSwapAgentHandler);
+
+const MARGIN_SUBMIT_IDS: Record<string, string> = {
+  margin_provision_manager: "margin-provision-submit",
+  margin_deposit: "margin-deposit-submit",
+  margin_borrow: "margin-borrow-submit",
+  margin_repay: "margin-repay-submit",
+  margin_place_limit_order: "margin-order-submit",
+  margin_place_market_order: "margin-order-submit",
+  margin_tpsl_add: "margin-tpsl-submit",
+};
+
+async function defaultMarginAgentHandler(
+  action: string,
+  params: Record<string, unknown>,
+  ctx: RadiantAgentContext,
+): Promise<AppActionResult> {
+  ctx.dispatchEvent("radiant-agent-action-start", { action, params });
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value == null || typeof value === "object") continue;
+    const radiantId = key.replace(/_/g, "-");
+    ctx.setField(radiantId, value);
+    ctx.highlight(radiantId);
+    ctx.dispatchEvent("radiant-agent-set-field", { field: key, value });
+    await ctx.delay(350);
+  }
+
+  const submitId = MARGIN_SUBMIT_IDS[action] ?? "margin-deposit-submit";
+  ctx.highlight(submitId, "agent-clicking");
+  await ctx.delay(450);
+  return ctx.executeAction(action, params);
+}
+
+for (const marginAction of Object.keys(MARGIN_SUBMIT_IDS)) {
+  handlers.set(marginAction, (params, ctx) => defaultMarginAgentHandler(marginAction, params, ctx));
+}
 
 function agentDelay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
