@@ -112,18 +112,6 @@ export async function fetchChatSessions(): Promise<{
   return apiFetch<{ sessions: ChatSessionListItem[] }>("/api/v1/chat/sessions");
 }
 
-export async function createChatSession(
-  title?: string,
-): Promise<ChatSessionDetail & { created_at: string }> {
-  return apiFetch<ChatSessionDetail & { created_at: string }>(
-    "/api/v1/chat/sessions",
-    {
-      method: "POST",
-      body: JSON.stringify(title ? { title } : {}),
-    },
-  );
-}
-
 export async function fetchSessionMessages(sessionId: string): Promise<{
   session: ChatSessionDetail;
   messages: ApiChatMessage[];

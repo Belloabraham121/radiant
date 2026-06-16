@@ -38,7 +38,7 @@ export function Sidebar() {
     : null;
 
   const handleNewChat = () => {
-    router.push("/app");
+    router.push(`/app?draft=${Date.now()}`);
     setOpen(false);
   };
 
