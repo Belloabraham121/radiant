@@ -216,6 +216,27 @@ export const APP_ACTION_REGISTRY: Record<OnchainActionName, AppActionDefinition>
     default_chain_id: "sui",
     execute_action: "deepbook_margin_withdraw_pool",
   }),
+  margin_tpsl_add: defineAction({
+    name: "margin_tpsl_add",
+    description: "Add a take-profit or stop-loss conditional order on a margin manager.",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_tpsl_add",
+  }),
+  margin_tpsl_cancel: defineAction({
+    name: "margin_tpsl_cancel",
+    description: "Cancel one margin TPSL conditional order.",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_tpsl_cancel",
+  }),
+  margin_tpsl_cancel_all: defineAction({
+    name: "margin_tpsl_cancel_all",
+    description: "Cancel all margin TPSL conditional orders.",
+    protocol: "deepbook",
+    default_chain_id: "sui",
+    execute_action: "deepbook_margin_tpsl_cancel_all",
+  }),
   // DeepBook Predict
   predict_deposit: defineAction({
     name: "predict_deposit",

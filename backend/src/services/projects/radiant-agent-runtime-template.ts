@@ -189,6 +189,7 @@ const ONCHAIN_ACTIONS = new Set([
   "margin_place_limit_order", "margin_place_market_order",
   "margin_cancel_order", "margin_modify_order",
   "margin_supply_pool", "margin_withdraw_pool",
+  "margin_tpsl_add", "margin_tpsl_cancel", "margin_tpsl_cancel_all",
   // DeepBook Predict
   "predict_deposit", "predict_withdraw", "predict_mint", "predict_redeem",
   "predict_mint_range", "predict_redeem_range", "predict_supply", "predict_lp_withdraw",

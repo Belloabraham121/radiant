@@ -260,6 +260,36 @@ export const appActionParamSchemas = {
     })
     .passthrough(),
 
+  margin_tpsl_add: z
+    .object({
+      pool_key: z.string().min(1).optional(),
+      margin_manager_key: z.string().min(1).optional(),
+      tpsl_type: z.enum(["take_profit", "stop_loss"]).optional(),
+      trigger_price: positiveNumber,
+      order_kind: z.enum(["limit", "market"]).optional(),
+      quantity: positiveNumber,
+      price: positiveNumber.optional(),
+      is_bid: z.boolean().optional(),
+      side: z.enum(["buy", "sell"]).optional(),
+      conditional_order_id: z.string().optional(),
+      pay_with_deep: z.boolean().optional(),
+    })
+    .passthrough(),
+
+  margin_tpsl_cancel: z
+    .object({
+      margin_manager_key: z.string().min(1).optional(),
+      conditional_order_id: z.string().min(1),
+    })
+    .passthrough(),
+
+  margin_tpsl_cancel_all: z
+    .object({
+      margin_manager_key: z.string().min(1).optional(),
+      pool_key: z.string().min(1).optional(),
+    })
+    .passthrough(),
+
   // DeepBook Predict actions
   predict_deposit: z
     .object({
@@ -501,6 +531,31 @@ export const appActionParamSchemaDocs: Record<OnchainActionName, { fields: Array
     fields: [
       { name: "coin_type", type: "string", required: true },
       { name: "amount", type: "number", description: "Omit to withdraw all" },
+    ],
+  },
+  margin_tpsl_add: {
+    fields: [
+      { name: "pool_key", type: "string" },
+      { name: "margin_manager_key", type: "string", description: 'Use "default"' },
+      { name: "tpsl_type", type: "string", required: true, description: "take_profit or stop_loss" },
+      { name: "trigger_price", type: "number", required: true },
+      { name: "order_kind", type: "string", description: "limit or market (default market)" },
+      { name: "quantity", type: "number", required: true },
+      { name: "price", type: "number", description: "Required for limit pending orders" },
+      { name: "is_bid", type: "boolean", description: "true = buy, false = sell" },
+      { name: "conditional_order_id", type: "string", description: "Optional unique order id" },
+    ],
+  },
+  margin_tpsl_cancel: {
+    fields: [
+      { name: "margin_manager_key", type: "string" },
+      { name: "conditional_order_id", type: "string", required: true },
+    ],
+  },
+  margin_tpsl_cancel_all: {
+    fields: [
+      { name: "margin_manager_key", type: "string" },
+      { name: "pool_key", type: "string" },
     ],
   },
   // DeepBook Predict

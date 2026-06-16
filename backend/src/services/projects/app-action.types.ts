@@ -33,6 +33,9 @@ export const ONCHAIN_ACTION_NAMES = [
   "margin_modify_order",
   "margin_supply_pool",
   "margin_withdraw_pool",
+  "margin_tpsl_add",
+  "margin_tpsl_cancel",
+  "margin_tpsl_cancel_all",
   // DeepBook Predict
   "predict_deposit",
   "predict_withdraw",

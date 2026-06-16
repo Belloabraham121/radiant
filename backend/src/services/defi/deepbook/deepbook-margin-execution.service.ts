@@ -19,6 +19,13 @@ import {
   resolveSupplierCapObjectId,
 } from "./margin-supplier-cap.service.js";
 import { getDeepBookClient } from "./providers/sui-deepbook.provider.js";
+import {
+  executeMarginTpslAdd,
+  executeMarginTpslCancel,
+  executeMarginTpslCancelAll,
+  executeMarginTpslExecute,
+  preflightMarginTpslAction,
+} from "./deepbook-margin-tpsl.service.js";
 
 type CoinSide = "base" | "quote" | "deep";
 
@@ -758,6 +765,15 @@ export async function preflightMarginAction(
     return;
   }
 
+  if (
+    action === "deepbook_margin_tpsl_add" ||
+    action === "deepbook_margin_tpsl_cancel" ||
+    action === "deepbook_margin_tpsl_cancel_all" ||
+    action === "deepbook_margin_tpsl_execute"
+  ) {
+    await preflightMarginTpslAction(action, params);
+  }
+
   const managerIds = await fetchMarginManagerIdsForOwner(wallet.address);
 
   if (managerIds.length === 0) {
@@ -772,6 +788,9 @@ export async function preflightMarginAction(
   if (
     action !== "deepbook_margin_cancel_order" &&
     action !== "deepbook_margin_modify_order" &&
+    action !== "deepbook_margin_tpsl_cancel" &&
+    action !== "deepbook_margin_tpsl_cancel_all" &&
+    action !== "deepbook_margin_tpsl_execute" &&
     amount != null
   ) {
     const n = Number(amount);
@@ -807,6 +826,14 @@ export async function executeMarginAction(
       return executeMarginSupplyPool(privyUserId, params);
     case "deepbook_margin_withdraw_pool":
       return executeMarginWithdrawPool(privyUserId, params);
+    case "deepbook_margin_tpsl_add":
+      return executeMarginTpslAdd(privyUserId, params);
+    case "deepbook_margin_tpsl_cancel":
+      return executeMarginTpslCancel(privyUserId, params);
+    case "deepbook_margin_tpsl_cancel_all":
+      return executeMarginTpslCancelAll(privyUserId, params);
+    case "deepbook_margin_tpsl_execute":
+      return executeMarginTpslExecute(privyUserId, params);
     default:
       throw new AppError(400, "UNKNOWN_MARGIN_ACTION", `Unknown margin action: ${action}`);
   }

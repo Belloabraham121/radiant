@@ -19,6 +19,10 @@ const MARGIN_ACTIONS = new Set([
   "deepbook_margin_modify_order",
   "deepbook_margin_supply_pool",
   "deepbook_margin_withdraw_pool",
+  "deepbook_margin_tpsl_add",
+  "deepbook_margin_tpsl_cancel",
+  "deepbook_margin_tpsl_cancel_all",
+  "deepbook_margin_tpsl_execute",
 ]);
 
 export function isDeepBookMarginAction(action: string): boolean {
@@ -58,6 +62,14 @@ export function buildMarginActionSummary(
       return params.amount
         ? `Withdraw ${params.amount} ${params.coin_type ?? ""} from margin pool`
         : `Withdraw all from margin pool`;
+    case "deepbook_margin_tpsl_add":
+      return `Add margin ${params.tpsl_type ?? "TPSL"} at trigger ${params.trigger_price} (${params.order_kind ?? "market"} ${params.is_bid || params.side === "buy" ? "buy" : "sell"} ${params.quantity})`;
+    case "deepbook_margin_tpsl_cancel":
+      return `Cancel margin TPSL order ${params.conditional_order_id}`;
+    case "deepbook_margin_tpsl_cancel_all":
+      return "Cancel all margin TPSL orders";
+    case "deepbook_margin_tpsl_execute":
+      return `Execute triggered margin TPSL orders (max ${params.max_orders ?? 10})`;
     default:
       return `Margin action: ${action}`;
   }

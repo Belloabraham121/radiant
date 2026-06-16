@@ -21,10 +21,17 @@ describe("DeepBook Margin action classification", () => {
   it("classifies margin order actions as 'order'", () => {
     assert.equal(classifyExecuteAction("deepbook_margin_place_limit_order"), "order");
     assert.equal(classifyExecuteAction("deepbook_margin_place_market_order"), "order");
+    assert.equal(classifyExecuteAction("deepbook_margin_tpsl_add"), "order");
   });
 
   it("classifies margin cancel as 'cancel'", () => {
     assert.equal(classifyExecuteAction("deepbook_margin_cancel_order"), "cancel");
+    assert.equal(classifyExecuteAction("deepbook_margin_tpsl_cancel"), "cancel");
+    assert.equal(classifyExecuteAction("deepbook_margin_tpsl_cancel_all"), "cancel");
+  });
+
+  it("classifies margin TPSL execute as 'margin'", () => {
+    assert.equal(classifyExecuteAction("deepbook_margin_tpsl_execute"), "margin");
   });
 
   it("classifies margin modify as 'modify'", () => {
@@ -49,6 +56,10 @@ describe("DeepBook Margin action classification", () => {
     assert.equal(isDeepBookMarginAction("deepbook_margin_modify_order"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_supply_pool"), true);
     assert.equal(isDeepBookMarginAction("deepbook_margin_withdraw_pool"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_tpsl_add"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_tpsl_cancel"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_tpsl_cancel_all"), true);
+    assert.equal(isDeepBookMarginAction("deepbook_margin_tpsl_execute"), true);
     assert.equal(isDeepBookMarginAction("deepbook_swap"), false);
   });
 });
@@ -96,6 +107,9 @@ describe("ONCHAIN_ACTION_NAMES includes margin and predict", () => {
     assert.ok(names.includes("margin_modify_order"));
     assert.ok(names.includes("margin_supply_pool"));
     assert.ok(names.includes("margin_withdraw_pool"));
+    assert.ok(names.includes("margin_tpsl_add"));
+    assert.ok(names.includes("margin_tpsl_cancel"));
+    assert.ok(names.includes("margin_tpsl_cancel_all"));
   });
 
   it("includes all predict actions", () => {

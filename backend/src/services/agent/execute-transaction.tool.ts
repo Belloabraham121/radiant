@@ -36,6 +36,7 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_place_limit_order, deepbook_margin_place_market_order, " +
           "deepbook_margin_cancel_order, deepbook_margin_modify_order, " +
           "deepbook_margin_supply_pool, deepbook_margin_withdraw_pool, " +
+          "deepbook_margin_tpsl_add, deepbook_margin_tpsl_cancel, deepbook_margin_tpsl_cancel_all, deepbook_margin_tpsl_execute, " +
           "deepbook_predict_deposit, deepbook_predict_withdraw, deepbook_predict_mint, deepbook_predict_redeem, " +
           "deepbook_predict_mint_range, deepbook_predict_redeem_range, deepbook_predict_supply, deepbook_predict_lp_withdraw.",
       },
@@ -66,6 +67,10 @@ export const executeTransactionToolDefinition = {
           "deepbook_margin_repay: { margin_manager_key, asset, amount? }. " +
           "deepbook_margin_place_limit_order: { pool_key, margin_manager_key, price, quantity, is_bid, pay_with_deep? }. " +
           "deepbook_margin_place_market_order: { pool_key, margin_manager_key, quantity, is_bid }. " +
+          "deepbook_margin_tpsl_add: { pool_key?, margin_manager_key?, tpsl_type: take_profit|stop_loss, trigger_price, order_kind?: limit|market, quantity, price? (limit), is_bid or side }. " +
+          "deepbook_margin_tpsl_cancel: { margin_manager_key?, conditional_order_id }. " +
+          "deepbook_margin_tpsl_cancel_all: { margin_manager_key?, pool_key? }. " +
+          "deepbook_margin_tpsl_execute: { pool_key?, max_orders? } — execute triggered conditional orders (permissionless keeper). " +
           "deepbook_predict_deposit: { amount, quote_asset? }. " +
           "deepbook_predict_withdraw: { amount, quote_asset? }. " +
           "deepbook_predict_mint: { oracle_id, expiry, strike, is_up, quantity }. " +

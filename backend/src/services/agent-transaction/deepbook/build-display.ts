@@ -338,6 +338,26 @@ export async function buildTransactionDisplay(
           : "Withdraw from margin pool";
         title = "Margin pool withdrawal";
         break;
+      case "tpsl_add": {
+        const tpslType = String(input.params.tpsl_type ?? "TPSL");
+        const trigger = input.params.trigger_price;
+        const qty = input.params.quantity;
+        amount_display = `${tpslType} @ ${trigger ?? "?"} → ${qty != null ? fmtDisplayNumber(Number(qty)) : "?"} qty`;
+        title = "Margin TPSL add";
+        break;
+      }
+      case "tpsl_cancel":
+        amount_display = `Cancel TPSL order ${String(input.params.conditional_order_id ?? "").slice(0, 12)}…`;
+        title = "Cancel margin TPSL";
+        break;
+      case "tpsl_cancel_all":
+        amount_display = "Cancel all margin TPSL orders";
+        title = "Cancel all margin TPSL";
+        break;
+      case "tpsl_execute":
+        amount_display = `Execute triggered TPSL (max ${input.params.max_orders ?? 10})`;
+        title = "Execute margin TPSL";
+        break;
       default:
         amount_display = `Margin: ${marginAction}`;
         title = "DeepBook margin action";

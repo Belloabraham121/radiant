@@ -21,6 +21,10 @@ import {
   formatMarginPoolInfoSummary,
   type MarginPoolInfoQueryResult,
 } from "../../defi/deepbook/deepbook-margin-pool-read.service.js";
+import {
+  formatMarginTpslInfoSummary,
+  type MarginTpslInfoQueryResult,
+} from "../../defi/deepbook/deepbook-margin-tpsl-read.service.js";
 
 function isAgentTransactionsResult(result: unknown): result is AgentTransactionsQueryResult {
   return (
@@ -141,6 +145,16 @@ export function summarizeQueryChainResult(result: unknown): string | null {
     typeof marginPoolInfo.pool_key === "string"
   ) {
     return formatMarginPoolInfoSummary(marginPoolInfo);
+  }
+
+  const marginTpslInfo = result as MarginTpslInfoQueryResult;
+  if (
+    typeof marginTpslInfo.provisioned === "boolean" &&
+    ("lowest_trigger_above_price" in marginTpslInfo ||
+      "highest_trigger_below_price" in marginTpslInfo ||
+      Array.isArray(marginTpslInfo.conditional_order_ids))
+  ) {
+    return formatMarginTpslInfoSummary(marginTpslInfo);
   }
 
   const marginInfo = result as MarginManagerInfoQueryResult;
