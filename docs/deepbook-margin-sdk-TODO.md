@@ -346,7 +346,7 @@ Generated app iframe
 | [x] | **No `margin_provision_manager` app action** | `margin_provision_manager` → `deepbook_provision_margin_manager` in registry |
 | [x] | **REST read routes missing** for generated apps | `GET .../deepbook/margin-*` on project, session, installation scopes |
 | [x] | **`data-radiant-id` ≠ schema param names** | `MARGIN_RADIANT_ID_GUIDE` in `prompts.ts` aligns generated apps with schema param keys |
-| [ ] | **No margin param coercion** | `normalizeAppActionParams()` has no `margin_*` cases (`app-action-param-coerce.ts`) |
+| [x] | **No margin param coercion** | `normalizeMarginAppActionParams` in `app-action-param-coerce.ts` |
 | [ ] | **No dedicated margin agent handlers** | Only `swap` has `defaultSwapAgentHandler`; margin relies on generic fallback |
 | [ ] | **No reference margin app artifact** | No generated template with registered handlers + manifest for agent to copy |
 | [ ] | **New SDK actions won't appear in apps** until registry chain updated | Same 6-file pattern as Phase 6 |
@@ -453,9 +453,9 @@ Provisioning today bypasses the app pipeline (`execute_transaction` only). For U
 
 | Status | Task | File |
 | ------ | ---- | ---- |
-| [ ] | Coerce `amount`, `price`, `quantity`, `new_quantity` for all `margin_*` actions | `app-action-param-coerce.ts` |
-| [ ] | Default `margin_manager_key: "default"` when omitted | `normalizeAppActionParams` or Zod `.default("default")` on schemas |
-| [ ] | Coerce `is_bid` from `"buy"` / `"sell"` strings | optional helper in coerce layer |
+| [x] | Coerce `amount`, `price`, `quantity`, `new_quantity` for all `margin_*` actions | `app-action-param-coerce.ts` |
+| [x] | Default `margin_manager_key: "default"` when omitted | `normalizeMarginAppActionParams` |
+| [x] | Coerce `is_bid` from `"buy"` / `"sell"` strings | `coerceIsBid` helper |
 
 ---
 
