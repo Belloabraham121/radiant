@@ -127,6 +127,43 @@ export function summarizeToolResult(name: string, result: unknown): string {
     return "Done.";
   }
 
+  if (name === "generate_app" || name === "edit_app") {
+    const outcome = result as {
+      name?: string;
+      revision?: number;
+      files?: Array<{ path: string; content: string }>;
+    };
+    const fileList = outcome.files ?? [];
+    const PLATFORM_FILES = new Set([
+      "lib/radiant-client.ts",
+      "lib/radiant-agent-runtime.ts",
+      "components/AgentIndicator.tsx",
+    ]);
+    const userFiles = fileList.filter((f) => !PLATFORM_FILES.has(f.path));
+    const platformCount = fileList.length - userFiles.length;
+
+    const fileSummaries = userFiles.map((f) => {
+      const lines = f.content.split("\n");
+      const preview = lines.join("\n");
+      if (preview.length <= 3000) {
+        return `--- ${f.path} (${lines.length} lines) ---\n${preview}`;
+      }
+      const truncated = preview.slice(0, 3000);
+      return `--- ${f.path} (${lines.length} lines, truncated) ---\n${truncated}\n...`;
+    });
+
+    const verb = name === "edit_app" ? "Edits applied to" : "Built";
+    const platformNote = platformCount > 0
+      ? ` (+ ${platformCount} platform files omitted)`
+      : "";
+    return (
+      `${verb} "${outcome.name ?? "App"}" (revision ${outcome.revision ?? 0}). ` +
+      `${userFiles.length} user files${platformNote}. ` +
+      `Full file contents below — use these EXACT strings as old_string when calling edit_app:\n\n` +
+      fileSummaries.join("\n\n")
+    );
+  }
+
   if (name !== EXECUTE_TRANSACTION_TOOL_NAME) {
     return "Done.";
   }

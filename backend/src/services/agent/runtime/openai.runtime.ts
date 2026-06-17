@@ -78,6 +78,7 @@ import {
 } from "../execution-progress-context.js";
 import { resolveCategoryFromTool } from "../agent-status-category.js";
 import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
+import { EDIT_APP_TOOL_NAME } from "../../projects/edit-app.tool.js";
 import { parsePartialGenerateAppArgs } from "../../projects/parse-partial-generate-app.js";
 import { buildPreviewArtifactPayload } from "../../projects/preview-artifact.js";
 import type { GenerateAppResult } from "../../projects/project.types.js";
@@ -617,6 +618,17 @@ export const openaiRuntime: AgentRuntime = {
           emitGenerateAppPreview(toolCall.function.arguments, true);
         }
 
+        if (toolCall.function.name === EDIT_APP_TOOL_NAME) {
+          emitExecutionProgress({
+            step: {
+              id: "edit-app",
+              status: "running",
+              label: "Editing app",
+              detail: "Applying targeted edits…",
+            },
+          });
+        }
+
         if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
           const priorInfeasibleQuote = findLatestFlashLoanQuote(tool_calls);
           const blockInfeasibleExecute =
@@ -740,6 +752,33 @@ export const openaiRuntime: AgentRuntime = {
                 id: "generate-app",
                 status: "failed",
                 label: "Building app",
+                detail: result.error.message,
+              },
+            });
+          }
+        }
+
+        if (toolCall.function.name === EDIT_APP_TOOL_NAME) {
+          if (!isAgentToolErrorResult(result)) {
+            const appResult = result as GenerateAppResult;
+            if (appResult.artifact) {
+              streamingArtifactPreview = appResult.artifact;
+              emitArtifactPreview(appResult.artifact, false);
+            }
+            emitExecutionProgress({
+              step: {
+                id: "edit-app",
+                status: "ok",
+                label: "Editing app",
+                detail: "Applied edits",
+              },
+            });
+          } else {
+            emitExecutionProgress({
+              step: {
+                id: "edit-app",
+                status: "failed",
+                label: "Editing app",
                 detail: result.error.message,
               },
             });

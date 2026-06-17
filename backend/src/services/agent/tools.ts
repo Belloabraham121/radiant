@@ -52,6 +52,11 @@ import {
   callAppActionToolDefinition,
   runCallAppActionTool,
 } from "../projects/call-app-action.tool.js";
+import {
+  EDIT_APP_TOOL_NAME,
+  editAppToolDefinition,
+  runEditAppTool,
+} from "../projects/edit-app.tool.js";
 import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
 import {
   UPDATE_MEMORY_TOOL_NAME,
@@ -67,6 +72,7 @@ export const agentToolDefinitions = [
   updateMemoryToolDefinition,
   listSessionProjectsToolDefinition,
   generateAppToolDefinition,
+  editAppToolDefinition,
   deployAppToolDefinition,
   listPublicAppsToolDefinition,
   installAppToolDefinition,
@@ -151,6 +157,10 @@ async function dispatchAgentTool(
         return await runGenerateAppTool(privyUserId, input, {
           sessionId: options?.sessionId,
           rawArguments: options?.rawArguments,
+        });
+      case EDIT_APP_TOOL_NAME:
+        return await runEditAppTool(privyUserId, input, {
+          sessionId: options?.sessionId,
         });
       case DEPLOY_APP_TOOL_NAME:
         return await runDeployAppTool(privyUserId, input);

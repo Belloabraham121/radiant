@@ -44,6 +44,7 @@ export function resolveCategoryFromTool(
     case "call_app_action":
       return "defi";
     case "generate_app":
+    case "edit_app":
       return "thinking";
     default:
       return "thinking";
