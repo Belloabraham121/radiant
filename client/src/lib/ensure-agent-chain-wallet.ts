@@ -87,6 +87,21 @@ export async function ensureAgentChainWallet(deps: EnsureChainWalletDeps) {
 
   let hasSigner = registeredWallet?.signer_added ?? false;
 
+  if (
+    registeredWallet?.address === wallet.address &&
+    registeredWallet.signer_added
+  ) {
+    return {
+      chain_type: privyChainType,
+      address: registeredWallet.address,
+      funded: registeredWallet.funded,
+      signer_added: true,
+      ...(deps.chainId === "sui"
+        ? { sui_address: registeredWallet.sui_address ?? registeredWallet.address }
+        : {}),
+    };
+  }
+
   if (!hasSigner) {
     const policyId = getPolicyIdForChain(deps.chainId);
     await deps.addSigners({

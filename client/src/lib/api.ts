@@ -58,11 +58,20 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(apiUrl(path), {
-    ...init,
-    credentials: "include",
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), {
+      ...init,
+      credentials: "include",
+      headers,
+    });
+  } catch {
+    throw new ApiError(
+      0,
+      "NETWORK_ERROR",
+      "Could not reach the API server. Make sure the backend is running (npm run dev in backend/).",
+    );
+  }
 
   let body: ApiEnvelope<T>;
   const rawText = await response.text();

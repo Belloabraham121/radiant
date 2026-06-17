@@ -1,4 +1,5 @@
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
+import { formatWalletAssetsSummary } from "../../market/valuation.service.js";
 import type { ToolCallRecord } from "../agent.types.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
@@ -16,27 +17,7 @@ function isWalletAssets(result: unknown): result is WalletAssetsData {
 }
 
 function formatWalletBalances(result: WalletAssetsData): string {
-  const lines = result.assets
-    .filter((asset) => asset.balance_atomic !== "0")
-    .slice(0, 12)
-    .map((asset) => {
-      const usd =
-        asset.usd_value !== null && asset.usd_value !== undefined
-          ? ` (~$${asset.usd_value.toFixed(2)})`
-          : "";
-      return `- ${asset.balance_display} ${asset.symbol}${usd}`;
-    });
-
-  if (lines.length === 0) {
-    return "Your wallet has no non-zero token balances on this chain.";
-  }
-
-  const total =
-    result.total_usd !== null && result.total_usd !== undefined
-      ? `\nEstimated total: ~$${result.total_usd.toFixed(2)}.`
-      : "";
-
-  return `Wallet balances:\n${lines.join("\n")}${total}`;
+  return formatWalletAssetsSummary(result);
 }
 
 function formatQueryStepReply(toolCalls: ToolCallRecord[]): string | null {

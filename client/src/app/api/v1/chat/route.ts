@@ -15,6 +15,14 @@ export async function POST(request: Request): Promise<Response> {
     ? `${API_BASE_URL}/api/v1/chat?stream=1`
     : `${API_BASE_URL}/api/v1/chat`;
 
+  const upstreamController = new AbortController();
+  const timeoutId = setTimeout(
+    () => upstreamController.abort(),
+    CHAT_UPSTREAM_TIMEOUT_MS,
+  );
+  const onClientAbort = () => upstreamController.abort();
+  request.signal.addEventListener("abort", onClientAbort, { once: true });
+
   let upstream: Response;
   try {
     upstream = await fetch(upstreamUrl, {
@@ -27,11 +35,13 @@ export async function POST(request: Request): Promise<Response> {
         ...(cookie ? { cookie } : {}),
       },
       body,
-      signal: AbortSignal.timeout(CHAT_UPSTREAM_TIMEOUT_MS),
+      signal: upstreamController.signal,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const timedOut = /timeout|aborted/i.test(message);
+    const clientAborted = request.signal.aborted;
+    const timedOut =
+      !clientAborted && /timeout|aborted/i.test(message);
     return Response.json(
       {
         success: false,
@@ -44,8 +54,11 @@ export async function POST(request: Request): Promise<Response> {
             : "Could not reach the backend API. Make sure it is running on port 3001.",
         },
       },
-      { status: timedOut ? 504 : 502 },
+      { status: timedOut ? 504 : clientAborted ? 499 : 502 },
     );
+  } finally {
+    clearTimeout(timeoutId);
+    request.signal.removeEventListener("abort", onClientAbort);
   }
 
   if (stream) {

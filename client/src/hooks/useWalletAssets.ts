@@ -9,6 +9,18 @@ import {
   walletAssetsCacheKey,
   writeWalletAssetsCache,
 } from "@/lib/wallet-session-cache";
+import {
+  mergeAssetsWithCachedLogos,
+  rememberAssetsMetadata,
+} from "@/lib/token-metadata-cache";
+
+function withPersistentTokenMetadata(data: WalletAssetsData): WalletAssetsData {
+  rememberAssetsMetadata(data.assets);
+  return {
+    ...data,
+    assets: mergeAssetsWithCachedLogos(data.assets),
+  };
+}
 
 type UseWalletAssetsOptions = {
   chainId: AgentChainId;
@@ -22,9 +34,10 @@ export function useWalletAssets({
   enabled = true,
 }: UseWalletAssetsOptions) {
   const cacheKey = walletAssetsCacheKey(chainId, evmChainId);
-  const [data, setData] = useState<WalletAssetsData | null>(
-    () => readWalletAssetsCache(cacheKey) ?? null,
-  );
+  const [data, setData] = useState<WalletAssetsData | null>(() => {
+    const cached = readWalletAssetsCache(cacheKey);
+    return cached ? withPersistentTokenMetadata(cached) : null;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(
@@ -35,7 +48,7 @@ export function useWalletAssets({
   if (cacheKey !== trackedCacheKey) {
     setTrackedCacheKey(cacheKey);
     const cached = readWalletAssetsCache(cacheKey);
-    setData(cached ?? null);
+    setData(cached ? withPersistentTokenMetadata(cached) : null);
     setHasFetched(cached !== undefined);
   }
 
@@ -44,11 +57,13 @@ export function useWalletAssets({
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchWalletAssets(chainId, {
-        evmChainId,
-        includeZero: true,
-        includeUsd: true,
-      });
+      const result = withPersistentTokenMetadata(
+        await fetchWalletAssets(chainId, {
+          evmChainId,
+          includeZero: true,
+          includeUsd: true,
+        }),
+      );
       writeWalletAssetsCache(cacheKey, result);
       setData(result);
       setHasFetched(true);
@@ -65,7 +80,7 @@ export function useWalletAssets({
 
     const cached = readWalletAssetsCache(cacheKey);
     if (cached) {
-      setData(cached);
+      setData(withPersistentTokenMetadata(cached));
       setHasFetched(true);
       setError(null);
       return;

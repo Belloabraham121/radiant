@@ -12,6 +12,7 @@ import {
   getMarginManagerCreatedForHttp,
   getMarginSupplyHistoryForHttp,
   getMarginIndexerSupplyForHttp,
+  getMarginManagerStateForHttp,
 } from "../defi/deepbook/deepbook-margin-app-read.service.js";
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
@@ -85,6 +86,7 @@ const MARGIN_READS = {
   managerCreated: getMarginManagerCreatedForHttp,
   supplyHistory: getMarginSupplyHistoryForHttp,
   indexerSupply: getMarginIndexerSupplyForHttp,
+  managerState: getMarginManagerStateForHttp,
 } as const;
 
 export const marginTpslInfoForProject = forProject(MARGIN_READS.tpslInfo);
@@ -96,6 +98,7 @@ export const marginManagersInfoForProject = forProject(MARGIN_READS.managersInfo
 export const marginManagerCreatedForProject = forProject(MARGIN_READS.managerCreated);
 export const marginSupplyHistoryForProject = forProject(MARGIN_READS.supplyHistory);
 export const marginIndexerSupplyForProject = forProject(MARGIN_READS.indexerSupply);
+export const marginManagerStateForProject = forProject(MARGIN_READS.managerState);
 
 export const marginTpslInfoForSession = forSession(MARGIN_READS.tpslInfo);
 export const marginLiquidationsForSession = forSession(MARGIN_READS.liquidations);
@@ -106,6 +109,7 @@ export const marginManagersInfoForSession = forSession(MARGIN_READS.managersInfo
 export const marginManagerCreatedForSession = forSession(MARGIN_READS.managerCreated);
 export const marginSupplyHistoryForSession = forSession(MARGIN_READS.supplyHistory);
 export const marginIndexerSupplyForSession = forSession(MARGIN_READS.indexerSupply);
+export const marginManagerStateForSession = forSession(MARGIN_READS.managerState);
 
 export const marginTpslInfoForInstallation = forInstallation(MARGIN_READS.tpslInfo);
 export const marginLiquidationsForInstallation = forInstallation(MARGIN_READS.liquidations);
@@ -116,6 +120,7 @@ export const marginManagersInfoForInstallation = forInstallation(MARGIN_READS.ma
 export const marginManagerCreatedForInstallation = forInstallation(MARGIN_READS.managerCreated);
 export const marginSupplyHistoryForInstallation = forInstallation(MARGIN_READS.supplyHistory);
 export const marginIndexerSupplyForInstallation = forInstallation(MARGIN_READS.indexerSupply);
+export const marginManagerStateForInstallation = forInstallation(MARGIN_READS.managerState);
 
 export type MarginDeepbookReadRoute = {
   path: string;
@@ -178,6 +183,12 @@ export const MARGIN_DEEPBOOK_READ_ROUTES: MarginDeepbookReadRoute[] = [
     project: marginIndexerSupplyForProject,
     session: marginIndexerSupplyForSession,
     installation: marginIndexerSupplyForInstallation,
+  },
+  {
+    path: "margin-manager-state",
+    project: marginManagerStateForProject,
+    session: marginManagerStateForSession,
+    installation: marginManagerStateForInstallation,
   },
 ];
 

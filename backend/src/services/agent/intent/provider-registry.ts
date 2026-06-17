@@ -42,6 +42,7 @@ const PROVIDERS: IntentProvider[] = [
       "margin_manager_created",
       "margin_supply_history",
       "margin_indexer_supply",
+      "margin_manager_state",
     ],
   },
   {

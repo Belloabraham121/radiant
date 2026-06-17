@@ -8,6 +8,7 @@ const STORAGE_KEY = "radiant:artifact-panel-width";
 const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 300;
 const MAX_WIDTH = 960;
+const MOBILE_BREAKPOINT_PX = 1024;
 
 function clampWidth(value: number): number {
   if (typeof window === "undefined") return DEFAULT_WIDTH;
@@ -49,15 +50,26 @@ export function ResizableArtifactPanel({
   const [width, setWidth] = useState(() => readStoredWidth());
   const widthRef = useRef(width);
   const handleRef = useRef<HTMLDivElement>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     widthRef.current = width;
   }, [width]);
 
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX - 1}px)`);
+    if (!mq.matches) return;
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   const stopDragging = useCallback(() => {
-    cleanupRef.current?.();
-    cleanupRef.current = null;
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
     clearDocumentDragStyles();
   }, []);
 
@@ -121,7 +133,7 @@ export function ResizableArtifactPanel({
         clearDocumentDragStyles();
       };
 
-      cleanupRef.current = cleanup;
+      dragCleanupRef.current = cleanup;
 
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
@@ -140,7 +152,7 @@ export function ResizableArtifactPanel({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 h-[52vh] w-full lg:relative lg:z-0 lg:h-full lg:max-w-[85vw] lg:shrink-0 lg:w-[var(--artifact-panel-width)]"
+      className="fixed inset-0 z-50 lg:relative lg:z-0 lg:h-full lg:max-w-[85vw] lg:shrink-0 lg:w-[var(--artifact-panel-width)]"
       style={shellStyle}
     >
       <div
@@ -149,21 +161,24 @@ export function ResizableArtifactPanel({
         aria-orientation="vertical"
         aria-label="Resize artifact panel"
         title="Drag to resize"
-        className="absolute -left-1 top-0 z-20 hidden h-full w-3 cursor-col-resize touch-none select-none lg:block"
+        className="absolute -left-1 top-0 z-30 hidden h-full w-3 cursor-col-resize touch-none select-none lg:block"
         onPointerDown={startResize}
       >
         <div className="pointer-events-none absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[var(--hero-ink)]/10 transition-colors hover:bg-[var(--hero-ink)]/25" />
       </div>
-      <ArtifactPanel
-        payload={payload}
-        activePath={activePath}
-        streaming={streaming}
-        sessionId={sessionId}
-        onActivePathChange={onActivePathChange}
-        onPayloadChange={onPayloadChange}
-        onClose={onClose}
-        className="h-full w-full"
-      />
+
+      <div className="absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden bg-white lg:static lg:h-full lg:w-full lg:bg-transparent">
+        <ArtifactPanel
+          payload={payload}
+          activePath={activePath}
+          streaming={streaming}
+          sessionId={sessionId}
+          onActivePathChange={onActivePathChange}
+          onPayloadChange={onPayloadChange}
+          onClose={onClose}
+          className="h-full w-full overflow-hidden"
+        />
+      </div>
     </div>
   );
 }

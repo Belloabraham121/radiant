@@ -56,6 +56,7 @@ import {
   queryMarginManagerCreated,
   queryMarginSupplyHistory,
   queryMarginIndexerSupply,
+  queryMarginManagerState,
 } from "../defi/deepbook/deepbook-margin-indexer-read.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
@@ -125,6 +126,7 @@ export const queryChainToolDefinition = {
           "margin_manager_created",
           "margin_supply_history",
           "margin_indexer_supply",
+          "margin_manager_state",
           "predict_markets",
           "predict_trade_amounts",
           "predict_range_amounts",
@@ -167,6 +169,9 @@ export const queryChainToolDefinition = {
           "margin_manager_created: { margin_manager_id?, margin_manager_key?, start_time?, end_time?, limit? } — margin manager provisioning events (scoped to wallet when unfiltered). " +
           "margin_supply_history: { margin_pool_id?, supplier?, start_time?, end_time?, limit? } — margin pool LP supply/withdraw events (defaults supplier to agent wallet). " +
           "margin_indexer_supply: {} — live total supply per margin pool from indexer /margin_supply. " +
+          "margin_manager_state: { margin_manager_key?, pool_key? } — live indexer snapshot for your margin manager: current_price, risk_ratio, collateral/debt, TPSL trigger bounds (lowest_trigger_above_price, highest_trigger_below_price). " +
+          "For price/volume trend charts use deepbook_ohlcv { pool_key, interval?: 1h|1d, limit? }, deepbook_trades, deepbook_volume. " +
+          "For margin position history use margin_collateral_history, margin_loan_history, margin_liquidations — indexer start_time/end_time are Unix seconds. " +
           "predict_markets: {} — active oracles with spot/forward prices, lifecycle, expiry. " +
           "predict_trade_amounts: { oracle_id, expiry, strike, is_up, quantity } — preview mint cost and redeem payout for a binary position. " +
           "predict_range_amounts: { oracle_id, expiry, lower_strike, higher_strike, quantity } — preview for range position. " +
@@ -361,6 +366,10 @@ export async function runQueryChainTool(
     case "margin_indexer_supply": {
       assertSuiDeepBookQuery(parsed.chain_id);
       return queryMarginIndexerSupply(privyUserId, parsed.params);
+    }
+    case "margin_manager_state": {
+      assertSuiDeepBookQuery(parsed.chain_id);
+      return queryMarginManagerState(privyUserId, parsed.params);
     }
     case "predict_markets": {
       assertSuiDeepBookQuery(parsed.chain_id);

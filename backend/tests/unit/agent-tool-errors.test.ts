@@ -21,6 +21,12 @@ describe("agent-tool-errors", () => {
     assert.match(mapped.message, /enough/i);
   });
 
+  it("mapAgentToolError maps Too Many Requests to SUI_RPC_RATE_LIMITED", () => {
+    const mapped = mapAgentToolError(new Error("Too Many Requests"));
+    assert.equal(mapped.code, "SUI_RPC_RATE_LIMITED");
+    assert.match(mapped.message, /Sui RPC is rate limiting/i);
+  });
+
   it("mapAgentToolError passes through AppError", () => {
     const original = new AppError(404, "WALLET_NOT_FOUND", "missing");
     assert.equal(mapAgentToolError(original), original);

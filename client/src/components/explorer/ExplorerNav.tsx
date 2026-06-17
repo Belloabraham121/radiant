@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowLeft, Sparkles } from "lucide-react";
+import { TryRadiantLink } from "@/components/auth/TryRadiantLink";
 
 export function ExplorerNav({ backTo }: { backTo?: { href: string; label: string } }) {
   return (
@@ -19,12 +22,11 @@ export function ExplorerNav({ backTo }: { backTo?: { href: string; label: string
           </Link>
         )}
       </div>
-      <Link
-        href="/auth"
+      <TryRadiantLink
         className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-5 py-2.5 text-sm font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-amber)] transition-transform hover:-translate-y-0.5"
       >
         Try Radiant
-      </Link>
+      </TryRadiantLink>
     </header>
   );
 }

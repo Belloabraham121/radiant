@@ -25,6 +25,7 @@ import { executeAppActionForInstallation } from "../../../../services/projects/a
 import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
 import { ok } from "../../../../utils/http-response.js";
 import { registerMarginDeepbookReadRoutes } from "../margin-deepbook-read.routes.js";
+import { registerDeepbookIndexerReadRoutes } from "../deepbook-indexer-read.routes.js";
 
 export const installationsRouter = Router();
 
@@ -263,5 +264,4 @@ installationsRouter.post(
 );
 
 registerMarginDeepbookReadRoutes(installationsRouter, "installation");
-
-registerMarginDeepbookReadRoutes(installationsRouter, "installation");
+registerDeepbookIndexerReadRoutes(installationsRouter, "installation");

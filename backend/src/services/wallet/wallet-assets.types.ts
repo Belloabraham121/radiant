@@ -15,6 +15,8 @@ export type WalletAssetRow = {
   balance_display: number;
   decimals: number;
   usd_value: number | null;
+  usd_price?: number | null;
+  logo_url?: string | null;
   source: "sui_rpc" | "privy";
   popular: boolean;
 };
@@ -27,4 +29,5 @@ export type WalletAssetsData = {
   assets: WalletAssetRow[];
   catalog_source: "indexer" | "fallback" | "privy";
   updated_at: string;
+  prices_updated_at?: string | null;
 };

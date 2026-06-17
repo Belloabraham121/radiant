@@ -1,5 +1,6 @@
 import { Transaction, coinWithBalance } from "@mysten/sui/transactions";
 import { getSuiClient } from "../../infrastructure/sui/client.js";
+import { withSuiRpcRetry } from "../../infrastructure/sui/rpc-retry.js";
 import { AppError } from "../../errors/app-error.js";
 import type { SuiTxResult } from "../chains/types.js";
 
@@ -26,7 +27,7 @@ export async function buildTransferSuiTransaction(input: {
   tx.setSender(input.sender);
   tx.transferObjects([coinWithBalance({ balance: input.amountMist })], input.recipient);
 
-  return tx.build({ client });
+  return withSuiRpcRetry(() => tx.build({ client }));
 }
 
 export async function executeSignedSuiTransaction(input: {
@@ -35,11 +36,13 @@ export async function executeSignedSuiTransaction(input: {
   suiAddress: string;
 }): Promise<SuiTxResult> {
   const client = getSuiClient();
-  const result = await client.executeTransaction({
-    transaction: input.transactionBytes,
-    signatures: [input.serializedSignature],
-    include: { effects: true },
-  });
+  const result = await withSuiRpcRetry(() =>
+    client.executeTransaction({
+      transaction: input.transactionBytes,
+      signatures: [input.serializedSignature],
+      include: { effects: true },
+    }),
+  );
 
   if (result.$kind === "FailedTransaction") {
     const failedDigest = result.FailedTransaction.digest;

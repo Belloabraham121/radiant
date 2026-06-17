@@ -1,4 +1,7 @@
 import { Router } from "express";
+import { AppError } from "../../../../errors/app-error.js";
+import { getCoingeckoConfig } from "../../../../config/coingecko.js";
+import { tryConsumeTokenBucket } from "../../../../infrastructure/rate-limit/token-bucket.js";
 import { requireAuth } from "../../../middleware/auth.js";
 import { getWalletAssetsForPrivyUser } from "../../../../services/wallet/wallet-assets.service.js";
 import { walletAssetsQuerySchema } from "../../../../services/wallet/wallet.types.js";
@@ -8,6 +11,22 @@ export const walletAssetsRouter = Router();
 
 walletAssetsRouter.get("/api/v1/wallets/assets", requireAuth, async (req, res, next) => {
   try {
+    const config = getCoingeckoConfig();
+    const allowed = await tryConsumeTokenBucket(
+      `wallet-assets:${req.user.privyUserId}`,
+      {
+        capacity: config.walletAssetsRateLimitCapacity,
+        refillIntervalMs: config.walletAssetsRateLimitRefillIntervalMs,
+      },
+    );
+    if (!allowed) {
+      throw new AppError(
+        429,
+        "RATE_LIMITED",
+        "Too many wallet refresh requests. Try again in a few seconds.",
+      );
+    }
+
     const query = walletAssetsQuerySchema.parse({
       chain: typeof req.query.chain === "string" ? req.query.chain : undefined,
       evm_chain_id:

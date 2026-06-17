@@ -5,7 +5,25 @@ import type { ChatAppScope } from "@/lib/chat-app-scope";
 export type ChatToolCall = {
   name: string;
   query?: string;
+  action?: string;
   result: unknown;
+};
+
+export type TransactionFiatLeg = {
+  role: "pay" | "receive" | "fee";
+  amount_display: number;
+  symbol: string;
+  usd_price: number | null;
+  usd_value: number | null;
+  price_source: "coingecko" | "stablecoin_peg" | "pool_mid" | "unknown";
+};
+
+export type TransactionFiatPreview = {
+  legs: TransactionFiatLeg[];
+  total_pay_usd: number | null;
+  total_receive_usd: number | null;
+  net_usd: number | null;
+  priced_at: string | null;
 };
 
 export type PendingTransaction = {
@@ -16,6 +34,7 @@ export type PendingTransaction = {
   summary: string;
   amount_display: string;
   quote_expires_at?: string | null;
+  fiat_preview?: TransactionFiatPreview | null;
 };
 
 export type ClarificationInteractionType =

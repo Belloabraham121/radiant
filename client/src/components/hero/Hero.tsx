@@ -5,6 +5,7 @@ import { useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ArrowDown, ArrowRight, Brain, Hand, Sparkles, Wallet } from "lucide-react";
+import { TryRadiantLink } from "@/components/auth/TryRadiantLink";
 import { EvolvingWord } from "./EvolvingWord";
 import { MARQUEE_COMMANDS } from "./apps";
 
@@ -60,12 +61,11 @@ export function Hero() {
             Docs
           </a>
         </nav>
-        <Link
-          href="/auth"
+        <TryRadiantLink
           className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-5 py-2.5 text-sm font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-amber)] transition-transform hover:-translate-y-0.5"
         >
           Try Radiant
-        </Link>
+        </TryRadiantLink>
       </header>
 
       {/* title zone */}
@@ -101,13 +101,12 @@ export function Hero() {
         </p>
 
         <div data-hero-fade className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
-          <Link
-            href="/auth"
+          <TryRadiantLink
             className="group flex items-center gap-2 rounded-full bg-[var(--hero-ink)] px-8 py-4 text-base font-bold text-[var(--hero-bg)] shadow-[5px_5px_0_var(--hero-coral)] transition-transform hover:-translate-y-1"
           >
             Try Radiant
             <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
-          </Link>
+          </TryRadiantLink>
           <Link
             href="/explorer"
             className="rounded-full border-2 border-[var(--hero-ink)] bg-white px-8 py-4 text-base font-bold shadow-[5px_5px_0_var(--hero-blue)] transition-transform hover:-translate-y-1"

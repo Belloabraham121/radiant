@@ -1,6 +1,6 @@
 /** Reference margin trading app injected when generate_app uses template: "margin". */
 
-export const MARGIN_APP_REFERENCE_VERSION = 1;
+export const MARGIN_APP_REFERENCE_VERSION = 2;
 
 export type MarginReferenceFile = { path: string; content: string };
 
@@ -12,9 +12,15 @@ export const MARGIN_REFERENCE_APP_FILES: MarginReferenceFile[] = [
 import "../lib/radiant-agent-runtime";
 import "../lib/margin-agent-handlers";
 import MarginTradingApp from "../components/MarginTradingApp";
+import MarginMarketTrend from "../components/MarginMarketTrend";
 
 export default function Page() {
-  return <MarginTradingApp />;
+  return (
+    <>
+      <MarginMarketTrend />
+      <MarginTradingApp />
+    </>
+  );
 }
 `,
   },
@@ -146,6 +152,142 @@ function registerMarginHandlers(): void {
 }
 
 registerMarginHandlers();
+`,
+  },
+  {
+    path: "components/MarginMarketTrend.tsx",
+    content: `"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { deepbookOhlcv, marginManagerState } from "../lib/radiant-client";
+
+type Candle = {
+  open?: number;
+  high?: number;
+  low?: number;
+  close?: number;
+  timestamp?: number;
+};
+
+function Sparkline({ candles }: { candles: Candle[] }) {
+  const points = useMemo(() => {
+    const closes = candles
+      .map((c) => (typeof c.close === "number" ? c.close : null))
+      .filter((v): v is number => v != null && Number.isFinite(v));
+    if (closes.length < 2) {
+      return "";
+    }
+    const min = Math.min(...closes);
+    const max = Math.max(...closes);
+    const range = max - min || 1;
+    const width = 280;
+    const height = 64;
+    return closes
+      .map((value, index) => {
+        const x = (index / (closes.length - 1)) * width;
+        const y = height - ((value - min) / range) * height;
+        return \`\${index === 0 ? "M" : "L"}\${x.toFixed(1)},\${y.toFixed(1)}\`;
+      })
+      .join(" ");
+  }, [candles]);
+
+  if (!points) {
+    return <p className="text-sm text-gray-500">Not enough candle data yet.</p>;
+  }
+
+  return (
+    <svg viewBox="0 0 280 64" className="h-16 w-full max-w-sm" aria-hidden="true">
+      <path d={points} fill="none" stroke="currentColor" strokeWidth="2" className="text-violet-600" />
+    </svg>
+  );
+}
+
+export default function MarginMarketTrend() {
+  const [poolKey, setPoolKey] = useState("SUI_DBUSDC");
+  const [candleInterval, setCandleInterval] = useState("1h");
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [currentPrice, setCurrentPrice] = useState<string>("—");
+  const [riskRatio, setRiskRatio] = useState<string>("—");
+  const [message, setMessage] = useState("");
+
+  const refresh = useCallback(async () => {
+    setMessage("");
+    try {
+      const [ohlcv, state] = await Promise.all([
+        deepbookOhlcv({ pool_key: poolKey, interval: candleInterval, limit: 48 }),
+        marginManagerState({ pool_key: poolKey }).catch(() => null),
+      ]);
+      const raw = ohlcv.candles;
+      setCandles(Array.isArray(raw) ? (raw as Candle[]) : []);
+      const stateRow = state && typeof state.state === "object" && state.state ? (state.state as Record<string, unknown>) : null;
+      setCurrentPrice(stateRow?.current_price != null ? String(stateRow.current_price) : "—");
+      setRiskRatio(stateRow?.risk_ratio != null ? String(stateRow.risk_ratio) : "—");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to load market trend");
+    }
+  }, [poolKey, candleInterval]);
+
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  const lastClose = candles.length > 0 ? candles[candles.length - 1]?.close : null;
+
+  return (
+    <section className="mx-auto mb-6 max-w-3xl rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Market trend</h2>
+          <p className="mt-1 text-xs text-gray-600">Live OHLCV from DeepBook indexer — refreshes every 60s.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            data-radiant-id="trend-pool-key"
+            className="rounded-lg border border-gray-300 px-2 py-1 text-sm"
+            value={poolKey}
+            onChange={(e) => setPoolKey(e.target.value)}
+          >
+            <option value="SUI_DBUSDC">SUI_DBUSDC</option>
+            <option value="SUI_USDC">SUI_USDC</option>
+            <option value="DEEP_USDC">DEEP_USDC</option>
+          </select>
+          <select
+            data-radiant-id="trend-interval"
+            className="rounded-lg border border-gray-300 px-2 py-1 text-sm"
+            value={candleInterval}
+            onChange={(e) => setCandleInterval(e.target.value)}
+          >
+            <option value="1h">1h</option>
+            <option value="1d">1d</option>
+          </select>
+          <button type="button" className="text-sm text-violet-700 underline" onClick={() => void refresh()}>
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div>
+          <p className="text-xs font-medium uppercase text-gray-500">Indexer price</p>
+          <p data-radiant-id="trend-current-price" className="text-lg font-bold text-gray-900">{currentPrice}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase text-gray-500">Last close</p>
+          <p className="text-lg font-bold text-gray-900">{lastClose != null ? String(lastClose) : "—"}</p>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase text-gray-500">Risk ratio</p>
+          <p data-radiant-id="trend-risk-ratio" className="text-lg font-bold text-violet-900">{riskRatio}</p>
+        </div>
+      </div>
+      <div className="mt-4">
+        <Sparkline candles={candles} />
+      </div>
+      {message ? <p className="mt-2 text-sm text-red-600">{message}</p> : null}
+    </section>
+  );
+}
 `,
   },
   {

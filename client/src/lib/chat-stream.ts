@@ -33,19 +33,44 @@ function parseSseBlock(block: string): { event: string; data: string } | null {
   return { event, data: dataLines.join("\n") };
 }
 
+export class ChatStreamAbortedError extends Error {
+  constructor() {
+    super("Request stopped.");
+    this.name = "ChatStreamAbortedError";
+  }
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    err instanceof ChatStreamAbortedError ||
+    (err instanceof DOMException && err.name === "AbortError") ||
+    (err instanceof Error && err.name === "AbortError")
+  );
+}
+
 export async function postChatStream(
   body: ChatRequest,
   handlers: ChatStreamHandlers = {},
+  options: { signal?: AbortSignal } = {},
 ): Promise<ChatResponse> {
-  const response = await fetch("/api/v1/chat?stream=1", {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/v1/chat?stream=1", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify(body),
+      signal: options.signal,
+    });
+  } catch (err) {
+    if (isAbortError(err) || options.signal?.aborted) {
+      throw new ChatStreamAbortedError();
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     let message = "Could not reach your agent. Try again.";
@@ -71,6 +96,7 @@ export async function postChatStream(
   let buffer = "";
   let finalResponse: ChatResponse | null = null;
 
+  try {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -119,6 +145,12 @@ export async function postChatStream(
 
       boundary = buffer.indexOf("\n\n");
     }
+  }
+  } catch (err) {
+    if (isAbortError(err) || options.signal?.aborted) {
+      throw new ChatStreamAbortedError();
+    }
+    throw err;
   }
 
   if (!finalResponse) {

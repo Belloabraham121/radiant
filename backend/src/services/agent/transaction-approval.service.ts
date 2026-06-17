@@ -47,6 +47,7 @@ import {
   isSwapQuoteExpired,
   readQuoteExpiresAt,
 } from "./deepbook/swap-quote-enrichment.js";
+import { previewExecuteTransactionFiat } from "../market/valuation.service.js";
 import {
   claimPendingApprovalForUser,
   claimPendingRejectionForUser,
@@ -125,6 +126,8 @@ export async function buildPendingTransactionPreview(
     enriched,
   );
 
+  const fiat_preview = await previewExecuteTransactionFiat(enriched);
+
   return {
     id,
     chain_id: enriched.chain_id,
@@ -133,6 +136,7 @@ export async function buildPendingTransactionPreview(
     amount_display: amountDisplay,
     summary: title,
     quote_expires_at: readQuoteExpiresAt(enriched.params),
+    fiat_preview,
   };
 }
 

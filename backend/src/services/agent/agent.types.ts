@@ -1,3 +1,4 @@
+import type { TransactionFiatPreview } from "../market/valuation.types.js";
 import { z } from "zod";
 import { chainIdSchema } from "../chains/types.js";
 import type { BalanceResult, ChainId, TxResult } from "../chains/types.js";
@@ -100,6 +101,8 @@ export type ToolCallRecord = {
   result: unknown;
 };
 
+export type { TransactionFiatPreview } from "../market/valuation.types.js";
+
 export type PendingTransaction = {
   id: string;
   chain_id: ChainId;
@@ -109,6 +112,8 @@ export type PendingTransaction = {
   amount_display: string;
   /** ISO timestamp — swap quotes expire; approval is blocked after this time. */
   quote_expires_at?: string | null;
+  /** USD estimates for approval UI (pay / receive / net). */
+  fiat_preview?: TransactionFiatPreview | null;
 };
 
 export type ChatResponse = {
@@ -158,6 +163,7 @@ const queryChainInputObjectSchema = z.object({
     "margin_manager_created",
     "margin_supply_history",
     "margin_indexer_supply",
+    "margin_manager_state",
     "predict_markets",
     "predict_trade_amounts",
     "predict_range_amounts",

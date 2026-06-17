@@ -115,6 +115,25 @@ function formatTimestamp(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
+function JsonDetailsBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: Record<string, unknown>;
+}) {
+  return (
+    <details className="min-w-0 overflow-hidden rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-white px-4 py-3">
+      <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/45">
+        {label}
+      </summary>
+      <pre className="mt-2 max-h-40 max-w-full overflow-auto overscroll-x-contain whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-[var(--hero-ink)]/70">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </details>
+  );
+}
+
 export function AgentTransactionDetailDialog({
   transactionId,
   open,
@@ -129,14 +148,14 @@ export function AgentTransactionDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] p-0 shadow-[6px_6px_0_var(--hero-ink)] sm:max-w-lg">
+      <DialogContent className="max-h-[85vh] w-full max-w-[calc(100%-2rem)] overflow-x-hidden overflow-y-auto border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] p-0 shadow-[6px_6px_0_var(--hero-ink)] sm:max-w-lg">
         <DialogHeader className="border-b-2 border-[var(--hero-ink)]/10 px-6 py-5">
           <DialogTitle className="font-heading text-xl font-extrabold tracking-tight text-[var(--hero-ink)]">
             Agent transaction
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 px-6 py-5">
+        <div className="min-w-0 space-y-4 overflow-hidden px-6 py-5">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm font-semibold text-[var(--hero-ink)]/45">
               <Loader2 className="size-5 animate-spin" />
@@ -190,34 +209,20 @@ export function AgentTransactionDetailDialog({
               </dl>
 
               {detail.error_message ? (
-                <div className="rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
+                <div className="min-w-0 overflow-hidden rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
                   <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--hero-coral)]">
                     Error
                   </p>
-                  <p className="mt-1 text-sm font-medium text-[var(--hero-ink)]/70">
+                  <p className="mt-1 break-words text-sm font-medium text-[var(--hero-ink)]/70">
                     {detail.error_message}
                   </p>
                 </div>
               ) : null}
 
-              <details className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-white px-4 py-3">
-                <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/45">
-                  Parameters
-                </summary>
-                <pre className="mt-2 max-h-40 overflow-auto font-mono text-[11px] text-[var(--hero-ink)]/70">
-                  {JSON.stringify(detail.params, null, 2)}
-                </pre>
-              </details>
+              <JsonDetailsBlock label="Parameters" value={detail.params} />
 
               {detail.result ? (
-                <details className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-white px-4 py-3">
-                  <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/45">
-                    Result
-                  </summary>
-                  <pre className="mt-2 max-h-40 overflow-auto font-mono text-[11px] text-[var(--hero-ink)]/70">
-                    {JSON.stringify(detail.result, null, 2)}
-                  </pre>
-                </details>
+                <JsonDetailsBlock label="Result" value={detail.result} />
               ) : null}
 
               <div className="flex flex-wrap gap-2 pt-1">

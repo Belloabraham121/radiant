@@ -49,3 +49,8 @@ export function getSignerQuorumId(): string | null {
 export function getSuiPolicyId(): string | null {
   return getPrivyWalletEnv().PRIVY_SUI_POLICY_ID ?? null;
 }
+
+/** Test hook — clear cached Privy wallet env. */
+export function resetPrivyWalletEnvForTests(): void {
+  cachedPrivyWalletEnv = undefined;
+}

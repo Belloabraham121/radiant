@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { ArrowRight, Sparkles } from "lucide-react";
+import { TryRadiantLink } from "@/components/auth/TryRadiantLink";
 import { WordReveal } from "./WordReveal";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
@@ -45,13 +46,12 @@ export function FooterSection() {
           time.
         </p>
         <div className="mt-10 flex justify-center">
-          <Link
-            href="/auth"
+          <TryRadiantLink
             className="group flex items-center gap-2 rounded-full bg-[var(--hero-amber)] px-9 py-4 text-base font-bold text-[var(--hero-ink)] shadow-[5px_5px_0_var(--hero-coral)] transition-transform hover:-translate-y-1"
           >
             Try Radiant
             <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
-          </Link>
+          </TryRadiantLink>
         </div>
       </div>
 

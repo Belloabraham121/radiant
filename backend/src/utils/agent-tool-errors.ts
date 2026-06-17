@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import { AppError } from "../errors/app-error.js";
+import { isSuiRpcRateLimitError, suiRpcRateLimitAppError } from "../infrastructure/sui/rpc-retry.js";
 import { formatZodValidationError } from "./format-zod-validation.js";
 
 const BASE58_ALPHABET =
@@ -51,7 +52,7 @@ export function mapAgentToolError(err: unknown): AppError {
     return new AppError(
       400,
       "INSUFFICIENT_BALANCE",
-      "Your agent wallet does not hold enough of the token needed for this transaction.",
+      "Unable to complete this transaction — your wallet does not have enough SUI for network gas.",
       { cause: message },
     );
   }
@@ -63,6 +64,10 @@ export function mapAgentToolError(err: unknown): AppError {
       "Could not reach Sui RPC. Try again in a moment.",
       { cause: message },
     );
+  }
+
+  if (isSuiRpcRateLimitError(err)) {
+    return suiRpcRateLimitAppError(err);
   }
 
   return new AppError(400, "TRANSACTION_ERROR", message.slice(0, 500));
@@ -93,11 +98,12 @@ export function toolErrorToModelContent(error: AgentToolErrorPayload): string {
 function guidanceForErrorCode(code: string): string {
   switch (code) {
     case "INSUFFICIENT_BALANCE":
-      return "Explain the wallet lacks enough of the required token. Suggest funding the agent wallet or using a smaller amount.";
+      return "Explain the wallet lacks enough of the required token or SUI for network gas. Suggest funding the agent wallet or using a smaller amount.";
     case "SLIPPAGE_EXCEEDED":
       return "Explain the swap could not complete due to price movement. Suggest a smaller amount or higher slippage.";
     case "SUI_RPC_UNAVAILABLE":
-      return "Explain Sui RPC was temporarily unreachable. Suggest retrying the query shortly.";
+    case "SUI_RPC_RATE_LIMITED":
+      return "Explain Sui RPC was temporarily busy or unreachable. Suggest waiting a few seconds and retrying the swap.";
     case "TRANSACTION_ERROR":
     case "TRANSACTION_FAILED":
       return "Explain the transaction failed on chain in plain language.";
