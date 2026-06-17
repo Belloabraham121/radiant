@@ -110,18 +110,28 @@ function applyEdits(
       );
     }
 
-    if (!file.content.includes(edit.old_string)) {
+    let matchedOldString = edit.old_string;
+    if (!file.content.includes(matchedOldString)) {
+      // Fallback: try swapping single↔double quotes (common LLM mistake)
+      const quoteSwapped = matchedOldString.replace(/['"]/g, (ch) => (ch === "'" ? '"' : "'"));
+      if (quoteSwapped !== matchedOldString && file.content.includes(quoteSwapped)) {
+        matchedOldString = quoteSwapped;
+      }
+    }
+
+    if (!file.content.includes(matchedOldString)) {
+      // Fallback: try case-insensitive substring match to find closest actual text
       const caseInsensitiveIdx = file.content
         .toLowerCase()
-        .indexOf(edit.old_string.toLowerCase());
+        .indexOf(matchedOldString.toLowerCase());
 
       if (caseInsensitiveIdx >= 0) {
         const actualMatch = file.content.slice(
           caseInsensitiveIdx,
-          caseInsensitiveIdx + edit.old_string.length,
+          caseInsensitiveIdx + matchedOldString.length,
         );
         const lineStart = file.content.lastIndexOf("\n", caseInsensitiveIdx) + 1;
-        const lineEnd = file.content.indexOf("\n", caseInsensitiveIdx + edit.old_string.length);
+        const lineEnd = file.content.indexOf("\n", caseInsensitiveIdx + matchedOldString.length);
         const contextLine = file.content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
         throw new AppError(
           400,
@@ -133,9 +143,18 @@ function applyEdits(
         );
       }
 
-      const fullContent = file.content.length <= 6000
-        ? file.content
-        : file.content.slice(0, 6000) + "\n... (truncated)";
+      // Strip platform CSS from error content so the agent sees clean user code
+      let errorContent = file.content;
+      if (normalizedPath.endsWith("globals.css")) {
+        const platformIdx = errorContent.indexOf(".radiant-agent-indicator");
+        if (platformIdx > 0) {
+          errorContent = errorContent.slice(0, platformIdx).trimEnd()
+            + "\n\n/* ... platform styles omitted ... */";
+        }
+      }
+      const fullContent = errorContent.length <= 6000
+        ? errorContent
+        : errorContent.slice(0, 6000) + "\n... (truncated)";
 
       throw new AppError(
         400,
@@ -145,7 +164,7 @@ function applyEdits(
       );
     }
 
-    const occurrences = file.content.split(edit.old_string).length - 1;
+    const occurrences = file.content.split(matchedOldString).length - 1;
     if (occurrences > 1) {
       throw new AppError(
         400,
@@ -154,7 +173,7 @@ function applyEdits(
       );
     }
 
-    file.content = file.content.replace(edit.old_string, edit.new_string);
+    file.content = file.content.replace(matchedOldString, edit.new_string);
     editedPathSet.add(normalizedPath);
   }
 

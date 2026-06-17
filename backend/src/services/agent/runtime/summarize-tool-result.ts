@@ -10,6 +10,45 @@ import { UPDATE_MEMORY_TOOL_NAME } from "../update-memory.tool.js";
 import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { TxResult } from "../../chains/types.js";
 
+/**
+ * Strip platform-injected CSS (.radiant-agent-indicator, .radiant-tx-approval-*, etc.)
+ * from globals.css before showing it to the LLM. The agent shouldn't edit these styles,
+ * and they bloat the file past the 3000-char truncation limit.
+ */
+function stripPlatformCssForSummary(css: string): string {
+  const platformMarkers = [
+    ".radiant-agent-indicator",
+    ".radiant-agent-indicator-dot",
+    "@keyframes radiant-agent-pulse",
+    "[data-radiant-id].agent-focused",
+    "[data-radiant-id].agent-clicking",
+    ".radiant-tx-approval-",
+  ];
+  const lines = css.split("\n");
+  const kept: string[] = [];
+  let skip = false;
+  let braceDepth = 0;
+  for (const line of lines) {
+    if (!skip && platformMarkers.some((m) => line.includes(m))) {
+      skip = true;
+      braceDepth = 0;
+    }
+    if (skip) {
+      for (const ch of line) {
+        if (ch === "{") braceDepth++;
+        if (ch === "}") braceDepth--;
+      }
+      if (braceDepth <= 0) {
+        skip = false;
+        braceDepth = 0;
+      }
+      continue;
+    }
+    kept.push(line);
+  }
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
+
 function isToolError(result: unknown): result is AgentToolErrorResult {
   return (
     typeof result === "object" &&
@@ -143,7 +182,11 @@ export function summarizeToolResult(name: string, result: unknown): string {
     const platformCount = fileList.length - userFiles.length;
 
     const fileSummaries = userFiles.map((f) => {
-      const lines = f.content.split("\n");
+      let content = f.content;
+      if (f.path.endsWith("globals.css")) {
+        content = stripPlatformCssForSummary(content);
+      }
+      const lines = content.split("\n");
       const preview = lines.join("\n");
       if (preview.length <= 3000) {
         return `--- ${f.path} (${lines.length} lines) ---\n${preview}`;
@@ -162,6 +205,33 @@ export function summarizeToolResult(name: string, result: unknown): string {
       `Full file contents below — use these EXACT strings as old_string when calling edit_app:\n\n` +
       fileSummaries.join("\n\n")
     );
+  }
+
+  if (name === "web_search") {
+    const outcome = result as {
+      query: string;
+      results: Array<{ title: string; url: string; snippet: string }>;
+      rate_limit?: { remaining: number; limit: number; window: string };
+    };
+    if (!outcome.results?.length) {
+      return `No results found for "${outcome.query}".`;
+    }
+    const items = outcome.results
+      .map((r, i) => `${i + 1}. **${r.title}**\n   ${r.url}\n   ${r.snippet}`)
+      .join("\n\n");
+    const rl = outcome.rate_limit;
+    const rateLine = rl
+      ? `\n\n[${rl.remaining}/${rl.limit} searches remaining this ${rl.window} — be efficient, prefer browse_webpage for follow-up reading]`
+      : "";
+    return `Search results for "${outcome.query}" (${outcome.results.length} results):\n\n${items}${rateLine}`;
+  }
+
+  if (name === "browse_webpage") {
+    const outcome = result as { url: string; title: string; content: string; word_count: number };
+    const preview = outcome.content.length > 6000
+      ? outcome.content.slice(0, 6000) + "\n\n... (truncated)"
+      : outcome.content;
+    return `Page: ${outcome.title}\nURL: ${outcome.url}\nWords: ${outcome.word_count}\n\n${preview}`;
   }
 
   if (name !== EXECUTE_TRANSACTION_TOOL_NAME) {

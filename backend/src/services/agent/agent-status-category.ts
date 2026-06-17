@@ -46,6 +46,9 @@ export function resolveCategoryFromTool(
     case "generate_app":
     case "edit_app":
       return "thinking";
+    case "web_search":
+    case "browse_webpage":
+      return "researching";
     default:
       return "thinking";
   }

@@ -63,6 +63,16 @@ import {
   updateMemoryToolDefinition,
   runUpdateMemoryTool,
 } from "./update-memory.tool.js";
+import {
+  WEB_SEARCH_TOOL_NAME,
+  webSearchToolDefinition,
+  runWebSearchTool,
+} from "./browsing/web-search.tool.js";
+import {
+  BROWSE_WEBPAGE_TOOL_NAME,
+  browseWebpageToolDefinition,
+  runBrowseWebpageTool,
+} from "./browsing/browse-webpage.tool.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 
 export const agentToolDefinitions = [
@@ -78,6 +88,8 @@ export const agentToolDefinitions = [
   installAppToolDefinition,
   publishAppToolDefinition,
   saveProjectToolDefinition,
+  webSearchToolDefinition,
+  browseWebpageToolDefinition,
 ] as const;
 
 export type AgentToolErrorResult = {
@@ -174,6 +186,10 @@ async function dispatchAgentTool(
         return await runSaveProjectTool(privyUserId, input, {
           sessionId: options?.sessionId,
         });
+      case WEB_SEARCH_TOOL_NAME:
+        return await runWebSearchTool(privyUserId, input);
+      case BROWSE_WEBPAGE_TOOL_NAME:
+        return await runBrowseWebpageTool(privyUserId, input);
       default:
         throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
     }

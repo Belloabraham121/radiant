@@ -79,6 +79,8 @@ import {
 import { resolveCategoryFromTool } from "../agent-status-category.js";
 import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
 import { EDIT_APP_TOOL_NAME } from "../../projects/edit-app.tool.js";
+import { WEB_SEARCH_TOOL_NAME } from "../browsing/web-search.tool.js";
+import { BROWSE_WEBPAGE_TOOL_NAME } from "../browsing/browse-webpage.tool.js";
 import { parsePartialGenerateAppArgs } from "../../projects/parse-partial-generate-app.js";
 import { buildPreviewArtifactPayload } from "../../projects/preview-artifact.js";
 import type { GenerateAppResult } from "../../projects/project.types.js";
@@ -629,6 +631,28 @@ export const openaiRuntime: AgentRuntime = {
           });
         }
 
+        if (toolCall.function.name === WEB_SEARCH_TOOL_NAME) {
+          emitExecutionProgress({
+            step: {
+              id: "web-search",
+              status: "running",
+              label: "Searching the web",
+              detail: args.query ? `"${String(args.query).slice(0, 60)}"` : "Searching…",
+            },
+          });
+        }
+
+        if (toolCall.function.name === BROWSE_WEBPAGE_TOOL_NAME) {
+          emitExecutionProgress({
+            step: {
+              id: "browse-webpage",
+              status: "running",
+              label: "Reading webpage",
+              detail: args.url ? String(args.url).slice(0, 80) : "Fetching…",
+            },
+          });
+        }
+
         if (toolCall.function.name === EXECUTE_TRANSACTION_TOOL_NAME) {
           const priorInfeasibleQuote = findLatestFlashLoanQuote(tool_calls);
           const blockInfeasibleExecute =
@@ -783,6 +807,35 @@ export const openaiRuntime: AgentRuntime = {
               },
             });
           }
+        }
+
+        if (toolCall.function.name === WEB_SEARCH_TOOL_NAME) {
+          const searchResult = result as { results?: unknown[] };
+          const count = Array.isArray(searchResult?.results) ? searchResult.results.length : 0;
+          emitExecutionProgress({
+            step: {
+              id: "web-search",
+              status: isAgentToolErrorResult(result) ? "failed" : "ok",
+              label: "Searching the web",
+              detail: isAgentToolErrorResult(result)
+                ? result.error.message
+                : `Found ${count} result${count === 1 ? "" : "s"}`,
+            },
+          });
+        }
+
+        if (toolCall.function.name === BROWSE_WEBPAGE_TOOL_NAME) {
+          const pageResult = result as { title?: string };
+          emitExecutionProgress({
+            step: {
+              id: "browse-webpage",
+              status: isAgentToolErrorResult(result) ? "failed" : "ok",
+              label: "Reading webpage",
+              detail: isAgentToolErrorResult(result)
+                ? result.error.message
+                : `Read "${pageResult?.title ?? "page"}"`,
+            },
+          });
         }
 
         if (
