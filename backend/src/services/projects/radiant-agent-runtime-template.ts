@@ -1,13 +1,15 @@
 /** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_VERSION = 7;
+export const RADIANT_AGENT_RUNTIME_VERSION = 9;
 
 export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
 import {
   approveAgentTransaction,
+  deleteAppData,
   executeAction,
   isApprovalRequired,
   rejectAgentTransaction,
+  storeAppData,
   type AppActionResult,
 } from "./radiant-client";
 
@@ -237,11 +239,39 @@ const ONCHAIN_ACTIONS = new Set([
   "predict_mint_range", "predict_redeem_range", "predict_supply", "predict_lp_withdraw",
 ]);
 
+function findElementForParam(key: string): Element | null {
+  const kebab = key.replace(/_/g, "-");
+  return (
+    document.querySelector('[data-radiant-id="' + key + '"]') ??
+    document.querySelector('[data-radiant-id="' + kebab + '"]') ??
+    document.querySelector('input[name="' + key + '"]') ??
+    document.querySelector('textarea[name="' + key + '"]') ??
+    document.querySelector('select[name="' + key + '"]') ??
+    document.querySelector('input[name="' + kebab + '"]') ??
+    document.querySelector('textarea[name="' + kebab + '"]') ??
+    document.querySelector('select[name="' + kebab + '"]')
+  );
+}
+
+function findSubmitButton(): HTMLElement | null {
+  return (
+    document.querySelector('[data-radiant-id*="submit"]') ??
+    document.querySelector('[data-radiant-id*="confirm"]') ??
+    document.querySelector('[data-radiant-id*="add"]') ??
+    document.querySelector('button[type="submit"]') ??
+    document.querySelector('form button:not([type="button"]):not([type="reset"])') ??
+    document.querySelector('button[class*="add" i]') ??
+    document.querySelector('button[class*="submit" i]')
+  ) as HTMLElement | null;
+}
+
 /**
  * Generic fallback: for any action without a registered handler, try to match
- * each param key to a data-radiant-id element and fill it step by step.
+ * each param key to a data-radiant-id, name, or class attribute and fill it.
  * Then click the submit button to trigger the app's own logic.
- * For app-local actions (non-DeFi), returns a success result directly.
+ *
+ * If no form elements are found at all, falls back to storeAppData for
+ * app-local actions so data is persisted regardless.
  */
 async function genericFallbackHandler(
   params: Record<string, unknown>,
@@ -256,10 +286,7 @@ async function genericFallbackHandler(
   let filled = 0;
   for (const key of keys) {
     const value = params[key];
-    const kebab = key.replace(/_/g, "-");
-    const el =
-      document.querySelector('[data-radiant-id="' + key + '"]') ??
-      document.querySelector('[data-radiant-id="' + kebab + '"]');
+    const el = findElementForParam(key);
     if (el) {
       ctx.setField(key, value);
       ctx.dispatchEvent("radiant-agent-set-field", { field: key, value });
@@ -270,15 +297,12 @@ async function genericFallbackHandler(
     }
   }
 
-  const submitBtn =
-    document.querySelector('[data-radiant-id*="submit"]') ??
-    document.querySelector('[data-radiant-id*="confirm"]') ??
-    document.querySelector('button[type="submit"]');
+  const submitBtn = findSubmitButton();
   if (submitBtn) {
     const btnId = submitBtn.getAttribute("data-radiant-id") ?? "submit";
     ctx.highlight(btnId, "agent-clicking");
     await ctx.delay(600);
-    (submitBtn as HTMLElement).click();
+    submitBtn.click();
     await ctx.delay(300);
   }
 
@@ -657,7 +681,35 @@ export const radiantAgent = {
         if (ONCHAIN_ACTIONS.has(action)) {
           result = await executeAction(action, params);
         } else {
-          result = { status: "executed", digest: "", explorer_url: null, result: {} } as AppActionResult;
+          const isDelete = /delete|remove|clear/.test(action);
+          try {
+            if (isDelete && params.id) {
+              const collection = action.replace(/^(delete|remove|clear)[_-]?/i, "") || action;
+              await deleteAppData(collection, { id: String(params.id) });
+            } else if (isDelete && params.key) {
+              const collection = action.replace(/^(delete|remove|clear)[_-]?/i, "") || action;
+              await deleteAppData(collection, { key: String(params.key) });
+            } else if (!isDelete) {
+              await storeAppData(action, params);
+            }
+            result = {
+              status: "executed",
+              action,
+              digest: "",
+              explorer_url: null,
+              result: {},
+            } as AppActionResult;
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("radiant-agent-refresh"));
+              window.dispatchEvent(
+                new CustomEvent("radiant-agent-data-changed", {
+                  detail: { action, params, isDelete },
+                }),
+              );
+            }
+          } catch {
+            result = { status: "executed", digest: "", explorer_url: null, result: {} } as AppActionResult;
+          }
         }
       }
       result = await resolveApprovalIfNeeded(action, result);

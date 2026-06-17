@@ -266,6 +266,13 @@ export function detectDefiActionNamesFromArtifact(
   return [...detected];
 }
 
+/**
+ * Matches storeAppData("collection", ...) and deleteAppData("collection", ...)
+ * to infer add_<collection> / delete_<collection> actions.
+ */
+const APP_DATA_CALL_PATTERN =
+  /\b(storeAppData|deleteAppData|storeSharedData)\s*\(\s*["']([a-z_][a-z0-9_]*)["']/g;
+
 /** Detect app-local (non-DeFi) actions from register() calls and manifest files. */
 export function detectAppLocalActionsFromArtifact(
   files: ArtifactFileInput[],
@@ -311,6 +318,29 @@ export function detectAppLocalActionsFromArtifact(
         params: [],
         kind: "app_local",
       });
+    }
+  }
+
+  for (const match of source.matchAll(APP_DATA_CALL_PATTERN)) {
+    const fn = match[1]!;
+    const collection = match[2]!;
+    const addName = `add_${collection}`;
+    const deleteName = `delete_${collection}`;
+    if (fn === "storeAppData" || fn === "storeSharedData") {
+      if (!seen.has(addName) && !isOnchainAction(addName)) {
+        seen.add(addName);
+        actions.push({ name: addName, description: `Add an item to ${collection}`, params: [], kind: "app_local" });
+      }
+    }
+    if (fn === "deleteAppData") {
+      if (!seen.has(deleteName) && !isOnchainAction(deleteName)) {
+        seen.add(deleteName);
+        actions.push({ name: deleteName, description: `Delete an item from ${collection}`, params: [{ name: "id", type: "string", description: "ID of the record to delete", required: true }], kind: "app_local" });
+      }
+    }
+    if ((fn === "storeAppData" || fn === "storeSharedData") && !seen.has(deleteName) && !isOnchainAction(deleteName)) {
+      seen.add(deleteName);
+      actions.push({ name: deleteName, description: `Delete an item from ${collection}`, params: [{ name: "id", type: "string", description: "ID of the record to delete", required: true }], kind: "app_local" });
     }
   }
 
