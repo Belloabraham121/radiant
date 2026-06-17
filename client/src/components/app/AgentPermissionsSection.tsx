@@ -6,6 +6,9 @@ import { useState } from "react";
 import { useAgentPermissions } from "@/hooks/useAgentPermissions";
 import type { AgentPermissions } from "@/lib/agent-permissions-api";
 
+const PERMISSIONS_SUMMARY_PLACEHOLDER =
+  "Auto-approve, flash loans, governance, and more";
+
 function PermissionToggle({
   label,
   detail,
@@ -24,7 +27,7 @@ function PermissionToggle({
       type="button"
       disabled={disabled}
       onClick={onToggle}
-      className="flex w-full items-center justify-between gap-4 rounded-2xl border-2 border-[var(--hero-ink)] bg-white px-5 py-4 text-left shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+      className="flex w-full items-center justify-between gap-4 rounded-2xl border-2 border-[var(--hero-ink)] bg-white px-5 py-4 text-left shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
     >
       <span>
         <span className="block text-sm font-bold">{label}</span>
@@ -33,7 +36,7 @@ function PermissionToggle({
       <span
         className={`relative h-7 w-12 shrink-0 rounded-full border-2 border-[var(--hero-ink)] transition-colors ${
           on ? "bg-[var(--hero-mint)]" : "bg-[var(--hero-ink)]/10"
-        }`}
+        } ${disabled ? "opacity-60" : ""}`}
       >
         <span
           className={`absolute top-0.5 size-5 rounded-full border-2 border-[var(--hero-ink)] bg-white transition-all ${
@@ -45,9 +48,7 @@ function PermissionToggle({
   );
 }
 
-function permissionsSummary(permissions: AgentPermissions, loading: boolean): string {
-  if (loading) return "Loading…";
-
+function permissionsSummary(permissions: AgentPermissions): string {
   const parts: string[] = [];
   parts.push(
     permissions.auto_approve_enabled
@@ -66,13 +67,41 @@ function permissionsSummary(permissions: AgentPermissions, loading: boolean): st
   return parts.join(" · ");
 }
 
+function flashLoansDetail(permissions: AgentPermissions): string {
+  if (permissions.allow_flash_loans) {
+    return permissions.auto_approve_flash_loans
+      ? "Flash loans enabled. Bundled routes that repay from swap output may skip the approval dialog."
+      : "Advanced DeepBook flash loans are enabled. Every flash loan shows an approval dialog.";
+  }
+  return "Flash loans stay disabled. The agent cannot initiate deepbook_flash_loan until you turn this on.";
+}
+
+function governanceDetail(permissions: AgentPermissions): string {
+  return permissions.allow_governance
+    ? "The agent can submit fee proposals and vote on DeepBook pools. Every governance transaction shows an approval dialog."
+    : "Governance stays disabled. The agent cannot submit proposals or vote until you turn this on.";
+}
+
+function marginDetail(permissions: AgentPermissions): string {
+  return permissions.allow_margin
+    ? "Leveraged trading enabled. The agent can deposit collateral, borrow from margin pools, and place leveraged orders. Every margin transaction shows an approval dialog."
+    : "Margin trading stays disabled. The agent cannot borrow or place leveraged orders until you turn this on.";
+}
+
+function predictDetail(permissions: AgentPermissions): string {
+  return permissions.allow_predict
+    ? "Prediction markets enabled. The agent can mint and redeem binary/range positions on DeepBook Predict (testnet). Every prediction shows an approval dialog."
+    : "Prediction markets stay disabled. The agent cannot mint or redeem positions until you turn this on.";
+}
+
 export function AgentPermissionsSection() {
   const [open, setOpen] = useState(false);
   const { authenticated } = usePrivy();
   const {
     permissions,
-    loading,
+    loaded,
     saving,
+    controlsDisabled,
     error,
     setAutoApproveEnabled,
     setAutoApproveMaxSui,
@@ -81,7 +110,8 @@ export function AgentPermissionsSection() {
     setAllowGovernance,
     setAllowMargin,
     setAllowPredict,
-  } = useAgentPermissions(authenticated);
+  } = useAgentPermissions(authenticated, open);
+
   const serverMaxSui = String(permissions.auto_approve_max_sui);
   const [draftMaxSui, setDraftMaxSui] = useState(serverMaxSui);
   const [editingMaxSui, setEditingMaxSui] = useState(false);
@@ -90,6 +120,10 @@ export function AgentPermissionsSection() {
   const thresholdLabel = permissions.auto_approve_enabled
     ? `Swaps and transfers up to ${permissions.auto_approve_max_sui} SUI go through instantly. Larger amounts pause for your approval.`
     : "Every swap and transfer will pause for your approval in chat before signing.";
+
+  const summaryText = loaded
+    ? permissionsSummary(permissions)
+    : PERMISSIONS_SUMMARY_PLACEHOLDER;
 
   return (
     <section data-settings-block className="mt-10 pb-10">
@@ -117,7 +151,7 @@ export function AgentPermissionsSection() {
                 ) : null}
               </span>
               <span className="mt-0.5 block truncate text-xs font-medium text-[var(--hero-ink)]/50">
-                {permissionsSummary(permissions, loading)}
+                {summaryText}
               </span>
             </span>
           </span>
@@ -130,7 +164,10 @@ export function AgentPermissionsSection() {
         </button>
 
         {open ? (
-          <div className="border-t-2 border-[var(--hero-ink)]/10 px-5 pb-5 pt-4">
+          <div
+            className="border-t-2 border-[var(--hero-ink)]/10 px-5 pb-5 pt-4"
+            aria-busy={controlsDisabled && !saving}
+          >
             <p className="mb-5 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
               Control how much freedom your agent has — auto-approvals, flash loans,
               governance, margin trading, and prediction markets all live here.
@@ -145,14 +182,18 @@ export function AgentPermissionsSection() {
             <div className="flex flex-col gap-3">
               <PermissionToggle
                 label="Auto-approve transactions"
-                detail={loading ? "Loading…" : thresholdLabel}
+                detail={thresholdLabel}
                 on={permissions.auto_approve_enabled}
-                disabled={loading || saving}
+                disabled={controlsDisabled}
                 onToggle={() => void setAutoApproveEnabled(!permissions.auto_approve_enabled)}
               />
 
               {permissions.auto_approve_enabled ? (
-                <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/25 bg-[var(--hero-bg)] px-5 py-4">
+                <div
+                  className={`rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/25 bg-[var(--hero-bg)] px-5 py-4 ${
+                    controlsDisabled ? "opacity-45" : ""
+                  }`}
+                >
                   <label
                     htmlFor="auto-approve-max-sui"
                     className="block text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/45"
@@ -167,7 +208,7 @@ export function AgentPermissionsSection() {
                       min={0.01}
                       max={1000000}
                       step={0.01}
-                      disabled={loading || saving}
+                      disabled={controlsDisabled}
                       value={thresholdInputValue}
                       onFocus={() => {
                         setEditingMaxSui(true);
@@ -185,7 +226,7 @@ export function AgentPermissionsSection() {
                           void setAutoApproveMaxSui(next);
                         }
                       }}
-                      className="w-28 rounded-xl border-2 border-[var(--hero-ink)] bg-white px-3 py-2 font-mono text-sm font-bold shadow-[2px_2px_0_var(--hero-ink)] focus:outline-none disabled:opacity-60"
+                      className="w-28 rounded-xl border-2 border-[var(--hero-ink)] bg-white px-3 py-2 font-mono text-sm font-bold shadow-[2px_2px_0_var(--hero-ink)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
                     <span className="text-sm font-semibold text-[var(--hero-ink)]/55">SUI</span>
                   </div>
@@ -198,17 +239,9 @@ export function AgentPermissionsSection() {
 
               <PermissionToggle
                 label="Allow flash loans"
-                detail={
-                  loading
-                    ? "Loading…"
-                    : permissions.allow_flash_loans
-                      ? permissions.auto_approve_flash_loans
-                        ? "Flash loans enabled. Bundled routes that repay from swap output may skip the approval dialog."
-                        : "Advanced DeepBook flash loans are enabled. Every flash loan shows an approval dialog."
-                      : "Flash loans stay disabled. The agent cannot initiate deepbook_flash_loan until you turn this on."
-                }
+                detail={flashLoansDetail(permissions)}
                 on={permissions.allow_flash_loans}
-                disabled={loading || saving}
+                disabled={controlsDisabled}
                 onToggle={() => void setAllowFlashLoans(!permissions.allow_flash_loans)}
               />
 
@@ -217,7 +250,7 @@ export function AgentPermissionsSection() {
                   label="Auto-approve flash loans"
                   detail="Execute flash loan bundles without a confirmation dialog. Atomic loans only spend gas if the transaction fails. Swaps that repay from your wallet still ask for approval."
                   on={permissions.auto_approve_flash_loans}
-                  disabled={loading || saving}
+                  disabled={controlsDisabled}
                   onToggle={() =>
                     void setAutoApproveFlashLoans(!permissions.auto_approve_flash_loans)
                   }
@@ -226,43 +259,25 @@ export function AgentPermissionsSection() {
 
               <PermissionToggle
                 label="Allow governance actions"
-                detail={
-                  loading
-                    ? "Loading…"
-                    : permissions.allow_governance
-                      ? "The agent can submit fee proposals and vote on DeepBook pools. Every governance transaction shows an approval dialog."
-                      : "Governance stays disabled. The agent cannot submit proposals or vote until you turn this on."
-                }
+                detail={governanceDetail(permissions)}
                 on={permissions.allow_governance}
-                disabled={loading || saving}
+                disabled={controlsDisabled}
                 onToggle={() => void setAllowGovernance(!permissions.allow_governance)}
               />
 
               <PermissionToggle
                 label="Allow margin trading"
-                detail={
-                  loading
-                    ? "Loading…"
-                    : permissions.allow_margin
-                      ? "Leveraged trading enabled. The agent can deposit collateral, borrow from margin pools, and place leveraged orders. Every margin transaction shows an approval dialog."
-                      : "Margin trading stays disabled. The agent cannot borrow or place leveraged orders until you turn this on."
-                }
+                detail={marginDetail(permissions)}
                 on={permissions.allow_margin}
-                disabled={loading || saving}
+                disabled={controlsDisabled}
                 onToggle={() => void setAllowMargin(!permissions.allow_margin)}
               />
 
               <PermissionToggle
                 label="Allow prediction markets"
-                detail={
-                  loading
-                    ? "Loading…"
-                    : permissions.allow_predict
-                      ? "Prediction markets enabled. The agent can mint and redeem binary/range positions on DeepBook Predict (testnet). Every prediction shows an approval dialog."
-                      : "Prediction markets stay disabled. The agent cannot mint or redeem positions until you turn this on."
-                }
+                detail={predictDetail(permissions)}
                 on={permissions.allow_predict}
-                disabled={loading || saving}
+                disabled={controlsDisabled}
                 onToggle={() => void setAllowPredict(!permissions.allow_predict)}
               />
             </div>

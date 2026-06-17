@@ -18,14 +18,18 @@ const DEFAULT_PERMISSIONS: AgentPermissions = {
   allow_predict: false,
 };
 
-export function useAgentPermissions(authenticated: boolean) {
+/**
+ * @param fetchEnabled — when true (e.g. accordion open), loads permissions from the server.
+ */
+export function useAgentPermissions(authenticated: boolean, fetchEnabled = false) {
   const [permissions, setPermissions] = useState<AgentPermissions>(DEFAULT_PERMISSIONS);
+  const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authenticated) {
+    if (!authenticated || !fetchEnabled || loaded) {
       return;
     }
 
@@ -41,6 +45,9 @@ export function useAgentPermissions(authenticated: boolean) {
             ...DEFAULT_PERMISSIONS,
             ...me.agent_permissions,
           });
+        }
+        if (!cancelled) {
+          setLoaded(true);
         }
       } catch {
         if (!cancelled) {
@@ -58,14 +65,17 @@ export function useAgentPermissions(authenticated: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [authenticated]);
+  }, [authenticated, fetchEnabled, loaded]);
 
   const effectivePermissions = authenticated ? permissions : DEFAULT_PERMISSIONS;
-  const effectiveLoading = authenticated && loading;
+  const controlsDisabled = authenticated && (loading || saving || !loaded);
 
   const savePermissions = useCallback(async (patch: Partial<AgentPermissions>) => {
+    if (!loaded) return null;
+
     setSaving(true);
     setError(null);
+    const previous = permissions;
     const optimistic = { ...permissions, ...patch };
     setPermissions(optimistic);
 
@@ -74,7 +84,7 @@ export function useAgentPermissions(authenticated: boolean) {
       setPermissions({ ...DEFAULT_PERMISSIONS, ...updated });
       return updated;
     } catch (err) {
-      setPermissions(permissions);
+      setPermissions(previous);
       setError(
         err instanceof ApiError
           ? err.message
@@ -84,12 +94,14 @@ export function useAgentPermissions(authenticated: boolean) {
     } finally {
       setSaving(false);
     }
-  }, [permissions]);
+  }, [loaded, permissions]);
 
   return {
     permissions: effectivePermissions,
-    loading: effectiveLoading,
+    loaded: authenticated && loaded,
+    loading: authenticated && loading,
     saving,
+    controlsDisabled,
     error,
     setAutoApproveEnabled: (enabled: boolean) => savePermissions({ auto_approve_enabled: enabled }),
     setAutoApproveMaxSui: (maxSui: number) => savePermissions({ auto_approve_max_sui: maxSui }),
