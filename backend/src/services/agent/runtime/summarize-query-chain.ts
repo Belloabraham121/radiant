@@ -12,6 +12,11 @@ import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import type { DeepBookOpenOrdersResult } from "../../defi/deepbook/deepbook-orders.service.js";
 import type { WalletAssetsData } from "../../wallet/wallet-assets.types.js";
+import {
+  formatSwapQuoteSummary,
+  formatWalletAssetsSummary,
+  previewSwapFiat,
+} from "../../market/valuation.service.js";
 import type { AgentTransactionsQueryResult } from "../../agent-transaction/agent-transaction.types.js";
 import {
   formatMarginManagerLiveStateSummary,
@@ -100,10 +105,7 @@ export function summarizeQueryChainResult(result: unknown): string | null {
 
   const swapQuote = result as DeepBookSwapQuoteResult;
   if (swapQuote.input_coin && swapQuote.output_amount_display != null) {
-    return (
-      `Swap quote: ${swapQuote.input_amount_display} ${swapQuote.input_coin} → ` +
-      `~${swapQuote.output_amount_display} ${swapQuote.output_coin} (${swapQuote.pool_key})`
-    );
+    return formatSwapQuoteSummary(swapQuote, null);
   }
 
   const poolsList = result as DeepBookPoolsList;
@@ -231,14 +233,42 @@ export function summarizeQueryChainResult(result: unknown): string | null {
 
   const assets = result as WalletAssetsData;
   if (Array.isArray(assets.assets)) {
-    const held = assets.assets.filter((a) => a.balance_display > 0);
+    const held = assets.assets.filter((a) => a.balance_atomic !== "0");
     if (held.length > 0) {
-      return (
-        "Wallet tokens: " +
-        held.map((a) => `${a.balance_display} ${a.symbol}`).join(", ")
-      );
+      return formatWalletAssetsSummary(assets);
     }
   }
 
   return null;
+}
+
+/** Async enrich for swap quotes that need live USD pricing. */
+export async function summarizeQueryChainResultAsync(result: unknown): Promise<string | null> {
+  const base = summarizeQueryChainResult(result);
+  if (base === null) return null;
+
+  if (typeof result !== "object" || result === null) {
+    return base;
+  }
+
+  const swapQuote = result as DeepBookSwapQuoteResult;
+  if (swapQuote.input_coin && swapQuote.output_amount_display != null) {
+    const fiat = await previewSwapFiat({
+      chain_id: "sui",
+      pay: {
+        amount_display: swapQuote.input_amount_display,
+        symbol: swapQuote.input_coin,
+      },
+      receive: {
+        amount_display: swapQuote.output_amount_display,
+        symbol: swapQuote.output_coin,
+      },
+      pool_price: swapQuote.price,
+      base_symbol: swapQuote.side === "sell" ? swapQuote.input_coin : swapQuote.output_coin,
+      quote_symbol: swapQuote.side === "sell" ? swapQuote.output_coin : swapQuote.input_coin,
+    });
+    return formatSwapQuoteSummary(swapQuote, fiat);
+  }
+
+  return base;
 }

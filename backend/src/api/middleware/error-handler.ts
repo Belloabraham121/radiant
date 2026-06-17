@@ -23,6 +23,19 @@ export function errorHandlerMiddleware(
     return;
   }
 
+  const isTimeout =
+    (err instanceof DOMException && err.name === "TimeoutError") ||
+    (err instanceof Error &&
+      (err.name === "TimeoutError" || /aborted due to timeout/i.test(err.message)));
+
+  if (isTimeout) {
+    fail(req, res, 504, {
+      code: "UPSTREAM_TIMEOUT",
+      message: "The upstream request timed out. Try again shortly.",
+    });
+    return;
+  }
+
   const message = err instanceof Error ? err.message : "Internal server error";
   const stack = err instanceof Error ? err.stack : undefined;
 

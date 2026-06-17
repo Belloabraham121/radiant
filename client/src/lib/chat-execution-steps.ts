@@ -609,6 +609,16 @@ function isFlashLoanRelatedError(message: string): boolean {
   return isFlashLoanParamValidationError(message);
 }
 
+function executeTransactionStepLabel(action?: string): string {
+  if (action === "swap" || action === "deepbook_swap") {
+    return "Execute swap";
+  }
+  if (action === "deepbook_flash_loan") {
+    return "Execute bundle";
+  }
+  return action ? `Execute ${action.replace(/_/g, " ")}` : "Execute transaction";
+}
+
 function buildFailedToolExecutionSteps(
   toolCalls: ChatToolCall[],
 ): ExecutionStep[] | undefined {
@@ -666,7 +676,7 @@ function buildFailedToolExecutionSteps(
         steps.push({
           id: "execute",
           status: "failed",
-          label: "Execute bundle",
+          label: executeTransactionStepLabel(call.action),
           detail: message,
         });
       }

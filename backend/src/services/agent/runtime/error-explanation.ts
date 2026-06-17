@@ -79,7 +79,7 @@ export function buildErrorExplanationInstructions(input: {
         case "deepbook_swap":
           parts.push(
             "The failure is about a swap from the agent wallet. " +
-              "Mention the wallet may lack the input token or SUI for gas.",
+              "If the error mentions network gas, explain the wallet needs SUI for gas in addition to the swap amount — suggest a smaller swap or adding SUI.",
           );
           break;
         default:

@@ -2,7 +2,11 @@ import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { AppError } from "../../../errors/app-error.js";
 import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
 import { resolveMarginManagerIdsForUser } from "./margin-manager-lookup.service.js";
-import { queryMarginManagerInfo } from "./deepbook-margin-read.service.js";
+import {
+  fetchMarginManagerLiveState,
+  resolvePoolKeyForMarginManagerAddress,
+  type MarginManagerLiveState,
+} from "./deepbook-margin-read.service.js";
 import {
   fetchMarginIndexerCollateralEvents,
   fetchMarginIndexerLiquidations,
@@ -92,8 +96,21 @@ async function resolveMarginManagerId(
     return params.margin_manager_id;
   }
 
-  const info = await queryMarginManagerInfo(privyUserId, params);
-  return info.margin_manager_address ?? null;
+  const explicitAddress =
+    params.margin_manager_address ??
+    params.marginManagerAddress ??
+    params.manager_address;
+  if (typeof explicitAddress === "string" && explicitAddress.startsWith("0x")) {
+    return explicitAddress;
+  }
+
+  const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
+  if (!wallet) {
+    return null;
+  }
+
+  const lookup = await resolveMarginManagerIdsForUser(privyUserId, wallet.address);
+  return lookup.margin_manager_ids[0] ?? null;
 }
 
 async function resolveDeepbookPoolId(
@@ -116,6 +133,44 @@ async function resolveDeepbookPoolId(
 
 function withSource<T extends Record<string, unknown>>(payload: T): T & { source: "indexer" } {
   return { ...payload, source: "indexer" as const };
+}
+
+function withSdkSource<T extends Record<string, unknown>>(payload: T): T & { source: "sdk" } {
+  return { ...payload, source: "sdk" as const };
+}
+
+function resolvePoolKeyParam(params: Record<string, unknown>): string | undefined {
+  const raw = params.pool_key ?? params.poolKey;
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    return undefined;
+  }
+  return raw.trim().toUpperCase();
+}
+
+function mapLiveStateToIndexerRecord(
+  live: MarginManagerLiveState,
+  marginManagerId: string,
+): MarginIndexerManagerStateRecord {
+  const [baseSymbol = "BASE", quoteSymbol = "QUOTE"] = live.pool_key.split("_");
+  return {
+    id: 0,
+    margin_manager_id: marginManagerId,
+    deepbook_pool_id: live.deepbook_pool,
+    base_margin_pool_id: live.margin_pool_id ?? "",
+    quote_margin_pool_id: live.margin_pool_id ?? "",
+    base_asset_id: live.base_asset,
+    base_asset_symbol: baseSymbol,
+    quote_asset_id: live.quote_asset,
+    quote_asset_symbol: quoteSymbol,
+    risk_ratio: String(live.risk_ratio),
+    base_asset: live.base_balance,
+    quote_asset: live.quote_balance,
+    base_debt: live.base_debt,
+    quote_debt: live.quote_debt,
+    current_price: live.current_price,
+    lowest_trigger_above_price: live.lowest_trigger_above_price || null,
+    highest_trigger_below_price: live.highest_trigger_below_price || null,
+  };
 }
 
 export async function queryMarginLiquidations(
@@ -320,6 +375,90 @@ export async function queryMarginIndexerSupply(_privyUserId: string, _params: Re
         ? "No margin pool supply data from indexer."
         : `${pools.length} margin pool(s) with indexed supply totals.`,
   });
+}
+
+/** Live margin manager snapshot — SDK live state first, indexer as fallback. */
+export async function queryMarginManagerState(
+  privyUserId: string,
+  params: Record<string, unknown>,
+) {
+  const marginManagerId = await resolveMarginManagerId(privyUserId, params);
+  if (!marginManagerId) {
+    throw new AppError(
+      400,
+      "NO_MARGIN_MANAGER",
+      "No margin manager found. Create one with deepbook_provision_margin_manager first.",
+    );
+  }
+
+  const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
+  if (wallet) {
+    try {
+      const poolKey =
+        resolvePoolKeyParam(params) ??
+        (await resolvePoolKeyForMarginManagerAddress(marginManagerId));
+      const live = await fetchMarginManagerLiveState(
+        wallet.address,
+        marginManagerId,
+        poolKey,
+      );
+      const state = mapLiveStateToIndexerRecord(live, marginManagerId);
+      return withSdkSource({
+        margin_manager_id: marginManagerId,
+        found: true,
+        state,
+        summary: formatMarginManagerStateSummary(state),
+      });
+    } catch {
+      // Fall through to indexer when SDK live state is unavailable.
+    }
+  }
+
+  const deepbookPoolId = await resolveDeepbookPoolId(privyUserId, params);
+  try {
+    const states = await fetchMarginIndexerManagerStates({
+      margin_manager_id: marginManagerId,
+      deepbook_pool_id: deepbookPoolId,
+      limit: 1,
+    });
+    const match =
+      states.find((row) => row.margin_manager_id === marginManagerId) ?? states[0];
+    if (match) {
+      return withSource({
+        margin_manager_id: marginManagerId,
+        found: true,
+        state: match,
+        summary: formatMarginManagerStateSummary(match),
+      });
+    }
+  } catch {
+    // Handled below.
+  }
+
+  return withSource({
+    margin_manager_id: marginManagerId,
+    found: false,
+    state: null,
+    summary:
+      "Could not load margin manager state from live SDK or indexer. Try again shortly.",
+  });
+}
+
+export function formatMarginManagerStateSummary(state: MarginIndexerManagerStateRecord): string {
+  const pair = `${state.base_asset_symbol}/${state.quote_asset_symbol}`;
+  const price = state.current_price ?? "unknown";
+  const risk = state.risk_ratio;
+  const tp = state.lowest_trigger_above_price;
+  const sl = state.highest_trigger_below_price;
+  const triggers =
+    tp || sl
+      ? ` TP trigger above ${tp ?? "—"}, SL trigger below ${sl ?? "—"}.`
+      : "";
+  return (
+    `${pair} margin manager — risk ${risk}, price ${price}, ` +
+    `base collateral ${state.base_asset}, quote collateral ${state.quote_asset}, ` +
+    `base debt ${state.base_debt}, quote debt ${state.quote_debt}.${triggers}`
+  );
 }
 
 function formatIsoTime(ms: number): string {

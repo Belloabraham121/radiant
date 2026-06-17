@@ -85,7 +85,7 @@ import { streamChatCompletion } from "./openai-stream-completion.js";
 import { openAiMaxOutputTokens } from "./openai-completion-params.js";
 import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.service.js";
 import { transactionContextFromInput } from "../deepbook/transaction-error-context.js";
-import { summarizeToolResult } from "./summarize-tool-result.js";
+import { summarizeToolResultAsync } from "./summarize-tool-result.js";
 import type { AgentRuntime, AgentTurnInput, AgentTurnResult } from "./types.js";
 import type { AgentToolErrorResult } from "../tools.js";
 
@@ -123,10 +123,21 @@ function mapOpenAiError(err: unknown): AppError {
   );
 }
 
+function executeTransactionLabel(action?: string): string {
+  if (action === "swap" || action === "deepbook_swap") {
+    return "Execute swap";
+  }
+  if (action === "deepbook_flash_loan") {
+    return "Execute bundle";
+  }
+  return action ? `Execute ${action.replace(/_/g, " ")}` : "Execute transaction";
+}
+
 function emitExecuteProgressFromResult(
   result: unknown,
   toolInput: Pick<{ action?: string; query?: string }, "action" | "query">,
 ): void {
+  const executeLabel = executeTransactionLabel(toolInput.action);
   if (isAgentToolErrorResult(result)) {
     const message = result.error.message;
     if (
@@ -159,7 +170,7 @@ function emitExecuteProgressFromResult(
       step: {
         id: "execute",
         status: "failed",
-        label: "Execute bundle",
+        label: executeLabel,
         detail: message,
       },
     });
@@ -173,7 +184,7 @@ function emitExecuteProgressFromResult(
       step: {
         id: "execute",
         status: "warning",
-        label: "Execute bundle",
+        label: executeLabel,
         detail: "Waiting for your approval in the dialog",
         agent_transaction_id: outcome.pending?.id,
         chain_id: outcome.pending?.chain_id,
@@ -187,7 +198,7 @@ function emitExecuteProgressFromResult(
       step: {
         id: "execute",
         status: "ok",
-        label: "Execute bundle",
+        label: executeLabel,
         detail: `Broadcast · ${outcome.result.digest.slice(0, 10)}…`,
         digest: outcome.result.digest,
         chain_id: outcome.result.chain_id,
@@ -621,7 +632,9 @@ export const openaiRuntime: AgentRuntime = {
               step: {
                 id: "execute",
                 status: "running",
-                label: "Execute bundle",
+                label: executeTransactionLabel(
+                  typeof args.action === "string" ? args.action : undefined,
+                ),
                 detail: "Validating and preparing transaction…",
               },
             });
@@ -808,7 +821,7 @@ export const openaiRuntime: AgentRuntime = {
         messages.push({
           role: "tool",
           tool_call_id: toolCall.id,
-          content: summarizeToolResult(toolCall.function.name, result),
+          content: await summarizeToolResultAsync(toolCall.function.name, result),
         });
 
         if (

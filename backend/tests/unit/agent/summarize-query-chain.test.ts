@@ -54,6 +54,33 @@ describe("summarizeQueryChainResult", () => {
     assert.match(summary!, /Last price: 0.11/);
   });
 
+  it("summarizes wallet token balances with USD when available", () => {
+    const summary = summarizeQueryChainResult({
+      chain_id: "sui",
+      address: "0x1",
+      assets: [
+        {
+          symbol: "SUI",
+          name: "Sui",
+          coin_type: "0x2::sui::SUI",
+          balance_atomic: "2000000000",
+          balance_display: 2,
+          decimals: 9,
+          usd_value: 8,
+          source: "sui_rpc",
+          popular: true,
+        },
+      ],
+      total_usd: 8,
+      catalog_source: "indexer",
+      updated_at: new Date().toISOString(),
+    });
+
+    assert.ok(summary);
+    assert.match(summary!, /2 SUI \(~\$8\)/);
+    assert.match(summary!, /Estimated total: ~\$8/);
+  });
+
   it("returns agent_transactions summary for the model", () => {
     const summary = summarizeQueryChainResult({
       items: [

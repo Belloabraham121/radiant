@@ -2,6 +2,7 @@ import { Transaction } from "@mysten/sui/transactions";
 import { getDeepBookEnv } from "../../../config/deepbook.js";
 import { AppError } from "../../../errors/app-error.js";
 import { getSuiClient } from "../../../infrastructure/sui/client.js";
+import { isSuiRpcRateLimitError, suiRpcRateLimitAppError, withSuiRpcRetry } from "../../../infrastructure/sui/rpc-retry.js";
 import { getPrivyClient } from "../../../infrastructure/privy/client.js";
 import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
 import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
@@ -20,7 +21,7 @@ import type { TxResult } from "../../chains/types.js";
 
 const DEFAULT_SLIPPAGE_BPS = 100;
 const DEEP_SCALAR = 1_000_000;
-export const SWAP_QUOTE_TTL_MS = 60_000;
+export const SWAP_QUOTE_TTL_MS = 30_000;
 const SWAP_ACTIONS = new Set(["swap", "deepbook_swap"]);
 
 export type DeepBookSwapParams = {
@@ -77,11 +78,16 @@ function assertPoolKey(poolKey: string): PoolCoins {
   const resolved = assertResolvablePoolKey(poolKey);
   const { pools } = getDeepBookEnv();
   const pool = pools[resolved as keyof typeof pools]!;
-  return { pool_key: resolved, base_coin: pool.baseCoin, quote_coin: pool.quoteCoin };
+  return {
+    pool_key: resolved,
+    base_coin: pool.baseCoin,
+    quote_coin: pool.quoteCoin,
+  };
 }
 
 function parsePositiveAmount(params: Record<string, unknown>): number {
-  if (typeof params.amount === "number" && params.amount > 0) return params.amount;
+  if (typeof params.amount === "number" && params.amount > 0)
+    return params.amount;
   if (typeof params.amount_display === "number" && params.amount_display > 0) {
     return params.amount_display;
   }
@@ -99,7 +105,10 @@ function parseSlippageBps(params: Record<string, unknown>): number {
   return DEFAULT_SLIPPAGE_BPS;
 }
 
-function coinParam(params: Record<string, unknown>, ...keys: string[]): string | null {
+function coinParam(
+  params: Record<string, unknown>,
+  ...keys: string[]
+): string | null {
   for (const key of keys) {
     const value = params[key];
     if (typeof value === "string" && value.length > 0) {
@@ -119,8 +128,10 @@ export function inferSwapSide(
 
   if (from === pool.base_coin && (!to || to === pool.quote_coin)) return "sell";
   if (from === pool.quote_coin && (!to || to === pool.base_coin)) return "buy";
-  if (to === pool.quote_coin && (!from || from === pool.base_coin)) return "sell";
-  if (to === pool.base_coin && (!from || from === pool.quote_coin)) return "buy";
+  if (to === pool.quote_coin && (!from || from === pool.base_coin))
+    return "sell";
+  if (to === pool.base_coin && (!from || from === pool.quote_coin))
+    return "buy";
   if (from === pool.base_coin) return "sell";
   if (from === pool.quote_coin) return "buy";
   return null;
@@ -143,7 +154,9 @@ function resolveSwapSide(
   );
 }
 
-export function parseDeepBookSwapParams(params: Record<string, unknown>): DeepBookSwapParams {
+export function parseDeepBookSwapParams(
+  params: Record<string, unknown>,
+): DeepBookSwapParams {
   const { defaultPool } = getDeepBookEnv();
   const poolKey =
     typeof params.pool_key === "string" && params.pool_key.length > 0
@@ -161,7 +174,10 @@ export function parseDeepBookSwapParams(params: Record<string, unknown>): DeepBo
     slippage_bps: parseSlippageBps(params),
   };
 
-  if (typeof params.min_out_display === "number" && params.min_out_display > 0) {
+  if (
+    typeof params.min_out_display === "number" &&
+    params.min_out_display > 0
+  ) {
     parsed.min_out_display = params.min_out_display;
   }
 
@@ -172,7 +188,10 @@ export function isDeepBookSwapAction(action: string): boolean {
   return SWAP_ACTIONS.has(action);
 }
 
-function swapCoins(side: SwapSide, pool: PoolCoins): { input: string; output: string } {
+function swapCoins(
+  side: SwapSide,
+  pool: PoolCoins,
+): { input: string; output: string } {
   return side === "sell"
     ? { input: pool.base_coin, output: pool.quote_coin }
     : { input: pool.quote_coin, output: pool.base_coin };
@@ -183,7 +202,11 @@ function displayToAtomic(amountDisplay: number, coinKey: string): string {
   const factor = 10 ** decimals;
   const atomic = BigInt(Math.floor(amountDisplay * factor));
   if (atomic <= 0n) {
-    throw new AppError(400, "VALIDATION_ERROR", "Amount is too small after conversion");
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Amount is too small after conversion",
+    );
   }
   return atomic.toString();
 }
@@ -216,7 +239,9 @@ export function estimateSwapNotionalSui(
   return amountDisplay;
 }
 
-async function readWalletDeepBalanceDisplay(walletAddress: string): Promise<number> {
+async function readWalletDeepBalanceDisplay(
+  walletAddress: string,
+): Promise<number> {
   const { coins } = getDeepBookEnv();
   const deep = coins.DEEP;
   if (!deep) return 0;
@@ -227,6 +252,25 @@ async function readWalletDeepBalanceDisplay(walletAddress: string): Promise<numb
     coinType: deep.type,
   });
   return Number(balance.balance) / DEEP_SCALAR;
+}
+
+async function readWalletSuiBalanceDisplay(
+  walletAddress: string,
+): Promise<number> {
+  const { coins } = getDeepBookEnv();
+  const sui = coins.SUI;
+  if (!sui) return 0;
+
+  const client = getSuiClient();
+  const { balance } = await client.getBalance({
+    owner: walletAddress,
+    coinType: sui.type,
+  });
+  return Number(balance.balance) / 10 ** getAssetDecimals("SUI");
+}
+
+function formatBalanceDisplay(value: number): string {
+  return Number(value.toFixed(6)).toString();
 }
 
 /** Use input-token fees when DEEP balance is too low for the quoted fee. */
@@ -255,10 +299,54 @@ async function resolveSwapParamsForExecute(
   };
 }
 
-function mapBuildError(err: unknown): never {
+async function mapSwapBuildError(
+  err: unknown,
+  privyUserId: string,
+  parsed: DeepBookSwapParams,
+  pool: PoolCoins,
+): Promise<never> {
+  if (isSuiRpcRateLimitError(err)) {
+    throw suiRpcRateLimitAppError(err);
+  }
+
   const message = err instanceof Error ? err.message : String(err);
-  if (/insufficient\s*balance|insufficientcoinbalance|not enough/i.test(message)) {
-    throw new AppError(400, "INSUFFICIENT_BALANCE", message);
+  if (
+    /insufficient\s*balance|insufficientcoinbalance|not enough/i.test(message)
+  ) {
+    try {
+      const wallet = await resolveSuiAgentWallet(privyUserId);
+      const suiBalance = await readWalletSuiBalanceDisplay(wallet.address);
+      const { input } = swapCoins(parsed.side, pool);
+
+      if (input === "SUI") {
+        throw new AppError(
+          400,
+          "INSUFFICIENT_BALANCE",
+          `Unable to complete this swap — you have ${formatBalanceDisplay(suiBalance)} SUI, but swapping ${formatBalanceDisplay(parsed.amount)} SUI also requires SUI for network gas, and your wallet does not have enough. Try a smaller amount or add more SUI.`,
+          {
+            cause: message,
+            wallet_sui: suiBalance,
+            swap_amount: parsed.amount,
+          },
+        );
+      }
+
+      throw new AppError(
+        400,
+        "INSUFFICIENT_BALANCE",
+        `Unable to complete this swap — your wallet does not have enough ${input}, and you also need SUI for network gas (you have ${formatBalanceDisplay(suiBalance)} SUI).`,
+        { cause: message, wallet_sui: suiBalance },
+      );
+    } catch (inner) {
+      if (inner instanceof AppError) throw inner;
+    }
+
+    throw new AppError(
+      400,
+      "INSUFFICIENT_BALANCE",
+      "Unable to complete this swap — your wallet does not have enough SUI for network gas or the swap amount.",
+      { cause: message },
+    );
   }
   if (err instanceof AppError) {
     throw err;
@@ -269,7 +357,11 @@ function mapBuildError(err: unknown): never {
 async function resolveSuiAgentWallet(privyUserId: string) {
   const wallet = await resolveAgentWalletByPrivyUserId(privyUserId, "sui");
   if (!wallet) {
-    throw new AppError(404, "WALLET_NOT_FOUND", "No Sui agent wallet registered.");
+    throw new AppError(
+      404,
+      "WALLET_NOT_FOUND",
+      "No Sui agent wallet registered.",
+    );
   }
   if (!wallet.signer_added) {
     throw new AppError(
@@ -283,7 +375,13 @@ async function resolveSuiAgentWallet(privyUserId: string) {
 
 async function buildAndExecuteSwapTransaction(
   privyUserId: string,
-  build: (tx: Transaction, client: SuiDeepBookExtendedClient, address: string) => void,
+  parsed: DeepBookSwapParams,
+  pool: PoolCoins,
+  build: (
+    tx: Transaction,
+    client: SuiDeepBookExtendedClient,
+    address: string,
+  ) => void,
 ): Promise<TxResult> {
   const agentWallet = await resolveSuiAgentWallet(privyUserId);
   const privyWallet = await fetchPrivyWallet(agentWallet.privy_wallet_id);
@@ -296,9 +394,11 @@ async function buildAndExecuteSwapTransaction(
 
   let transactionBytes: Uint8Array;
   try {
-    transactionBytes = await tx.build({ client: getSuiClient() });
+    transactionBytes = await withSuiRpcRetry(() =>
+      tx.build({ client: getSuiClient() }),
+    );
   } catch (err) {
-    mapBuildError(err);
+    throw await mapSwapBuildError(err, privyUserId, parsed, pool);
   }
   const serializedSignature = await signTxBytes({
     privyWalletId: agentWallet.privy_wallet_id,
@@ -335,7 +435,10 @@ async function fetchSdkQuote(
   if (parsed.side === "sell") {
     const quote = parsed.pay_with_deep
       ? await client.getQuoteQuantityOut(parsed.pool_key, parsed.amount)
-      : await client.getQuoteQuantityOutInputFee(parsed.pool_key, parsed.amount);
+      : await client.getQuoteQuantityOutInputFee(
+          parsed.pool_key,
+          parsed.amount,
+        );
 
     return {
       outDisplay: quote.quoteOut,
@@ -367,7 +470,11 @@ async function validateSwapSize(
     const { min_size, lot_size } = info.on_chain;
 
     if (parsed.side === "sell") {
-      const normalized = normalizeSwapSellAmount(parsed.amount, min_size, lot_size);
+      const normalized = normalizeSwapSellAmount(
+        parsed.amount,
+        min_size,
+        lot_size,
+      );
       if (normalized <= 0) {
         throw new AppError(
           400,
@@ -410,7 +517,8 @@ export async function getDeepBookSwapQuote(
   }
 
   const minOut =
-    parsed.min_out_display ?? applySlippage(sdkQuote.outDisplay, parsed.slippage_bps);
+    parsed.min_out_display ??
+    applySlippage(sdkQuote.outDisplay, parsed.slippage_bps);
 
   return {
     provider_id: "sui-deepbook",
@@ -467,6 +575,13 @@ export async function executeDeepBookSwap(
   privyUserId: string,
   params: Record<string, unknown>,
 ): Promise<DeepBookSwapTxResult> {
+  return withSuiRpcRetry(() => executeDeepBookSwapInner(privyUserId, params));
+}
+
+async function executeDeepBookSwapInner(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<DeepBookSwapTxResult> {
   const initial = parseDeepBookSwapParams(params);
   const pool = assertPoolKey(initial.pool_key);
   const { params: execParams, parsed } = await resolveSwapParamsForExecute(
@@ -481,16 +596,21 @@ export async function executeDeepBookSwap(
   const minOut = quote.min_out_display;
   parsed.amount = quote.input_amount_display;
 
-  const result = await buildAndExecuteSwapTransaction(privyUserId, (tx, client, address) => {
-    addSwapToTransaction(
-      tx,
-      client,
-      address,
-      parsed,
-      minOut,
-      quote.fee_deep ?? 0,
-    );
-  });
+  const result = await buildAndExecuteSwapTransaction(
+    privyUserId,
+    parsed,
+    pool,
+    (tx, client, address) => {
+      addSwapToTransaction(
+        tx,
+        client,
+        address,
+        parsed,
+        minOut,
+        quote.fee_deep ?? 0,
+      );
+    },
+  );
 
   return {
     ...result,
@@ -512,6 +632,7 @@ export async function buildDeepBookSwapTransactionBytes(
   params: Record<string, unknown>,
 ): Promise<{ bytes: Uint8Array; quote: DeepBookSwapQuoteResult }> {
   const parsed = parseDeepBookSwapParams(params);
+  const pool = assertPoolKey(parsed.pool_key);
   const quote = await getDeepBookSwapQuote(privyUserId, params);
   parsed.amount = quote.input_amount_display;
   const wallet = await resolveSuiAgentWallet(privyUserId);
@@ -530,9 +651,9 @@ export async function buildDeepBookSwapTransactionBytes(
 
   let bytes: Uint8Array;
   try {
-    bytes = await tx.build({ client: getSuiClient() });
+    bytes = await withSuiRpcRetry(() => tx.build({ client: getSuiClient() }));
   } catch (err) {
-    mapBuildError(err);
+    throw await mapSwapBuildError(err, privyUserId, parsed, pool);
   }
   return { bytes, quote };
 }

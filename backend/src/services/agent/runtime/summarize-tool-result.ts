@@ -1,6 +1,6 @@
 import type { UpdateMemoryResult } from "../../memory/agent-memory.types.js";
 import { toolErrorToModelContent } from "../../../utils/agent-tool-errors.js";
-import { summarizeQueryChainResult } from "./summarize-query-chain.js";
+import { summarizeQueryChainResult, summarizeQueryChainResultAsync } from "./summarize-query-chain.js";
 import type { AgentToolErrorResult } from "../tools.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
@@ -84,6 +84,13 @@ export function formatExecutedTxSummary(result: TxResult): string {
   );
 }
 
+export async function summarizeToolResultAsync(name: string, result: unknown): Promise<string> {
+  if (name === QUERY_CHAIN_TOOL_NAME) {
+    return (await summarizeQueryChainResultAsync(result)) ?? "Query completed.";
+  }
+  return summarizeToolResult(name, result);
+}
+
 export function summarizeToolResult(name: string, result: unknown): string {
   if (isToolError(result)) {
     return toolErrorToModelContent(result.error);
@@ -104,7 +111,12 @@ export function summarizeToolResult(name: string, result: unknown): string {
       return toolErrorToModelContent(outcome.error);
     }
     if (outcome.status === "approval_required") {
-      return `Approval required: ${outcome.pending.summary}`;
+      const fiat = outcome.pending.fiat_preview;
+      const fiatLine =
+        fiat?.total_pay_usd != null && fiat.total_receive_usd != null
+          ? ` (~$${fiat.total_pay_usd.toFixed(2)} → ~$${fiat.total_receive_usd.toFixed(2)})`
+          : "";
+      return `Approval required: ${outcome.pending.summary}${fiatLine}`;
     }
     if (outcome.status === "preview_delegated") {
       return outcome.message;
@@ -121,7 +133,12 @@ export function summarizeToolResult(name: string, result: unknown): string {
 
   const outcome = result as ExecuteToolOutcome;
   if (outcome.status === "approval_required") {
-    return `Approval required: ${outcome.pending.summary}`;
+    const fiat = outcome.pending.fiat_preview;
+    const fiatLine =
+      fiat?.total_pay_usd != null && fiat.total_receive_usd != null
+        ? ` (~$${fiat.total_pay_usd.toFixed(2)} → ~$${fiat.total_receive_usd.toFixed(2)})`
+        : "";
+    return `Approval required: ${outcome.pending.summary}${fiatLine}`;
   }
 
   return formatExecutedTxSummary(outcome.result);

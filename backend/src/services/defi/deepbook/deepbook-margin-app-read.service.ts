@@ -16,6 +16,7 @@ import {
   queryMarginManagerCreated,
   queryMarginSupplyHistory,
   queryMarginIndexerSupply,
+  queryMarginManagerState,
 } from "./deepbook-margin-indexer-read.service.js";
 
 const marginManagerInfoQuerySchema = z
@@ -190,4 +191,8 @@ export async function getMarginSupplyHistoryForHttp(privyUserId: string, query: 
 
 export async function getMarginIndexerSupplyForHttp(privyUserId: string, query: unknown) {
   return queryMarginIndexerSupply(privyUserId, parseMarginIndexerQuery(query));
+}
+
+export async function getMarginManagerStateForHttp(privyUserId: string, query: unknown) {
+  return queryMarginManagerState(privyUserId, parseMarginIndexerQuery(query));
 }

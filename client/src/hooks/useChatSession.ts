@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
   fetchSessionMessages,
@@ -22,7 +22,7 @@ import {
   upsertExecutionStep,
   executionStepFromPreviewResult,
 } from "@/lib/chat-execution-steps";
-import { postChatStream } from "@/lib/chat-stream";
+import { ChatStreamAbortedError, postChatStream } from "@/lib/chat-stream";
 import {
   cacheChatSession,
   takeCachedChatSession,
@@ -104,6 +104,7 @@ export function useChatSession(sessionId?: string) {
   const [respondingClarification, setRespondingClarification] = useState(false);
   const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] =
     useState(false);
+  const streamAbortRef = useRef<AbortController | null>(null);
 
   const applyPendingTransaction = useCallback(
     (pending: PendingTransaction | null, sessionKey?: string) => {
@@ -273,6 +274,8 @@ export function useChatSession(sessionId?: string) {
       setChatError(null);
 
       const artifactSessionKey = sessionId ?? activeSessionId ?? "new";
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
 
       try {
         const data = await postChatStream(
@@ -360,6 +363,7 @@ export function useChatSession(sessionId?: string) {
               );
             },
           },
+          { signal: controller.signal },
         );
 
         const nextTitle = title === "New chat" ? text.slice(0, 60) : title;
@@ -432,16 +436,32 @@ export function useChatSession(sessionId?: string) {
 
         void refreshSessions({ silent: true });
       } catch (err) {
-        const message =
-          err instanceof ApiError
-            ? err.message
-            : "Could not reach your agent. Try again.";
-        setChatError(message);
-        setMessages((current) =>
-          current.filter((entry) => entry.id !== liveAgentId),
-        );
-        setArtifactStreaming(artifactSessionKey, false);
+        if (err instanceof ChatStreamAbortedError) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === liveAgentId
+                ? {
+                    ...message,
+                    streaming: false,
+                    text: message.text.trim() || "Stopped.",
+                  }
+                : message,
+            ),
+          );
+          setArtifactStreaming(artifactSessionKey, false);
+        } else {
+          const message =
+            err instanceof ApiError
+              ? err.message
+              : "Could not reach your agent. Try again.";
+          setChatError(message);
+          setMessages((current) =>
+            current.filter((entry) => entry.id !== liveAgentId),
+          );
+          setArtifactStreaming(artifactSessionKey, false);
+        }
       } finally {
+        streamAbortRef.current = null;
         setStreaming(false);
       }
     },
@@ -647,6 +667,10 @@ export function useChatSession(sessionId?: string) {
     ],
   );
 
+  const stopExecution = useCallback(() => {
+    streamAbortRef.current?.abort();
+  }, []);
+
   return {
     messages,
     title,
@@ -663,6 +687,7 @@ export function useChatSession(sessionId?: string) {
     rejecting,
     respondingClarification,
     sendMessage,
+    stopExecution,
     approvePending,
     rejectPending,
     respondClarification,

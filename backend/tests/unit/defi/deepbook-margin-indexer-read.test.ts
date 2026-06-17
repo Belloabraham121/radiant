@@ -7,6 +7,7 @@ import {
   formatMarginLoanHistorySummary,
   formatMarginManagerCreatedSummary,
   formatMarginSupplyHistorySummary,
+  formatMarginManagerStateSummary,
 } from "../../../src/services/defi/deepbook/deepbook-margin-indexer-read.service.js";
 
 describe("deepbook-margin-indexer-read formatters", () => {
@@ -111,5 +112,30 @@ describe("deepbook-margin-indexer-read formatters", () => {
       formatMarginAtRiskSummary([], 1.2),
       "No margin managers below risk ratio 1.2.",
     );
+  });
+
+  it("formats margin manager state summary with price and triggers", () => {
+    const summary = formatMarginManagerStateSummary({
+      id: 1,
+      margin_manager_id: "0xm",
+      deepbook_pool_id: "0xp",
+      base_margin_pool_id: "0xb",
+      quote_margin_pool_id: "0xq",
+      base_asset_id: "0xba",
+      base_asset_symbol: "SUI",
+      quote_asset_id: "0xqa",
+      quote_asset_symbol: "USDC",
+      risk_ratio: "1.85",
+      base_asset: "1000000000",
+      quote_asset: "5000000000",
+      base_debt: "0",
+      quote_debt: "2000000000",
+      current_price: "2.45",
+      lowest_trigger_above_price: "2.60",
+      highest_trigger_below_price: "2.20",
+    });
+    assert.match(summary, /SUI\/USDC/);
+    assert.match(summary, /price 2.45/);
+    assert.match(summary, /TP trigger above 2.60/);
   });
 });

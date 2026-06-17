@@ -304,6 +304,58 @@ export async function governanceState(pool_key = "SUI_USDC"): Promise<Record<str
   return parseEnvelope<Record<string, unknown>>(res);
 }
 
+function deepbookIndexerQuery(params?: Record<string, unknown>): string {
+  if (!params) {
+    return "";
+  }
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && typeof value !== "object") {
+      search.set(key, String(value));
+    }
+  }
+  const qs = search.toString();
+  return qs.length > 0 ? "?" + qs : "";
+}
+
+async function deepbookIndexerRead(
+  path: string,
+  params?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const res = await platformFetch(projectApiPrefix() + "/deepbook/" + path + deepbookIndexerQuery(params));
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+/** OHLCV candlesticks from the DeepBook indexer — use for price trend charts. */
+export async function deepbookOhlcv(params?: {
+  pool_key?: string;
+  interval?: string;
+  limit?: number;
+}): Promise<Record<string, unknown>> {
+  return deepbookIndexerRead("ohlcv", params);
+}
+
+/** Recent trades from the DeepBook indexer. */
+export async function deepbookTrades(params?: {
+  pool_key?: string;
+  limit?: number;
+  start_time?: number;
+  end_time?: number;
+}): Promise<Record<string, unknown>> {
+  return deepbookIndexerRead("trades", params);
+}
+
+/** Pool or manager volume from the DeepBook indexer. */
+export async function deepbookVolume(params?: {
+  pool_key?: string;
+  scope?: "pool" | "manager" | "all_pools";
+  start_time?: number;
+  end_time?: number;
+  interval?: string;
+}): Promise<Record<string, unknown>> {
+  return deepbookIndexerRead("volume", params);
+}
+
 // --- DeepBook Margin helpers ---
 
 export async function marginManagerInfo(margin_manager_key?: string): Promise<Record<string, unknown>> {
@@ -403,6 +455,13 @@ export async function marginSupplyHistory(params?: Record<string, unknown>): Pro
 
 export async function marginIndexerSupply(): Promise<Record<string, unknown>> {
   return marginDeepbookRead("margin-indexer-supply");
+}
+
+export async function marginManagerState(params?: {
+  margin_manager_key?: string;
+  pool_key?: string;
+}): Promise<Record<string, unknown>> {
+  return marginDeepbookRead("margin-manager-state", params);
 }
 
 // --- DeepBook Predict helpers ---

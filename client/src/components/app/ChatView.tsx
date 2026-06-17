@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles, Square } from "lucide-react";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
@@ -275,6 +275,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     rejecting,
     respondingClarification,
     sendMessage,
+    stopExecution,
     approvePending,
     rejectPending,
     respondClarification,
@@ -594,14 +595,25 @@ export function ChatView({ sessionId }: ChatViewProps) {
                 onScopeChange={setAppScope}
                 disabled={inputDisabled}
               />
-              <button
-                type="submit"
-                aria-label="Send"
-                className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
-                disabled={!canSend}
-              >
-                <ArrowUp className="size-5" strokeWidth={2.5} />
-              </button>
+              {streaming ? (
+                <button
+                  type="button"
+                  aria-label="Stop"
+                  onClick={() => stopExecution()}
+                  className="flex size-10 shrink-0 items-center justify-center rounded-xl border-2 border-[var(--hero-ink)] bg-[var(--hero-coral)] text-white shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+                >
+                  <Square className="size-3.5 fill-current" strokeWidth={0} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  aria-label="Send"
+                  className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
+                  disabled={!canSend}
+                >
+                  <ArrowUp className="size-5" strokeWidth={2.5} />
+                </button>
+              )}
             </div>
           </div>
           <p
