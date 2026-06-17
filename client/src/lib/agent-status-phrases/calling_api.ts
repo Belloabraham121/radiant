@@ -1,0 +1,23 @@
+/** External API calls — extend freely. */
+export const CALLING_API_PHRASES = [
+  "Calling the API…",
+  "Reaching out to the service…",
+  "Sending the request…",
+  "Waiting for a response…",
+  "Talking to the endpoint…",
+  "Pinging the server…",
+  "Fetching API data…",
+  "Processing the response…",
+  "Handshaking with the API…",
+  "Running the integration…",
+  "Connecting to the service…",
+  "Exchanging data…",
+  "Parsing the payload…",
+  "Reading the API response…",
+  "Executing the request…",
+  "Querying the service…",
+  "Getting results from the API…",
+  "Receiving data…",
+  "Interpreting the response…",
+  "Working with the API…",
+] as const;

@@ -1,3 +1,5 @@
+import { BROWSING_PHRASES } from "./browsing";
+import { CALLING_API_PHRASES } from "./calling_api";
 import { DEFI_PHRASES } from "./defi";
 import { PLAYFUL_PHRASES } from "./playful";
 import { RESEARCHING_PHRASES } from "./researching";
@@ -13,6 +15,8 @@ import { WAITING_PHRASES } from "./waiting";
 export const AGENT_STATUS_PHRASE_CATEGORIES = {
   thinking: THINKING_PHRASES,
   researching: RESEARCHING_PHRASES,
+  browsing: BROWSING_PHRASES,
+  calling_api: CALLING_API_PHRASES,
   defi: DEFI_PHRASES,
   playful: PLAYFUL_PHRASES,
   waiting: WAITING_PHRASES,
@@ -27,6 +31,8 @@ const CATEGORY_BLEND: Record<
 > = {
   thinking: ["thinking", "thinking", "thinking", "researching", "playful"],
   researching: ["researching", "researching", "researching", "thinking", "playful"],
+  browsing: ["browsing", "browsing", "browsing", "researching", "playful"],
+  calling_api: ["calling_api", "calling_api", "calling_api", "researching", "playful"],
   defi: ["defi", "defi", "defi", "waiting", "playful"],
   playful: ["playful", "playful", "thinking", "researching"],
   waiting: ["waiting", "waiting", "waiting", "defi", "playful"],
