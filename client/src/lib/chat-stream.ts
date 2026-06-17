@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api";
+import { messageForApiFailure, messageForChatStreamError } from "@/lib/api-error-messages";
 import type { ChatRequest, ChatResponse } from "@/lib/chat-api";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 import type { StreamExecutionStepPayload } from "@/lib/chat-execution-steps";
@@ -69,11 +70,15 @@ export async function postChatStream(
     if (isAbortError(err) || options.signal?.aborted) {
       throw new ChatStreamAbortedError();
     }
-    throw err;
+    throw new ApiError(
+      0,
+      "NETWORK_ERROR",
+      messageForApiFailure("/api/v1/chat", "network", "POST"),
+    );
   }
 
   if (!response.ok) {
-    let message = "Could not reach your agent. Try again.";
+    let message = messageForApiFailure("/api/v1/chat", "unreachable", "POST");
     try {
       const payload = (await response.json()) as {
         error?: { message?: string };
@@ -88,7 +93,12 @@ export async function postChatStream(
   }
 
   if (!response.body) {
-    throw new ApiError(502, "CHAT_STREAM_EMPTY", "Streaming response was empty.");
+    const code = "CHAT_STREAM_EMPTY";
+    throw new ApiError(
+      502,
+      code,
+      messageForChatStreamError(code) ?? "Streaming response was empty.",
+    );
   }
 
   const reader = response.body.getReader();
@@ -154,7 +164,12 @@ export async function postChatStream(
   }
 
   if (!finalResponse) {
-    throw new ApiError(502, "CHAT_STREAM_INCOMPLETE", "Agent stream ended without a final response.");
+    const code = "CHAT_STREAM_INCOMPLETE";
+    throw new ApiError(
+      502,
+      code,
+      messageForChatStreamError(code) ?? "Agent stream ended without a final response.",
+    );
   }
 
   return finalResponse;

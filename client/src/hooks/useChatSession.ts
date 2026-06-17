@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
+import { messageForChatStreamError } from "@/lib/api-error-messages";
 import {
   fetchSessionMessages,
   postChat,
@@ -452,7 +453,7 @@ export function useChatSession(sessionId?: string) {
         } else {
           const message =
             err instanceof ApiError
-              ? err.message
+              ? (messageForChatStreamError(err.code) ?? err.message)
               : "Could not reach your agent. Try again.";
           setChatError(message);
           setMessages((current) =>
@@ -518,7 +519,9 @@ export function useChatSession(sessionId?: string) {
       void refreshSessions({ silent: true });
     } catch (err) {
       const message =
-        err instanceof ApiError ? err.message : "Approval failed. Try again.";
+        err instanceof ApiError
+          ? (messageForChatStreamError(err.code) ?? err.message)
+          : "Approval failed. Try again.";
       setChatError(message);
     } finally {
       setApproving(false);
