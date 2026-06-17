@@ -23,6 +23,8 @@ import { appsRouter } from "./api/routes/v1/apps/apps.js";
 import { installationsRouter } from "./api/routes/v1/installations/installations.js";
 import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.js";
 import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
+import { proxyRouter } from "./api/routes/v1/proxy/proxy.js";
+import { appDataRouter } from "./api/routes/v1/app-data/app-data.js";
 import { createCorsOptions } from "./config/cors.js";
 import { getInngestConfig } from "./config/inngest.js";
 import { inngest } from "./inngest/client.js";
@@ -76,6 +78,8 @@ export function createApp() {
   app.use(projectsRouter);
   app.use(appsRouter);
   app.use(installationsRouter);
+  app.use(proxyRouter);
+  app.use(appDataRouter);
   app.use(errorHandlerMiddleware);
 
   return app;
