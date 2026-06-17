@@ -9,7 +9,6 @@ import {
   MessageSquare,
   PanelLeft,
   Plus,
-  Settings,
   Sparkles,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -23,7 +22,6 @@ const NAV = [
   { href: "/app", label: "Chats", Icon: MessageSquare },
   { href: "/app/activity", label: "Activity", Icon: Activity },
   { href: "/app/projects", label: "Projects", Icon: FolderKanban },
-  { href: "/app/settings", label: "Settings", Icon: Settings },
 ];
 
 export function Sidebar() {
