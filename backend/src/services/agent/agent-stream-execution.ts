@@ -65,18 +65,12 @@ export function emitAgentStreamExecuteInApp(
   params: Record<string, unknown>,
 ): void {
   if (!shouldBroadcastAgentStream(ctx) || !ctx.sessionId) {
-    // #region agent log
-    fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'agent-stream-execution.ts:emitAgentStreamExecuteInApp',message:'SKIPPED - no broadcast or session',data:{action,hasSession:Boolean(ctx.sessionId),shouldBroadcast:shouldBroadcastAgentStream(ctx)},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return;
   }
 
   const sessionId = ctx.sessionId;
 
   if (hasAgentStreamSubscribers(sessionId)) {
-    // #region agent log
-    fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'agent-stream-execution.ts:emitAgentStreamExecuteInApp',message:'SENDING execute_in_app to iframe via SSE',data:{action,sessionId},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     emitAgentEvent(sessionId, "agent_thinking", { active: true, action });
     emitAgentEvent(sessionId, "agent_action", {
       action,
@@ -88,9 +82,6 @@ export function emitAgentStreamExecuteInApp(
     return;
   }
 
-  // #region agent log
-  fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'agent-stream-execution.ts:emitAgentStreamExecuteInApp',message:'BUFFERED - no SSE subscribers yet',data:{action,sessionId},hypothesisId:'H3',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   bufferPendingExecuteInApp(sessionId, action, params);
 }
 

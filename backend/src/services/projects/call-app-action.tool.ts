@@ -157,7 +157,13 @@ export const callAppActionToolDefinition = {
   },
 };
 
+const CRUD_PREFIX_RE = /^(add|create|insert|store|save|update|edit|set|toggle|mark|delete|remove|clear)[_-]/i;
 const DELETE_ACTION_RE = /^(delete|remove|clear)[_-]/i;
+
+function deriveCollectionFromAction(action: string): string {
+  const base = action.replace(CRUD_PREFIX_RE, "") || action;
+  return base.endsWith("s") ? base : base + "s";
+}
 
 /**
  * For app-local actions, persist or delete data server-side as a safety net.
@@ -171,18 +177,12 @@ async function persistAppLocalData(
   scopeIds: { projectId?: string; installationId?: string },
 ): Promise<void> {
   if (!scopeIds.projectId && !scopeIds.installationId) {
-    // #region agent log
-    fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'call-app-action.tool.ts:persistAppLocalData',message:'SKIPPED - session draft, no scope (iframe will handle persistence)',data:{action},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     return;
   }
   const isDelete = DELETE_ACTION_RE.test(action);
-  // #region agent log
-  fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'call-app-action.tool.ts:persistAppLocalData',message:'persistAppLocalData called',data:{action,isDelete,scopeIds,paramKeys:Object.keys(params)},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
+  const collection = deriveCollectionFromAction(action);
   try {
     if (isDelete) {
-      const collection = action.replace(DELETE_ACTION_RE, "") || action;
       const id = params.id ? String(params.id) : undefined;
       const key = params.key ? String(params.key) : undefined;
       if (id || key) {
@@ -190,18 +190,13 @@ async function persistAppLocalData(
       }
     } else {
       await storeAppDataForUser(privyUserId, scopeIds, {
-        collection: action,
+        collection,
         data: params,
         key: null,
       });
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'call-app-action.tool.ts:persistAppLocalData',message:'persistAppLocalData SUCCESS',data:{action,isDelete},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  } catch (err) {
-    // #region agent log
-    fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'call-app-action.tool.ts:persistAppLocalData',message:'persistAppLocalData FAILED',data:{action,isDelete,error:err instanceof Error ? err.message : String(err)},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+  } catch {
+    // best-effort persistence — iframe handles primary storage
   }
 }
 
@@ -210,9 +205,6 @@ export async function runCallAppActionTool(
   input: Record<string, unknown>,
   context: AgentToolOptions = {},
 ): Promise<AppActionResult> {
-  // #region agent log
-  fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'call-app-action.tool.ts:runCallAppActionTool',message:'runCallAppActionTool ENTRY',data:{action:typeof input==='object'&&input?(input as Record<string,unknown>).action:'?',inputKeys:typeof input==='object'&&input?Object.keys(input):[]},hypothesisId:'H8',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   const parsed = mergePinnedAppScopeIntoCallAppAction(
     callAppActionInputSchema.parse(input),
     context.pinnedAppScope,

@@ -263,9 +263,6 @@ appDataRouter.post(
   "/api/v1/chat/sessions/:sessionId/data",
   requireAuth,
   async (req, res, next) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'app-data.ts:POST /sessions/:sessionId/data',message:'SESSION data POST received',data:{sessionId:req.params.sessionId,body:req.body,hasUser:!!req.user},hypothesisId:'H9',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     try {
       const parsed = storeBodySchema.safeParse(req.body);
       if (!parsed.success) {
@@ -357,9 +354,6 @@ appDataRouter.delete(
   "/api/v1/chat/sessions/:sessionId/data",
   requireAuth,
   async (req, res, next) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'app-data.ts:DELETE /sessions/:sessionId/data',message:'SESSION data DELETE received',data:{sessionId:req.params.sessionId,body:req.body},hypothesisId:'H13',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     try {
       const parsed = deleteBodySchema.safeParse(req.body);
       if (!parsed.success) {

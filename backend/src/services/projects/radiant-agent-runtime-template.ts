@@ -1,6 +1,6 @@
 /** Template files for generated app agent runtime (Phase 4 + in-app approval v2). */
 
-export const RADIANT_AGENT_RUNTIME_VERSION = 9;
+export const RADIANT_AGENT_RUNTIME_VERSION = 10;
 
 export const RADIANT_AGENT_RUNTIME_TS = `/** Agent UI runtime — register local handlers + execute via radiant-client. Template v${RADIANT_AGENT_RUNTIME_VERSION}. */
 import {
@@ -8,6 +8,7 @@ import {
   deleteAppData,
   executeAction,
   isApprovalRequired,
+  queryAppData,
   rejectAgentTransaction,
   storeAppData,
   type AppActionResult,
@@ -681,16 +682,44 @@ export const radiantAgent = {
         if (ONCHAIN_ACTIONS.has(action)) {
           result = await executeAction(action, params);
         } else {
-          const isDelete = /delete|remove|clear/.test(action);
+          const CRUD_PREFIX = /^(add|create|insert|store|save|update|edit|set|toggle|mark|delete|remove|clear)[_-]?/i;
+          const baseCollection = action.replace(CRUD_PREFIX, "") || action;
+          const pluralCollection = baseCollection.endsWith("s") ? baseCollection : baseCollection + "s";
+          const isDelete = /^(delete|remove|clear)/i.test(action);
+
+          async function resolveCollection(): Promise<string> {
+            try {
+              const pluralResult = await queryAppData(pluralCollection, { limit: 1 });
+              if (pluralResult.total > 0 || pluralResult.records.length > 0) return pluralCollection;
+            } catch { /* ignore */ }
+            try {
+              const singularResult = await queryAppData(baseCollection, { limit: 1 });
+              if (singularResult.total > 0 || singularResult.records.length > 0) return baseCollection;
+            } catch { /* ignore */ }
+            return pluralCollection;
+          }
+
           try {
-            if (isDelete && params.id) {
-              const collection = action.replace(/^(delete|remove|clear)[_-]?/i, "") || action;
-              await deleteAppData(collection, { id: String(params.id) });
-            } else if (isDelete && params.key) {
-              const collection = action.replace(/^(delete|remove|clear)[_-]?/i, "") || action;
-              await deleteAppData(collection, { key: String(params.key) });
-            } else if (!isDelete) {
-              await storeAppData(action, params);
+            const collection = await resolveCollection();
+            if (isDelete) {
+              if (params.id) {
+                await deleteAppData(collection, { id: String(params.id) });
+              } else if (params.key) {
+                await deleteAppData(collection, { key: String(params.key) });
+              } else {
+                const all = await queryAppData(collection, { limit: 200 });
+                const matchField = Object.keys(params).find((k) => typeof params[k] === "string" && params[k]);
+                if (matchField) {
+                  const needle = String(params[matchField]).toLowerCase();
+                  const match = all.records.find(
+                    (r: { id: string; data: Record<string, unknown> }) =>
+                      Object.values(r.data).some((v) => typeof v === "string" && v.toLowerCase().includes(needle)),
+                  );
+                  if (match) await deleteAppData(collection, { id: match.id });
+                }
+              }
+            } else {
+              await storeAppData(collection, params);
             }
             result = {
               status: "executed",
@@ -703,9 +732,10 @@ export const radiantAgent = {
               window.dispatchEvent(new CustomEvent("radiant-agent-refresh"));
               window.dispatchEvent(
                 new CustomEvent("radiant-agent-data-changed", {
-                  detail: { action, params, isDelete },
+                  detail: { action, collection, params, isDelete },
                 }),
               );
+              setTimeout(() => window.location.reload(), 400);
             }
           } catch {
             result = { status: "executed", digest: "", explorer_url: null, result: {} } as AppActionResult;

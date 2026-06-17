@@ -31,9 +31,6 @@ export function delegateAppActionToPreview(
   params: Record<string, unknown>,
 ): AppActionResult {
   const label = `Execute ${action.replace(/_/g, " ")}`;
-  // #region agent log
-  fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'pinned-app-preview-delegation.ts:delegateAppActionToPreview',message:'delegateAppActionToPreview called',data:{action,hasStream:Boolean(options.sessionId),hasBroadcast:Boolean(options.broadcast),hasPinnedScope:Boolean(options.pinnedAppScope)},hypothesisId:'H1',timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   emitExecutionProgress({
     step: {
       id: "execute",

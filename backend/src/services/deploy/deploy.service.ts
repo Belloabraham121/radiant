@@ -1,6 +1,7 @@
 import { AppError } from "../../errors/app-error.js";
 import { getDeployConfig } from "../../config/deploy.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
+import { isUuid } from "../projects/app-scope-resolver.service.js";
 import { findProjectByIdForUser } from "../projects/project.repository.js";
 import { cacheGet, cacheSet } from "../../infrastructure/redis/cache.js";
 import {
@@ -29,6 +30,14 @@ export async function startDeployForUser(
     const cacheKey = `deploy:idempotency:${user.id}:${idempotencyKey}`;
     const cached = await cacheGet<StartDeployResult>(cacheKey);
     if (cached) return cached;
+  }
+
+  if (!isUuid(projectId)) {
+    throw new AppError(
+      400,
+      "INVALID_PROJECT_ID",
+      "project_id must be a valid UUID from list_session_projects.",
+    );
   }
 
   const project = await findProjectByIdForUser(projectId, user.id);

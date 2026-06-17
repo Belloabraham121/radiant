@@ -183,9 +183,6 @@ chatSessionsRouter.get(
     writeSseEvent(res, "connected", { session_id: sessionId });
 
     const pendingItems = drainPendingExecuteInApp(sessionId);
-    // #region agent log
-    if (pendingItems.length > 0) { fetch('http://127.0.0.1:7727/ingest/ba4178db-490a-47e6-86f6-f9c3bd2838e2',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'870759'},body:JSON.stringify({sessionId:'870759',location:'sessions.ts:agent-stream-drain',message:'DRAINING buffered execute_in_app events',data:{count:pendingItems.length,actions:pendingItems.map(p=>p.action),sseSessionId:sessionId},hypothesisId:'H5',timestamp:Date.now()})}).catch(()=>{}); }
-    // #endregion
     for (const pending of pendingItems) {
       writeSseEvent(res, "agent_thinking", { session_id: sessionId, active: true, action: pending.action });
       writeSseEvent(res, "agent_action", {

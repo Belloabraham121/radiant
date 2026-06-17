@@ -1,3 +1,5 @@
+import { AppError } from "../../errors/app-error.js";
+import { isUuid } from "./app-scope-resolver.service.js";
 import { saveSessionDraftToProjectForUser } from "./generate-app.service.js";
 
 export const SAVE_PROJECT_TOOL_NAME = "save_project" as const;
@@ -37,10 +39,16 @@ export async function runSaveProjectTool(
     };
   }
 
-  const projectId =
-    typeof input.project_id === "string" && input.project_id.length > 0
-      ? input.project_id
-      : undefined;
+  const rawProjectId =
+    typeof input.project_id === "string" ? input.project_id.trim() : "";
+  if (rawProjectId && !isUuid(rawProjectId)) {
+    throw new AppError(
+      400,
+      "INVALID_PROJECT_ID",
+      "project_id must be a UUID from list_session_projects — never an app name.",
+    );
+  }
+  const projectId = rawProjectId || undefined;
 
   const result = await saveSessionDraftToProjectForUser(privyUserId, context.sessionId, {
     ...(projectId ? { project_id: projectId } : {}),

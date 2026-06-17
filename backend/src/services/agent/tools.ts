@@ -181,7 +181,9 @@ async function dispatchAgentTool(
           sessionId: options?.sessionId,
         });
       case DEPLOY_APP_TOOL_NAME:
-        return await runDeployAppTool(privyUserId, input);
+        return await runDeployAppTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+        });
       case LIST_PUBLIC_APPS_TOOL_NAME:
         return await runListPublicAppsTool(privyUserId, input);
       case INSTALL_APP_TOOL_NAME:
