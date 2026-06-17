@@ -58,7 +58,7 @@ export async function runListSessionProjectsTool(
       projects.length === 0 && !draft?.has_draft
         ? "No draft yet — call generate_app to build in chat (not saved to Projects until save_project or save_to_project)."
         : draft?.has_draft
-          ? "Chat draft exists — swap through it with call_app_action { app_name: \"" +
+          ? "Chat draft exists — deploy to explorer with deploy_app { use_session_draft: true } (auto-saves then publishes). Swap/actions: call_app_action { app_name: \"" +
             (draft.name ?? "Chat draft") +
             "\", action, params } or { use_session_draft: true, action, params }."
           : "Pass project_id from available_apps in call_app_action, or app_name to match by name.",

@@ -47,7 +47,8 @@ export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
       `User pinned app: "${scope.name}" (chat draft in this session). ` +
       PINNED_EXECUTE_IN_APP +
       PINNED_ACTION_FLOW +
-      `Use call_app_action with use_session_draft: true and app_name "${scope.name}".`
+      `Use call_app_action with use_session_draft: true and app_name "${scope.name}". ` +
+      `When the user asks to deploy this app, call deploy_app { use_session_draft: true } — it auto-saves the draft and publishes on the Radiant explorer. Never refuse deploy without calling deploy_app.`
     );
   }
 
@@ -55,7 +56,8 @@ export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
     `User pinned app: "${scope.name}" (project_id: ${scope.project_id}). ` +
     PINNED_EXECUTE_IN_APP +
     PINNED_ACTION_FLOW +
-    `Use call_app_action with project_id "${scope.project_id}".`
+    `Use call_app_action with project_id "${scope.project_id}". ` +
+    `When the user asks to deploy, call deploy_app { project_id: "${scope.project_id}" }.`
   );
 }
 

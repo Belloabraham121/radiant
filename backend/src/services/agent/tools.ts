@@ -183,6 +183,7 @@ async function dispatchAgentTool(
       case DEPLOY_APP_TOOL_NAME:
         return await runDeployAppTool(privyUserId, input, {
           sessionId: options?.sessionId,
+          pinnedAppScope: options?.pinnedAppScope,
         });
       case LIST_PUBLIC_APPS_TOOL_NAME:
         return await runListPublicAppsTool(privyUserId, input);
