@@ -6,6 +6,7 @@ import type {
   AppDataInput,
   AppDataQuery,
   AppDataDeleteQuery,
+  SharedAppDataQuery,
 } from "./app-data.storage.js";
 
 function toJsonValue(data: Record<string, unknown>): Prisma.InputJsonValue {
@@ -106,6 +107,35 @@ export class PostgresAppDataProvider implements AppDataStorageProvider {
         user_id: query.userId,
         collection: query.collection,
         ...(query.installationId ? { installation_id: query.installationId } : {}),
+      },
+    });
+  }
+
+  async queryShared(query: SharedAppDataQuery): Promise<AppDataRow[]> {
+    const limit = Math.min(query.limit ?? 50, 200);
+    const offset = query.offset ?? 0;
+    const order = query.order ?? "asc";
+
+    const rows = await prisma.appData.findMany({
+      where: {
+        project_id: query.projectId,
+        collection: query.collection,
+        ...(query.since ? { created_at: { gt: new Date(query.since) } } : {}),
+      },
+      orderBy: { created_at: order },
+      take: limit,
+      skip: offset,
+    });
+    return rows.map(toRow);
+  }
+
+  async countShared(
+    query: Pick<SharedAppDataQuery, "projectId" | "collection">,
+  ): Promise<number> {
+    return prisma.appData.count({
+      where: {
+        project_id: query.projectId,
+        collection: query.collection,
       },
     });
   }

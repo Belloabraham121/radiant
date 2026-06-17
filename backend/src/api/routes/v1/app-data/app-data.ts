@@ -5,6 +5,8 @@ import {
   storeAppDataForUser,
   queryAppDataForUser,
   deleteAppDataForUser,
+  storeSharedAppDataForUser,
+  querySharedAppDataForUser,
 } from "../../../../services/app-data/app-data.service.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { ok } from "../../../../utils/http-response.js";
@@ -20,6 +22,13 @@ const queryParamsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
   order: z.enum(["asc", "desc"]).default("desc"),
+});
+
+const sharedQueryParamsSchema = z.object({
+  since: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  order: z.enum(["asc", "desc"]).default("asc"),
 });
 
 const deleteBodySchema = z.object({
@@ -87,6 +96,94 @@ appDataRouter.delete(
         req.user.privyUserId,
         { projectId: req.params.projectId },
         parsed.data,
+      );
+      return ok(req, res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// --- Shared project-scoped routes (cross-user reads) ---
+
+appDataRouter.post(
+  "/api/v1/projects/:projectId/shared/:collection",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const parsed = storeBodySchema.safeParse({ ...req.body, collection: req.params.collection });
+      if (!parsed.success) {
+        throw new AppError(400, "INVALID_INPUT", parsed.error.issues.map((i) => i.message).join(", "));
+      }
+      const result = await storeSharedAppDataForUser(
+        req.user.privyUserId,
+        { projectId: req.params.projectId },
+        parsed.data,
+      );
+      return ok(req, res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+appDataRouter.get(
+  "/api/v1/projects/:projectId/shared/:collection",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const params = sharedQueryParamsSchema.safeParse(req.query);
+      if (!params.success) {
+        throw new AppError(400, "INVALID_INPUT", params.error.issues.map((i) => i.message).join(", "));
+      }
+      const result = await querySharedAppDataForUser(
+        req.user.privyUserId,
+        { projectId: req.params.projectId },
+        { collection: req.params.collection, ...params.data },
+      );
+      return ok(req, res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+// --- Shared installation-scoped routes (cross-user reads) ---
+
+appDataRouter.post(
+  "/api/v1/installations/:installationId/shared/:collection",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const parsed = storeBodySchema.safeParse({ ...req.body, collection: req.params.collection });
+      if (!parsed.success) {
+        throw new AppError(400, "INVALID_INPUT", parsed.error.issues.map((i) => i.message).join(", "));
+      }
+      const result = await storeSharedAppDataForUser(
+        req.user.privyUserId,
+        { installationId: req.params.installationId },
+        parsed.data,
+      );
+      return ok(req, res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+appDataRouter.get(
+  "/api/v1/installations/:installationId/shared/:collection",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const params = sharedQueryParamsSchema.safeParse(req.query);
+      if (!params.success) {
+        throw new AppError(400, "INVALID_INPUT", params.error.issues.map((i) => i.message).join(", "));
+      }
+      const result = await querySharedAppDataForUser(
+        req.user.privyUserId,
+        { installationId: req.params.installationId },
+        { collection: req.params.collection, ...params.data },
       );
       return ok(req, res, result);
     } catch (err) {

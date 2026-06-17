@@ -234,6 +234,22 @@ export function summarizeToolResult(name: string, result: unknown): string {
     return `Page: ${outcome.title}\nURL: ${outcome.url}\nWords: ${outcome.word_count}\n\n${preview}`;
   }
 
+  if (name === "call_api") {
+    const outcome = result as {
+      url: string;
+      method: string;
+      status: number;
+      headers: Record<string, string>;
+      body: string;
+      truncated: boolean;
+    };
+    const bodyPreview = outcome.body.length > 8000
+      ? outcome.body.slice(0, 8000) + "\n\n... (response truncated)"
+      : outcome.body;
+    const truncNote = outcome.truncated ? " (response was truncated)" : "";
+    return `API ${outcome.method} ${outcome.url}\nStatus: ${outcome.status}${truncNote}\n\n${bodyPreview}`;
+  }
+
   if (name !== EXECUTE_TRANSACTION_TOOL_NAME) {
     return "Done.";
   }

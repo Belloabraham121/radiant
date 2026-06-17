@@ -1,7 +1,7 @@
-/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v8 — app data + external API proxy. */
-export const RADIANT_CLIENT_TEMPLATE_VERSION = 8;
+/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v9 — shared data + external API proxy. */
+export const RADIANT_CLIENT_TEMPLATE_VERSION = 9;
 
-export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v8. */
+export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v9. */
 
 export type SwapQuoteParams = {
   amount: number;
@@ -684,6 +684,61 @@ export async function deleteAppData(
     body: JSON.stringify({ collection, key: options.key ?? null, id: options.id }),
   });
   return parseEnvelope<{ deleted: number }>(res);
+}
+
+// --- Shared Data (cross-user, visible to all installers of the same app) ---
+
+export type SharedAppDataRecord = AppDataRecord & {
+  author_id: string;
+};
+
+export type SharedAppDataListResult = {
+  records: SharedAppDataRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+/**
+ * Store data into a shared collection. All users of the same app can read it.
+ * The write is attributed to your Radiant account (author_id in the record).
+ *
+ * Use for multi-user features: chat messages, shared boards, leaderboards.
+ *
+ *   await storeSharedData("messages", { text: "Hello!", sender: userName });
+ */
+export async function storeSharedData(
+  collection: string,
+  data: Record<string, unknown>,
+  options: { key?: string } = {},
+): Promise<SharedAppDataRecord> {
+  const res = await platformFetch(projectApiPrefix() + "/shared/" + encodeURIComponent(collection), {
+    method: "POST",
+    body: JSON.stringify({ collection, data, key: options.key ?? null }),
+  });
+  return parseEnvelope<SharedAppDataRecord>(res);
+}
+
+/**
+ * Query a shared collection — returns records from ALL users of this app.
+ * Default order is ascending (oldest first), useful for chat timelines.
+ *
+ *   const msgs = await querySharedData("messages", { limit: 50 });
+ *   const newMsgs = await querySharedData("messages", { since: lastTimestamp });
+ */
+export async function querySharedData(
+  collection: string,
+  options: { since?: string; limit?: number; offset?: number; order?: "asc" | "desc" } = {},
+): Promise<SharedAppDataListResult> {
+  const qs = new URLSearchParams();
+  if (options.since) qs.set("since", options.since);
+  if (options.limit) qs.set("limit", String(options.limit));
+  if (options.offset) qs.set("offset", String(options.offset));
+  if (options.order) qs.set("order", options.order);
+  const query = qs.toString();
+  const path = projectApiPrefix() + "/shared/" + encodeURIComponent(collection) + (query ? "?" + query : "");
+  const res = await platformFetch(path);
+  return parseEnvelope<SharedAppDataListResult>(res);
 }
 `;
 

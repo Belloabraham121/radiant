@@ -48,6 +48,7 @@ export function resolveCategoryFromTool(
       return "thinking";
     case "web_search":
     case "browse_webpage":
+    case "call_api":
       return "researching";
     default:
       return "thinking";

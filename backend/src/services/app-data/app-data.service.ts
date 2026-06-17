@@ -6,6 +6,8 @@ import {
   queryAppData,
   deleteAppData,
   countAppData,
+  querySharedAppData,
+  countSharedAppData,
 } from "./app-data.repository.js";
 
 export type StoreAppDataInput = {
@@ -42,6 +44,25 @@ export type AppDataListResult = {
   total: number;
   limit: number;
   offset: number;
+};
+
+export type SharedAppDataRecord = AppDataRecord & {
+  author_id: string;
+};
+
+export type SharedAppDataListResult = {
+  records: SharedAppDataRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type QuerySharedAppDataInput = {
+  collection: string;
+  since?: string | null;
+  limit?: number;
+  offset?: number;
+  order?: "asc" | "desc";
 };
 
 function toRecord(row: {
@@ -205,4 +226,92 @@ export async function deleteAppDataForUser(
   });
 
   return { deleted: count };
+}
+
+function toSharedRecord(row: {
+  id: string;
+  collection: string;
+  key: string | null;
+  data: unknown;
+  user_id: bigint;
+  created_at: Date;
+  updated_at: Date;
+}): SharedAppDataRecord {
+  return {
+    id: row.id,
+    collection: row.collection,
+    key: row.key,
+    data: row.data as Record<string, unknown>,
+    created_at: row.created_at.toISOString(),
+    updated_at: row.updated_at.toISOString(),
+    author_id: row.user_id.toString(),
+  };
+}
+
+/**
+ * Store data into a shared collection. All users of the same project can read it.
+ * The write is still attributed to the authenticated user (author_id).
+ */
+export async function storeSharedAppDataForUser(
+  privyUserId: string,
+  scopeParams: { projectId?: string; installationId?: string },
+  input: StoreAppDataInput,
+): Promise<SharedAppDataRecord> {
+  const scope = await resolveScope(privyUserId, scopeParams);
+
+  if (!input.collection || input.collection.length > 100) {
+    throw new AppError(400, "INVALID_COLLECTION", "Collection name must be 1-100 characters");
+  }
+
+  if (input.key && input.key.length > 255) {
+    throw new AppError(400, "INVALID_KEY", "Key must be 1-255 characters");
+  }
+
+  const row = await upsertAppData({
+    projectId: scope.projectId,
+    installationId: scope.installationId,
+    userId: scope.userId,
+    collection: input.collection,
+    key: input.key ?? null,
+    data: input.data,
+  });
+
+  return toSharedRecord(row);
+}
+
+/**
+ * Query a shared collection — returns records from ALL users in the project.
+ * Supports `since` for polling new messages.
+ */
+export async function querySharedAppDataForUser(
+  privyUserId: string,
+  scopeParams: { projectId?: string; installationId?: string },
+  input: QuerySharedAppDataInput,
+): Promise<SharedAppDataListResult> {
+  const scope = await resolveScope(privyUserId, scopeParams);
+
+  const limit = Math.min(input.limit ?? 50, 200);
+  const offset = input.offset ?? 0;
+
+  const [rows, total] = await Promise.all([
+    querySharedAppData({
+      projectId: scope.projectId,
+      collection: input.collection,
+      since: input.since,
+      limit,
+      offset,
+      order: input.order,
+    }),
+    countSharedAppData({
+      projectId: scope.projectId,
+      collection: input.collection,
+    }),
+  ]);
+
+  return {
+    records: rows.map(toSharedRecord),
+    total,
+    limit,
+    offset,
+  };
 }

@@ -49,11 +49,22 @@ export type AppDataDeleteQuery = {
   id?: string;
 };
 
+export type SharedAppDataQuery = {
+  projectId: string;
+  collection: string;
+  since?: string | null;
+  limit?: number;
+  offset?: number;
+  order?: "asc" | "desc";
+};
+
 export interface AppDataStorageProvider {
   upsert(input: AppDataInput): Promise<AppDataRow>;
   query(query: AppDataQuery): Promise<AppDataRow[]>;
   count(query: Pick<AppDataQuery, "projectId" | "userId" | "collection" | "installationId">): Promise<number>;
   delete(query: AppDataDeleteQuery): Promise<number>;
+  queryShared(query: SharedAppDataQuery): Promise<AppDataRow[]>;
+  countShared(query: Pick<SharedAppDataQuery, "projectId" | "collection">): Promise<number>;
 }
 
 // --- Provider registry ---

@@ -6,6 +6,7 @@ import type {
   AppDataInput,
   AppDataQuery,
   AppDataDeleteQuery,
+  SharedAppDataQuery,
 } from "./app-data.storage.js";
 
 const CREATE_TABLE_SQL = `
@@ -30,6 +31,8 @@ const CREATE_INDEXES_SQL = [
      ON app_data(project_id, user_id, collection, created_at);`,
   `CREATE INDEX IF NOT EXISTS idx_app_data_query_install
      ON app_data(project_id, installation_id, collection, created_at);`,
+  `CREATE INDEX IF NOT EXISTS idx_app_data_shared
+     ON app_data(project_id, collection, created_at);`,
 ];
 
 function generateUUID(): string {
@@ -225,6 +228,43 @@ export class TursoAppDataProvider implements AppDataStorageProvider {
     });
 
     return result.rowsAffected;
+  }
+
+  async queryShared(query: SharedAppDataQuery): Promise<AppDataRow[]> {
+    const limit = Math.min(query.limit ?? 50, 200);
+    const offset = query.offset ?? 0;
+    const order = (query.order ?? "asc").toUpperCase();
+
+    const conditions: string[] = ["project_id = ?", "collection = ?"];
+    const args: InValue[] = [query.projectId, query.collection];
+
+    if (query.since) {
+      conditions.push("created_at > ?");
+      args.push(query.since);
+    }
+
+    args.push(limit, offset);
+
+    const result = await this.client.execute({
+      sql: `SELECT * FROM app_data
+            WHERE ${conditions.join(" AND ")}
+            ORDER BY created_at ${order}
+            LIMIT ? OFFSET ?`,
+      args,
+    });
+
+    return result.rows.map((r) => parseRow(r as unknown as Record<string, unknown>));
+  }
+
+  async countShared(
+    query: Pick<SharedAppDataQuery, "projectId" | "collection">,
+  ): Promise<number> {
+    const result = await this.client.execute({
+      sql: `SELECT COUNT(*) as cnt FROM app_data WHERE project_id = ? AND collection = ?`,
+      args: [query.projectId, query.collection],
+    });
+
+    return Number(result.rows[0].cnt);
   }
 
   private async getById(id: string): Promise<AppDataRow> {

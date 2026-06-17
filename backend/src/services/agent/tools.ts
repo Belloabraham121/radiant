@@ -73,6 +73,11 @@ import {
   browseWebpageToolDefinition,
   runBrowseWebpageTool,
 } from "./browsing/browse-webpage.tool.js";
+import {
+  CALL_API_TOOL_NAME,
+  callApiToolDefinition,
+  runCallApiTool,
+} from "./browsing/call-api.tool.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 
 export const agentToolDefinitions = [
@@ -90,6 +95,7 @@ export const agentToolDefinitions = [
   saveProjectToolDefinition,
   webSearchToolDefinition,
   browseWebpageToolDefinition,
+  callApiToolDefinition,
 ] as const;
 
 export type AgentToolErrorResult = {
@@ -190,6 +196,8 @@ async function dispatchAgentTool(
         return await runWebSearchTool(privyUserId, input);
       case BROWSE_WEBPAGE_TOOL_NAME:
         return await runBrowseWebpageTool(privyUserId, input);
+      case CALL_API_TOOL_NAME:
+        return await runCallApiTool(privyUserId, input);
       default:
         throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
     }

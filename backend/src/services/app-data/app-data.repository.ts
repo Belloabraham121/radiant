@@ -10,9 +10,10 @@ import type {
   AppDataInput,
   AppDataQuery,
   AppDataDeleteQuery,
+  SharedAppDataQuery,
 } from "./app-data.storage.js";
 
-export type { AppDataRow, AppDataInput, AppDataQuery, AppDataDeleteQuery };
+export type { AppDataRow, AppDataInput, AppDataQuery, AppDataDeleteQuery, SharedAppDataQuery };
 
 export async function upsertAppData(input: AppDataInput): Promise<AppDataRow> {
   return getAppDataProvider().upsert(input);
@@ -30,4 +31,14 @@ export async function countAppData(
 
 export async function deleteAppData(query: AppDataDeleteQuery): Promise<number> {
   return getAppDataProvider().delete(query);
+}
+
+export async function querySharedAppData(query: SharedAppDataQuery): Promise<AppDataRow[]> {
+  return getAppDataProvider().queryShared(query);
+}
+
+export async function countSharedAppData(
+  query: Pick<SharedAppDataQuery, "projectId" | "collection">,
+): Promise<number> {
+  return getAppDataProvider().countShared(query);
 }
