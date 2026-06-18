@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AppActionParamField } from "../projects/app-action.types.js";
 import { validateNotificationCondition } from "./notification-condition.validator.js";
 import {
+  normalizeNotificationScheduleInput,
   validateCronScheduleExpression,
   validateScheduleSemantics,
 } from "./notification-schedule.service.js";
@@ -66,22 +67,32 @@ const isoDateTimeString = z.string().refine((value) => !Number.isNaN(Date.parse(
   message: "Invalid ISO datetime",
 });
 
-export const notificationScheduleSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("once"),
-    at: isoDateTimeString,
-  }),
-  z.object({
-    kind: z.literal("cron"),
-    expression: z.string().min(1),
-    timezone: z.string().min(1),
-  }),
-  z.object({
-    kind: z.literal("interval"),
-    every_seconds: z.number().int().positive(),
-    until: isoDateTimeString.optional(),
-  }),
-]);
+export const notificationScheduleSchema = z
+  .discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("once"),
+      at: isoDateTimeString.optional(),
+      in_seconds: z.number().int().positive().max(86_400).optional(),
+    }),
+    z.object({
+      kind: z.literal("cron"),
+      expression: z.string().min(1),
+      timezone: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("interval"),
+      every_seconds: z.number().int().positive(),
+      until: isoDateTimeString.optional(),
+    }),
+  ])
+  .superRefine((schedule, ctx) => {
+    if (schedule.kind === "once" && schedule.at == null && schedule.in_seconds == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "once schedule requires at (ISO UTC) or in_seconds",
+      });
+    }
+  });
 
 export const notificationChannelsSchema = z.array(notificationChannelSchema).min(1);
 
@@ -190,6 +201,7 @@ export function resolveNotificationTypeDefinition(input: {
 
 export function validateNotificationSchedule(
   schedule: unknown,
+  options?: { now?: Date; requireFutureOnce?: boolean },
 ): { success: true; data: NotificationSchedule } | { success: false; errors: NotificationValidationError[] } {
   const parsed = notificationScheduleSchema.safeParse(schedule);
   if (!parsed.success) {
@@ -203,7 +215,19 @@ export function validateNotificationSchedule(
     };
   }
 
-  const semantics = validateScheduleSemantics(parsed.data);
+  const now = options?.now ?? new Date();
+  const normalized = normalizeNotificationScheduleInput(parsed.data, now);
+  if (!normalized.ok) {
+    return {
+      success: false,
+      errors: [{ code: "INVALID_SCHEDULE", message: normalized.message }],
+    };
+  }
+
+  const semantics = validateScheduleSemantics(normalized.schedule, {
+    now,
+    requireFutureOnce: options?.requireFutureOnce ?? true,
+  });
   if (!semantics.ok) {
     return {
       success: false,
@@ -218,7 +242,7 @@ export function validateNotificationSchedule(
     };
   }
 
-  return { success: true, data: parsed.data };
+  return { success: true, data: normalized.schedule };
 }
 
 export function validateNotificationChannels(

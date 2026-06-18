@@ -100,7 +100,6 @@ describe("notification emit load", () => {
     const duplicates = results.filter((result) => result.status === "duplicate");
     assert.equal(delivered.length + duplicates.length, 10);
     assert.ok(delivered.length >= 1);
-    assert.equal(delivered.length + duplicates.length, 10);
 
     const eventCount = await prisma.notificationEvent.count({
       where: { user_id: userId, idempotency_key: "load-test-duplicate-key" },

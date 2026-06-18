@@ -4,6 +4,7 @@ import {
   buildScheduleIdempotencyKey,
   isScheduleDue,
   isValidTimezone,
+  normalizeNotificationScheduleInput,
   validateScheduleSemantics,
 } from "../../../src/services/notifications/notification-schedule.service.js";
 
@@ -24,6 +25,33 @@ describe("notification schedule service", () => {
       every_seconds: 30,
     });
     assert.equal(badInterval.ok, false);
+  });
+
+  it("normalizes once.in_seconds to a future ISO timestamp", () => {
+    const now = new Date("2026-06-18T16:00:00.000Z");
+    const result = normalizeNotificationScheduleInput({ kind: "once", in_seconds: 10 }, now);
+    assert.equal(result.ok, true);
+    if (!result.ok) {
+      return;
+    }
+
+    assert.equal(result.schedule.kind, "once");
+    assert.equal(result.schedule.at, "2026-06-18T16:00:10.000Z");
+
+    const semantics = validateScheduleSemantics(result.schedule, {
+      now,
+      requireFutureOnce: true,
+    });
+    assert.equal(semantics.ok, true);
+  });
+
+  it("rejects once.at in the past when requireFutureOnce is set", () => {
+    const now = new Date("2026-06-18T16:00:00.000Z");
+    const result = validateScheduleSemantics(
+      { kind: "once", at: "2026-06-18T00:00:10.000Z" },
+      { now, requireFutureOnce: true },
+    );
+    assert.equal(result.ok, false);
   });
 
   it("detects due once schedules", () => {

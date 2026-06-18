@@ -148,11 +148,12 @@ describe("notification schema", () => {
   });
 
   it("validates schedule shapes", () => {
-    const once = validateNotificationSchedule({
-      kind: "once",
-      at: "2026-06-18T15:00:00.000Z",
-    });
+    const now = new Date("2026-06-18T16:00:00.000Z");
+    const once = validateNotificationSchedule({ kind: "once", in_seconds: 60 }, { now });
     assert.equal(once.success, true);
+    if (once.success) {
+      assert.equal(once.data.at, "2026-06-18T16:01:00.000Z");
+    }
 
     const cron = validateNotificationSchedule({
       kind: "cron",
@@ -167,8 +168,14 @@ describe("notification schema", () => {
     });
     assert.equal(interval.success, true);
 
-    const bad = validateNotificationSchedule({ kind: "once", at: "not-a-date" });
+    const bad = validateNotificationSchedule(
+      { kind: "once", at: "2026-06-18T00:00:10.000Z" },
+      { now, requireFutureOnce: true },
+    );
     assert.equal(bad.success, false);
+
+    const badDate = validateNotificationSchedule({ kind: "once", at: "not-a-date" }, { now });
+    assert.equal(badDate.success, false);
 
     const union = notificationScheduleSchema.safeParse({
       kind: "cron",
@@ -224,7 +231,7 @@ describe("notification schema", () => {
       notification_type: scheduleNotificationType,
       trigger_kind: "schedule",
       condition: { min_profit_bps: 50 },
-      schedule: { kind: "once", at: "2026-06-18T15:00:00.000Z" },
+      schedule: { kind: "once", in_seconds: 3600 },
       project: scheduleProject,
     });
     assert.equal(scheduleOk.success, true);

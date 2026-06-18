@@ -190,11 +190,20 @@ export async function createNotificationRuleForUser(
     assertValidationErrors(channelsResult);
   }
 
+  let resolvedSchedule: NotificationSchedule | undefined;
+  if (input.schedule != null) {
+    const scheduleResult = validateNotificationSchedule(input.schedule);
+    if (!scheduleResult.success) {
+      assertValidationErrors(scheduleResult);
+    }
+    resolvedSchedule = scheduleResult.data;
+  }
+
   const draftResult = validateNotificationRuleDraft({
     notification_type: notificationType,
     trigger_kind: typeDefinition.trigger_kind,
     condition: input.condition ?? {},
-    schedule: input.schedule,
+    schedule: resolvedSchedule ?? input.schedule,
     channels: channelsResult.data,
     project: scope.project,
   });
@@ -203,7 +212,7 @@ export async function createNotificationRuleForUser(
   }
 
   const triggerOnce =
-    input.trigger_once ?? (input.schedule?.kind === "once" ? true : false);
+    input.trigger_once ?? (resolvedSchedule?.kind === "once" ? true : false);
 
   const rule = await createNotificationRule({
     userId: scope.userId,
@@ -215,15 +224,15 @@ export async function createNotificationRuleForUser(
     notificationType,
     triggerKind: typeDefinition.trigger_kind,
     condition: input.condition ?? {},
-    ...(input.schedule != null ? { schedule: input.schedule } : {}),
+    ...(resolvedSchedule != null ? { schedule: resolvedSchedule } : {}),
     channels: channelsResult.data,
     cooldownSeconds: input.cooldown_seconds,
     triggerOnce,
     expiresAt: parseExpiresAt(input.expires_at),
   });
 
-  if (typeDefinition.trigger_kind === "schedule" && input.schedule) {
-    await enqueueNotificationScheduleOnce(rule.id, input.schedule);
+  if (typeDefinition.trigger_kind === "schedule" && resolvedSchedule) {
+    await enqueueNotificationScheduleOnce(rule.id, resolvedSchedule);
   }
 
   return toRuleRecord(rule);
@@ -300,8 +309,24 @@ export async function updateNotificationRuleForUser(
     input.condition !== undefined
       ? input.condition
       : (existing.condition as Record<string, unknown>);
+
+  let resolvedScheduleUpdate: NotificationSchedule | null | undefined;
+  if (input.schedule !== undefined) {
+    if (input.schedule === null) {
+      resolvedScheduleUpdate = null;
+    } else {
+      const scheduleResult = validateNotificationSchedule(input.schedule);
+      if (!scheduleResult.success) {
+        assertValidationErrors(scheduleResult);
+      }
+      resolvedScheduleUpdate = scheduleResult.data;
+    }
+  }
+
   const nextSchedule =
-    input.schedule !== undefined ? input.schedule : (existing.schedule as NotificationSchedule | null);
+    resolvedScheduleUpdate !== undefined
+      ? resolvedScheduleUpdate
+      : (existing.schedule as NotificationSchedule | null);
   const nextChannels =
     input.channels !== undefined
       ? input.channels
@@ -328,13 +353,6 @@ export async function updateNotificationRuleForUser(
     }
   }
 
-  if (input.schedule !== undefined && input.schedule !== null) {
-    const scheduleResult = validateNotificationSchedule(input.schedule);
-    if (!scheduleResult.success) {
-      assertValidationErrors(scheduleResult);
-    }
-  }
-
   if (input.status === "active" || input.status === "paused") {
     // allowed
   } else if (input.status !== undefined) {
@@ -344,7 +362,7 @@ export async function updateNotificationRuleForUser(
   const updated = await updateNotificationRule(ruleId, scope.userId, {
     ...(input.label !== undefined ? { label: input.label } : {}),
     ...(input.condition !== undefined ? { condition: input.condition } : {}),
-    ...(input.schedule !== undefined ? { schedule: input.schedule } : {}),
+    ...(resolvedScheduleUpdate !== undefined ? { schedule: resolvedScheduleUpdate } : {}),
     ...(input.channels !== undefined ? { channels: input.channels } : {}),
     ...(input.status !== undefined ? { status: input.status } : {}),
     ...(input.cooldown_seconds !== undefined ? { cooldownSeconds: input.cooldown_seconds } : {}),

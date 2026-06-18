@@ -3,10 +3,29 @@ import { getRedisClient } from "../../infrastructure/redis/client.js";
 import type { NotificationStreamEvent } from "./notification-stream.types.js";
 
 const NOTIFICATION_STREAM_CHANNEL_PREFIX = "radiant:notification-stream:";
+const STREAM_EVENT_DEDUPE_MS = 3_000;
 
 type StreamListener = (event: NotificationStreamEvent) => void;
 
 const localListeners = new Map<string, Set<StreamListener>>();
+const recentStreamEvents = new Map<string, number>();
+
+function streamEventDedupeKey(userId: bigint, event: NotificationStreamEvent): string {
+  const eventId =
+    "event_id" in event && typeof event.event_id === "string" ? event.event_id : null;
+  return `${userId.toString()}:${eventId ?? `${event.type}:${event.ts ?? ""}`}`;
+}
+
+function shouldDeliverStreamEvent(userId: bigint, event: NotificationStreamEvent): boolean {
+  const key = streamEventDedupeKey(userId, event);
+  const now = Date.now();
+  const last = recentStreamEvents.get(key);
+  if (last != null && now - last < STREAM_EVENT_DEDUPE_MS) {
+    return false;
+  }
+  recentStreamEvents.set(key, now);
+  return true;
+}
 
 let redisSubscriber: Redis | null = null;
 let redisSubscriberInit: Promise<Redis | null> | null = null;
@@ -17,6 +36,10 @@ function channelForUser(userId: bigint): string {
 }
 
 function notifyLocalListeners(userId: bigint, event: NotificationStreamEvent): void {
+  if (!shouldDeliverStreamEvent(userId, event)) {
+    return;
+  }
+
   const listeners = localListeners.get(userId.toString());
   if (!listeners) {
     return;
@@ -150,19 +173,20 @@ export function emitNotificationStreamEvent(
   userId: bigint,
   event: NotificationStreamEvent,
 ): void {
+  notifyLocalListeners(userId, event);
+
   const redis = getRedisClient();
   if (redis) {
     void redis.publish(channelForUser(userId), JSON.stringify(event)).catch(() => {
-      notifyLocalListeners(userId, event);
+      // Local listeners already notified above.
     });
     return;
   }
-
-  notifyLocalListeners(userId, event);
 }
 
 export async function resetNotificationStreamForTests(): Promise<void> {
   localListeners.clear();
+  recentStreamEvents.clear();
   redisSubscribedUsers.clear();
   redisSubscriberInit = null;
 

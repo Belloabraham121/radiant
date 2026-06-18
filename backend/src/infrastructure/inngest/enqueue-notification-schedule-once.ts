@@ -6,7 +6,15 @@ import type { NotificationSchedule } from "../../services/notifications/notifica
 import { isOnceScheduleInFuture } from "../../services/notifications/notification-schedule.service.js";
 
 export async function enqueueNotificationScheduleOnce(ruleId: string, schedule: NotificationSchedule): Promise<void> {
-  if (schedule.kind !== "once" || !isOnceScheduleInFuture(schedule)) {
+  if (schedule.kind !== "once") {
+    return;
+  }
+
+  if (!isOnceScheduleInFuture(schedule)) {
+    logger.warn("Skipping one-shot Inngest schedule — once.at is not in the future", {
+      ruleId,
+      at: schedule.at,
+    });
     return;
   }
 

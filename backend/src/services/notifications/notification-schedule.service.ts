@@ -3,6 +3,72 @@ import type { NotificationSchedule } from "./notification-schema.types.js";
 
 const MIN_INTERVAL_SECONDS = 60;
 const CRON_TICK_WINDOW_MS = 90_000;
+const MAX_ONCE_IN_SECONDS = 86_400;
+
+/** Input shape before normalization — once schedules may use relative in_seconds. */
+export type NotificationScheduleInput =
+  | { kind: "once"; at?: string; in_seconds?: number }
+  | { kind: "cron"; expression: string; timezone: string }
+  | { kind: "interval"; every_seconds: number; until?: string };
+
+export function normalizeNotificationScheduleInput(
+  schedule: NotificationScheduleInput,
+  now = new Date(),
+): { ok: true; schedule: NotificationSchedule } | { ok: false; message: string } {
+  if (schedule.kind === "once") {
+    if (schedule.in_seconds != null) {
+      if (!Number.isInteger(schedule.in_seconds) || schedule.in_seconds <= 0) {
+        return { ok: false, message: "once.in_seconds must be a positive integer" };
+      }
+      if (schedule.in_seconds > MAX_ONCE_IN_SECONDS) {
+        return {
+          ok: false,
+          message: `once.in_seconds must be at most ${MAX_ONCE_IN_SECONDS}`,
+        };
+      }
+      return {
+        ok: true,
+        schedule: {
+          kind: "once",
+          at: new Date(now.getTime() + schedule.in_seconds * 1000).toISOString(),
+        },
+      };
+    }
+
+    if (!schedule.at) {
+      return {
+        ok: false,
+        message: "once schedule requires at (ISO UTC) or in_seconds (relative delay)",
+      };
+    }
+
+    if (Number.isNaN(Date.parse(schedule.at))) {
+      return { ok: false, message: "once.at must be a valid ISO datetime" };
+    }
+
+    return { ok: true, schedule: { kind: "once", at: schedule.at } };
+  }
+
+  if (schedule.kind === "cron") {
+    return {
+      ok: true,
+      schedule: {
+        kind: "cron",
+        expression: schedule.expression,
+        timezone: schedule.timezone,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    schedule: {
+      kind: "interval",
+      every_seconds: schedule.every_seconds,
+      ...(schedule.until != null ? { until: schedule.until } : {}),
+    },
+  };
+}
 
 export function isValidTimezone(timezone: string): boolean {
   try {
@@ -27,6 +93,7 @@ export function validateCronScheduleExpression(expression: string, timezone: str
 
 export function validateScheduleSemantics(
   schedule: NotificationSchedule,
+  options?: { now?: Date; requireFutureOnce?: boolean },
 ): { ok: true } | { ok: false; message: string } {
   if (schedule.kind === "cron") {
     if (!validateCronScheduleExpression(schedule.expression, schedule.timezone)) {
@@ -50,6 +117,18 @@ export function validateScheduleSemantics(
 
   if (Number.isNaN(Date.parse(schedule.at))) {
     return { ok: false, message: "once.at must be a valid ISO datetime" };
+  }
+
+  if (options?.requireFutureOnce) {
+    const now = options.now ?? new Date();
+    const at = new Date(schedule.at);
+    if (at.getTime() <= now.getTime()) {
+      return {
+        ok: false,
+        message:
+          "once.at must be in the future; for relative delays use in_seconds (e.g. remind in 10 seconds → in_seconds: 10)",
+      };
+    }
   }
 
   return { ok: true };

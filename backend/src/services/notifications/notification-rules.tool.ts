@@ -16,19 +16,32 @@ export const DELETE_NOTIFICATION_RULE_TOOL_NAME = "delete_notification_rule" as 
 
 const notificationChannelSchema = z.enum(["in_app", "web_push", "email"]);
 
-const notificationScheduleSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("once"), at: z.string().min(1) }),
-  z.object({
-    kind: z.literal("cron"),
-    expression: z.string().min(1),
-    timezone: z.string().min(1),
-  }),
-  z.object({
-    kind: z.literal("interval"),
-    every_seconds: z.number().int().positive(),
-    until: z.string().min(1).optional(),
-  }),
-]);
+const notificationScheduleSchema = z
+  .discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("once"),
+      at: z.string().min(1).optional(),
+      in_seconds: z.number().int().positive().max(86_400).optional(),
+    }),
+    z.object({
+      kind: z.literal("cron"),
+      expression: z.string().min(1),
+      timezone: z.string().min(1),
+    }),
+    z.object({
+      kind: z.literal("interval"),
+      every_seconds: z.number().int().positive(),
+      until: z.string().min(1).optional(),
+    }),
+  ])
+  .superRefine((schedule, ctx) => {
+    if (schedule.kind === "once" && schedule.at == null && schedule.in_seconds == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "once schedule requires at (ISO UTC) or in_seconds",
+      });
+    }
+  });
 
 const notificationScopeSchema = z.preprocess(
   (input) => {
@@ -104,7 +117,8 @@ export const createNotificationRuleToolDefinition = {
       },
       schedule: {
         type: "object",
-        description: "Required for schedule trigger kinds — { kind: once, at: ISO } or cron/interval.",
+        description:
+          "Required for schedule trigger kinds. One-shot: { kind: \"once\", in_seconds: 10 } for relative delays (preferred for \"in N seconds/minutes\"), or { kind: \"once\", at: \"<ISO UTC>\" } for absolute times. Cron/interval also supported.",
         additionalProperties: true,
       },
       channels: {
