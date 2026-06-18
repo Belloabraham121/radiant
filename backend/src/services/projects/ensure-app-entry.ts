@@ -10,10 +10,15 @@ import {
   RADIANT_AGENT_RUNTIME_TS,
   RADIANT_AGENT_RUNTIME_VERSION,
 } from "./radiant-agent-runtime-template.js";
+import {
+  RADIANT_CHARTS_TSX,
+  RADIANT_CHARTS_VERSION,
+} from "./radiant-charts.template.js";
 import { mergeMarginReferenceFiles } from "./margin-app-reference.template.js";
 import { normalizeArtifactFileContent } from "./artifact-file-content.js";
 
 export { RADIANT_CLIENT_TEMPLATE_VERSION };
+export { RADIANT_CHARTS_VERSION };
 
 type ArtifactFileInput = { path: string; content: string };
 
@@ -101,6 +106,20 @@ function injectPlatformFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
   }
   if (!hasPath(next, "components/AgentIndicator.tsx")) {
     next.push({ path: "components/AgentIndicator.tsx", content: AGENT_INDICATOR_TSX });
+  }
+  if (!hasPath(next, "lib/radiant-charts.tsx")) {
+    next.push({ path: "lib/radiant-charts.tsx", content: RADIANT_CHARTS_TSX });
+  } else {
+    for (let index = 0; index < next.length; index += 1) {
+      if (normalizeClientPath(next[index]!.path) !== "lib/radiant-charts.tsx") {
+        continue;
+      }
+      if (next[index]!.content.includes(`Template v${RADIANT_CHARTS_VERSION}`)) {
+        break;
+      }
+      next[index] = { ...next[index]!, content: RADIANT_CHARTS_TSX };
+      break;
+    }
   }
 
   return next;

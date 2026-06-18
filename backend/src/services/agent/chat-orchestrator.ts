@@ -27,6 +27,7 @@ import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js"
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
 import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
 import { extractArtifactFromToolCalls } from "../projects/extract-artifact.js";
+import { buildPinnedArtifactContextBlock } from "../projects/artifact-context.service.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
@@ -133,6 +134,15 @@ export async function runChatTurn(
     { role: "user", content: request.message },
   ]);
 
+  const artifactContextBlock =
+    request.app_scope != null
+      ? await buildPinnedArtifactContextBlock(
+          privyUserId,
+          session.id,
+          request.app_scope,
+        )
+      : undefined;
+
   const runtime = options.forceRuntime ?? getAgentRuntime();
   const result = await runWithExecutionProgress(
     {
@@ -160,6 +170,7 @@ export async function runChatTurn(
         memoryBlock,
         agentPermissions,
         pinnedAppScope: request.app_scope ?? null,
+        artifactContextBlock,
       }),
   );
 

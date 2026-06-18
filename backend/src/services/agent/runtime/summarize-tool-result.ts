@@ -213,6 +213,14 @@ export function summarizeToolResult(name: string, result: unknown): string {
     return "Done.";
   }
 
+  if (name === "read_artifact") {
+    const outcome = result as { summary?: string; file_count?: number; name?: string };
+    if (typeof outcome.summary === "string" && outcome.summary.trim()) {
+      return outcome.summary;
+    }
+    return `Read ${outcome.file_count ?? 0} file(s) from "${outcome.name ?? "app"}".`;
+  }
+
   if (name === "generate_app" || name === "edit_app") {
     const outcome = result as {
       name?: string;
@@ -223,6 +231,7 @@ export function summarizeToolResult(name: string, result: unknown): string {
     const PLATFORM_FILES = new Set([
       "lib/radiant-client.ts",
       "lib/radiant-agent-runtime.ts",
+      "lib/radiant-charts.tsx",
       "components/AgentIndicator.tsx",
     ]);
     const userFiles = fileList.filter((f) => !PLATFORM_FILES.has(f.path));

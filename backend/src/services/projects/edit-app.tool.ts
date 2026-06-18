@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { editAppForUser } from "./edit-app.service.js";
+import type { PinnedAppScope } from "./pinned-app-scope.types.js";
 
 export const EDIT_APP_TOOL_NAME = "edit_app" as const;
 
@@ -22,7 +23,9 @@ export type EditAppInput = z.infer<typeof editAppInputSchema>;
 export const editAppToolDefinition = {
   name: EDIT_APP_TOOL_NAME,
   description:
-    "Make surgical edits to specific files in the current artifact — preserves existing UI; only the targeted strings change. " +
+    "Make surgical edits to the pinned or session app — preserves existing UI; only targeted strings change. " +
+    "When an app is pinned, the platform applies scope automatically. " +
+    "Current source is in the system prompt (or call read_artifact). " +
     "DEFAULT: find-and-replace with old_string + new_string (include surrounding lines so old_string is unique). " +
     "Use for ALL incremental changes: add/remove fields, fonts, colors, text, labels, spacing, wiring. " +
     "replace_file: true is LAST RESORT ONLY after EDIT_STRING_NOT_FOUND when an entire file must be restructured — " +
@@ -75,7 +78,7 @@ export const editAppToolDefinition = {
 export async function runEditAppTool(
   privyUserId: string,
   input: Record<string, unknown>,
-  context: { sessionId?: string } = {},
+  context: { sessionId?: string; pinnedAppScope?: PinnedAppScope | null } = {},
 ): Promise<unknown> {
   const parsed = editAppInputSchema.parse(input);
   return editAppForUser(privyUserId, parsed, context);

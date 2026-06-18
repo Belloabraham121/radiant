@@ -2,7 +2,7 @@ import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findSessionForUser } from "../conversation/session.repository.js";
 import { validateArtifactBatch } from "../sandbox/sandbox-paths.js";
-import { upsertArtifactFiles } from "./artifact.repository.js";
+import { upsertArtifactFiles, listArtifactFiles } from "./artifact.repository.js";
 import { ensureAppEntry } from "./ensure-app-entry.js";
 import { PREVIEW_PROJECT_ID } from "./preview-project.js";
 import { Prisma } from "@prisma/client";
@@ -26,6 +26,7 @@ import {
 } from "./project.repository.js";
 import { inferProjectActionSchemaForArtifact } from "./app-action-schema.service.js";
 import type { ProjectActionSchema } from "./app-action-schema.types.js";
+import { mergeArtifactFileSets } from "./artifact-context.service.js";
 
 function actionSchemaToPrismaJson(schema: ProjectActionSchema): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(schema)) as Prisma.InputJsonValue;
@@ -101,10 +102,29 @@ async function persistSessionDraft(
 ): Promise<GenerateAppResult> {
   await assertSessionAccess(privyUserId, sessionId);
 
-  const normalizedFiles = validateArtifactBatch(
-    ensureAppEntry(input.files, { template: input.template }),
-  );
   let draft = await findSessionDraftBySessionId(sessionId);
+  const previousRevision = draft?.revision;
+  const previousFiles =
+    draft && previousRevision !== undefined
+      ? (await listSessionDraftFiles(draft.id, previousRevision)).map((file) => ({
+          path: toClientPath(file.path),
+          content: file.content,
+        }))
+      : [];
+
+  const mergedInputFiles = previousFiles.length
+    ? mergeArtifactFileSets(previousFiles, input.files.map((file) => ({
+        path: toClientPath(file.path),
+        content: file.content,
+      })))
+    : input.files.map((file) => ({
+        path: toClientPath(file.path),
+        content: file.content,
+      }));
+
+  const normalizedFiles = validateArtifactBatch(
+    ensureAppEntry(mergedInputFiles, { template: input.template }),
+  );
 
   if (!draft) {
     draft = await createSessionDraft({
@@ -156,21 +176,39 @@ async function persistProject(
     }
   }
 
-  const normalizedFiles = validateArtifactBatch(
-    ensureAppEntry(input.files, { template: input.template }),
-  );
-
-  const artifactFilesForSchema = normalizedFiles.map((file) => ({
-    path: file.path.replace(/^\/workspace\//, ""),
-    content: file.content,
-  }));
-
   let project =
     input.project_id ? await findProjectByIdForUser(input.project_id, user.id) : null;
 
   if (input.project_id && !project) {
     throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
   }
+
+  const previousFiles =
+    project && project.artifact_revision >= 0
+      ? (await listArtifactFiles(project.id, project.artifact_revision)).map((file) => ({
+          path: toClientPath(file.path),
+          content: file.content,
+        }))
+      : [];
+
+  const mergedInputFiles = previousFiles.length
+    ? mergeArtifactFileSets(previousFiles, input.files.map((file) => ({
+        path: toClientPath(file.path),
+        content: file.content,
+      })))
+    : input.files.map((file) => ({
+        path: toClientPath(file.path),
+        content: file.content,
+      }));
+
+  const normalizedFiles = validateArtifactBatch(
+    ensureAppEntry(mergedInputFiles, { template: input.template }),
+  );
+
+  const artifactFilesForSchema = normalizedFiles.map((file) => ({
+    path: file.path.replace(/^\/workspace\//, ""),
+    content: file.content,
+  }));
 
   if (!project) {
     project = await createProject({

@@ -25,6 +25,7 @@ import { isDeepBookMarginAction } from "../defi/deepbook/deepbook-margin.service
 import { isDeepBookPredictAction } from "../defi/deepbook/deepbook-predict.service.js";
 import type { FlashLoanRepaySource } from "../defi/deepbook/deepbook-flash-loan.types.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
+import type { AppActionSource } from "../projects/app-action.types.js";
 import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import { AppError } from "../../errors/app-error.js";
@@ -292,10 +293,21 @@ export function transferRequiresApprovalWithPermissions(
   return amount > resolveAutoApproveMaxAtomic(permissions, input.chain_id);
 }
 
+export type TransferRequiresApprovalOptions = {
+  pinnedAppScope?: PinnedAppScope | null;
+  /** Artifact POST /actions/* — always in-app confirm; agent auto-approve does not apply. */
+  source?: AppActionSource;
+};
+
+/** True when an action was initiated from the artifact UI and must confirm in-app. */
+export function artifactUiActionRequiresApproval(input: ExecuteTransactionInput): boolean {
+  return isMutatingExecuteAction(input.action);
+}
+
 export async function transferRequiresApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
-  options: { pinnedAppScope?: PinnedAppScope | null } = {},
+  options: TransferRequiresApprovalOptions = {},
 ): Promise<boolean> {
   if (options.pinnedAppScope && isDeepBookSwapAction(input.action)) {
     return true;
@@ -306,6 +318,10 @@ export async function transferRequiresApproval(
     if (info.provisioned) {
       return false;
     }
+  }
+
+  if (options.source === "ui" && artifactUiActionRequiresApproval(input)) {
+    return true;
   }
 
   const permissions = await getAgentPermissions(privyUserId);

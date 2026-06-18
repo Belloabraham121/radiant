@@ -1,6 +1,6 @@
 /** Reference margin trading app injected when generate_app uses template: "margin". */
 
-export const MARGIN_APP_REFERENCE_VERSION = 2;
+export const MARGIN_APP_REFERENCE_VERSION = 3;
 
 export type MarginReferenceFile = { path: string; content: string };
 
@@ -158,54 +158,14 @@ registerMarginHandlers();
     path: "components/MarginMarketTrend.tsx",
     content: `"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { deepbookOhlcv, marginManagerState } from "../lib/radiant-client";
-
-type Candle = {
-  open?: number;
-  high?: number;
-  low?: number;
-  close?: number;
-  timestamp?: number;
-};
-
-function Sparkline({ candles }: { candles: Candle[] }) {
-  const points = useMemo(() => {
-    const closes = candles
-      .map((c) => (typeof c.close === "number" ? c.close : null))
-      .filter((v): v is number => v != null && Number.isFinite(v));
-    if (closes.length < 2) {
-      return "";
-    }
-    const min = Math.min(...closes);
-    const max = Math.max(...closes);
-    const range = max - min || 1;
-    const width = 280;
-    const height = 64;
-    return closes
-      .map((value, index) => {
-        const x = (index / (closes.length - 1)) * width;
-        const y = height - ((value - min) / range) * height;
-        return \`\${index === 0 ? "M" : "L"}\${x.toFixed(1)},\${y.toFixed(1)}\`;
-      })
-      .join(" ");
-  }, [candles]);
-
-  if (!points) {
-    return <p className="text-sm text-gray-500">Not enough candle data yet.</p>;
-  }
-
-  return (
-    <svg viewBox="0 0 280 64" className="h-16 w-full max-w-sm" aria-hidden="true">
-      <path d={points} fill="none" stroke="currentColor" strokeWidth="2" className="text-violet-600" />
-    </svg>
-  );
-}
+import { OhlcvAreaChart } from "../lib/radiant-charts";
 
 export default function MarginMarketTrend() {
   const [poolKey, setPoolKey] = useState("SUI_DBUSDC");
   const [candleInterval, setCandleInterval] = useState("1h");
-  const [candles, setCandles] = useState<Candle[]>([]);
+  const [candles, setCandles] = useState<unknown[]>([]);
   const [currentPrice, setCurrentPrice] = useState<string>("—");
   const [riskRatio, setRiskRatio] = useState<string>("—");
   const [message, setMessage] = useState("");
@@ -218,7 +178,7 @@ export default function MarginMarketTrend() {
         marginManagerState({ pool_key: poolKey }).catch(() => null),
       ]);
       const raw = ohlcv.candles;
-      setCandles(Array.isArray(raw) ? (raw as Candle[]) : []);
+      setCandles(Array.isArray(raw) ? raw : []);
       const stateRow = state && typeof state.state === "object" && state.state ? (state.state as Record<string, unknown>) : null;
       setCurrentPrice(stateRow?.current_price != null ? String(stateRow.current_price) : "—");
       setRiskRatio(stateRow?.risk_ratio != null ? String(stateRow.risk_ratio) : "—");
@@ -233,7 +193,10 @@ export default function MarginMarketTrend() {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  const lastClose = candles.length > 0 ? candles[candles.length - 1]?.close : null;
+  const lastClose =
+    candles.length > 0 && typeof (candles[candles.length - 1] as { close?: number })?.close === "number"
+      ? String((candles[candles.length - 1] as { close: number }).close)
+      : "—";
 
   return (
     <section className="mx-auto mb-6 max-w-3xl rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -274,7 +237,7 @@ export default function MarginMarketTrend() {
         </div>
         <div>
           <p className="text-xs font-medium uppercase text-gray-500">Last close</p>
-          <p className="text-lg font-bold text-gray-900">{lastClose != null ? String(lastClose) : "—"}</p>
+          <p className="text-lg font-bold text-gray-900">{lastClose}</p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase text-gray-500">Risk ratio</p>
@@ -282,7 +245,11 @@ export default function MarginMarketTrend() {
         </div>
       </div>
       <div className="mt-4">
-        <Sparkline candles={candles} />
+        <OhlcvAreaChart
+          candles={candles}
+          label={\`\${poolKey} · \${candleInterval}\`}
+          accent="#7c3aed"
+        />
       </div>
       {message ? <p className="mt-2 text-sm text-red-600">{message}</p> : null}
     </section>

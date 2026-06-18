@@ -524,10 +524,34 @@ ${css}
     return null;
   }
 
+  var LUCIDE_REACT_URL = "https://unpkg.com/lucide-react@1.17.0/dist/cjs/lucide-react.js";
   var npmRegistry = null;
-  function createNpmRegistry() {
-  var routerDom = createPreviewRouterDom(React);
-    return {
+  function previewUsesLucide() {
+    for (var path in payload.modules) {
+      var source = payload.modules[path];
+      if (/from\\s+["']lucide-react["']/.test(source) || /require\\s*\\(\\s*["']lucide-react["']/.test(source)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  async function loadLucideReact() {
+    var res = await fetch(LUCIDE_REACT_URL);
+    if (!res.ok) {
+      throw new Error("Failed to load lucide-react for preview (HTTP " + res.status + ")");
+    }
+    var code = await res.text();
+    var mod = { exports: {} };
+    var fn = new Function("require", "exports", "module", code + "\\n//# sourceURL=lucide-react.js");
+    fn(function (req) {
+      if (req === "react") return React;
+      throw new Error("lucide-react cannot require: " + req);
+    }, mod.exports, mod);
+    return mod.exports;
+  }
+  function createNpmRegistry(lucideReact) {
+    var routerDom = createPreviewRouterDom(React);
+    var registry = {
       react: React,
       "react-dom": ReactDOM,
       "react-dom/client": { createRoot: ReactDOM.createRoot.bind(ReactDOM) },
@@ -547,6 +571,10 @@ ${css}
         useLocation: routerDom.useLocation,
       },
     };
+    if (lucideReact) {
+      registry["lucide-react"] = lucideReact;
+    }
+    return registry;
   }
 
   var moduleCache = {};
@@ -575,7 +603,7 @@ ${css}
         var isRelative = request.indexOf("./") === 0 || request.indexOf("../") === 0 || request.indexOf("/") === 0;
         var msg = isRelative
           ? "Preview: file not found: " + request + " (imported from " + moduleId + "). The component file is missing from the generated app — ask the agent to regenerate and include all component files."
-          : "Preview cannot load module: " + request + " (from " + moduleId + "). Use app/, components/, or lib/ paths for local files, and react / react-dom / react-router-dom only for npm.";
+          : "Preview cannot load module: " + request + " (from " + moduleId + "). Use app/, components/, or lib/ paths for local files, and react / react-dom / react-router-dom / lucide-react only for npm.";
         throw new Error(msg);
       }
       return loadModule(resolved);
@@ -591,29 +619,33 @@ ${css}
     return;
   }
 
-  try {
-    npmRegistry = createNpmRegistry();
-    // Next.js layout.tsx is not executed in chat preview — bootstrap platform libs first.
-    var platformBoot = ["lib/radiant-client.ts", "lib/radiant-agent-runtime.ts"];
-    for (var bi = 0; bi < platformBoot.length; bi++) {
-      var bootId = platformBoot[bi];
-      if (payload.modules[bootId]) {
-        loadModule(bootId);
+  async function bootstrapPreview() {
+    try {
+      var lucideReact = previewUsesLucide() ? await loadLucideReact() : null;
+      npmRegistry = createNpmRegistry(lucideReact);
+      // Next.js layout.tsx is not executed in chat preview — bootstrap platform libs first.
+      var platformBoot = ["lib/radiant-client.ts", "lib/radiant-agent-runtime.ts"];
+      for (var bi = 0; bi < platformBoot.length; bi++) {
+        var bootId = platformBoot[bi];
+        if (payload.modules[bootId]) {
+          loadModule(bootId);
+        }
       }
+      var entryExports = loadModule(payload.entry);
+      var App = entryExports.default || entryExports;
+      if (typeof App !== "function") {
+        throw new Error("app/page.tsx must default-export a React component.");
+      }
+      ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+      bindPreviewNavigation();
+      hideLoader();
+      notifyParent("ready");
+      notifyPath(readHashPath());
+    } catch (e) {
+      showError(e && e.message ? e.message : String(e));
     }
-    var entryExports = loadModule(payload.entry);
-    var App = entryExports.default || entryExports;
-    if (typeof App !== "function") {
-      throw new Error("app/page.tsx must default-export a React component.");
-    }
-    ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
-    bindPreviewNavigation();
-    hideLoader();
-    notifyParent("ready");
-    notifyPath(readHashPath());
-  } catch (e) {
-    showError(e && e.message ? e.message : String(e));
   }
+  bootstrapPreview();
 })();
 <\/script>
 </body>

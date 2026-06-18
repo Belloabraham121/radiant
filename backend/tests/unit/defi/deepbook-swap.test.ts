@@ -9,6 +9,7 @@ import {
 } from "../../../src/services/defi/deepbook/deepbook-swap.service.js";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import {
+  artifactUiActionRequiresApproval,
   buildPendingTransactionPreview,
   clearPendingTransactionsForTests,
   swapRequiresApprovalWithPermissions,
@@ -130,6 +131,25 @@ describe("swap approval", () => {
         params: { pool_key: "SUI_USDC", amount: 30, side: "sell" },
       }),
       true,
+    );
+  });
+
+  it("artifact UI source always requires approval for small swaps (auto-approve bypass)", () => {
+    assert.equal(
+      artifactUiActionRequiresApproval({
+        chain_id: "sui",
+        action: "swap",
+        params: { pool_key: "SUI_USDC", amount: 1, side: "sell" },
+      }),
+      true,
+    );
+    assert.equal(
+      swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+        chain_id: "sui",
+        action: "swap",
+        params: { pool_key: "SUI_USDC", amount: 1, side: "sell" },
+      }),
+      false,
     );
   });
 

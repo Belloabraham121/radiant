@@ -20,51 +20,62 @@ export const pinnedAppScopeSchema = z.discriminatedUnion("kind", [
 
 export type PinnedAppScope = z.infer<typeof pinnedAppScopeSchema>;
 
+const PINNED_UI_CHANGES =
+  "UI / code changes (fix a chart, change colors, add a field, update layout, rename labels): " +
+  "the pinned app's current source is included below (or call read_artifact). " +
+  "Apply surgical edits with edit_app — change only what the user asked for. " +
+  "Never describe a UI fix without calling edit_app in the same turn. " +
+  "Use generate_app only if they explicitly want a brand-new app from scratch with no pinned artifact. " +
+  "The platform routes edits to this pinned app automatically — never ask the user for project ids or tool names.";
+
 const PINNED_EXECUTE_IN_APP =
-  "The user pinned this app and expects you to act INSIDE it — they will see the app preview open and watch " +
-  "you drive the UI in real time (fields filling, buttons clicking, confirmations appearing). " +
-  "Do NOT use execute_transaction. Do NOT describe what you will do — just do it via call_app_action. " +
-  "The preview handles the visual feedback: field fills with delays, button highlights, then an in-app confirmation modal. ";
+  "In-app actions (swap, deposit, submit a form, run a margin order): " +
+  "the user pinned this app and expects you to act INSIDE it — they watch the preview while fields fill and buttons click. " +
+  "Use call_app_action (not execute_transaction). Do not only describe what you will do — run the action. " +
+  "The preview shows field fills, highlights, then an in-app confirmation modal.";
 
 const PINNED_ACTION_FLOW =
-  "1) Optionally call query_chain project_actions or session_actions (no params needed — pinned scope is applied automatically) to learn available actions and param names. " +
-  "2) Call call_app_action with the matching action and params — execution is delegated to the preview iframe which drives the UI step by step. " +
-  "3) The user sees the agent filling fields, clicking buttons, and a confirmation modal in the preview — your reply should be brief (e.g. 'Running swap in your app — confirm in the preview.'). " +
-  "Skip list_session_projects; scope is already set. Do NOT pass app_name or project_id to query_chain when the user pinned an app — the platform resolves the pinned app. ";
+  "For in-app actions: optionally call query_chain project_actions or session_actions (pinned scope applies automatically), " +
+  "then call call_app_action with the matching action and params. " +
+  "Reply briefly after the action runs (e.g. 'Running swap in your app — confirm in the preview.'). " +
+  "Skip list_session_projects — scope is already set.";
 
 const PINNED_INSTALLATION_ACTION_FLOW =
-  "1) Optionally call query_chain project_actions {} (no params) to list this installation's actions — scope is resolved from the pin. " +
-  "2) Call call_app_action with the matching action and params (installation_id is applied automatically if omitted). " +
-  "3) Reply briefly after the action runs in the app preview. " +
-  "Skip list_session_projects and never pass app_name — other apps in this chat are irrelevant. ";
+  "For in-app actions on an installed app: optionally call query_chain project_actions {}, " +
+  "then call call_app_action (installation scope applies automatically if omitted). " +
+  "Reply briefly after the action runs. Never pass app_name — other apps in this chat are irrelevant.";
+
+const PINNED_INSTALLATION_LIMIT =
+  "Installed apps cannot be edited in place — UI/code changes require the app author's project. " +
+  "You can still run in-app actions and answer questions.";
 
 export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
   if (scope.kind === "installation") {
-    return (
-      `User pinned INSTALLED app: "${scope.name}" (installation_id: ${scope.installation_id}). ` +
-      PINNED_EXECUTE_IN_APP +
-      PINNED_INSTALLATION_ACTION_FLOW +
-      `Use call_app_action with installation_id "${scope.installation_id}" (or omit scope fields — pin applies automatically).`
-    );
+    return [
+      `User pinned INSTALLED app: "${scope.name}".`,
+      PINNED_INSTALLATION_LIMIT,
+      PINNED_EXECUTE_IN_APP,
+      PINNED_INSTALLATION_ACTION_FLOW,
+    ].join(" ");
   }
 
   if (scope.kind === "session_draft") {
-    return (
-      `User pinned app: "${scope.name}" (chat draft in this session). ` +
-      PINNED_EXECUTE_IN_APP +
-      PINNED_ACTION_FLOW +
-      `Use call_app_action with use_session_draft: true and app_name "${scope.name}". ` +
-      `When the user asks to deploy this app, call deploy_app { use_session_draft: true } — it auto-saves the draft and publishes on the Radiant explorer. Never refuse deploy without calling deploy_app.`
-    );
+    return [
+      `User pinned chat app: "${scope.name}" (session draft).`,
+      PINNED_UI_CHANGES,
+      PINNED_EXECUTE_IN_APP,
+      PINNED_ACTION_FLOW,
+      "Deploy: deploy_app { use_session_draft: true } auto-saves then publishes on the explorer.",
+    ].join(" ");
   }
 
-  return (
-    `User pinned app: "${scope.name}" (project_id: ${scope.project_id}). ` +
-    PINNED_EXECUTE_IN_APP +
-    PINNED_ACTION_FLOW +
-    `Use call_app_action with project_id "${scope.project_id}". ` +
-    `When the user asks to deploy, call deploy_app { project_id: "${scope.project_id}" }.`
-  );
+  return [
+    `User pinned saved app: "${scope.name}".`,
+    PINNED_UI_CHANGES,
+    PINNED_EXECUTE_IN_APP,
+    PINNED_ACTION_FLOW,
+    "Deploy: deploy_app with pinned project scope.",
+  ].join(" ");
 }
 
 export type CallAppActionScopeFields = {
@@ -74,6 +85,10 @@ export type CallAppActionScopeFields = {
   use_session_draft?: boolean;
 };
 
+export type ArtifactToolScopeFields = {
+  project_id?: string | null;
+};
+
 export function hasCallAppActionScope(fields: CallAppActionScopeFields): boolean {
   return Boolean(
     fields.project_id ||
@@ -81,6 +96,10 @@ export function hasCallAppActionScope(fields: CallAppActionScopeFields): boolean
       fields.app_name?.trim() ||
       fields.use_session_draft,
   );
+}
+
+export function hasArtifactToolScope(fields: ArtifactToolScopeFields): boolean {
+  return Boolean(fields.project_id?.trim());
 }
 
 /** Apply chat-pinned app scope when the agent omits call_app_action scope fields. */
@@ -105,6 +124,22 @@ export function mergePinnedAppScopeIntoCallAppAction<T extends CallAppActionScop
   }
 
   return { ...input, project_id: pinned.project_id };
+}
+
+/** Apply chat-pinned app scope when the agent omits edit_app / generate_app / read_artifact project_id. */
+export function mergePinnedAppScopeIntoArtifactTool<T extends ArtifactToolScopeFields>(
+  input: T,
+  pinned?: PinnedAppScope | null,
+): T {
+  if (!pinned || hasArtifactToolScope(input)) {
+    return input;
+  }
+
+  if (pinned.kind === "project") {
+    return { ...input, project_id: pinned.project_id };
+  }
+
+  return input;
 }
 
 export function scopeDisplayName(scope: PinnedAppScope): string {

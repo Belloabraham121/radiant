@@ -90,6 +90,7 @@ export async function runExecuteTransactionToolWithApproval(
     if (!approved) {
       const needsApproval = await transferRequiresApproval(privyUserId, input, {
         pinnedAppScope: opts.pinnedAppScope,
+        source: opts.source,
       });
       if (needsApproval) {
         if (isDeepBookSwapAction(input.action)) {

@@ -1,16 +1,16 @@
 import { generateAppForUser } from "./generate-app.service.js";
 import { normalizeGenerateAppInput } from "./normalize-generate-app-input.js";
 import { generateAppInputSchema } from "./project.types.js";
+import type { PinnedAppScope } from "./pinned-app-scope.types.js";
 
 export const GENERATE_APP_TOOL_NAME = "generate_app" as const;
 
 export const generateAppToolDefinition = {
   name: GENERATE_APP_TOOL_NAME,
   description:
-    "Create or update a UI in the chat artifact panel. By default saves a session draft only (not Projects). " +
-    "JSON input: name (string), files (array of {path, content}), optional project_id, save_to_project, tagline, template. " +
-    "Omit project_id for chat mockups. Pass project_id to update a saved project, or save_to_project: true when the user wants it in Projects. " +
-    "Paths under app/, components/, lib/, or public/. Always include app/page.tsx.",
+    "Create or rebuild a UI in the artifact panel. Prefer edit_app for tweaks to an existing pinned or session app. " +
+    "When an app is pinned, project scope is applied automatically. " +
+    "Partial file lists merge with existing sources — you do not need to resend every file.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -56,7 +56,7 @@ export const generateAppToolDefinition = {
 export async function runGenerateAppTool(
   privyUserId: string,
   input: Record<string, unknown>,
-  context: { sessionId?: string; rawArguments?: string } = {},
+  context: { sessionId?: string; rawArguments?: string; pinnedAppScope?: PinnedAppScope | null } = {},
 ): Promise<unknown> {
   const normalized = normalizeGenerateAppInput(input, context.rawArguments ?? "");
   const parsed = generateAppInputSchema.parse(normalized);

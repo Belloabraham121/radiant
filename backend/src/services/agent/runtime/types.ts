@@ -15,8 +15,10 @@ export type AgentTurnInput = {
   messages: AgentTurnMessage[];
   memoryBlock?: string;
   agentPermissions?: AgentPermissions;
-  /** User-pinned app from chat composer — scopes call_app_action. */
+  /** User-pinned app from chat composer — scopes call_app_action and artifact edits. */
   pinnedAppScope?: PinnedAppScope | null;
+  /** Server-injected source for pinned editable apps. */
+  artifactContextBlock?: string;
   /** When true, invoked from sequential workflow — avoid nested workflow routing. */
   workflowMode?: boolean;
 };

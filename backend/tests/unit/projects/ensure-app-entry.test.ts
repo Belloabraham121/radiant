@@ -86,9 +86,10 @@ describe("ensureAppEntry", () => {
     assert.match(page!.content, /radiant-agent-runtime/);
   });
 
-  it("injects agent runtime, indicator, and agent CSS", () => {
+  it("injects agent runtime, indicator, charts, and agent CSS", () => {
     const result = ensureAppEntry([{ path: "app/page.tsx", content: "export default function Page() { return null; }" }]);
     assert.ok(result.some((f) => f.path === "lib/radiant-agent-runtime.ts"));
+    assert.ok(result.some((f) => f.path === "lib/radiant-charts.tsx"));
     assert.ok(result.some((f) => f.path === "components/AgentIndicator.tsx"));
     const layout = result.find((f) => f.path === "app/layout.tsx");
     assert.ok(layout);
@@ -111,12 +112,19 @@ describe("ensureAppEntry", () => {
   it("injects reference MarginTradingApp when template is margin", () => {
     const result = ensureAppEntry([], { template: "margin" });
     assert.ok(result.some((f) => f.path === "components/MarginTradingApp.tsx"));
+    assert.ok(result.some((f) => f.path === "components/MarginMarketTrend.tsx"));
+    assert.ok(result.some((f) => f.path === "lib/radiant-charts.tsx"));
     assert.ok(result.some((f) => f.path === "lib/radiant-actions.ts"));
     assert.ok(result.some((f) => f.path === "lib/margin-agent-handlers.ts"));
     const page = result.find((f) => f.path === "app/page.tsx");
     assert.ok(page);
     assert.match(page!.content, /MarginTradingApp/);
+    assert.match(page!.content, /MarginMarketTrend/);
     assert.match(page!.content, /margin-agent-handlers/);
+    const trend = result.find((f) => f.path === "components/MarginMarketTrend.tsx");
+    assert.ok(trend);
+    assert.match(trend!.content, /OhlcvAreaChart/);
+    assert.match(trend!.content, /radiant-charts/);
     const manifest = result.find((f) => f.path === "lib/radiant-actions.ts");
     assert.ok(manifest);
     assert.match(manifest!.content, /margin_provision_manager/);

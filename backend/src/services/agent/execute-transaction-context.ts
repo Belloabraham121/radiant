@@ -1,4 +1,5 @@
 import type { FlashLoanTurnIntent } from "./deepbook/flash-loan-turn-intent.js";
+import type { AppActionSource } from "../projects/app-action.types.js";
 import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 
 export type ExecuteTransactionContext = {
@@ -17,6 +18,8 @@ export type AgentToolOptions = ExecuteTransactionContext & {
   flashLoanTurnIntent?: FlashLoanTurnIntent | null;
   /** User-selected app from chat composer — defaults call_app_action scope. */
   pinnedAppScope?: PinnedAppScope | null;
+  /** ui = artifact POST /actions/* — auto-approve thresholds do not apply. */
+  source?: AppActionSource;
 };
 
 export function resolveExecuteTransactionOptions(

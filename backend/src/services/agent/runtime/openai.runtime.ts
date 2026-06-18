@@ -370,6 +370,7 @@ export const openaiRuntime: AgentRuntime = {
           memoryBlock: input.memoryBlock,
           agentPermissions: input.agentPermissions,
           pinnedAppScope: input.pinnedAppScope,
+          artifactContextBlock: input.artifactContextBlock,
         }),
       },
       ...input.messages.map((message) => ({
