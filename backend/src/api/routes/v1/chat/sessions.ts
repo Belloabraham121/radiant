@@ -6,6 +6,7 @@ import {
 } from "../../../../services/conversation/conversation.types.js";
 import {
   createUserSession,
+  deleteUserSession,
   getSessionMessages,
   listUserSessions,
 } from "../../../../services/conversation/conversation.service.js";
@@ -97,6 +98,27 @@ chatSessionsRouter.post("/api/v1/chat/sessions", requireAuth, async (req, res, n
     next(err);
   }
 });
+
+chatSessionsRouter.delete(
+  "/api/v1/chat/sessions/:sessionId",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const sessionId = req.params.sessionId;
+      if (!sessionId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "sessionId is required",
+        });
+      }
+
+      const data = await deleteUserSession(req.user.privyUserId, sessionId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 chatSessionsRouter.get(
   "/api/v1/chat/sessions/:sessionId/messages",

@@ -9,8 +9,9 @@ const editAppInputSchema = z.object({
     .array(
       z.object({
         path: z.string().min(1),
-        old_string: z.string().min(1),
+        old_string: z.string().optional(),
         new_string: z.string(),
+        replace_file: z.boolean().optional(),
       }),
     )
     .min(1),
@@ -21,11 +22,12 @@ export type EditAppInput = z.infer<typeof editAppInputSchema>;
 export const editAppToolDefinition = {
   name: EDIT_APP_TOOL_NAME,
   description:
-    "Make targeted edits to specific files in the current artifact without regenerating everything. " +
-    "Each edit replaces an exact string in a file with a new string (like find-and-replace). " +
-    "Use for small changes: fonts, colors, text, adding/removing a CSS class, tweaking a single component. " +
-    "Use generate_app instead when creating a new app from scratch or rewriting most files. " +
-    "The old_string must appear exactly once in the file — include surrounding context if needed to make it unique.",
+    "Make surgical edits to specific files in the current artifact — preserves existing UI; only the targeted strings change. " +
+    "DEFAULT: find-and-replace with old_string + new_string (include surrounding lines so old_string is unique). " +
+    "Use for ALL incremental changes: add/remove fields, fonts, colors, text, labels, spacing, wiring. " +
+    "replace_file: true is LAST RESORT ONLY after EDIT_STRING_NOT_FOUND when an entire file must be restructured — " +
+    "never use it for small requests like adding inputs or tweaking styles. " +
+    "Use generate_app only when creating from scratch or rewriting most of the app.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -47,14 +49,20 @@ export const editAppToolDefinition = {
             },
             old_string: {
               type: "string",
-              description: "Exact string to find in the file. Must appear exactly once. Include surrounding lines if needed to disambiguate.",
+              description:
+                "Exact string to find in the file. Must appear exactly once. Omit when replace_file is true.",
             },
             new_string: {
               type: "string",
-              description: "Replacement string. Can be empty to delete the old_string.",
+              description: "Replacement string, or full file contents when replace_file is true.",
+            },
+            replace_file: {
+              type: "boolean",
+              description:
+                "LAST RESORT ONLY. When true, replace the entire file with new_string. Do not use for small UI tweaks.",
             },
           },
-          required: ["path", "old_string", "new_string"],
+          required: ["path", "new_string"],
           additionalProperties: false,
         },
       },

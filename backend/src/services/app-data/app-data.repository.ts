@@ -33,6 +33,10 @@ export async function deleteAppData(query: AppDataDeleteQuery): Promise<number> 
   return getAppDataProvider().delete(query);
 }
 
+export async function deleteAllAppDataByProjectId(projectId: string): Promise<number> {
+  return getAppDataProvider().deleteAllByProjectId(projectId);
+}
+
 export async function querySharedAppData(query: SharedAppDataQuery): Promise<AppDataRow[]> {
   return getAppDataProvider().queryShared(query);
 }

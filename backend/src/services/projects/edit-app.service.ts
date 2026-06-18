@@ -26,8 +26,10 @@ import { normalizeArtifactFileContent } from "./artifact-file-content.js";
 
 export type EditAppEdit = {
   path: string;
-  old_string: string;
+  old_string?: string;
   new_string: string;
+  /** When true, replace the entire file with new_string (old_string ignored). */
+  replace_file?: boolean;
 };
 
 export type EditAppInput = {
@@ -110,7 +112,22 @@ function applyEdits(
       );
     }
 
-    let matchedOldString = edit.old_string;
+    if (edit.replace_file) {
+      file.content = edit.new_string;
+      editedPathSet.add(normalizedPath);
+      continue;
+    }
+
+    const oldString = edit.old_string;
+    if (!oldString?.trim()) {
+      throw new AppError(
+        400,
+        "EDIT_OLD_STRING_REQUIRED",
+        `Edit for "${normalizedPath}" requires old_string unless replace_file is true.`,
+      );
+    }
+
+    let matchedOldString = oldString;
     if (!file.content.includes(matchedOldString)) {
       // Fallback: try swapping single↔double quotes (common LLM mistake)
       const quoteSwapped = matchedOldString.replace(/['"]/g, (ch) => (ch === "'" ? '"' : "'"));
@@ -160,7 +177,8 @@ function applyEdits(
         400,
         "EDIT_STRING_NOT_FOUND",
         `Could not find the string to replace in "${normalizedPath}". ` +
-          `The old_string was not found. Here is the full file content — find the exact text you want to change and retry:\n\n${fullContent}`,
+          `The old_string was not found. Here is the full file content — copy the exact snippet you need and retry with a targeted edit. ` +
+          `replace_file is LAST RESORT only for full restructures, not small changes:\n\n${fullContent}`,
       );
     }
 

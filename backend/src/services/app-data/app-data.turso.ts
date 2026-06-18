@@ -230,6 +230,14 @@ export class TursoAppDataProvider implements AppDataStorageProvider {
     return result.rowsAffected;
   }
 
+  async deleteAllByProjectId(projectId: string): Promise<number> {
+    const result = await this.client.execute({
+      sql: "DELETE FROM app_data WHERE project_id = ?",
+      args: [projectId],
+    });
+    return result.rowsAffected;
+  }
+
   async queryShared(query: SharedAppDataQuery): Promise<AppDataRow[]> {
     const limit = Math.min(query.limit ?? 50, 200);
     const offset = query.offset ?? 0;

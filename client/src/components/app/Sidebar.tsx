@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   Activity,
   ChevronsLeft,
@@ -10,12 +11,17 @@ import {
   PanelLeft,
   Plus,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { UserAvatar } from "@/components/profile/UserAvatar";
+import { DeleteChatDialog } from "@/components/app/DeleteChatDialog";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { formatSessionTime } from "@/lib/chat-messages";
+import { deleteChatSession, type ChatSessionListItem } from "@/lib/chat-api";
+import { clearStoredChatAppScope } from "@/lib/chat-app-scope";
+import { ApiError } from "@/lib/api";
 import { useSidebar } from "./SidebarContext";
 
 const NAV = [
@@ -29,7 +35,10 @@ export function Sidebar() {
   const router = useRouter();
   const { open, setOpen } = useSidebar();
   const { seed, displayName } = useUserProfile();
-  const { sessions, loading, error } = useChatSessions();
+  const { sessions, loading, error, refreshSessions } = useChatSessions();
+  const [deleteTarget, setDeleteTarget] = useState<ChatSessionListItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const activeSessionId = pathname.startsWith("/app/chat/")
     ? pathname.split("/app/chat/")[1]?.split("/")[0]
@@ -39,6 +48,26 @@ export function Sidebar() {
     router.push(`/app?draft=${Date.now()}`);
     setOpen(false);
   };
+
+  async function confirmDeleteChat() {
+    if (!deleteTarget) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteChatSession(deleteTarget.id);
+      clearStoredChatAppScope(deleteTarget.id);
+      if (activeSessionId === deleteTarget.id) {
+        router.push("/app");
+      }
+      setDeleteTarget(null);
+      await refreshSessions({ silent: true });
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Could not delete chat");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   if (!open) return null;
 
@@ -125,27 +154,45 @@ export function Sidebar() {
             {sessions.map((chat) => {
               const active = activeSessionId === chat.id;
               return (
-                <Link
+                <div
                   key={chat.id}
-                  href={`/app/chat/${chat.id}`}
-                  className={`group rounded-2xl border-2 px-4 py-3 transition-all ${
+                  className={`group relative rounded-2xl border-2 transition-all ${
                     active
                       ? "border-[var(--hero-ink)] bg-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-ink)]"
                       : "border-transparent hover:border-[var(--hero-ink)] hover:bg-[var(--hero-bg)]"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-bold">{chat.title}</span>
-                    <span className="shrink-0 text-[11px] font-bold text-[var(--hero-ink)]/35">
-                      {formatSessionTime(chat.updated_at)}
-                    </span>
-                  </div>
-                  {chat.preview ? (
-                    <p className="mt-0.5 truncate text-xs font-medium text-[var(--hero-ink)]/50">
-                      {chat.preview}
-                    </p>
-                  ) : null}
-                </Link>
+                  <Link
+                    href={`/app/chat/${chat.id}`}
+                    className="block px-4 py-3 pr-10"
+                    onClick={() => setOpen(false)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-bold">{chat.title}</span>
+                      <span className="shrink-0 text-[11px] font-bold text-[var(--hero-ink)]/35">
+                        {formatSessionTime(chat.updated_at)}
+                      </span>
+                    </div>
+                    {chat.preview ? (
+                      <p className="mt-0.5 truncate text-xs font-medium text-[var(--hero-ink)]/50">
+                        {chat.preview}
+                      </p>
+                    ) : null}
+                  </Link>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${chat.title}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setDeleteError(null);
+                      setDeleteTarget(chat);
+                    }}
+                    className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border-2 border-transparent text-[var(--hero-ink)]/35 opacity-0 transition-all hover:border-[var(--hero-ink)] hover:bg-white hover:text-[var(--hero-coral)] group-hover:opacity-100"
+                  >
+                    <Trash2 className="size-3.5" strokeWidth={2.5} />
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -162,6 +209,20 @@ export function Sidebar() {
           <LogoutButton />
         </div>
       </aside>
+
+      <DeleteChatDialog
+        title={deleteTarget?.title ?? "this chat"}
+        open={deleteTarget !== null}
+        deleting={deleting}
+        error={deleteError}
+        onOpenChange={(next) => {
+          if (!next && !deleting) {
+            setDeleteTarget(null);
+            setDeleteError(null);
+          }
+        }}
+        onConfirm={() => void confirmDeleteChat()}
+      />
     </>
   );
 }

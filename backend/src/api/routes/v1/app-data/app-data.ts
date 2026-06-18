@@ -276,8 +276,11 @@ appDataRouter.post(
       if (!session) throw new AppError(404, "SESSION_NOT_FOUND", "Session not found");
 
       const { upsertAppData } = await import("../../../../services/app-data/app-data.repository.js");
+      const { sessionAppDataProjectId } = await import(
+        "../../../../services/conversation/conversation.service.js"
+      );
       const row = await upsertAppData({
-        projectId: `session:${req.params.sessionId}`,
+        projectId: sessionAppDataProjectId(req.params.sessionId),
         userId: user.id,
         collection: parsed.data.collection,
         key: parsed.data.key ?? null,
@@ -314,7 +317,10 @@ appDataRouter.get(
       if (!session) throw new AppError(404, "SESSION_NOT_FOUND", "Session not found");
 
       const { queryAppData, countAppData } = await import("../../../../services/app-data/app-data.repository.js");
-      const projectId = `session:${req.params.sessionId}`;
+      const { sessionAppDataProjectId } = await import(
+        "../../../../services/conversation/conversation.service.js"
+      );
+      const projectId = sessionAppDataProjectId(req.params.sessionId);
       const [rows, total] = await Promise.all([
         queryAppData({
           projectId,
@@ -367,8 +373,11 @@ appDataRouter.delete(
       if (!session) throw new AppError(404, "SESSION_NOT_FOUND", "Session not found");
 
       const { deleteAppData } = await import("../../../../services/app-data/app-data.repository.js");
+      const { sessionAppDataProjectId } = await import(
+        "../../../../services/conversation/conversation.service.js"
+      );
       const count = await deleteAppData({
-        projectId: `session:${req.params.sessionId}`,
+        projectId: sessionAppDataProjectId(req.params.sessionId),
         userId: user.id,
         collection: parsed.data.collection,
         key: parsed.data.key,

@@ -163,4 +163,11 @@ export class PostgresAppDataProvider implements AppDataStorageProvider {
     });
     return deleted.count;
   }
+
+  async deleteAllByProjectId(projectId: string): Promise<number> {
+    const deleted = await prisma.appData.deleteMany({
+      where: { project_id: projectId },
+    });
+    return deleted.count;
+  }
 }

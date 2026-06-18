@@ -140,6 +140,12 @@ export async function fetchSessionMessages(sessionId: string): Promise<{
   );
 }
 
+export async function deleteChatSession(sessionId: string): Promise<{ id: string; deleted: true }> {
+  return apiFetch<{ id: string; deleted: true }>(`/api/v1/chat/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+}
+
 /** Agent conversation — wallet resolved from session cookie; never send wallet addresses. */
 export async function postChat(body: ChatRequest): Promise<ChatResponse> {
   return apiFetch<ChatResponse>("/api/v1/chat", {

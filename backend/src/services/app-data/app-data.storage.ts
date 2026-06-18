@@ -63,6 +63,7 @@ export interface AppDataStorageProvider {
   query(query: AppDataQuery): Promise<AppDataRow[]>;
   count(query: Pick<AppDataQuery, "projectId" | "userId" | "collection" | "installationId">): Promise<number>;
   delete(query: AppDataDeleteQuery): Promise<number>;
+  deleteAllByProjectId(projectId: string): Promise<number>;
   queryShared(query: SharedAppDataQuery): Promise<AppDataRow[]>;
   countShared(query: Pick<SharedAppDataQuery, "projectId" | "collection">): Promise<number>;
 }
