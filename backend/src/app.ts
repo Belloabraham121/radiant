@@ -17,6 +17,7 @@ import { chatRouter } from "./api/routes/v1/chat/chat.js";
 import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
 import { e2bWebhookRouter } from "./api/routes/v1/webhooks/e2b.js";
+import { notificationsWebhookRouter } from "./api/routes/v1/webhooks/notifications.js";
 import { deployRouter } from "./api/routes/v1/deploy/deploy.js";
 import { projectsRouter } from "./api/routes/v1/projects/projects.js";
 import { appsRouter } from "./api/routes/v1/apps/apps.js";
@@ -51,6 +52,7 @@ export function createApp() {
   app.use(cookieParser());
   app.use(correlationIdMiddleware);
   app.use(requestLoggerMiddleware);
+  app.use("/api/v1/webhooks/notifications", notificationsWebhookRouter);
 
   if (getInngestConfig().enabled) {
     app.use(

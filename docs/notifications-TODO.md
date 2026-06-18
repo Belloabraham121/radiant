@@ -437,7 +437,9 @@ Scoped variants (mirror app data / app actions):
 
 | Method | Path                                  | Purpose                                 |
 | ------ | ------------------------------------- | --------------------------------------- |
-| POST   | `/api/v1/internal/notifications/emit` | Idempotent emit → match rules → deliver |
+| POST   | `/api/v1/internal/notifications/emit`   | Idempotent direct deliver (evaluators with rule_id) |
+| POST   | `/api/v1/internal/notifications/events` | Match `trigger_kind: event` rules → deliver         |
+| POST   | `/api/v1/webhooks/notifications/events` | Webhook ingress (same auth as internal emit)        |
 
 Auth: service key or Inngest-only — not exposed to generated apps.
 
@@ -644,9 +646,9 @@ Ship **Phase 0 + 1 + 2** first: schema + rule CRUD + in-app inbox + SSE. That un
 
 | Status | Task                  | Detail                                                  |
 | ------ | --------------------- | ------------------------------------------------------- |
-| [ ]    | `trigger_kind: event` | External emit with `notification_type`                  |
-| [ ]    | Rule matcher          | Filter incoming events against active rules’ conditions |
-| [ ]    | Webhook ingress       | Optional authenticated webhook → internal emit          |
+| [x]    | `trigger_kind: event` | External emit with `notification_type`                  |
+| [x]    | Rule matcher          | Filter incoming events against active rules’ conditions |
+| [x]    | Webhook ingress       | Optional authenticated webhook → internal emit          |
 
 ### Phase 8 — Radiant shell UX
 

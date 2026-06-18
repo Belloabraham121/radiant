@@ -22,6 +22,7 @@ import {
 } from "../../../../services/notifications/notification-event.service.js";
 import { subscribeNotificationStream } from "../../../../services/notifications/notification-stream.service.js";
 import { enqueueNotificationEmit } from "../../../../infrastructure/inngest/enqueue-notification-emit.js";
+import { processNotificationEvent } from "../../../../services/notifications/notification-event-evaluator.service.js";
 import { requireNotificationsInternalAuth } from "../../../middleware/notifications-internal-auth.js";
 import { writeSseComment, writeSseEvent } from "../../../../utils/chat-sse.js";
 import {
@@ -110,6 +111,17 @@ const emitNotificationBodySchema = z
   .refine((body) => body.user_id != null || body.privy_user_id != null, {
     message: "user_id or privy_user_id is required",
   });
+
+const notificationEventIngressBodySchema = z.object({
+  notification_type: z.string().min(1).max(120),
+  data: z.record(z.string(), z.unknown()).default({}),
+  project_id: z.string().uuid().optional(),
+  installation_id: z.string().uuid().optional(),
+  user_id: z.string().regex(/^\d+$/).optional(),
+  idempotency_key: z.string().min(1).max(200).optional(),
+  title: z.string().min(1).max(500).optional(),
+  body: z.string().min(1).max(5000).optional(),
+});
 
 const subscribePushBodySchema = z.object({
   endpoint: z.string().url(),
@@ -289,6 +301,29 @@ notificationsRouter.post(
         ...(body.project_id ? { projectId: body.project_id } : {}),
         ...(body.installation_id ? { installationId: body.installation_id } : {}),
         ...(body.channels ? { channels: body.channels } : {}),
+      });
+      return ok(req, res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+notificationsRouter.post(
+  "/api/v1/internal/notifications/events",
+  requireNotificationsInternalAuth,
+  async (req, res, next) => {
+    try {
+      const body = parseBody(notificationEventIngressBodySchema, req.body);
+      const result = await processNotificationEvent({
+        notificationType: body.notification_type,
+        data: body.data,
+        ...(body.project_id ? { projectId: body.project_id } : {}),
+        ...(body.installation_id ? { installationId: body.installation_id } : {}),
+        ...(body.user_id ? { userId: BigInt(body.user_id) } : {}),
+        ...(body.idempotency_key ? { idempotencyKey: body.idempotency_key } : {}),
+        ...(body.title ? { title: body.title } : {}),
+        ...(body.body ? { body: body.body } : {}),
       });
       return ok(req, res, result);
     } catch (err) {
