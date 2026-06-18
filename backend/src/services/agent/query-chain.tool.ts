@@ -32,7 +32,10 @@ import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findProjectByIdForUser } from "../projects/project.repository.js";
 import { buildProjectActionsCatalogResponse } from "../projects/app-action-schema.service.js";
-import { listAppActionsCatalogForSession } from "../projects/app-action-catalog.service.js";
+import {
+  listAppActionsCatalogForPinnedScope,
+  listAppActionsCatalogForSession,
+} from "../projects/app-action-catalog.service.js";
 import { resolveAppScope } from "../projects/app-scope-resolver.service.js";
 import {
   getPredictState,
@@ -154,8 +157,8 @@ export const queryChainToolDefinition = {
           "May also pass input_coin/from + output_coin/to instead of side for swap_quote. " +
           "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
           "returns recent agent wallet activity; response includes summary (date, amount, status, digest) to quote in chat. " +
-          "project_actions: { project_id } OR { app_name } — saved project action schema. Never pass an app name as project_id. " +
-          "session_actions: optional { app_name } — chat draft artifact action schema (unsaved preview). Uses current chat session. " +
+          "project_actions: { project_id } OR { app_name } — saved project action schema. Never pass an app name as project_id. When the user pinned an app in chat, omit params — pinned scope is applied automatically (including installed apps). " +
+          "session_actions: optional { app_name } — chat draft artifact action schema (unsaved preview). Uses current chat session. When an app is pinned, omit params. " +
           "margin_pool_info: { pool_key?, coin_type? } — margin pool live supply/borrow/interest/utilization plus trading-pool leverage config. " +
           "Use pool_key to list margin-enabled trading pools; coin_type selects the lending asset (defaults to quote coin). " +
           "margin_manager_info: { margin_manager_key?, pool_key? } — margin manager address, live balances, borrowed amounts, and risk ratio. " +
@@ -189,7 +192,7 @@ export const queryChainToolDefinition = {
 export async function runQueryChainTool(
   privyUserId: string,
   input: QueryChainInput,
-  options?: Pick<AgentToolOptions, "flashLoanTurnIntent" | "sessionId">,
+  options?: Pick<AgentToolOptions, "flashLoanTurnIntent" | "sessionId" | "pinnedAppScope">,
 ): Promise<QueryChainResult> {
   const parsed = queryChainInputSchema.parse(input);
   const wallet = await resolveAgentWalletByPrivyUserId(
@@ -485,6 +488,14 @@ export async function runQueryChainTool(
       const useSession = parsed.query === "session_actions";
       const projectId = parsed.params.project_id;
       const appName = parsed.params.app_name;
+
+      if (options?.pinnedAppScope) {
+        return listAppActionsCatalogForPinnedScope(
+          privyUserId,
+          options.pinnedAppScope,
+          options.sessionId,
+        );
+      }
 
       if (!useSession && projectId) {
         const user = await findUserByPrivyId(privyUserId);

@@ -60,9 +60,21 @@ describe("pinned-app-scope", () => {
       name: "Uniswap",
     });
     assert.match(text, /app preview/i);
-    assert.match(text, /session_actions/i);
+    assert.match(text, /project_actions/i);
     assert.match(text, /call_app_action/i);
     assert.match(text, /drive the UI/i);
     assert.doesNotMatch(text, /animate the form/i);
+  });
+
+  it("installation prompt avoids ambiguous session project resolution", () => {
+    const text = formatPinnedAppScopeForPrompt({
+      kind: "installation",
+      installation_id: "00000000-0000-4000-8000-000000000099",
+      name: "Simple Todo App",
+    });
+    assert.match(text, /INSTALLED app/i);
+    assert.match(text, /installation_id: 00000000-0000-4000-8000-000000000099/);
+    assert.match(text, /never pass app_name/i);
+    assert.match(text, /project_actions/i);
   });
 });
