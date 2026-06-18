@@ -5,7 +5,7 @@ import { getDeepBookGovernanceState } from "../defi/deepbook/deepbook-governance
 import { getDeepBookOpenOrders } from "../defi/deepbook/deepbook-orders.service.js";
 import { getDeepBookSwapQuote } from "../defi/deepbook/deepbook-swap.service.js";
 import { getDeepBookPoolInfo } from "../defi/deepbook/deepbook-pools.service.js";
-import { getDeepBookStakeBalance } from "../defi/deepbook/deepbook-stake.service.js";
+import { getDeepBookStakeBalance, getDeepBookStakeRequired } from "../defi/deepbook/deepbook-stake.service.js";
 import {
   getMarginManagerInfoForHttp,
   getMarginOpenOrdersForHttp,
@@ -110,6 +110,17 @@ export async function stakeBalanceForProject(
   await assertProjectOwner(privyUserId, projectId);
   const { pool_key } = poolInfoQuerySchema.parse(query);
   return getDeepBookStakeBalance(privyUserId, { pool_key });
+}
+
+/** Project-scoped stake tier / minimum DEEP for generated app UIs. */
+export async function stakeRequiredForProject(
+  privyUserId: string,
+  projectId: string,
+  query: unknown,
+) {
+  await assertProjectOwner(privyUserId, projectId);
+  const { pool_key } = poolInfoQuerySchema.parse(query);
+  return getDeepBookStakeRequired(privyUserId, { pool_key });
 }
 
 /** Project-scoped governance state for generated app UIs. */

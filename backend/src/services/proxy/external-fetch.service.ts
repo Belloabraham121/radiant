@@ -66,7 +66,7 @@ const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"
 const STRIPPED_REQUEST_HEADERS = new Set([
   "host",
   "cookie",
-  "authorization",
+  // Forward caller-supplied Authorization / API keys — proxy is requireAuth-gated.
   "x-forwarded-for",
   "x-real-ip",
   "connection",

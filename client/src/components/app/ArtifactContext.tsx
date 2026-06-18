@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -59,6 +60,7 @@ function pickActivePath(payload: ArtifactPayload, preferred?: string): string {
 
 export function ArtifactProvider({ children }: { children: ReactNode }) {
   const [bySession, setBySession] = useState<Record<string, SessionArtifactState>>({});
+  const prepareSeqRef = useRef<Record<string, number>>({});
 
   const getSessionState = useCallback(
     (sessionKey: string): SessionArtifactState => bySession[sessionKey] ?? emptyState(),
@@ -66,7 +68,14 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
   );
 
   const openArtifact = useCallback((sessionKey: string, payload: ArtifactPayload) => {
+    const seq = (prepareSeqRef.current[sessionKey] ?? 0) + 1;
+    prepareSeqRef.current[sessionKey] = seq;
+
     void prepareArtifactPayloadForPreview(normalizeArtifactPayload(payload)).then((prepared) => {
+      if (prepareSeqRef.current[sessionKey] !== seq) {
+        return;
+      }
+
       const firstPath = pickActivePath(prepared);
       setBySession((current) => ({
         ...current,
@@ -83,8 +92,16 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
 
   const updateArtifact = useCallback(
     (sessionKey: string, payload: ArtifactPayload, options: UpdateArtifactOptions = {}) => {
-      void prepareArtifactPayloadForPreview(payload).then((preparedInput) => {
+      const seq = (prepareSeqRef.current[sessionKey] ?? 0) + 1;
+      prepareSeqRef.current[sessionKey] = seq;
+      const isStreaming = options.streaming === true;
+
+      const applyPrepared = (preparedInput: ArtifactPayload) => {
         setBySession((current) => {
+          if (prepareSeqRef.current[sessionKey] !== seq) {
+            return current;
+          }
+
           const prev = current[sessionKey] ?? emptyState();
           const merged = mergeArtifactPayload(prev.payload, preparedInput);
           const streaming = options.streaming ?? prev.streaming;
@@ -110,7 +127,14 @@ export function ArtifactProvider({ children }: { children: ReactNode }) {
             },
           };
         });
-      });
+      };
+
+      if (isStreaming) {
+        applyPrepared(normalizeArtifactPayload(payload));
+        return;
+      }
+
+      void prepareArtifactPayloadForPreview(payload).then(applyPrepared);
     },
     [],
   );

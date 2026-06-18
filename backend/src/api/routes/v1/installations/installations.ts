@@ -15,6 +15,7 @@ import {
   openOrdersForInstallation,
   poolInfoForInstallation,
   stakeBalanceForInstallation,
+  stakeRequiredForInstallation,
   swapQuoteForInstallation,
 } from "../../../../services/projects/installation-platform.service.js";
 import { listAppActionsCatalogForProject } from "../../../../services/projects/app-action-catalog.service.js";
@@ -124,6 +125,23 @@ installationsRouter.get(
   async (req, res, next) => {
     try {
       const data = await stakeBalanceForInstallation(
+        req.user.privyUserId,
+        req.params.installationId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+installationsRouter.get(
+  "/api/v1/installations/:installationId/deepbook/stake-required",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await stakeRequiredForInstallation(
         req.user.privyUserId,
         req.params.installationId,
         req.query,

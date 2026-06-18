@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import type { ArtifactFile, ArtifactPayload } from "@/lib/artifact-types";
+import { mergeArtifactFiles } from "@/lib/artifact-merge";
 
 type PrepareArtifactResponse = {
   files: ArtifactFile[];
@@ -14,10 +15,14 @@ export async function prepareArtifactPayloadForPreview(
   }
 
   const runtime = payload.files.find((file) => file.path === "lib/radiant-agent-runtime.ts");
+  const client = payload.files.find((file) => file.path === "lib/radiant-client.ts");
   const page = payload.files.find((file) => file.path === "app/page.tsx");
   const runtimeOk = runtime?.content.includes("notifyParentExecuteResult");
+  const clientOk =
+    client?.content.includes("// --- query_chain parity aliases") &&
+    client?.content.includes("export async function tokenBalances");
   const pageOk = !page || page.content.includes("radiant-agent-runtime");
-  if (runtimeOk && pageOk) {
+  if (runtimeOk && clientOk && pageOk) {
     return payload;
   }
 
@@ -32,7 +37,8 @@ export async function prepareArtifactPayloadForPreview(
     if (!data?.files?.length) {
       return payload;
     }
-    return { ...payload, files: data.files };
+    const mergedFiles = mergeArtifactFiles(payload.files, data.files);
+    return { ...payload, files: mergedFiles };
   } catch {
     return payload;
   }

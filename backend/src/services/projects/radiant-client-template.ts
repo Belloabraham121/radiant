@@ -1,7 +1,7 @@
-/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v10 — notifications + shared data + external API proxy. */
-export const RADIANT_CLIENT_TEMPLATE_VERSION = 10;
+/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v12 — full API catalog + query_chain aliases. */
+export const RADIANT_CLIENT_TEMPLATE_VERSION = 12;
 
-export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v10. */
+export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v12. */
 
 export type SwapQuoteParams = {
   amount: number;
@@ -267,6 +267,12 @@ export async function poolInfo(
   return parseEnvelope<PoolInfoResult>(res);
 }
 
+/** List DeepBook pools on the active network (mainnet/testnet). */
+export async function deepbookPools(): Promise<Record<string, unknown>> {
+  const res = await platformFetch("/api/v1/defi/pools");
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
 export async function flashLoanQuote(
   params: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
@@ -274,6 +280,15 @@ export async function flashLoanQuote(
     method: "POST",
     body: JSON.stringify(params),
   });
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function stakeRequired(pool_key = "SUI_USDC"): Promise<Record<string, unknown>> {
+  const res = await platformFetch(
+    projectApiPrefix() +
+      "/deepbook/stake-required?pool_key=" +
+      encodeURIComponent(pool_key),
+  );
   return parseEnvelope<Record<string, unknown>>(res);
 }
 
@@ -568,12 +583,13 @@ export type ExternalFetchResult = {
 };
 
 /**
- * Fetch an external URL through the Radiant proxy. Handles CORS and keeps
- * credentials server-side. Works in both preview iframe and deployed apps.
+ * Fetch an external URL through the Radiant proxy. Handles CORS; forwards Authorization and X-Api-Key headers.
+ * Requires the signed-in user (works in preview iframe and deployed apps).
  *
  * Usage:
- *   const data = await fetchExternal("https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd");
- *   const parsed = JSON.parse(data.body);
+ *   const data = await fetchExternalJson("https://api.example.com/v1/quotes", {
+ *     headers: { Authorization: "Bearer YOUR_API_KEY" },
+ *   });
  */
 export async function fetchExternal(
   url: string,
@@ -913,6 +929,53 @@ export async function markNotificationRead(eventId: string): Promise<Notificatio
   );
   return parseEnvelope<NotificationEventRecord>(res);
 }
+
+// --- Wallet & portfolio (finance dashboards) ---
+
+export async function tokenBalances(): Promise<Record<string, unknown>> {
+  const res = await platformFetch("/api/v1/wallets/balances");
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+export async function balanceManagerInfo(): Promise<Record<string, unknown>> {
+  const res = await platformFetch("/api/v1/defi/balance-manager");
+  return parseEnvelope<Record<string, unknown>>(res);
+}
+
+// --- query_chain parity aliases (camelCase preferred; aliases prevent import errors) ---
+
+export const swap_quote = swapQuote;
+export const flash_loan_quote = flashLoanQuote;
+export const deepbook_pools = deepbookPools;
+export const deepbook_pool_info = poolInfo;
+export const deepbook_ohlcv = deepbookOhlcv;
+export const deepbook_trades = deepbookTrades;
+export const deepbook_volume = deepbookVolume;
+export const deepbook_open_orders = openOrders;
+export const deepbook_stake_balance = stakeBalance;
+export const deepbook_stake_required = stakeRequired;
+export const deepbook_governance_state = governanceState;
+export const token_balances = tokenBalances;
+export const balance_manager_info = balanceManagerInfo;
+export const margin_pool_info = marginPoolInfo;
+export const margin_manager_info = marginManagerInfo;
+export const margin_risk_ratio = marginRiskRatio;
+export const margin_open_orders = marginOpenOrders;
+export const margin_tpsl_info = marginTpslInfo;
+export const margin_liquidations = marginLiquidations;
+export const margin_collateral_history = marginCollateralHistory;
+export const margin_loan_history = marginLoanHistory;
+export const margin_at_risk_states = marginAtRiskStates;
+export const margin_managers_info = marginManagersInfo;
+export const margin_manager_created = marginManagerCreated;
+export const margin_supply_history = marginSupplyHistory;
+export const margin_indexer_supply = marginIndexerSupply;
+export const margin_manager_state = marginManagerState;
+export const predict_markets = predictMarkets;
+export const predict_trade_amounts = predictTradeAmounts;
+export const predict_range_amounts = predictRangeAmounts;
+export const predict_manager_info = predictManagerInfo;
+export const predict_vault_summary = predictVaultSummary;
 `;
 
 export const NEXT_APP_LAYOUT_TSX = `import "./globals.css";
