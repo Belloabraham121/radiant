@@ -609,14 +609,14 @@ Ship **Phase 0 + 1 + 2** first: schema + rule CRUD + in-app inbox + SSE. That un
 
 | Status | Task                          | Detail                                                        |
 | ------ | ----------------------------- | ------------------------------------------------------------- |
-| [ ]    | SDK functions                 | Add to `radiant-client-template.ts`                           |
-| [ ]    | E2B scaffold sync             | Mirror in `backend/docker/e2b/scaffold/lib/radiant-client.ts` |
-| [ ]    | Preview proxy paths           | Notification routes in artifact preview bridge                |
-| [ ]    | Agent runtime prompt          | Apps with alerts MUST use SDK (like `storeAppData` rule)      |
-| [ ]    | `generate_app` / `edit_app`   | Agent can add notification settings UI wired to SDK           |
-| [ ]    | Template example              | Flash loan dashboard includes alert panel                     |
-| [ ]    | Template example              | Price watcher / reminder app patterns                         |
-| [ ]    | Persist `notification_schema` | On project when agent generates alert-capable app             |
+| [x]    | SDK functions                 | Add to `radiant-client-template.ts`                           |
+| [x]    | E2B scaffold sync             | Mirror in `backend/docker/e2b/scaffold/lib/radiant-client.ts` |
+| [x]    | Preview proxy paths           | Notification routes in artifact preview bridge                |
+| [x]    | Agent runtime prompt          | Apps with alerts MUST use SDK (like `storeAppData` rule)      |
+| [x]    | `generate_app` / `edit_app`   | Agent can add notification settings UI wired to SDK           |
+| [x]    | `lib/radiant-notifications.ts` | App manifest declares alert types (parallel to `radiant-actions.ts`) |
+| [x]    | Generic alert panel           | `NotificationAlertsPanel` — schema-driven, any app types            |
+| [x]    | Persist `notification_schema` | Parsed from manifest on generate_app / edit_app                     |
 
 ### Phase 5 — Schedules (time-based alerts)
 

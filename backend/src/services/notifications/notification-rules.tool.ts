@@ -84,7 +84,7 @@ export const deleteNotificationRuleInputSchema = z.object({
 export const createNotificationRuleToolDefinition = {
   name: CREATE_NOTIFICATION_RULE_TOOL_NAME,
   description:
-    "Create a notification alert rule for the user. Use when they ask to be notified about price moves, flash loan opportunities, reminders, or any alert the pinned/saved app supports. " +
+    "Create a notification alert rule for the user. Use when they ask to be notified, reminded, or alerted about anything an app supports (bids, thresholds, deadlines, custom events). " +
     "For app-scoped alerts, pass project_id or installation_id (or rely on pinned app scope). " +
     "Call query_chain project_notification_schema first when unsure which notification_type and condition fields are available.",
   input_schema: {
@@ -95,7 +95,7 @@ export const createNotificationRuleToolDefinition = {
       notification_type: {
         type: "string",
         description:
-          "Full type key (app_id.type) or type slug when project scope is set — e.g. opportunity_found or flash-arb-dashboard.opportunity_found.",
+          "Full type key (app_id.type) or type slug when project scope is set — from the app's lib/radiant-notifications.ts manifest.",
       },
       condition: {
         type: "object",

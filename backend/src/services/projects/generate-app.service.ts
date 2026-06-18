@@ -21,14 +21,21 @@ import {
   createProject,
   findProjectByIdForUser,
   setProjectActionSchema,
+  setProjectNotificationSchema,
   setProjectStatus,
   updateProject,
 } from "./project.repository.js";
 import { inferProjectActionSchemaForArtifact } from "./app-action-schema.service.js";
+import { inferProjectNotificationSchemaForArtifact } from "../notifications/notification-schema-inference.service.js";
 import type { ProjectActionSchema } from "./app-action-schema.types.js";
+import type { ProjectNotificationSchema } from "../notifications/notification-schema.types.js";
 import { mergeArtifactFileSets } from "./artifact-context.service.js";
 
 function actionSchemaToPrismaJson(schema: ProjectActionSchema): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(schema)) as Prisma.InputJsonValue;
+}
+
+function notificationSchemaToPrismaJson(schema: ProjectNotificationSchema): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(schema)) as Prisma.InputJsonValue;
 }
 
@@ -222,15 +229,27 @@ async function persistProject(
       template: input.template,
       files: artifactFilesForSchema,
     });
+    const notificationSchema = inferProjectNotificationSchemaForArtifact(project.id, {
+      files: artifactFilesForSchema,
+    });
     if (actionSchema) {
       project = await setProjectActionSchema(
         project.id,
         actionSchemaToPrismaJson(actionSchema),
       );
     }
+    if (notificationSchema) {
+      project = await setProjectNotificationSchema(
+        project.id,
+        notificationSchemaToPrismaJson(notificationSchema),
+      );
+    }
   } else {
     const actionSchema = inferProjectActionSchemaForArtifact(project.id, {
       template: input.template,
+      files: artifactFilesForSchema,
+    });
+    const notificationSchema = inferProjectNotificationSchemaForArtifact(project.id, {
       files: artifactFilesForSchema,
     });
     project = await updateProject(project.id, {
@@ -244,6 +263,10 @@ async function persistProject(
     project = await setProjectActionSchema(
       project.id,
       actionSchema ? actionSchemaToPrismaJson(actionSchema) : Prisma.DbNull,
+    );
+    project = await setProjectNotificationSchema(
+      project.id,
+      notificationSchema ? notificationSchemaToPrismaJson(notificationSchema) : Prisma.DbNull,
     );
     project = await bumpArtifactRevision(project.id);
   }

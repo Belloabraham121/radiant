@@ -15,6 +15,8 @@ import {
   RADIANT_CHARTS_VERSION,
 } from "./radiant-charts.template.js";
 import { mergeMarginReferenceFiles } from "./margin-app-reference.template.js";
+import { mergeNotificationReferenceFiles } from "./notification-app-reference.template.js";
+import { usesNotificationSdk } from "../notifications/notification-schema-inference.service.js";
 import { normalizeArtifactFileContent } from "./artifact-file-content.js";
 
 export { RADIANT_CLIENT_TEMPLATE_VERSION };
@@ -175,6 +177,10 @@ export function ensureAppEntry(
   let seeded = files;
   if (options.template === "margin") {
     seeded = mergeMarginReferenceFiles(seeded);
+  }
+  const artifactSource = seeded.map((file) => file.content).join("\n");
+  if (usesNotificationSdk(artifactSource)) {
+    seeded = mergeNotificationReferenceFiles(seeded);
   }
 
   let next = injectPlatformFiles(

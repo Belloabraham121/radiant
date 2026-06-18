@@ -156,3 +156,14 @@ export async function setProjectActionSchema(
     data: { action_schema: actionSchema } as Prisma.ProjectUpdateInput,
   });
 }
+
+/** Persist or clear the per-project notification schema (JSONB). */
+export async function setProjectNotificationSchema(
+  projectId: string,
+  notificationSchema: Prisma.InputJsonValue | typeof Prisma.DbNull,
+): Promise<Project> {
+  return prisma.project.update({
+    where: { id: projectId },
+    data: { notification_schema: notificationSchema } as Prisma.ProjectUpdateInput,
+  });
+}

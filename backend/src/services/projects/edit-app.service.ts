@@ -15,12 +15,15 @@ import {
   bumpArtifactRevision,
   findProjectByIdForUser,
   setProjectActionSchema,
+  setProjectNotificationSchema,
   setProjectStatus,
 } from "./project.repository.js";
 import { listArtifactFiles } from "./artifact.repository.js";
 import { upsertArtifactFiles } from "./artifact.repository.js";
 import { inferProjectActionSchemaForArtifact } from "./app-action-schema.service.js";
+import { inferProjectNotificationSchemaForArtifact } from "../notifications/notification-schema-inference.service.js";
 import type { ProjectActionSchema } from "./app-action-schema.types.js";
+import type { ProjectNotificationSchema } from "../notifications/notification-schema.types.js";
 import { Prisma } from "@prisma/client";
 import { normalizeArtifactFileContent } from "./artifact-file-content.js";
 import { resolveEditOldString } from "./edit-app-match.js";
@@ -43,6 +46,10 @@ export type EditAppContext = {
 };
 
 function actionSchemaToPrismaJson(schema: ProjectActionSchema): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(schema)) as Prisma.InputJsonValue;
+}
+
+function notificationSchemaToPrismaJson(schema: ProjectNotificationSchema): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(schema)) as Prisma.InputJsonValue;
 }
 
@@ -317,10 +324,17 @@ async function editProject(
     template: project.template,
     files: artifactFilesForSchema,
   });
+  const notificationSchema = inferProjectNotificationSchemaForArtifact(project.id, {
+    files: artifactFilesForSchema,
+  });
 
   await setProjectActionSchema(
     project.id,
     actionSchema ? actionSchemaToPrismaJson(actionSchema) : Prisma.DbNull,
+  );
+  await setProjectNotificationSchema(
+    project.id,
+    notificationSchema ? notificationSchemaToPrismaJson(notificationSchema) : Prisma.DbNull,
   );
 
   const updated = await bumpArtifactRevision(project.id);
