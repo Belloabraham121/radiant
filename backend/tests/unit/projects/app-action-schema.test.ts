@@ -3,9 +3,11 @@ import { describe, it } from "node:test";
 import {
   buildDefaultDeepBookActionSchema,
   buildProjectActionsCatalogResponse,
+  detectAppLocalActionsFromArtifact,
   detectDefiActionNamesFromArtifact,
   inferProjectActionSchemaForArtifact,
   parseStoredProjectActionSchema,
+  resolveProjectActionSchema,
   shouldPersistDefiActionSchema,
 } from "../../../src/services/projects/app-action-schema.service.js";
 import { PROJECT_ACTION_SCHEMA_VERSION } from "../../../src/services/projects/app-action-schema.types.js";
@@ -92,7 +94,7 @@ describe("app-action schema", () => {
     const fromExecute = detectDefiActionNamesFromArtifact(
       [
         {
-          path: "lib/radiant-agent-runtime.ts",
+          path: "components/MarginPanel.tsx",
           content:
             'await ctx.executeAction("margin_deposit", { amount: 1, coin_type: "SUI" });',
         },
@@ -100,6 +102,76 @@ describe("app-action schema", () => {
       "custom",
     );
     assert.ok(fromExecute.includes("margin_deposit"));
+  });
+
+  it("does not detect DeFi from injected platform template files", () => {
+    const names = detectDefiActionNamesFromArtifact(
+      [
+        {
+          path: "lib/radiant-client.ts",
+          content:
+            "export async function executeSwap() {}\nexport async function executeStake() {}",
+        },
+        {
+          path: "lib/radiant-agent-runtime.ts",
+          content: 'await ctx.executeAction("swap", params);',
+        },
+        {
+          path: "app/page.tsx",
+          content:
+            'import { storeAppData, queryAppData } from "../lib/radiant-client";\nexport default function Page() { return null; }',
+        },
+      ],
+      "custom",
+    );
+
+    assert.equal(names.length, 0);
+  });
+
+  it("detects app-local todo actions without phantom DeFi actions", () => {
+    const actions = detectAppLocalActionsFromArtifact([
+      {
+        path: "app/page.tsx",
+        content:
+          'import { storeAppData, deleteAppData } from "../lib/radiant-client";\nawait storeAppData("todos", { text: "buy milk" });\nawait deleteAppData("todos", { id: "x" });',
+      },
+      {
+        path: "lib/radiant-client.ts",
+        content: "export async function executeSwap() {}",
+      },
+    ]);
+
+    assert.ok(actions.some((action) => action.name === "add_todos"));
+    assert.ok(actions.some((action) => action.name === "delete_todos"));
+    assert.equal(
+      actions.some((action) => action.name === "swap" || action.name === "stake"),
+      false,
+    );
+  });
+
+  it("resolveProjectActionSchema prefers live inference over stale stored DeFi schema", () => {
+    const projectId = "55555555-5555-4555-8555-555555555555";
+    const stored = buildDefaultDeepBookActionSchema(projectId, ["swap", "stake"]);
+    const project = {
+      id: projectId,
+      template: "custom",
+      action_schema: stored,
+    } as Project;
+
+    const schema = resolveProjectActionSchema(project, [
+      {
+        path: "app/page.tsx",
+        content: 'await storeAppData("todos", { text: "x" });',
+      },
+      {
+        path: "lib/radiant-client.ts",
+        content: "export async function executeSwap() {}",
+      },
+    ]);
+
+    assert.equal(schema.protocol, "custom");
+    assert.ok(schema.actions.some((action) => action.name === "add_todos"));
+    assert.equal(schema.actions.some((action) => action.name === "swap"), false);
   });
 
   it("buildProjectActionsCatalogResponse uses stored schema when valid", () => {

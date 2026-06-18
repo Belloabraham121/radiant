@@ -7,6 +7,8 @@ import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { UPDATE_MEMORY_TOOL_NAME } from "../update-memory.tool.js";
+import { LIST_PUBLIC_APPS_TOOL_NAME } from "../../projects/list-public-apps.tool.js";
+import { INSTALL_APP_TOOL_NAME } from "../../projects/install-app.tool.js";
 import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { TxResult } from "../../chains/types.js";
 
@@ -121,6 +123,51 @@ export function formatExecutedTxSummary(result: TxResult): string {
     `For follow-up margin actions use margin_manager_key: "default" — the platform resolves it from your wallet; ` +
     `you do not need to copy the address unless you want it for Sui Explorer.`
   );
+}
+
+function summarizeListPublicAppsResult(result: unknown): string {
+  const catalog = result as {
+    apps?: Array<{
+      id: string;
+      name: string;
+      tagline: string;
+      category: string;
+      install_count: number;
+    }>;
+    stats?: { total_apps: number; total_installs: number };
+    hint?: string;
+  };
+  const apps = catalog.apps ?? [];
+  if (apps.length === 0) {
+    return catalog.hint ?? "No public apps in the explorer yet.";
+  }
+  const lines = apps.map(
+    (app) =>
+      `- ${app.name} (${app.category}) — project_id: ${app.id} — ${app.tagline || "no tagline"} — ${app.install_count} install(s)`,
+  );
+  const total = catalog.stats?.total_apps ?? apps.length;
+  const hint = catalog.hint ? `\n\n${catalog.hint}` : "";
+  return `Public explorer apps (${total} total):\n\n${lines.join("\n")}${hint}`;
+}
+
+function summarizeInstallAppResult(result: unknown): string {
+  if (isToolError(result)) {
+    return toolErrorToModelContent(result.error);
+  }
+  const outcome = result as {
+    installation_id?: string;
+    already_installed?: boolean;
+    app_name?: string;
+    open_path?: string;
+    message?: string;
+  };
+  if (outcome.message) {
+    return outcome.message;
+  }
+  if (outcome.installation_id) {
+    return `Installed. Open at ${outcome.open_path ?? `/app/installed/${outcome.installation_id}/run`}`;
+  }
+  return "Install completed.";
 }
 
 export async function summarizeToolResultAsync(name: string, result: unknown): Promise<string> {
@@ -248,6 +295,12 @@ export function summarizeToolResult(name: string, result: unknown): string {
       : outcome.body;
     const truncNote = outcome.truncated ? " (response was truncated)" : "";
     return `API ${outcome.method} ${outcome.url}\nStatus: ${outcome.status}${truncNote}\n\n${bodyPreview}`;
+  }
+
+  if (name === LIST_PUBLIC_APPS_TOOL_NAME || name === INSTALL_APP_TOOL_NAME) {
+    return name === LIST_PUBLIC_APPS_TOOL_NAME
+      ? summarizeListPublicAppsResult(result)
+      : summarizeInstallAppResult(result);
   }
 
   if (name !== EXECUTE_TRANSACTION_TOOL_NAME) {

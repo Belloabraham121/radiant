@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AppError } from "../../errors/app-error.js";
 import { prisma } from "../../infrastructure/postgres/client.js";
+import { listArtifactFiles } from "../projects/artifact.repository.js";
 import { buildProjectActionsCatalogResponse } from "../projects/app-action-schema.service.js";
 import type { ProjectActionSchemaSource } from "../projects/app-action-schema.service.js";
 import {
@@ -24,8 +25,18 @@ function truncateCreator(address: string | undefined): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-function publicActionsForProject(project: ProjectActionSchemaSource): PublicAppActionSummary[] {
-  const catalog = buildProjectActionsCatalogResponse(project);
+async function publicActionsForProject(
+  project: ProjectActionSchemaSource & { artifact_revision: number },
+): Promise<PublicAppActionSummary[]> {
+  const files =
+    project.artifact_revision >= 0
+      ? await listArtifactFiles(project.id, project.artifact_revision)
+      : [];
+  const artifactInput = files.map((file) => ({
+    path: file.path.replace(/^\/workspace\//, ""),
+    content: file.content,
+  }));
+  const catalog = buildProjectActionsCatalogResponse(project, { files: artifactInput });
   return catalog.actions.map((action) => ({
     name: action.name,
     description: action.description,
@@ -33,7 +44,7 @@ function publicActionsForProject(project: ProjectActionSchemaSource): PublicAppA
   }));
 }
 
-function toListing(
+async function toListing(
   project: {
     id: string;
     name: string;
@@ -48,7 +59,7 @@ function toListing(
     user: { agent_wallets: Array<{ chain_type: string; address: string }> };
   },
   installCount: number,
-): PublicAppListing {
+): Promise<PublicAppListing> {
   const suiWallet = project.user.agent_wallets.find((w) => w.chain_type === "sui");
   return {
     id: project.id,
@@ -63,7 +74,7 @@ function toListing(
     creator: truncateCreator(suiWallet?.address),
     published_at: project.created_at.toISOString(),
     artifact_revision: project.artifact_revision,
-    available_actions: publicActionsForProject(project),
+    available_actions: await publicActionsForProject(project),
   };
 }
 
@@ -108,7 +119,7 @@ export async function listPublicApps(query: unknown): Promise<PublicAppsCatalog>
     }),
   ]);
 
-  let apps = rows.map((row) => toListing(row, row._count.installations));
+  let apps = await Promise.all(rows.map((row) => toListing(row, row._count.installations)));
   if (params.sort === "installs") {
     apps = apps.sort((a, b) => b.install_count - a.install_count || a.name.localeCompare(b.name));
   }
