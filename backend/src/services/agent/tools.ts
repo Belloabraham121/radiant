@@ -57,6 +57,14 @@ import {
   editAppToolDefinition,
   runEditAppTool,
 } from "../projects/edit-app.tool.js";
+import {
+  READ_ARTIFACT_TOOL_NAME,
+  readArtifactToolDefinition,
+  runReadArtifactTool,
+} from "../projects/read-artifact.tool.js";
+import {
+  mergePinnedAppScopeIntoArtifactTool,
+} from "../projects/pinned-app-scope.types.js";
 import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
 import {
   UPDATE_MEMORY_TOOL_NAME,
@@ -88,6 +96,7 @@ export const agentToolDefinitions = [
   listSessionProjectsToolDefinition,
   generateAppToolDefinition,
   editAppToolDefinition,
+  readArtifactToolDefinition,
   deployAppToolDefinition,
   listPublicAppsToolDefinition,
   installAppToolDefinition,
@@ -171,14 +180,31 @@ async function dispatchAgentTool(
         return await runListSessionProjectsTool(privyUserId, input, {
           sessionId: options?.sessionId,
         });
-      case GENERATE_APP_TOOL_NAME:
-        return await runGenerateAppTool(privyUserId, input, {
+      case GENERATE_APP_TOOL_NAME: {
+        const mergedInput = mergePinnedAppScopeIntoArtifactTool(
+          input,
+          options?.pinnedAppScope,
+        );
+        return await runGenerateAppTool(privyUserId, mergedInput, {
           sessionId: options?.sessionId,
           rawArguments: options?.rawArguments,
+          pinnedAppScope: options?.pinnedAppScope,
         });
-      case EDIT_APP_TOOL_NAME:
-        return await runEditAppTool(privyUserId, input, {
+      }
+      case EDIT_APP_TOOL_NAME: {
+        const mergedInput = mergePinnedAppScopeIntoArtifactTool(
+          input,
+          options?.pinnedAppScope,
+        );
+        return await runEditAppTool(privyUserId, mergedInput, {
           sessionId: options?.sessionId,
+          pinnedAppScope: options?.pinnedAppScope,
+        });
+      }
+      case READ_ARTIFACT_TOOL_NAME:
+        return await runReadArtifactTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+          pinnedAppScope: options?.pinnedAppScope,
         });
       case DEPLOY_APP_TOOL_NAME:
         return await runDeployAppTool(privyUserId, input, {

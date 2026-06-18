@@ -28,6 +28,8 @@ type BuildSystemPromptInput = {
   memoryBlock?: string;
   agentPermissions?: AgentPermissions;
   pinnedAppScope?: PinnedAppScope | null;
+  /** Current pinned app source injected server-side — not something the user must provide. */
+  artifactContextBlock?: string;
 };
 
 export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
@@ -136,6 +138,10 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
 
   if (input.pinnedAppScope) {
     lines.push("", formatPinnedAppScopeForPrompt(input.pinnedAppScope));
+  }
+
+  if (input.artifactContextBlock?.trim()) {
+    lines.push("", input.artifactContextBlock.trim());
   }
 
   const memory = input.memoryBlock?.trim();
