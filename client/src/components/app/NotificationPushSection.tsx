@@ -135,6 +135,10 @@ export function NotificationPushSection() {
               Get alerts when something important happens while this tab is closed. We only ask
               after you opt in here.
             </p>
+            <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/45">
+              On iPhone and iPad, Web Push only works after you add Radiant to your Home Screen
+              (Share → Add to Home Screen), then open the installed app and enable alerts here.
+            </p>
 
             {loading ? (
               <p className="mt-4 flex items-center gap-2 text-xs font-medium text-[var(--hero-ink)]/50">

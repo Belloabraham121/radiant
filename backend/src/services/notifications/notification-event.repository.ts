@@ -218,3 +218,39 @@ export async function countUnreadNotificationEvents(userId: bigint): Promise<num
     },
   });
 }
+
+export async function getNotificationDeliveryMetricsSince(since: Date): Promise<
+  Array<{
+    channel: NotificationChannelType;
+    status: NotificationDeliveryStatus;
+    count: number;
+  }>
+> {
+  const rows = await prisma.notificationDelivery.groupBy({
+    by: ["channel", "status"],
+    where: {
+      event: {
+        created_at: { gte: since },
+      },
+    },
+    _count: { _all: true },
+  });
+
+  return rows.map((row) => ({
+    channel: row.channel,
+    status: row.status,
+    count: row._count._all,
+  }));
+}
+
+export async function countStalePushSubscriptions(staleBefore: Date): Promise<number> {
+  return prisma.notificationPushSubscription.count({
+    where: {
+      revoked_at: null,
+      OR: [
+        { last_used_at: { lt: staleBefore } },
+        { last_used_at: null, created_at: { lt: staleBefore } },
+      ],
+    },
+  });
+}

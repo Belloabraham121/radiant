@@ -51,6 +51,15 @@ export async function handlePrivyWebhookEvent(event: unknown): Promise<void> {
       });
       return;
     }
+    case "user.deleted": {
+      if (!isUserPayload(payload.user)) {
+        logger.warn("Privy user.deleted webhook missing user payload");
+        return;
+      }
+      const { deleteUserAccountByPrivyId } = await import("./user-deletion.service.js");
+      await deleteUserAccountByPrivyId(payload.user.id);
+      return;
+    }
     default:
       logger.debug("Ignoring unsupported Privy webhook", { type: payload.type });
   }

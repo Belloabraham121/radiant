@@ -1,5 +1,6 @@
 import { enqueueNotificationEmit } from "../../infrastructure/inngest/enqueue-notification-emit.js";
 import { logger } from "../../shared/logger.js";
+import { logNotificationEvaluatorRun } from "./notification-observability.service.js";
 import type { NotificationEmitCandidate } from "./notification-evaluator.types.js";
 import { renderNotificationPresentation } from "./notification-presentation.service.js";
 import type { NotificationSchedule } from "./notification-schema.types.js";
@@ -142,6 +143,7 @@ export async function fireScheduleRuleById(ruleId: string): Promise<ScheduleEval
 }
 
 export async function runScheduleEvaluatorCycle(): Promise<ScheduleEvaluatorRunResult> {
+  const startedAt = Date.now();
   const contexts = await loadActiveScheduleRuleContexts();
   const summary: ScheduleEvaluatorRunResult = {
     rules_evaluated: contexts.length,
@@ -191,6 +193,16 @@ export async function runScheduleEvaluatorCycle(): Promise<ScheduleEvaluatorRunR
       });
     }
   }
+
+  logNotificationEvaluatorRun({
+    evaluator_kind: "schedule",
+    duration_ms: Date.now() - startedAt,
+    rules_evaluated: summary.rules_evaluated,
+    emitted: summary.emitted,
+    suppressed: summary.suppressed,
+    duplicates: summary.duplicates,
+    errors: summary.errors,
+  });
 
   return summary;
 }

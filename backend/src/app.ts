@@ -8,6 +8,7 @@ import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
 import { agentPermissionsRouter } from "./api/routes/v1/agent/permissions.js";
 import { agentTransactionsRouter } from "./api/routes/v1/agent/transactions.js";
 import { authMeRouter } from "./api/routes/v1/auth/me.js";
+import { authExportRouter } from "./api/routes/v1/auth/export.js";
 import { authRegisterWalletRouter } from "./api/routes/v1/auth/register-wallet.js";
 import { walletAssetsRouter } from "./api/routes/v1/wallets/assets.js";
 import { walletBalancesRouter } from "./api/routes/v1/wallets/balances.js";
@@ -66,6 +67,7 @@ export function createApp() {
 
   app.use(healthRouter);
   app.use(authMeRouter);
+  app.use(authExportRouter);
   app.use(agentPermissionsRouter);
   app.use(agentTransactionsRouter);
   app.use(authRegisterWalletRouter);

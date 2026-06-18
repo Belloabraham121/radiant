@@ -31,6 +31,7 @@ import {
   subscribeWebPushForUser,
   unsubscribeWebPushForUser,
 } from "../../../../services/notifications/notification-push-subscription.service.js";
+import { getNotificationObservabilitySnapshot } from "../../../../services/notifications/notification-observability.service.js";
 
 const notificationChannelSchema = z.enum(["in_app", "web_push", "email"]);
 
@@ -326,6 +327,19 @@ notificationsRouter.post(
         ...(body.body ? { body: body.body } : {}),
       });
       return ok(req, res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+notificationsRouter.get(
+  "/api/v1/internal/notifications/metrics",
+  requireNotificationsInternalAuth,
+  async (req, res, next) => {
+    try {
+      const snapshot = await getNotificationObservabilitySnapshot();
+      return ok(req, res, snapshot);
     } catch (err) {
       return next(err);
     }

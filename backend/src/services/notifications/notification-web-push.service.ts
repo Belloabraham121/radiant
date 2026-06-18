@@ -7,6 +7,7 @@ import {
   touchPushSubscriptionUsed,
 } from "./notification-push-subscription.repository.js";
 import type { NotificationEventPayload } from "./notification-schema.types.js";
+import { logStalePushSubscriptionRemoved } from "./notification-observability.service.js";
 
 export type WebPushDeliveryResult =
   | { status: "sent"; delivered_count: number }
@@ -110,6 +111,10 @@ async function sendToSubscription(
 
     if (isStaleSubscriptionError(statusCode)) {
       await deletePushSubscriptionByEndpoint(subscription.endpoint);
+      logStalePushSubscriptionRemoved({
+        userId: subscription.user_id,
+        endpoint: subscription.endpoint,
+      });
       return { ok: false, stale: true, message };
     }
 

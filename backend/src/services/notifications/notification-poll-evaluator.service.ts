@@ -1,5 +1,6 @@
 import { enqueueNotificationEmit } from "../../infrastructure/inngest/enqueue-notification-emit.js";
 import { logger } from "../../shared/logger.js";
+import { logNotificationEvaluatorRun } from "./notification-observability.service.js";
 import { ensureNotificationEvaluatorsRegistered } from "./evaluators/index.js";
 import { getNotificationEvaluator } from "./evaluators/registry.js";
 import type {
@@ -49,6 +50,7 @@ export async function runPollEvaluatorCycle(): Promise<PollEvaluatorRunResult[]>
   const results: PollEvaluatorRunResult[] = [];
 
   for (const [evaluatorKey, rules] of grouped.entries()) {
+    const startedAt = Date.now();
     const summary: PollEvaluatorRunResult = {
       evaluator_key: evaluatorKey,
       rules_evaluated: rules.length,
@@ -101,6 +103,17 @@ export async function runPollEvaluatorCycle(): Promise<PollEvaluatorRunResult[]>
     }
 
     results.push(summary);
+
+    logNotificationEvaluatorRun({
+      evaluator_kind: "poll",
+      evaluator_key: evaluatorKey,
+      duration_ms: Date.now() - startedAt,
+      rules_evaluated: summary.rules_evaluated,
+      emitted: summary.emitted,
+      suppressed: summary.suppressed,
+      duplicates: summary.duplicates,
+      errors: summary.errors,
+    });
   }
 
   return results;

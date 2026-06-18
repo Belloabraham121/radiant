@@ -665,12 +665,12 @@ Ship **Phase 0 + 1 + 2** first: schema + rule CRUD + in-app inbox + SSE. That un
 
 | Status | Task                 | Detail                                                        |
 | ------ | -------------------- | ------------------------------------------------------------- |
-| [ ]    | Load tests           | Emit path under burst                                         |
-| [ ]    | Observability        | Delivery success rate, evaluator latency, stale subscriptions |
-| [ ]    | Account deletion     | Cascade notification data                                     |
-| [ ]    | GDPR export          | Include rules + events in user data export                    |
-| [ ]    | Email channel stub   | Enum + delivery handler placeholder                           |
-| [ ]    | Safari iOS PWA notes | Document Add to Home Screen requirement for push              |
+| [x]    | Load tests           | Emit path under burst                                         |
+| [x]    | Observability        | Delivery success rate, evaluator latency, stale subscriptions |
+| [x]    | Account deletion     | Cascade notification data                                     |
+| [x]    | GDPR export          | Include rules + events in user data export                    |
+| [x]    | Email channel stub   | Enum + delivery handler placeholder                           |
+| [x]    | Safari iOS PWA notes | Document Add to Home Screen requirement for push              |
 
 ---
 

@@ -21,6 +21,8 @@ import type {
 } from "./notification-schema.types.js";
 import { emitNotificationStreamEvent } from "./notification-stream.service.js";
 import { validateNotificationChannels } from "./notification-schema.service.js";
+import { deliverEmailNotification } from "./notification-email.service.js";
+import { logNotificationDeliveryOutcome } from "./notification-observability.service.js";
 import { deliverWebPushNotification } from "./notification-web-push.service.js";
 
 export type EmitNotificationInput = {
@@ -192,6 +194,14 @@ export async function deliverNotification(
       };
     }
 
+    if (channel === "email") {
+      return {
+        eventId: event.id,
+        channel: "email" as const,
+        status: "pending" as const,
+      };
+    }
+
     return {
       eventId: event.id,
       channel,
@@ -218,8 +228,16 @@ export async function deliverNotification(
   }
 
   const skippedChannels: NotificationChannel[] = channels.filter(
-    (channel) => channel !== "in_app" && channel !== "web_push",
+    (channel) => channel !== "in_app" && channel !== "web_push" && channel !== "email",
   );
+
+  if (channels.includes("in_app")) {
+    logNotificationDeliveryOutcome({
+      channel: "in_app",
+      status: "sent",
+      eventId: event.id,
+    });
+  }
 
   if (channels.includes("web_push")) {
     const webPushDelivery = await findNotificationDeliveryForEventChannel(event.id, "web_push");
@@ -236,9 +254,20 @@ export async function deliverNotification(
           sentAt: now,
           error: null,
         });
+        logNotificationDeliveryOutcome({
+          channel: "web_push",
+          status: "sent",
+          eventId: event.id,
+        });
       } else if (webPushResult.status === "skipped") {
         await updateNotificationDelivery(webPushDelivery.id, {
           status: "skipped",
+          error: webPushResult.reason,
+        });
+        logNotificationDeliveryOutcome({
+          channel: "web_push",
+          status: "skipped",
+          eventId: event.id,
           error: webPushResult.reason,
         });
         skippedChannels.push("web_push");
@@ -247,7 +276,38 @@ export async function deliverNotification(
           status: "failed",
           error: webPushResult.reason,
         });
+        logNotificationDeliveryOutcome({
+          channel: "web_push",
+          status: "failed",
+          eventId: event.id,
+          error: webPushResult.reason,
+        });
         skippedChannels.push("web_push");
+      }
+    }
+  }
+
+  if (channels.includes("email")) {
+    const emailDelivery = await findNotificationDeliveryForEventChannel(event.id, "email");
+    const emailResult = await deliverEmailNotification({
+      userId,
+      event,
+      payload,
+    });
+
+    if (emailDelivery) {
+      if (emailResult.status === "skipped") {
+        await updateNotificationDelivery(emailDelivery.id, {
+          status: "skipped",
+          error: emailResult.reason,
+        });
+        logNotificationDeliveryOutcome({
+          channel: "email",
+          status: "skipped",
+          eventId: event.id,
+          error: emailResult.reason,
+        });
+        skippedChannels.push("email");
       }
     }
   }
