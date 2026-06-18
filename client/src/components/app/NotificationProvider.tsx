@@ -9,23 +9,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
+import {
+  notificationToastClassName,
+} from "@/components/app/NotificationToaster";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { listNotificationEvents } from "@/lib/notifications-api";
 import type { NotificationStreamPayload } from "@/lib/notification-stream";
 
-export type NotificationToastItem = {
-  id: string;
-  title: string;
-  body: string;
-  severity?: "info" | "warning" | "critical";
-  deepLink?: string | null;
-};
-
 type NotificationContextValue = {
   unreadCount: number;
   refreshUnreadCount: () => Promise<void>;
-  toasts: NotificationToastItem[];
-  dismissToast: (id: string) => void;
 };
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
@@ -66,7 +60,6 @@ function playCriticalAlertSound(): void {
 
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [unreadCount, setUnreadCount] = useState(0);
-  const [toasts, setToasts] = useState<NotificationToastItem[]>([]);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -83,19 +76,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       playCriticalAlertSound();
     }
 
-    const toast: NotificationToastItem = {
+    const deepLink = resolveStreamDeepLink(event);
+
+    toast(event.title, {
       id: event.event_id,
-      title: event.title,
-      body: event.body,
-      severity,
-      deepLink: resolveStreamDeepLink(event),
-    };
-
-    setToasts((prev) => [toast, ...prev.filter((item) => item.id !== toast.id)].slice(0, 4));
-
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((item) => item.id !== toast.id));
-    }, severity === "critical" ? 12_000 : 8_000);
+      description: event.body,
+      duration: severity === "critical" ? 12_000 : 8_000,
+      className: notificationToastClassName(severity),
+      action: deepLink
+        ? {
+            label: "Open",
+            onClick: () => {
+              window.location.assign(deepLink);
+            },
+          }
+        : undefined,
+    });
   }, []);
 
   useNotificationStream(
@@ -124,10 +120,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     () => ({
       unreadCount,
       refreshUnreadCount,
-      toasts,
-      dismissToast: (id) => setToasts((prev) => prev.filter((item) => item.id !== id)),
     }),
-    [unreadCount, refreshUnreadCount, toasts],
+    [unreadCount, refreshUnreadCount],
   );
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
