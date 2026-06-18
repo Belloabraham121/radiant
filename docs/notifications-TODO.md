@@ -654,12 +654,12 @@ Ship **Phase 0 + 1 + 2** first: schema + rule CRUD + in-app inbox + SSE. That un
 
 | Status | Task                          | Detail                                          |
 | ------ | ----------------------------- | ----------------------------------------------- |
-| [ ]    | Notification bell             | `AppShell` — unread badge                       |
-| [ ]    | Inbox drawer                  | List events, mark read, click → deep link       |
-| [ ]    | Notification preferences page | Quiet hours, disable push, max per hour         |
-| [ ]    | Per-app settings              | Section in project run view or app preview      |
-| [ ]    | Toast on SSE event            | Optional sound for critical severity            |
-| [ ]    | `useNotificationStream` hook  | Client SSE subscriber (mirror `useAgentStream`) |
+| [x]    | Notifications nav tab         | Sidebar — Chats / Activity / Projects / Notifications |
+| [x]    | Notifications inbox page      | `/app/notifications` — list, filters, pagination      |
+| [x]    | Notification preferences page | Quiet hours, disable push, max per hour               |
+| [x]    | Per-app settings              | Section in project run view or app preview            |
+| [x]    | Toast on SSE event            | Optional sound for critical severity                    |
+| [x]    | `useNotificationStream` hook  | Client SSE subscriber (mirror `useAgentStream`)       |
 
 ### Phase 9 — Hardening & compliance
 

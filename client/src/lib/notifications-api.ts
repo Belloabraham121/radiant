@@ -1,5 +1,57 @@
 import { apiFetch } from "./api";
 
+export type NotificationChannel = "in_app" | "web_push" | "email";
+
+export type NotificationEventRecord = {
+  id: string;
+  notification_type: string;
+  title: string;
+  body: string;
+  payload: {
+    deep_link?: string;
+    data?: Record<string, unknown>;
+    rule_id?: string;
+    severity?: "info" | "warning" | "critical";
+  };
+  project_id: string | null;
+  installation_id: string | null;
+  rule_id: string | null;
+  created_at: string;
+  unread: boolean;
+};
+
+export type NotificationRuleRecord = {
+  id: string;
+  notification_type: string;
+  label: string | null;
+  status: string;
+  condition: Record<string, unknown>;
+  trigger_kind: string;
+  channels: NotificationChannel[];
+  created_at: string;
+};
+
+export type NotificationPreferences = {
+  enabled: boolean;
+  timezone: string;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+  max_per_hour: number;
+  default_channels: NotificationChannel[];
+  updated_at: string;
+};
+
+export type ProjectNotificationSchema = {
+  schema_version: number;
+  app_id: string;
+  types: Array<{
+    type: string;
+    label: string;
+    description?: string;
+    trigger_kind: string;
+  }>;
+};
+
 export type PushConfig = {
   enabled: boolean;
   public_key: string | null;
@@ -119,4 +171,99 @@ export async function unsubscribeWebPush(subscriptionId: string): Promise<void> 
   if (subscription) {
     await subscription.unsubscribe();
   }
+}
+
+export async function listNotificationEvents(options: {
+  unread?: boolean;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ events: NotificationEventRecord[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (options.unread !== undefined) qs.set("unread", options.unread ? "true" : "false");
+  if (options.limit) qs.set("limit", String(options.limit));
+  if (options.offset) qs.set("offset", String(options.offset));
+  const query = qs.toString();
+  return apiFetch<{ events: NotificationEventRecord[]; total: number }>(
+    `/api/v1/notifications/events${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function markNotificationEventRead(eventId: string): Promise<{ event_id: string; read_at: string }> {
+  return apiFetch<{ event_id: string; read_at: string }>(
+    `/api/v1/notifications/events/${encodeURIComponent(eventId)}/read`,
+    { method: "POST" },
+  );
+}
+
+export async function fetchNotificationPreferences(): Promise<NotificationPreferences> {
+  return apiFetch<NotificationPreferences>("/api/v1/notifications/preferences");
+}
+
+export async function patchNotificationPreferences(
+  input: Partial<
+    Pick<
+      NotificationPreferences,
+      "enabled" | "timezone" | "quiet_hours_start" | "quiet_hours_end" | "max_per_hour" | "default_channels"
+    >
+  >,
+): Promise<NotificationPreferences> {
+  return apiFetch<NotificationPreferences>("/api/v1/notifications/preferences", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function listNotificationRules(options: {
+  project_id?: string;
+  installation_id?: string;
+  status?: string;
+  limit?: number;
+} = {}): Promise<{ rules: NotificationRuleRecord[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (options.project_id) qs.set("project_id", options.project_id);
+  if (options.installation_id) qs.set("installation_id", options.installation_id);
+  if (options.status) qs.set("status", options.status);
+  if (options.limit) qs.set("limit", String(options.limit));
+  const query = qs.toString();
+  return apiFetch<{ rules: NotificationRuleRecord[]; total: number }>(
+    `/api/v1/notifications/rules${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function deleteNotificationRule(ruleId: string): Promise<{ deleted: boolean }> {
+  return apiFetch<{ deleted: boolean }>(
+    `/api/v1/notifications/rules/${encodeURIComponent(ruleId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function fetchProjectNotificationSchema(
+  projectId: string,
+): Promise<{ schema: ProjectNotificationSchema | null }> {
+  return apiFetch<{ schema: ProjectNotificationSchema | null }>(
+    `/api/v1/projects/${encodeURIComponent(projectId)}/notifications/schema`,
+  );
+}
+
+export function resolveNotificationDeepLink(event: NotificationEventRecord): string | null {
+  if (event.payload?.deep_link) {
+    return event.payload.deep_link;
+  }
+  if (event.installation_id) {
+    return `/app/installed/${event.installation_id}/run`;
+  }
+  if (event.project_id) {
+    return `/app/projects/${event.project_id}/run`;
+  }
+  return null;
+}
+
+export function formatNotificationTime(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 60_000) return "Just now";
+  if (diffMs < 3_600_000) return `${Math.floor(diffMs / 60_000)}m ago`;
+  if (diffMs < 86_400_000) return `${Math.floor(diffMs / 3_600_000)}h ago`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

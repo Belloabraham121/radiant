@@ -20,7 +20,6 @@ export function NotificationPushSection() {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const browserSupported = isWebPushSupported();
@@ -42,14 +41,45 @@ export function NotificationPushSection() {
       setSubscriptions(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load push settings");
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const browserSupported = isWebPushSupported();
+        if (cancelled) return;
+        setSupported(browserSupported);
+        if (!browserSupported) {
+          setSubscriptions([]);
+          setEnabledOnServer(false);
+          return;
+        }
+
+        const config = await fetchPushConfig();
+        if (cancelled) return;
+        setEnabledOnServer(config.enabled);
+        if (!config.enabled) {
+          setSubscriptions([]);
+          return;
+        }
+
+        const rows = await listPushSubscriptions();
+        if (cancelled) return;
+        setSubscriptions(rows);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Could not load push settings");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const subscribed = subscriptions.length > 0;
 

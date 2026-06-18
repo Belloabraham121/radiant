@@ -7,6 +7,8 @@ import { SidebarProvider } from "@/components/app/SidebarContext";
 import { AgentWalletProvider } from "@/components/wallet/AgentWalletProvider";
 import { AppWalletProvider } from "@/components/wallet/AppWalletProvider";
 import { NotificationServiceWorkerRegistrar } from "@/components/app/NotificationServiceWorkerRegistrar";
+import { NotificationProvider } from "@/components/app/NotificationProvider";
+import { NotificationToastHost } from "@/components/app/NotificationToastHost";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -15,13 +17,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <AgentWalletProvider>
           <AppWalletProvider>
             <SidebarProvider>
-              <NotificationServiceWorkerRegistrar />
-              <div className="flex h-screen overflow-hidden bg-[var(--hero-bg)] text-[var(--hero-ink)]">
-                <Sidebar />
-                <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
-                  {children}
-                </main>
-              </div>
+              <NotificationProvider>
+                <NotificationServiceWorkerRegistrar />
+                <NotificationToastHost />
+                <div className="flex h-screen overflow-hidden bg-[var(--hero-bg)] text-[var(--hero-ink)]">
+                  <Sidebar />
+                  <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+                    {children}
+                  </main>
+                </div>
+              </NotificationProvider>
             </SidebarProvider>
           </AppWalletProvider>
         </AgentWalletProvider>
