@@ -209,11 +209,35 @@ function emptyCustomSchema(projectId: string): ProjectActionSchema {
   };
 }
 
+/** Platform-injected files — never used to infer user-facing actions. */
+const PLATFORM_ARTIFACT_PATHS = new Set([
+  "lib/radiant-client.ts",
+  "lib/radiant-client.js",
+  "lib/radiant-agent-runtime.ts",
+  "lib/radiant-agent-runtime.js",
+]);
+
+function normalizeArtifactPath(path: string): string {
+  return path.replace(/^\/+/, "").replace(/^\/workspace\//, "");
+}
+
+function isPlatformArtifactFile(path: string): boolean {
+  return PLATFORM_ARTIFACT_PATHS.has(normalizeArtifactPath(path));
+}
+
+function userAuthoredArtifactFiles(files: ArtifactFileInput[]): ArtifactFileInput[] {
+  return files.filter((file) => !isPlatformArtifactFile(file.path));
+}
+
 function concatArtifactSource(files: ArtifactFileInput[]): string {
   return files.map((file) => `${file.path}\n${file.content}`).join("\n");
 }
 
-/** Heuristic: generated app exposes DeFi actions via radiant-client helpers or swap UI. */
+function concatUserArtifactSource(files: ArtifactFileInput[]): string {
+  return concatArtifactSource(userAuthoredArtifactFiles(files));
+}
+
+/** Heuristic: user-authored app code exposes DeFi actions (not platform templates). */
 export function detectDefiActionNamesFromArtifact(
   files: ArtifactFileInput[],
   template?: string,
@@ -222,12 +246,9 @@ export function detectDefiActionNamesFromArtifact(
     return [...DEFAULT_MARGIN_TEMPLATE_ACTIONS];
   }
 
-  const source = concatArtifactSource(files);
+  const userFiles = userAuthoredArtifactFiles(files);
+  const source = concatUserArtifactSource(files);
   const detected = new Set<AppActionName>();
-
-  if (/from\s+["']@?\/?.*radiant-client["']/.test(source) || /lib\/radiant-client/.test(source)) {
-    detected.add("swap");
-  }
 
   for (const { pattern, action } of EXECUTE_HELPER_PATTERNS) {
     if (pattern.test(source)) {
@@ -241,7 +262,7 @@ export function detectDefiActionNamesFromArtifact(
     }
   }
 
-  for (const name of detectOnchainActionsFromManifest(files)) {
+  for (const name of detectOnchainActionsFromManifest(userFiles)) {
     detected.add(name);
   }
 
@@ -265,6 +286,13 @@ export function detectDefiActionNamesFromArtifact(
 
   return [...detected];
 }
+
+/**
+ * Matches storeAppData("collection", ...) and deleteAppData("collection", ...)
+ * to infer add_<collection> / delete_<collection> actions.
+ */
+const APP_DATA_CALL_PATTERN =
+  /\b(storeAppData|deleteAppData|storeSharedData)\s*\(\s*["']([a-z_][a-z0-9_]*)["']/g;
 
 /** Detect app-local (non-DeFi) actions from register() calls and manifest files. */
 export function detectAppLocalActionsFromArtifact(
@@ -299,7 +327,7 @@ export function detectAppLocalActionsFromArtifact(
     }
   }
 
-  const source = concatArtifactSource(files);
+  const source = concatUserArtifactSource(files);
   const registerMatches = source.matchAll(REGISTER_ACTION_PATTERN);
   for (const match of registerMatches) {
     const name = match[1]!;
@@ -311,6 +339,29 @@ export function detectAppLocalActionsFromArtifact(
         params: [],
         kind: "app_local",
       });
+    }
+  }
+
+  for (const match of source.matchAll(APP_DATA_CALL_PATTERN)) {
+    const fn = match[1]!;
+    const collection = match[2]!;
+    const addName = `add_${collection}`;
+    const deleteName = `delete_${collection}`;
+    if (fn === "storeAppData" || fn === "storeSharedData") {
+      if (!seen.has(addName) && !isOnchainAction(addName)) {
+        seen.add(addName);
+        actions.push({ name: addName, description: `Add an item to ${collection}`, params: [], kind: "app_local" });
+      }
+    }
+    if (fn === "deleteAppData") {
+      if (!seen.has(deleteName) && !isOnchainAction(deleteName)) {
+        seen.add(deleteName);
+        actions.push({ name: deleteName, description: `Delete an item from ${collection}`, params: [{ name: "id", type: "string", description: "ID of the record to delete", required: true }], kind: "app_local" });
+      }
+    }
+    if ((fn === "storeAppData" || fn === "storeSharedData") && !seen.has(deleteName) && !isOnchainAction(deleteName)) {
+      seen.add(deleteName);
+      actions.push({ name: deleteName, description: `Delete an item from ${collection}`, params: [{ name: "id", type: "string", description: "ID of the record to delete", required: true }], kind: "app_local" });
     }
   }
 
@@ -376,6 +427,26 @@ function resolveStoredOrInferredSchema(project: ProjectActionSchemaSource): Proj
   return emptyCustomSchema(project.id);
 }
 
+/** Prefer live inference from artifact files; avoids stale DeFi actions on custom apps. */
+export function resolveProjectActionSchema(
+  project: ProjectActionSchemaSource,
+  files: ArtifactFileInput[] = [],
+): ProjectActionSchema {
+  if (files.length > 0) {
+    const inferred = inferProjectActionSchemaForArtifact(project.id, {
+      template: project.template,
+      files,
+    });
+    if (inferred) {
+      return inferred;
+    }
+    if (project.template === "custom") {
+      return emptyCustomSchema(project.id);
+    }
+  }
+  return resolveStoredOrInferredSchema(project);
+}
+
 function enrichCatalogEntry(action: ProjectActionSchemaAction): ProjectActionsCatalogEntry {
   const definition = getAppActionDefinition(action.name);
   return {
@@ -393,8 +464,9 @@ function enrichCatalogEntry(action: ProjectActionSchemaAction): ProjectActionsCa
 /** Response for GET .../projects/:id/actions and query_chain project_actions. */
 export function buildProjectActionsCatalogResponse(
   project: ProjectActionSchemaSource,
+  options?: { files?: ArtifactFileInput[] },
 ): ProjectActionsCatalogResponse {
-  const schema = resolveStoredOrInferredSchema(project);
+  const schema = resolveProjectActionSchema(project, options?.files ?? []);
   return {
     schema_version: schema.schema_version,
     app_id: schema.app_id,

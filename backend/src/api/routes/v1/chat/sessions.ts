@@ -6,6 +6,7 @@ import {
 } from "../../../../services/conversation/conversation.types.js";
 import {
   createUserSession,
+  deleteUserSession,
   getSessionMessages,
   listUserSessions,
 } from "../../../../services/conversation/conversation.service.js";
@@ -98,6 +99,27 @@ chatSessionsRouter.post("/api/v1/chat/sessions", requireAuth, async (req, res, n
   }
 });
 
+chatSessionsRouter.delete(
+  "/api/v1/chat/sessions/:sessionId",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const sessionId = req.params.sessionId;
+      if (!sessionId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "sessionId is required",
+        });
+      }
+
+      const data = await deleteUserSession(req.user.privyUserId, sessionId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 chatSessionsRouter.get(
   "/api/v1/chat/sessions/:sessionId/messages",
   requireAuth,
@@ -182,7 +204,8 @@ chatSessionsRouter.get(
 
     writeSseEvent(res, "connected", { session_id: sessionId });
 
-    for (const pending of drainPendingExecuteInApp(sessionId)) {
+    const pendingItems = drainPendingExecuteInApp(sessionId);
+    for (const pending of pendingItems) {
       writeSseEvent(res, "agent_thinking", { session_id: sessionId, active: true, action: pending.action });
       writeSseEvent(res, "agent_action", {
         session_id: sessionId,

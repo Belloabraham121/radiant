@@ -210,6 +210,44 @@
   animation: hero-wiggle 2.6s ease-in-out infinite;
 }
 
+@keyframes hero-radar {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(8deg) scale(1.06);
+  }
+  50% {
+    transform: rotate(-3deg) scale(1);
+  }
+  75% {
+    transform: rotate(5deg) scale(1.04);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+.hero-radar {
+  animation: hero-radar 1.8s ease-in-out infinite;
+}
+
+@keyframes hero-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--pulse-color, rgba(56, 101, 255, 0.4));
+  }
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.hero-pulse-ring {
+  animation: hero-pulse-ring 1.6s ease-out infinite;
+}
+
 @keyframes hero-scroll-hint {
   0%,
   100% {
@@ -276,6 +314,8 @@
   .hero-bob,
   .hero-scroll-hint,
   .hero-wiggle,
+  .hero-radar,
+  .hero-pulse-ring,
   .hero-blink span {
     animation: none;
   }

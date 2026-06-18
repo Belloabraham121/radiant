@@ -63,3 +63,9 @@ export async function touchSession(
     data,
   });
 }
+
+export async function deleteSessionById(sessionId: string): Promise<void> {
+  await prisma.chatSession.delete({
+    where: { id: sessionId },
+  });
+}

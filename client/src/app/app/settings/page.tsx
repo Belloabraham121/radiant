@@ -5,7 +5,7 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { AgentWalletSection } from "@/components/app/AgentWalletSection";
-import { AgentVaultSection } from "@/components/app/AgentVaultSection";
+// import { AgentVaultSection } from "@/components/app/AgentVaultSection";
 import { ConnectedAccountsSection } from "@/components/app/ConnectedAccountsSection";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
@@ -68,7 +68,7 @@ export default function SettingsPage() {
 
       <AgentWalletSection />
 
-      <AgentVaultSection />
+      {/* <AgentVaultSection /> — Coming soon: real encrypted vault backend */}
 
       <AgentPermissionsSection />
     </div>

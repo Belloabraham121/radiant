@@ -23,6 +23,7 @@ import {
   delegateAppActionToPreview,
   shouldDelegateAppActionToPreview,
 } from "./pinned-app-preview-delegation.js";
+import { storeAppDataForUser, deleteAppDataForUser } from "../app-data/app-data.service.js";
 
 export const CALL_APP_ACTION_TOOL_NAME = "call_app_action" as const;
 
@@ -101,8 +102,10 @@ async function assertActionInSessionSchema(
 export const callAppActionToolDefinition = {
   name: CALL_APP_ACTION_TOOL_NAME,
   description:
-    "Execute an app action — either on-chain (swap, stake, etc.) or app-local (log_workout, update_reps, etc.). " +
+    "Execute an app action — either on-chain (swap, stake, etc.) or app-local (add, update, delete, toggle, etc.). " +
     "On-chain actions go through the transaction pipeline; app-local actions run in the preview UI. " +
+    "CRITICAL: You MUST call this tool for ALL data mutations including adding, updating, deleting, and toggling items. " +
+    "Never claim you performed an action without calling this tool. " +
     "Call query_chain project_actions or session_actions first to discover which actions this app supports. " +
     "Scope: project_id (saved project UUID), installation_id (installed app UUID), app_name (match by name in this chat), " +
     "or omit all three to use the chat draft when only one app exists. Never pass an app name as project_id.",
@@ -132,8 +135,8 @@ export const callAppActionToolDefinition = {
         description:
           "Action name from query_chain project_actions / session_actions. " +
           "On-chain: swap, flash_loan, stake, unstake, deposit, withdraw, transfer, etc. " +
-          "App-local: any custom action the app declares (e.g. log_workout, update_reps, add_entry). " +
-          "Must be lowercase snake_case.",
+          "App-local: any custom action the app declares (e.g. add_todo, delete_todo, toggle_done, update_entry, log_workout). " +
+          "For deletes, pass the item id in params (e.g. { id: \"item-uuid\" }). Must be lowercase snake_case.",
       },
       params: {
         type: "object",
@@ -153,6 +156,49 @@ export const callAppActionToolDefinition = {
     additionalProperties: false,
   },
 };
+
+const CRUD_PREFIX_RE = /^(add|create|insert|store|save|update|edit|set|toggle|mark|delete|remove|clear)[_-]/i;
+const DELETE_ACTION_RE = /^(delete|remove|clear)[_-]/i;
+
+function deriveCollectionFromAction(action: string): string {
+  const base = action.replace(CRUD_PREFIX_RE, "") || action;
+  return base.endsWith("s") ? base : base + "s";
+}
+
+/**
+ * For app-local actions, persist or delete data server-side as a safety net.
+ * The preview iframe also handles persistence, but this guarantees data is
+ * saved/deleted even if the iframe isn't loaded.
+ */
+async function persistAppLocalData(
+  privyUserId: string,
+  action: string,
+  params: Record<string, unknown>,
+  scopeIds: { projectId?: string; installationId?: string },
+): Promise<void> {
+  if (!scopeIds.projectId && !scopeIds.installationId) {
+    return;
+  }
+  const isDelete = DELETE_ACTION_RE.test(action);
+  const collection = deriveCollectionFromAction(action);
+  try {
+    if (isDelete) {
+      const id = params.id ? String(params.id) : undefined;
+      const key = params.key ? String(params.key) : undefined;
+      if (id || key) {
+        await deleteAppDataForUser(privyUserId, scopeIds, { collection, id, key: key ?? null });
+      }
+    } else {
+      await storeAppDataForUser(privyUserId, scopeIds, {
+        collection,
+        data: params,
+        key: null,
+      });
+    }
+  } catch {
+    // best-effort persistence — iframe handles primary storage
+  }
+}
 
 export async function runCallAppActionTool(
   privyUserId: string,
@@ -185,6 +231,11 @@ export async function runCallAppActionTool(
     }
     assertActionInProjectSchema(installation.source_project, parsed.action);
     if (isAppLocal || shouldDelegateAppActionToPreview(context)) {
+      if (isAppLocal) {
+        void persistAppLocalData(privyUserId, parsed.action, parsed.params as Record<string, unknown>, {
+          installationId: parsed.installation_id,
+        });
+      }
       return delegateAppActionToPreview(
         context,
         parsed.action,
@@ -209,6 +260,9 @@ export async function runCallAppActionTool(
   if (scope.kind === "session_draft") {
     await assertActionInSessionSchema(privyUserId, scope.session_id, parsed.action);
     if (isAppLocal || shouldDelegateAppActionToPreview(context)) {
+      if (isAppLocal) {
+        void persistAppLocalData(privyUserId, parsed.action, parsed.params as Record<string, unknown>, {});
+      }
       return delegateAppActionToPreview(
         context,
         parsed.action,
@@ -230,6 +284,11 @@ export async function runCallAppActionTool(
   }
   assertActionInProjectSchema(project, parsed.action);
   if (isAppLocal || shouldDelegateAppActionToPreview(context)) {
+    if (isAppLocal) {
+      void persistAppLocalData(privyUserId, parsed.action, parsed.params as Record<string, unknown>, {
+        projectId: scope.project_id,
+      });
+    }
     return delegateAppActionToPreview(
       context,
       parsed.action,

@@ -31,12 +31,14 @@
     "worker:deploy": "tsx src/workers/deploy.worker.ts"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "@mysten/deepbook-v3": "^1.4.1",
     "@mysten/sui": "^2.17.0",
     "@prisma/client": "^6.5.0",
     "@privy-io/node": "^0.7.0",
     "@solana/web3.js": "^1.98.4",
     "bullmq": "^5.78.0",
+    "cheerio": "^1.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

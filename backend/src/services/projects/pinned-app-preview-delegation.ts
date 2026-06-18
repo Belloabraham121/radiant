@@ -2,6 +2,7 @@ import {
   agentStreamContextFromToolOptions,
   emitAgentStreamExecuteInApp,
 } from "../agent/agent-stream-execution.js";
+import { emitExecutionProgress } from "../agent/execution-progress-context.js";
 import type { AgentToolOptions } from "../agent/execute-transaction-context.js";
 import type { AppActionName, AppActionResult } from "./app-action.types.js";
 import { scopeDisplayName, type PinnedAppScope } from "./pinned-app-scope.types.js";
@@ -16,10 +17,11 @@ export function buildPreviewDelegatedResult(
   pinnedScope: PinnedAppScope | null | undefined,
 ): AppActionResult {
   const appName = pinnedScope ? scopeDisplayName(pinnedScope) : "your app";
+  const label = action.replace(/_/g, " ");
   return {
     status: "preview_delegated",
     action,
-    message: `Running ${action} in ${appName} — follow the flow in the preview and confirm there.`,
+    message: `Executing ${label} in ${appName} — watch the app preview to see it in action.`,
   };
 }
 
@@ -28,6 +30,17 @@ export function delegateAppActionToPreview(
   action: AppActionName,
   params: Record<string, unknown>,
 ): AppActionResult {
+  const label = `Execute ${action.replace(/_/g, " ")}`;
+  emitExecutionProgress({
+    step: {
+      id: "execute",
+      status: "running",
+      label,
+      detail: "Running in app preview…",
+      status_category: "defi",
+    },
+  });
+
   const streamCtx = agentStreamContextFromToolOptions(options);
   emitAgentStreamExecuteInApp(streamCtx, action, params);
   return buildPreviewDelegatedResult(action, options.pinnedAppScope);

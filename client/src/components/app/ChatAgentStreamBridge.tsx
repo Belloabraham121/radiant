@@ -82,8 +82,12 @@ export function ChatAgentStreamProvider({
   );
 }
 
+export function useChatAgentStreamContext(): ChatAgentStreamContextValue | null {
+  return useContext(ChatAgentStreamContext);
+}
+
 export function useChatAgentStream(): ChatAgentStreamContextValue {
-  const context = useContext(ChatAgentStreamContext);
+  const context = useChatAgentStreamContext();
   if (!context) {
     throw new Error(
       "useChatAgentStream must be used within ChatAgentStreamProvider",

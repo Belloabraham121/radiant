@@ -1,0 +1,23 @@
+/** Web searching and page browsing — extend freely. */
+export const BROWSING_PHRASES = [
+  "Searching the web…",
+  "Browsing results…",
+  "Scouring the internet…",
+  "Reading the page…",
+  "Pulling search results…",
+  "Scanning articles…",
+  "Digging through links…",
+  "Following the trail…",
+  "Combing through sources…",
+  "Extracting the good stuff…",
+  "Speed-reading the docs…",
+  "Parsing what I found…",
+  "Checking multiple sources…",
+  "Filtering the noise…",
+  "Gathering web intel…",
+  "Hunting for answers…",
+  "Diving into the results…",
+  "Cross-referencing sources…",
+  "Finding the signal…",
+  "Skimming the highlights…",
+] as const;

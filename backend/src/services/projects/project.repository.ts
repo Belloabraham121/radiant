@@ -2,6 +2,9 @@ import { Prisma } from "@prisma/client";
 import type { Project, ProjectStatus } from "@prisma/client";
 import { prisma } from "../../infrastructure/postgres/client.js";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export async function createProject(data: {
   userId: bigint;
   sessionId?: string;
@@ -31,6 +34,9 @@ export async function findProjectByIdForUser(
   projectId: string,
   userId: bigint,
 ): Promise<Project | null> {
+  if (!UUID_RE.test(projectId.trim())) {
+    return null;
+  }
   return prisma.project.findFirst({
     where: {
       id: projectId,

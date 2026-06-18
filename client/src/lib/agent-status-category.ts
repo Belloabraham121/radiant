@@ -23,6 +23,14 @@ export function inferStatusCategoryFromStep(
 
   const hay = `${step.id} ${step.label} ${step.detail ?? ""}`.toLowerCase();
 
+  if (/web.?search|browse|searching the web|browsing/.test(hay)) {
+    return "browsing";
+  }
+
+  if (/call.?api|api.?call|calling.*api|external.*request/.test(hay)) {
+    return "calling_api";
+  }
+
   if (
     /swap|bridge|execute|flash|quote|bundle|transaction|margin|deposit|withdraw|stake|liquidat|repay|borrow|supply/.test(
       hay,
@@ -74,6 +82,8 @@ export function isAgentStatusCategory(value: string): value is AgentStatusCatego
   return (
     value === "thinking" ||
     value === "researching" ||
+    value === "browsing" ||
+    value === "calling_api" ||
     value === "defi" ||
     value === "playful" ||
     value === "waiting"

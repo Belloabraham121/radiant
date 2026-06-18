@@ -1,7 +1,7 @@
-/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v6 — browser-safe env + swap helpers. */
-export const RADIANT_CLIENT_TEMPLATE_VERSION = 6;
+/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v9 — shared data + external API proxy. */
+export const RADIANT_CLIENT_TEMPLATE_VERSION = 9;
 
-export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v6. */
+export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v9. */
 
 export type SwapQuoteParams = {
   amount: number;
@@ -551,6 +551,194 @@ export async function rejectAgentTransaction(
     { method: "POST" },
   );
   return parseEnvelope<{ status: "rejected"; agent_transaction_id: string }>(res);
+}
+
+// --- External API proxy ---
+
+export type ExternalFetchOptions = {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+};
+
+export type ExternalFetchResult = {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+};
+
+/**
+ * Fetch an external URL through the Radiant proxy. Handles CORS and keeps
+ * credentials server-side. Works in both preview iframe and deployed apps.
+ *
+ * Usage:
+ *   const data = await fetchExternal("https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd");
+ *   const parsed = JSON.parse(data.body);
+ */
+export async function fetchExternal(
+  url: string,
+  options: ExternalFetchOptions = {},
+): Promise<ExternalFetchResult> {
+  const res = await platformFetch("/api/v1/proxy", {
+    method: "POST",
+    body: JSON.stringify({
+      url,
+      method: options.method ?? "GET",
+      headers: options.headers,
+      body: options.body,
+    }),
+  });
+  return parseEnvelope<ExternalFetchResult>(res);
+}
+
+/**
+ * Convenience wrapper: fetch external JSON and parse it in one step.
+ *
+ * Usage:
+ *   const price = await fetchExternalJson<{ sui: { usd: number } }>(
+ *     "https://api.coingecko.com/api/v3/simple/price?ids=sui&vs_currencies=usd"
+ *   );
+ */
+export async function fetchExternalJson<T = unknown>(
+  url: string,
+  options: ExternalFetchOptions = {},
+): Promise<T> {
+  const result = await fetchExternal(url, options);
+  return JSON.parse(result.body) as T;
+}
+
+// --- App Data (per-user persistent storage) ---
+
+export type AppDataRecord = {
+  id: string;
+  collection: string;
+  key: string | null;
+  data: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AppDataListResult = {
+  records: AppDataRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+/**
+ * Store data in the app's persistent storage. Data is per-user and follows
+ * the user across devices (web, mobile, etc.).
+ *
+ * Use a key for singleton records (settings, preferences):
+ *   await storeAppData("settings", { theme: "dark" }, { key: "user_prefs" });
+ *
+ * Omit key for append-only collections (history, logs):
+ *   await storeAppData("swap_history", { pool: "SUI_USDC", amount: 10 });
+ */
+export async function storeAppData(
+  collection: string,
+  data: Record<string, unknown>,
+  options: { key?: string } = {},
+): Promise<AppDataRecord> {
+  const res = await platformFetch(projectApiPrefix() + "/data", {
+    method: "POST",
+    body: JSON.stringify({ collection, data, key: options.key ?? null }),
+  });
+  return parseEnvelope<AppDataRecord>(res);
+}
+
+/**
+ * Query data from a collection. Returns records newest-first by default.
+ *
+ *   const history = await queryAppData("swap_history", { limit: 20 });
+ *   const prefs = await queryAppData("settings", { key: "user_prefs" });
+ */
+export async function queryAppData(
+  collection: string,
+  options: { key?: string; limit?: number; offset?: number; order?: "asc" | "desc" } = {},
+): Promise<AppDataListResult> {
+  const qs = new URLSearchParams();
+  if (options.key) qs.set("key", options.key);
+  if (options.limit) qs.set("limit", String(options.limit));
+  if (options.offset) qs.set("offset", String(options.offset));
+  if (options.order) qs.set("order", options.order);
+  const query = qs.toString();
+  const path = projectApiPrefix() + "/data/" + encodeURIComponent(collection) + (query ? "?" + query : "");
+  const res = await platformFetch(path);
+  return parseEnvelope<AppDataListResult>(res);
+}
+
+/**
+ * Delete data from a collection.
+ *
+ *   await deleteAppData("swap_history");                   // delete all in collection
+ *   await deleteAppData("settings", { key: "user_prefs" }); // delete by key
+ *   await deleteAppData("swap_history", { id: "uuid" });    // delete by ID
+ */
+export async function deleteAppData(
+  collection: string,
+  options: { key?: string; id?: string } = {},
+): Promise<{ deleted: number }> {
+  const res = await platformFetch(projectApiPrefix() + "/data", {
+    method: "DELETE",
+    body: JSON.stringify({ collection, key: options.key ?? null, id: options.id }),
+  });
+  return parseEnvelope<{ deleted: number }>(res);
+}
+
+// --- Shared Data (cross-user, visible to all installers of the same app) ---
+
+export type SharedAppDataRecord = AppDataRecord & {
+  author_id: string;
+};
+
+export type SharedAppDataListResult = {
+  records: SharedAppDataRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+/**
+ * Store data into a shared collection. All users of the same app can read it.
+ * The write is attributed to your Radiant account (author_id in the record).
+ *
+ * Use for multi-user features: chat messages, shared boards, leaderboards.
+ *
+ *   await storeSharedData("messages", { text: "Hello!", sender: userName });
+ */
+export async function storeSharedData(
+  collection: string,
+  data: Record<string, unknown>,
+  options: { key?: string } = {},
+): Promise<SharedAppDataRecord> {
+  const res = await platformFetch(projectApiPrefix() + "/shared/" + encodeURIComponent(collection), {
+    method: "POST",
+    body: JSON.stringify({ collection, data, key: options.key ?? null }),
+  });
+  return parseEnvelope<SharedAppDataRecord>(res);
+}
+
+/**
+ * Query a shared collection — returns records from ALL users of this app.
+ * Default order is ascending (oldest first), useful for chat timelines.
+ *
+ *   const msgs = await querySharedData("messages", { limit: 50 });
+ *   const newMsgs = await querySharedData("messages", { since: lastTimestamp });
+ */
+export async function querySharedData(
+  collection: string,
+  options: { since?: string; limit?: number; offset?: number; order?: "asc" | "desc" } = {},
+): Promise<SharedAppDataListResult> {
+  const qs = new URLSearchParams();
+  if (options.since) qs.set("since", options.since);
+  if (options.limit) qs.set("limit", String(options.limit));
+  if (options.offset) qs.set("offset", String(options.offset));
+  if (options.order) qs.set("order", options.order);
+  const query = qs.toString();
+  const path = projectApiPrefix() + "/shared/" + encodeURIComponent(collection) + (query ? "?" + query : "");
+  const res = await platformFetch(path);
+  return parseEnvelope<SharedAppDataListResult>(res);
 }
 `;
 

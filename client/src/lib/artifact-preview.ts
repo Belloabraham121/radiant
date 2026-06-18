@@ -20,7 +20,11 @@ function escapeStyleClose(css: string): string {
 function collectCss(files: ArtifactFile[]): string {
   return files
     .filter((file) => file.path.endsWith(".css"))
-    .map((file) => file.content.replace(/@import\s+["']tailwindcss["'];?/g, ""))
+    .map((file) =>
+      file.content
+        .replace(/@import\s+["']tailwindcss["'];?/g, "")
+        .replace(/@tailwind\s+(?:base|components|utilities)\s*;?/g, ""),
+    )
     .join("\n");
 }
 

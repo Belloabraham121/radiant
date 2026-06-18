@@ -5,12 +5,36 @@ import { ArtifactPreview } from "@/components/app/ArtifactPreview";
 import type { ArtifactFile } from "@/lib/artifact-types";
 import { isAppActionApiPath } from "@/lib/artifact-preview-bridge";
 import { parseAppActionResultFromBody } from "@/lib/app-actions-api";
-import { useChatAgentStream } from "@/components/app/ChatAgentStreamBridge";
+import {
+  ChatAgentStreamProvider,
+  useChatAgentStream,
+  useChatAgentStreamContext,
+} from "@/components/app/ChatAgentStreamBridge";
 import { useActivePreviewSessionRegistration } from "@/lib/active-preview-session";
 import { handlePreviewApprovalResolvedMessage } from "@/lib/preview-approval-relay";
 import { handlePreviewExecuteResultMessage } from "@/lib/preview-execute-result";
 
-export function ArtifactPreviewWithApproval({
+export function ArtifactPreviewWithApproval(props: {
+  files: ArtifactFile[];
+  revision: number;
+  streaming?: boolean;
+  projectId?: string;
+  installationId?: string;
+  sessionId?: string;
+}) {
+  const existingStreamContext = useChatAgentStreamContext();
+  if (existingStreamContext) {
+    return <ArtifactPreviewWithApprovalInner {...props} />;
+  }
+
+  return (
+    <ChatAgentStreamProvider sessionId={props.sessionId}>
+      <ArtifactPreviewWithApprovalInner {...props} />
+    </ChatAgentStreamProvider>
+  );
+}
+
+function ArtifactPreviewWithApprovalInner({
   files,
   revision,
   streaming = false,

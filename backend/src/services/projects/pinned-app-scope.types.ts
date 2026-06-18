@@ -27,18 +27,24 @@ const PINNED_EXECUTE_IN_APP =
   "The preview handles the visual feedback: field fills with delays, button highlights, then an in-app confirmation modal. ";
 
 const PINNED_ACTION_FLOW =
-  "1) Call query_chain session_actions (chat draft) or project_actions for this pinned app to learn available actions and param names. " +
+  "1) Optionally call query_chain project_actions or session_actions (no params needed — pinned scope is applied automatically) to learn available actions and param names. " +
   "2) Call call_app_action with the matching action and params — execution is delegated to the preview iframe which drives the UI step by step. " +
   "3) The user sees the agent filling fields, clicking buttons, and a confirmation modal in the preview — your reply should be brief (e.g. 'Running swap in your app — confirm in the preview.'). " +
-  "Skip list_session_projects; scope is already set. ";
+  "Skip list_session_projects; scope is already set. Do NOT pass app_name or project_id to query_chain when the user pinned an app — the platform resolves the pinned app. ";
+
+const PINNED_INSTALLATION_ACTION_FLOW =
+  "1) Optionally call query_chain project_actions {} (no params) to list this installation's actions — scope is resolved from the pin. " +
+  "2) Call call_app_action with the matching action and params (installation_id is applied automatically if omitted). " +
+  "3) Reply briefly after the action runs in the app preview. " +
+  "Skip list_session_projects and never pass app_name — other apps in this chat are irrelevant. ";
 
 export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
   if (scope.kind === "installation") {
     return (
-      `User pinned app: "${scope.name}" (installation_id: ${scope.installation_id}). ` +
+      `User pinned INSTALLED app: "${scope.name}" (installation_id: ${scope.installation_id}). ` +
       PINNED_EXECUTE_IN_APP +
-      PINNED_ACTION_FLOW +
-      `Use call_app_action with installation_id "${scope.installation_id}".`
+      PINNED_INSTALLATION_ACTION_FLOW +
+      `Use call_app_action with installation_id "${scope.installation_id}" (or omit scope fields — pin applies automatically).`
     );
   }
 
@@ -47,7 +53,8 @@ export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
       `User pinned app: "${scope.name}" (chat draft in this session). ` +
       PINNED_EXECUTE_IN_APP +
       PINNED_ACTION_FLOW +
-      `Use call_app_action with use_session_draft: true and app_name "${scope.name}".`
+      `Use call_app_action with use_session_draft: true and app_name "${scope.name}". ` +
+      `When the user asks to deploy this app, call deploy_app { use_session_draft: true } — it auto-saves the draft and publishes on the Radiant explorer. Never refuse deploy without calling deploy_app.`
     );
   }
 
@@ -55,7 +62,8 @@ export function formatPinnedAppScopeForPrompt(scope: PinnedAppScope): string {
     `User pinned app: "${scope.name}" (project_id: ${scope.project_id}). ` +
     PINNED_EXECUTE_IN_APP +
     PINNED_ACTION_FLOW +
-    `Use call_app_action with project_id "${scope.project_id}".`
+    `Use call_app_action with project_id "${scope.project_id}". ` +
+    `When the user asks to deploy, call deploy_app { project_id: "${scope.project_id}" }.`
   );
 }
 

@@ -4,6 +4,7 @@ import { getCorsEnv, getServerEnv } from "./config/env.js";
 import { getInngestConfig } from "./config/inngest.js";
 import { prisma } from "./infrastructure/postgres/client.js";
 import { killStaleRadiantSandboxesOnBoot } from "./services/sandbox/e2b-cleanup.service.js";
+import { initAppDataStorage } from "./services/app-data/app-data.storage.js";
 import { logger } from "./shared/logger.js";
 
 const app = createApp();
@@ -28,6 +29,9 @@ registerProcessHandlers();
 async function start() {
   await prisma.$connect();
   logger.info("Database connected");
+
+  const appDataBackend = await initAppDataStorage();
+  logger.info("App data storage initialized", { requested: process.env.APP_DATA_STORAGE ?? "postgres", active: appDataBackend });
 
   const cleanup = await killStaleRadiantSandboxesOnBoot();
   if (cleanup) {

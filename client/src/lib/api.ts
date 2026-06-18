@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./api-config";
+import { messageForApiFailure } from "./api-error-messages";
 
 /** Backend origin — used for Next.js rewrites and server-side fetches. */
 export { API_BASE_URL };
@@ -51,8 +52,26 @@ export class ApiError extends Error {
   }
 }
 
-/** Authenticated fetch against the Radiant API (cookies included). */
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+const TRANSIENT_RETRY_DELAY_MS = 400;
+
+function isIdempotentMethod(method: string): boolean {
+  const upper = method.toUpperCase();
+  return upper === "GET" || upper === "HEAD";
+}
+
+function isTransientApiError(err: unknown): err is ApiError {
+  if (!(err instanceof ApiError)) {
+    return false;
+  }
+  return (
+    err.code === "NETWORK_ERROR" ||
+    (err.code === "PARSE_ERROR" &&
+      (err.status === 0 || err.status === 502 || err.status === 504))
+  );
+}
+
+async function apiFetchOnce<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method ?? "GET";
   const headers = new Headers(init?.headers);
   if (init?.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -69,7 +88,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(
       0,
       "NETWORK_ERROR",
-      "Could not reach the API server. Make sure the backend is running (npm run dev in backend/).",
+      messageForApiFailure(path, "network", method),
     );
   }
 
@@ -83,18 +102,18 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       /socket hang up|ECONNREFUSED|ECONNRESET|Internal Server Error/i.test(rawText);
     const likelyTimeout = response.status === 504 || response.status === 502;
 
-    let message = "Invalid API response";
+    let kind: "timeout" | "unreachable" | "invalid" = "invalid";
     if (likelyTimeout || (proxyFailure && response.status >= 500)) {
-      message =
-        "The agent request took too long or the connection dropped. " +
-        "Your backend may still be processing — wait a moment and refresh the chat. " +
-        "If it keeps happening, try a shorter question first.";
+      kind = "timeout";
     } else if (proxyFailure) {
-      message =
-        "Could not reach the API server. Make sure the backend is running (npm run dev in backend/).";
+      kind = "unreachable";
     }
 
-    throw new ApiError(response.status, "PARSE_ERROR", message);
+    throw new ApiError(
+      response.status,
+      "PARSE_ERROR",
+      messageForApiFailure(path, kind, method),
+    );
   }
 
   if (!response.ok || !body.success || body.data === null) {
@@ -107,4 +126,28 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   return body.data;
+}
+
+/** Authenticated fetch against the Radiant API (cookies included). */
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method ?? "GET";
+  const maxAttempts = isIdempotentMethod(method) ? 2 : 1;
+
+  let lastError: ApiError | undefined;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      await new Promise((resolve) => setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS));
+    }
+
+    try {
+      return await apiFetchOnce<T>(path, init);
+    } catch (err) {
+      if (!isTransientApiError(err) || attempt === maxAttempts - 1) {
+        throw err;
+      }
+      lastError = err;
+    }
+  }
+
+  throw lastError ?? new ApiError(0, "NETWORK_ERROR", "Request failed");
 }

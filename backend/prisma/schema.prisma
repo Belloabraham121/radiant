@@ -296,6 +296,23 @@ model ArtifactFile {
   @@index([project_id, revision])
 }
 
+/// Per-installation app data — personal storage for generated apps (Phase 1: Postgres, Phase 2: Turso).
+model AppData {
+  id              String          @id @default(uuid()) @db.Uuid
+  project_id      String          @db.Uuid
+  installation_id String?         @db.Uuid
+  user_id         BigInt
+  collection      String          @db.VarChar(100)
+  key             String?         @db.VarChar(255)
+  data            Json
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+
+  @@unique([project_id, user_id, collection, key])
+  @@index([project_id, user_id, collection, created_at(sort: Desc)])
+  @@index([project_id, installation_id, collection, created_at(sort: Desc)])
+}
+
 model DeployJob {
   id                  String          @id @default(uuid()) @db.Uuid
   project_id          String          @db.Uuid

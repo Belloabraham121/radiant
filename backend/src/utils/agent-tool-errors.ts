@@ -103,7 +103,7 @@ function guidanceForErrorCode(code: string): string {
       return "Explain the swap could not complete due to price movement. Suggest a smaller amount or higher slippage.";
     case "SUI_RPC_UNAVAILABLE":
     case "SUI_RPC_RATE_LIMITED":
-      return "Explain Sui RPC was temporarily busy or unreachable. Suggest waiting a few seconds and retrying the swap.";
+      return "Explain Sui RPC was temporarily busy or unreachable. Suggest waiting a few seconds and retrying the swap. Do NOT use this explanation for deploy_app or publish_app failures — those are not on-chain.";
     case "TRANSACTION_ERROR":
     case "TRANSACTION_FAILED":
       return "Explain the transaction failed on chain in plain language.";

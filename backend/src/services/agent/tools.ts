@@ -52,12 +52,32 @@ import {
   callAppActionToolDefinition,
   runCallAppActionTool,
 } from "../projects/call-app-action.tool.js";
+import {
+  EDIT_APP_TOOL_NAME,
+  editAppToolDefinition,
+  runEditAppTool,
+} from "../projects/edit-app.tool.js";
 import type { UpdateMemoryInput } from "../memory/agent-memory.types.js";
 import {
   UPDATE_MEMORY_TOOL_NAME,
   updateMemoryToolDefinition,
   runUpdateMemoryTool,
 } from "./update-memory.tool.js";
+import {
+  WEB_SEARCH_TOOL_NAME,
+  webSearchToolDefinition,
+  runWebSearchTool,
+} from "./browsing/web-search.tool.js";
+import {
+  BROWSE_WEBPAGE_TOOL_NAME,
+  browseWebpageToolDefinition,
+  runBrowseWebpageTool,
+} from "./browsing/browse-webpage.tool.js";
+import {
+  CALL_API_TOOL_NAME,
+  callApiToolDefinition,
+  runCallApiTool,
+} from "./browsing/call-api.tool.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 
 export const agentToolDefinitions = [
@@ -67,11 +87,15 @@ export const agentToolDefinitions = [
   updateMemoryToolDefinition,
   listSessionProjectsToolDefinition,
   generateAppToolDefinition,
+  editAppToolDefinition,
   deployAppToolDefinition,
   listPublicAppsToolDefinition,
   installAppToolDefinition,
   publishAppToolDefinition,
   saveProjectToolDefinition,
+  webSearchToolDefinition,
+  browseWebpageToolDefinition,
+  callApiToolDefinition,
 ] as const;
 
 export type AgentToolErrorResult = {
@@ -152,8 +176,15 @@ async function dispatchAgentTool(
           sessionId: options?.sessionId,
           rawArguments: options?.rawArguments,
         });
+      case EDIT_APP_TOOL_NAME:
+        return await runEditAppTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+        });
       case DEPLOY_APP_TOOL_NAME:
-        return await runDeployAppTool(privyUserId, input);
+        return await runDeployAppTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+          pinnedAppScope: options?.pinnedAppScope,
+        });
       case LIST_PUBLIC_APPS_TOOL_NAME:
         return await runListPublicAppsTool(privyUserId, input);
       case INSTALL_APP_TOOL_NAME:
@@ -164,6 +195,12 @@ async function dispatchAgentTool(
         return await runSaveProjectTool(privyUserId, input, {
           sessionId: options?.sessionId,
         });
+      case WEB_SEARCH_TOOL_NAME:
+        return await runWebSearchTool(privyUserId, input);
+      case BROWSE_WEBPAGE_TOOL_NAME:
+        return await runBrowseWebpageTool(privyUserId, input);
+      case CALL_API_TOOL_NAME:
+        return await runCallApiTool(privyUserId, input);
       default:
         throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
     }

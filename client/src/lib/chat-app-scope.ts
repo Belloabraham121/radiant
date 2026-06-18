@@ -67,6 +67,10 @@ export function saveStoredChatAppScope(sessionId: string | undefined, scope: Cha
   window.localStorage.setItem(key, JSON.stringify(scope));
 }
 
+export function clearStoredChatAppScope(sessionId: string): void {
+  saveStoredChatAppScope(sessionId, null);
+}
+
 /** Parse API / DB `app_scope` JSON into a typed scope (invalid → null). */
 export function parseChatAppScope(value: unknown): ChatAppScope | null {
   if (value == null) {

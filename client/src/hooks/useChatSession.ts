@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
+import { messageForChatStreamError } from "@/lib/api-error-messages";
 import {
   fetchSessionMessages,
   postChat,
@@ -34,7 +35,6 @@ import type { AgentStatusCategory } from "@/lib/agent-status-category";
 import { inferStatusCategoryFromStep } from "@/lib/agent-status-category";
 import {
   subscribePreviewApprovalResolution,
-  tryRelayPendingApprovalToPreview,
 } from "@/lib/preview-approval-relay";
 import {
   previewExecuteResultToPending,
@@ -107,19 +107,28 @@ export function useChatSession(sessionId?: string) {
   const streamAbortRef = useRef<AbortController | null>(null);
 
   const applyPendingTransaction = useCallback(
-    (pending: PendingTransaction | null, sessionKey?: string) => {
+    (
+      pending: PendingTransaction | null,
+      sessionKey?: string,
+      options?: { fromPreview?: boolean },
+    ) => {
       setPendingTx(pending);
       if (!pending) {
         setPendingTxRelayedToPreview(false);
         return;
       }
-      const relayed = tryRelayPendingApprovalToPreview(
-        pending,
-        sessionKey ?? activeSessionId ?? sessionId,
-      );
-      setPendingTxRelayedToPreview(relayed);
+
+      if (options?.fromPreview) {
+        // The preview iframe already shows its own in-app approval modal —
+        // mark as relayed so the chat hides its approval bar.
+        setPendingTxRelayedToPreview(true);
+      } else {
+        // Chat-initiated transaction (execute_transaction / call_app_action) —
+        // approval stays in the chat bar; never relay to the preview iframe.
+        setPendingTxRelayedToPreview(false);
+      }
     },
-    [activeSessionId, sessionId],
+    [],
   );
 
   useEffect(() => {
@@ -167,7 +176,9 @@ export function useChatSession(sessionId?: string) {
     return subscribePreviewExecuteResult((message) => {
       const pending = previewExecuteResultToPending(message);
       if (pending) {
-        applyPendingTransaction(pending, activeSessionId ?? sessionId);
+        applyPendingTransaction(pending, activeSessionId ?? sessionId, {
+          fromPreview: true,
+        });
       }
 
       setMessages((current) => {
@@ -452,7 +463,7 @@ export function useChatSession(sessionId?: string) {
         } else {
           const message =
             err instanceof ApiError
-              ? err.message
+              ? (messageForChatStreamError(err.code) ?? err.message)
               : "Could not reach your agent. Try again.";
           setChatError(message);
           setMessages((current) =>
@@ -518,7 +529,9 @@ export function useChatSession(sessionId?: string) {
       void refreshSessions({ silent: true });
     } catch (err) {
       const message =
-        err instanceof ApiError ? err.message : "Approval failed. Try again.";
+        err instanceof ApiError
+          ? (messageForChatStreamError(err.code) ?? err.message)
+          : "Approval failed. Try again.";
       setChatError(message);
     } finally {
       setApproving(false);
