@@ -320,3 +320,16 @@
     animation: none;
   }
 }
+
+/* Sonner — match Radiant hero toast styling */
+[data-sonner-toaster] {
+  font-family: inherit;
+  z-index: 80;
+}
+
+[data-sonner-toast][data-styled="true"] {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}

@@ -86,6 +86,17 @@ import {
   callApiToolDefinition,
   runCallApiTool,
 } from "./browsing/call-api.tool.js";
+import {
+  CREATE_NOTIFICATION_RULE_TOOL_NAME,
+  DELETE_NOTIFICATION_RULE_TOOL_NAME,
+  LIST_NOTIFICATION_RULES_TOOL_NAME,
+  UPDATE_NOTIFICATION_RULE_TOOL_NAME,
+  notificationRuleToolDefinitions,
+  runCreateNotificationRuleTool,
+  runDeleteNotificationRuleTool,
+  runListNotificationRulesTool,
+  runUpdateNotificationRuleTool,
+} from "../notifications/notification-rules.tool.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 
 export const agentToolDefinitions = [
@@ -105,6 +116,7 @@ export const agentToolDefinitions = [
   webSearchToolDefinition,
   browseWebpageToolDefinition,
   callApiToolDefinition,
+  ...notificationRuleToolDefinitions,
 ] as const;
 
 export type AgentToolErrorResult = {
@@ -227,6 +239,19 @@ async function dispatchAgentTool(
         return await runBrowseWebpageTool(privyUserId, input);
       case CALL_API_TOOL_NAME:
         return await runCallApiTool(privyUserId, input);
+      case CREATE_NOTIFICATION_RULE_TOOL_NAME:
+        return await runCreateNotificationRuleTool(privyUserId, input, {
+          sessionId: options?.sessionId,
+          pinnedAppScope: options?.pinnedAppScope,
+        });
+      case LIST_NOTIFICATION_RULES_TOOL_NAME:
+        return await runListNotificationRulesTool(privyUserId, input, {
+          pinnedAppScope: options?.pinnedAppScope,
+        });
+      case UPDATE_NOTIFICATION_RULE_TOOL_NAME:
+        return await runUpdateNotificationRuleTool(privyUserId, input);
+      case DELETE_NOTIFICATION_RULE_TOOL_NAME:
+        return await runDeleteNotificationRuleTool(privyUserId, input);
       default:
         throw new AppError(400, "UNKNOWN_TOOL", `Unknown agent tool: ${name}`);
     }

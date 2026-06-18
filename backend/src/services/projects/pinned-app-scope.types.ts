@@ -145,3 +145,32 @@ export function mergePinnedAppScopeIntoArtifactTool<T extends ArtifactToolScopeF
 export function scopeDisplayName(scope: PinnedAppScope): string {
   return scope.name;
 }
+
+export type NotificationRuleScopeFields = {
+  project_id?: string;
+  installation_id?: string;
+};
+
+export function hasNotificationRuleScope(fields: NotificationRuleScopeFields): boolean {
+  return Boolean(fields.project_id || fields.installation_id);
+}
+
+/** Apply chat-pinned app scope when the agent omits notification rule scope fields. */
+export function mergePinnedAppScopeIntoNotificationRule<T extends NotificationRuleScopeFields>(
+  input: T,
+  pinned?: PinnedAppScope | null,
+): T {
+  if (!pinned || hasNotificationRuleScope(input)) {
+    return input;
+  }
+
+  if (pinned.kind === "installation") {
+    return { ...input, installation_id: pinned.installation_id };
+  }
+
+  if (pinned.kind === "project") {
+    return { ...input, project_id: pinned.project_id };
+  }
+
+  return input;
+}

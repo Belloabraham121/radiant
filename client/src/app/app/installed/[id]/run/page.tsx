@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { ArtifactPreviewWithApproval } from "@/components/app/ArtifactPreviewWithApproval";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import type { ArtifactPayload } from "@/lib/artifact-types";
+import { NotificationAppAlertsSection } from "@/components/app/NotificationAppAlertsSection";
 import { fetchInstallationArtifact } from "@/lib/installations-api";
 
 export default function InstalledAppRunPage({ params }: { params: Promise<{ id: string }> }) {
@@ -60,6 +61,14 @@ export default function InstalledAppRunPage({ params }: { params: Promise<{ id: 
           ) : null}
         </div>
       </header>
+
+      {sourceProjectId ? (
+        <NotificationAppAlertsSection
+          projectId={sourceProjectId}
+          installationId={id}
+          compact
+        />
+      ) : null}
 
       <div className="relative min-h-0 flex-1">
         {loading ? (

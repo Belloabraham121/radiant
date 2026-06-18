@@ -1,7 +1,7 @@
-/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v9 — shared data + external API proxy. */
-export const RADIANT_CLIENT_TEMPLATE_VERSION = 9;
+/** Default lib/radiant-client.ts shipped with generated Next.js apps. Template v10 — notifications + shared data + external API proxy. */
+export const RADIANT_CLIENT_TEMPLATE_VERSION = 10;
 
-export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v9. */
+export const RADIANT_CLIENT_TS = `/** Radiant platform client — project-scoped DeepBook & wallet APIs on Radiant. Template v10. */
 
 export type SwapQuoteParams = {
   amount: number;
@@ -739,6 +739,179 @@ export async function querySharedData(
   const path = projectApiPrefix() + "/shared/" + encodeURIComponent(collection) + (query ? "?" + query : "");
   const res = await platformFetch(path);
   return parseEnvelope<SharedAppDataListResult>(res);
+}
+
+// --- Notifications (in-app inbox, web push, poll evaluators) ---
+
+export type NotificationChannel = "in_app" | "web_push" | "email";
+
+export type NotificationSchedule =
+  | { kind: "once"; at: string }
+  | { kind: "cron"; expression: string; timezone: string }
+  | { kind: "interval"; every_seconds: number; until?: string };
+
+export type NotificationTypeDefinition = {
+  type: string;
+  label: string;
+  description?: string;
+  trigger_kind: "poll" | "schedule" | "event" | "manual";
+  condition_schema?: Array<{
+    name: string;
+    type: "string" | "number" | "boolean" | "array" | "object";
+    required?: boolean;
+    description?: string;
+  }>;
+  default_channels?: NotificationChannel[];
+};
+
+export type ProjectNotificationSchema = {
+  schema_version: number;
+  app_id: string;
+  types: NotificationTypeDefinition[];
+};
+
+export type NotificationRuleRecord = {
+  id: string;
+  notification_type: string;
+  label: string | null;
+  status: string;
+  condition: Record<string, unknown>;
+  schedule: NotificationSchedule | null;
+  channels: NotificationChannel[];
+  cooldown_seconds: number;
+  trigger_once: boolean;
+  last_triggered_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NotificationEventRecord = {
+  id: string;
+  notification_type: string;
+  title: string;
+  body: string;
+  payload: Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+};
+
+function notificationRulesPrefix(): string {
+  const { projectId: id, installationId: install } = scopeIds();
+  if (install) {
+    return "/api/v1/installations/" + install + "/notifications";
+  }
+  if (id) {
+    return "/api/v1/projects/" + id + "/notifications";
+  }
+  return "/api/v1/notifications";
+}
+
+/**
+ * Load alert types declared for this app (poll evaluators, condition fields, labels).
+ * Requires project scope — chat drafts with session-only scope should save to a project first.
+ */
+export async function getNotificationSchema(): Promise<{ schema: ProjectNotificationSchema | null }> {
+  const { projectId: id } = scopeIds();
+  if (!id) {
+    throw new RadiantActionError(
+      "Notification schema requires a saved project scope",
+      "MISSING_PROJECT_SCOPE",
+    );
+  }
+  const res = await platformFetch("/api/v1/projects/" + id + "/notifications/schema");
+  return parseEnvelope<{ schema: ProjectNotificationSchema | null }>(res);
+}
+
+export type CreateNotificationRuleInput = {
+  notification_type: string;
+  condition?: Record<string, unknown>;
+  schedule?: NotificationSchedule;
+  channels?: NotificationChannel[];
+  label?: string;
+  cooldown_seconds?: number;
+  trigger_once?: boolean;
+  expires_at?: string;
+};
+
+/** Create an alert rule scoped to this app (or platform when unscoped). */
+export async function createNotificationRule(
+  input: CreateNotificationRuleInput,
+): Promise<NotificationRuleRecord> {
+  const prefix = notificationRulesPrefix();
+  const path =
+    prefix === "/api/v1/notifications" ? "/api/v1/notifications/rules" : prefix + "/rules";
+  const res = await platformFetch(path, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return parseEnvelope<NotificationRuleRecord>(res);
+}
+
+export type ListNotificationRulesOptions = {
+  status?: "active" | "paused" | "expired" | "deleted";
+  notification_type?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export async function listNotificationRules(
+  options: ListNotificationRulesOptions = {},
+): Promise<{ rules: NotificationRuleRecord[]; total: number; limit: number; offset: number }> {
+  const prefix = notificationRulesPrefix();
+  const path =
+    prefix === "/api/v1/notifications" ? "/api/v1/notifications/rules" : prefix + "/rules";
+  const qs = new URLSearchParams();
+  if (options.status) qs.set("status", options.status);
+  if (options.notification_type) qs.set("notification_type", options.notification_type);
+  if (options.limit) qs.set("limit", String(options.limit));
+  if (options.offset) qs.set("offset", String(options.offset));
+  const query = qs.toString();
+  const res = await platformFetch(path + (query ? "?" + query : ""));
+  return parseEnvelope<{ rules: NotificationRuleRecord[]; total: number; limit: number; offset: number }>(
+    res,
+  );
+}
+
+export async function deleteNotificationRule(ruleId: string): Promise<{ deleted: boolean }> {
+  const res = await platformFetch("/api/v1/notifications/rules/" + encodeURIComponent(ruleId), {
+    method: "DELETE",
+  });
+  return parseEnvelope<{ deleted: boolean }>(res);
+}
+
+export type ListNotificationsOptions = {
+  unread?: boolean;
+  limit?: number;
+  offset?: number;
+};
+
+/** List inbox notifications for the signed-in user (platform-wide, not app-scoped). */
+export async function listNotifications(
+  options: ListNotificationsOptions = {},
+): Promise<{ events: NotificationEventRecord[]; total: number; limit: number; offset: number }> {
+  const qs = new URLSearchParams();
+  if (options.unread !== undefined) qs.set("unread", options.unread ? "true" : "false");
+  if (options.limit) qs.set("limit", String(options.limit));
+  if (options.offset) qs.set("offset", String(options.offset));
+  const query = qs.toString();
+  const res = await platformFetch(
+    "/api/v1/notifications/events" + (query ? "?" + query : ""),
+  );
+  return parseEnvelope<{
+    events: NotificationEventRecord[];
+    total: number;
+    limit: number;
+    offset: number;
+  }>(res);
+}
+
+export async function markNotificationRead(eventId: string): Promise<NotificationEventRecord> {
+  const res = await platformFetch(
+    "/api/v1/notifications/events/" + encodeURIComponent(eventId) + "/read",
+    { method: "POST" },
+  );
+  return parseEnvelope<NotificationEventRecord>(res);
 }
 `;
 

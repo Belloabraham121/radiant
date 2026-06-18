@@ -11,7 +11,7 @@ import {
 
 describe("radiant-client template", () => {
   it("is at expected version with execute helpers", () => {
-    assert.equal(RADIANT_CLIENT_TEMPLATE_VERSION, 6);
+    assert.equal(RADIANT_CLIENT_TEMPLATE_VERSION, 10);
     assert.match(RADIANT_CLIENT_TS, /export async function executeAction/);
     assert.match(RADIANT_CLIENT_TS, /export async function executeSwap/);
     assert.match(RADIANT_CLIENT_TS, /export async function executeFlashLoan/);
@@ -30,7 +30,13 @@ describe("radiant-client template", () => {
     assert.match(RADIANT_CLIENT_TS, /approveAgentTransaction/);
     assert.match(RADIANT_CLIENT_TS, /rejectAgentTransaction/);
     assert.match(RADIANT_CLIENT_TS, /RadiantActionError/);
-    assert.equal(RADIANT_AGENT_RUNTIME_VERSION, 6);
+    assert.match(RADIANT_CLIENT_TS, /export async function createNotificationRule/);
+    assert.match(RADIANT_CLIENT_TS, /export async function listNotificationRules/);
+    assert.match(RADIANT_CLIENT_TS, /export async function deleteNotificationRule/);
+    assert.match(RADIANT_CLIENT_TS, /export async function getNotificationSchema/);
+    assert.match(RADIANT_CLIENT_TS, /export async function listNotifications/);
+    assert.match(RADIANT_CLIENT_TS, /export async function markNotificationRead/);
+    assert.equal(RADIANT_AGENT_RUNTIME_VERSION, 10);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /notifyParentExecuteResult/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /showInAppApprovalModal/);
     assert.match(RADIANT_AGENT_RUNTIME_TS, /resolveApprovalIfNeeded/);

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Activity,
+  Bell,
   ChevronsLeft,
   FolderKanban,
   MessageSquare,
@@ -16,6 +17,7 @@ import {
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { DeleteChatDialog } from "@/components/app/DeleteChatDialog";
+import { useNotifications } from "@/components/app/NotificationProvider";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { formatSessionTime } from "@/lib/chat-messages";
@@ -28,6 +30,7 @@ const NAV = [
   { href: "/app", label: "Chats", Icon: MessageSquare },
   { href: "/app/activity", label: "Activity", Icon: Activity },
   { href: "/app/projects", label: "Projects", Icon: FolderKanban },
+  { href: "/app/notifications", label: "Notifications", Icon: Bell },
 ];
 
 export function Sidebar() {
@@ -36,6 +39,7 @@ export function Sidebar() {
   const { open, setOpen } = useSidebar();
   const { seed, displayName } = useUserProfile();
   const { sessions, loading, error, refreshSessions } = useChatSessions();
+  const { unreadCount } = useNotifications();
   const [deleteTarget, setDeleteTarget] = useState<ChatSessionListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -115,6 +119,7 @@ export function Sidebar() {
                   ? pathname.startsWith("/app/projects") ||
                     pathname.startsWith("/app/installed")
                   : pathname.startsWith(href);
+            const showUnreadBadge = href === "/app/notifications" && unreadCount > 0;
             return (
               <Link
                 key={href}
@@ -126,7 +131,12 @@ export function Sidebar() {
                 }`}
               >
                 <Icon className="size-3.5" strokeWidth={2.5} />
-                {label}
+                <span className="min-w-0 flex-1 truncate">{label}</span>
+                {showUnreadBadge ? (
+                  <span className="flex min-w-[1.125rem] items-center justify-center rounded-full bg-[var(--hero-coral)] px-1.5 py-0.5 text-[10px] font-extrabold leading-none text-white">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

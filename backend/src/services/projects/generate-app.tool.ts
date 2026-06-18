@@ -10,7 +10,8 @@ export const generateAppToolDefinition = {
   description:
     "Create or rebuild a UI in the artifact panel. Prefer edit_app for tweaks to an existing pinned or session app. " +
     "When an app is pinned, project scope is applied automatically. " +
-    "Partial file lists merge with existing sources — you do not need to resend every file.",
+    "Partial file lists merge with existing sources — you do not need to resend every file. " +
+    "For alert-capable apps, declare alert types in lib/radiant-notifications.ts and wire createNotificationRule/listNotificationRules from lib/radiant-client; the platform persists notification_schema automatically.",
   input_schema: {
     type: "object" as const,
     properties: {

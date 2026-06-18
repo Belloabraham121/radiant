@@ -32,6 +32,7 @@ import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { findProjectByIdForUser } from "../projects/project.repository.js";
 import { buildProjectActionsCatalogResponse } from "../projects/app-action-schema.service.js";
+import { buildProjectNotificationSchemaResponse } from "../notifications/notification-schema.service.js";
 import {
   listAppActionsCatalogForPinnedScope,
   listAppActionsCatalogForSession,
@@ -117,6 +118,7 @@ export const queryChainToolDefinition = {
           "agent_transactions",
           "project_actions",
           "session_actions",
+          "project_notification_schema",
           "margin_pool_info",
           "margin_manager_info",
           "margin_tpsl_info",
@@ -137,7 +139,7 @@ export const queryChainToolDefinition = {
           "predict_vault_summary",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, margin_pool_info, margin_manager_info, margin_tpsl_info, margin_open_orders, margin_liquidations, margin_collateral_history, margin_loan_history, margin_at_risk_states, margin_managers_info, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, or predict_vault_summary.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, project_notification_schema, margin_pool_info, margin_manager_info, margin_tpsl_info, margin_open_orders, margin_liquidations, margin_collateral_history, margin_loan_history, margin_at_risk_states, margin_managers_info, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, or predict_vault_summary.",
       },
       params: {
         type: "object",
@@ -158,6 +160,7 @@ export const queryChainToolDefinition = {
           "agent_transactions: optional { limit (max 10), status, category, session_id, transaction_id } — " +
           "returns recent agent wallet activity; response includes summary (date, amount, status, digest) to quote in chat. " +
           "project_actions: { project_id } OR { app_name } — saved project action schema. Never pass an app name as project_id. When the user pinned an app in chat, omit params — pinned scope is applied automatically (including installed apps). " +
+          "project_notification_schema: { project_id } OR { app_name } — saved project notification alert types and condition fields. Same scope rules as project_actions. " +
           "session_actions: optional { app_name } — chat draft artifact action schema (unsaved preview). Uses current chat session. When an app is pinned, omit params. " +
           "margin_pool_info: { pool_key?, coin_type? } — margin pool live supply/borrow/interest/utilization plus trading-pool leverage config. " +
           "Use pool_key to list margin-enabled trading pools; coin_type selects the lending asset (defaults to quote coin). " +
@@ -541,6 +544,80 @@ export async function runQueryChainTool(
 
       const catalog = await listAppActionsCatalogForSession(privyUserId, scope.session_id);
       return catalog;
+    }
+    case "project_notification_schema": {
+      const projectId = parsed.params.project_id;
+      const appName = parsed.params.app_name;
+
+      if (options?.pinnedAppScope?.kind === "project") {
+        const user = await findUserByPrivyId(privyUserId);
+        if (!user) {
+          throw new AppError(404, "USER_NOT_FOUND", "User not found");
+        }
+        const project = await findProjectByIdForUser(options.pinnedAppScope.project_id, user.id);
+        if (!project) {
+          throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+        }
+        return { schema: buildProjectNotificationSchemaResponse(project) };
+      }
+
+      if (options?.pinnedAppScope?.kind === "installation") {
+        const { findInstallationForUser } = await import("../apps/app-installation.repository.js");
+        const user = await findUserByPrivyId(privyUserId);
+        if (!user) {
+          throw new AppError(404, "USER_NOT_FOUND", "User not found");
+        }
+        const installation = await findInstallationForUser(
+          options.pinnedAppScope.installation_id,
+          user.id,
+        );
+        if (!installation) {
+          throw new AppError(404, "INSTALLATION_NOT_FOUND", "Installation not found");
+        }
+        return { schema: buildProjectNotificationSchemaResponse(installation.source_project) };
+      }
+
+      if (projectId) {
+        const user = await findUserByPrivyId(privyUserId);
+        if (!user) {
+          throw new AppError(404, "USER_NOT_FOUND", "User not found");
+        }
+        const project = await findProjectByIdForUser(projectId, user.id);
+        if (!project) {
+          throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+        }
+        return { schema: buildProjectNotificationSchemaResponse(project) };
+      }
+
+      if (!options?.sessionId) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "project_notification_schema requires params.project_id (UUID) or params.app_name with a chat session.",
+        );
+      }
+
+      const scope = await resolveAppScope(privyUserId, options.sessionId, {
+        app_name: appName,
+      });
+
+      if (scope.kind !== "project") {
+        throw new AppError(
+          404,
+          "NOTIFICATION_SCHEMA_NOT_FOUND",
+          "Notification schema is only available for saved projects — save the app to Projects first.",
+        );
+      }
+
+      const user = await findUserByPrivyId(privyUserId);
+      if (!user) {
+        throw new AppError(404, "USER_NOT_FOUND", "User not found");
+      }
+      const project = await findProjectByIdForUser(scope.project_id, user.id);
+      if (!project) {
+        throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
+      }
+      return { schema: buildProjectNotificationSchemaResponse(project) };
     }
     default:
       throw new AppError(

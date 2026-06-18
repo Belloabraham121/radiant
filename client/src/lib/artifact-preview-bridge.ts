@@ -64,6 +64,10 @@ export function isAppActionApiPath(path: string): boolean {
   return /\/actions\/[^/?#]+/.test(path);
 }
 
+export function isNotificationApiPath(path: string): boolean {
+  return /\/notifications(\/|$)/.test(path);
+}
+
 /** Rewrite project-scoped API paths to installation paths when previewing an installed app. */
 export function rewritePreviewApiPath(
   path: string,

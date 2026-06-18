@@ -72,6 +72,10 @@ model User {
   deepbook_margin_supply_referrals DeepBookMarginSupplyReferral[]
   projects                 Project[]
   app_installations        AppInstallation[]
+  notification_push_subscriptions NotificationPushSubscription[]
+  notification_preference  NotificationPreference?
+  notification_rules       NotificationRule[]
+  notification_events      NotificationEvent[]
 }
 
 model AgentMemory {
@@ -258,6 +262,7 @@ model Project {
   category           String        @default("payments")
   artifact_revision  Int           @default(0)
   action_schema      Json?
+  notification_schema Json?
   created_at         DateTime      @default(now())
   updated_at         DateTime      @updatedAt
   files              ArtifactFile[]
@@ -331,4 +336,131 @@ model DeployJob {
 
   @@index([project_id, created_at(sort: Desc)])
   @@index([status])
+}
+
+enum NotificationChannelType {
+  in_app
+  web_push
+  email
+}
+
+enum NotificationRuleStatus {
+  active
+  paused
+  expired
+  deleted
+}
+
+enum NotificationRuleSource {
+  user
+  agent
+  app
+  system
+}
+
+enum NotificationTriggerKind {
+  event
+  poll
+  schedule
+}
+
+enum NotificationDeliveryStatus {
+  pending
+  sent
+  failed
+  skipped
+  read
+}
+
+model NotificationPushSubscription {
+  id           String    @id @default(uuid()) @db.Uuid
+  user_id      BigInt
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  endpoint     String    @unique
+  p256dh       String
+  auth         String
+  user_agent   String?
+  created_at   DateTime  @default(now())
+  last_used_at DateTime?
+  revoked_at   DateTime?
+
+  @@index([user_id])
+}
+
+model NotificationPreference {
+  user_id           BigInt   @id
+  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  enabled           Boolean  @default(true)
+  timezone          String   @default("UTC")
+  quiet_hours_start String?  @db.VarChar(5)
+  quiet_hours_end   String?  @db.VarChar(5)
+  max_per_hour      Int      @default(10)
+  default_channels  Json     @default("[\"in_app\",\"web_push\"]")
+  updated_at        DateTime @updatedAt
+}
+
+model NotificationRule {
+  id                String                   @id @default(uuid()) @db.Uuid
+  user_id           BigInt
+  user              User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  project_id        String?                  @db.Uuid
+  installation_id   String?                  @db.Uuid
+  source            NotificationRuleSource
+  session_id        String?                  @db.Uuid
+  label             String?                  @db.VarChar(120)
+  notification_type String                   @db.VarChar(120)
+  trigger_kind      NotificationTriggerKind
+  condition         Json                     @default("{}")
+  schedule          Json?
+  channels          Json                     @default("[\"in_app\",\"web_push\"]")
+  status            NotificationRuleStatus   @default(active)
+  cooldown_seconds  Int                      @default(300)
+  trigger_once      Boolean                  @default(false)
+  last_triggered_at DateTime?
+  expires_at        DateTime?
+  created_at        DateTime                 @default(now())
+  updated_at        DateTime                 @updatedAt
+
+  events            NotificationEvent[]
+
+  @@index([user_id, status])
+  @@index([project_id, notification_type, status])
+  @@index([installation_id, status])
+  @@index([notification_type, status, trigger_kind])
+}
+
+model NotificationEvent {
+  id                String            @id @default(uuid()) @db.Uuid
+  user_id           BigInt
+  user              User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  rule_id           String?           @db.Uuid
+  rule              NotificationRule? @relation(fields: [rule_id], references: [id], onDelete: SetNull)
+  project_id        String?           @db.Uuid
+  installation_id   String?           @db.Uuid
+  notification_type String            @db.VarChar(120)
+  title             String
+  body              String            @db.Text
+  payload           Json              @default("{}")
+  idempotency_key   String?           @unique
+  created_at        DateTime          @default(now())
+
+  deliveries        NotificationDelivery[]
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([rule_id])
+}
+
+model NotificationDelivery {
+  id           String                     @id @default(uuid()) @db.Uuid
+  event_id     String                     @db.Uuid
+  event        NotificationEvent          @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  channel      NotificationChannelType
+  status       NotificationDeliveryStatus @default(pending)
+  error        String?
+  external_ref String?
+  sent_at      DateTime?
+  read_at      DateTime?
+
+  @@index([event_id])
+  @@index([status, channel])
 }

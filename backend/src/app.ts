@@ -8,6 +8,7 @@ import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
 import { agentPermissionsRouter } from "./api/routes/v1/agent/permissions.js";
 import { agentTransactionsRouter } from "./api/routes/v1/agent/transactions.js";
 import { authMeRouter } from "./api/routes/v1/auth/me.js";
+import { authExportRouter } from "./api/routes/v1/auth/export.js";
 import { authRegisterWalletRouter } from "./api/routes/v1/auth/register-wallet.js";
 import { walletAssetsRouter } from "./api/routes/v1/wallets/assets.js";
 import { walletBalancesRouter } from "./api/routes/v1/wallets/balances.js";
@@ -17,6 +18,7 @@ import { chatRouter } from "./api/routes/v1/chat/chat.js";
 import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
 import { e2bWebhookRouter } from "./api/routes/v1/webhooks/e2b.js";
+import { notificationsWebhookRouter } from "./api/routes/v1/webhooks/notifications.js";
 import { deployRouter } from "./api/routes/v1/deploy/deploy.js";
 import { projectsRouter } from "./api/routes/v1/projects/projects.js";
 import { appsRouter } from "./api/routes/v1/apps/apps.js";
@@ -25,6 +27,7 @@ import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.j
 import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
 import { proxyRouter } from "./api/routes/v1/proxy/proxy.js";
 import { appDataRouter } from "./api/routes/v1/app-data/app-data.js";
+import { notificationsRouter } from "./api/routes/v1/notifications/notifications.js";
 import { createCorsOptions } from "./config/cors.js";
 import { getInngestConfig } from "./config/inngest.js";
 import { inngest } from "./inngest/client.js";
@@ -50,6 +53,7 @@ export function createApp() {
   app.use(cookieParser());
   app.use(correlationIdMiddleware);
   app.use(requestLoggerMiddleware);
+  app.use("/api/v1/webhooks/notifications", notificationsWebhookRouter);
 
   if (getInngestConfig().enabled) {
     app.use(
@@ -63,6 +67,7 @@ export function createApp() {
 
   app.use(healthRouter);
   app.use(authMeRouter);
+  app.use(authExportRouter);
   app.use(agentPermissionsRouter);
   app.use(agentTransactionsRouter);
   app.use(authRegisterWalletRouter);
@@ -80,6 +85,7 @@ export function createApp() {
   app.use(installationsRouter);
   app.use(proxyRouter);
   app.use(appDataRouter);
+  app.use(notificationsRouter);
   app.use(errorHandlerMiddleware);
 
   return app;
