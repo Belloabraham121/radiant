@@ -6,7 +6,9 @@ import {
   countNotificationEventsSince,
   createNotificationDeliveries,
   createNotificationEvent,
+  findNotificationDeliveryForEventChannel,
   findNotificationEventByIdempotencyKey,
+  updateNotificationDelivery,
 } from "./notification-event.repository.js";
 import { getOrCreateNotificationPreference } from "./notification-preference.repository.js";
 import {
@@ -19,6 +21,7 @@ import type {
 } from "./notification-schema.types.js";
 import { emitNotificationStreamEvent } from "./notification-stream.service.js";
 import { validateNotificationChannels } from "./notification-schema.service.js";
+import { deliverWebPushNotification } from "./notification-web-push.service.js";
 
 export type EmitNotificationInput = {
   userId?: bigint;
@@ -181,11 +184,19 @@ export async function deliverNotification(
       };
     }
 
+    if (channel === "web_push") {
+      return {
+        eventId: event.id,
+        channel: "web_push" as const,
+        status: "pending" as const,
+      };
+    }
+
     return {
       eventId: event.id,
       channel,
       status: "skipped" as const,
-      error: "Channel not enabled in Phase 2",
+      error: "Channel not supported",
     };
   });
 
@@ -206,6 +217,41 @@ export async function deliverNotification(
     });
   }
 
+  const skippedChannels: NotificationChannel[] = channels.filter(
+    (channel) => channel !== "in_app" && channel !== "web_push",
+  );
+
+  if (channels.includes("web_push")) {
+    const webPushDelivery = await findNotificationDeliveryForEventChannel(event.id, "web_push");
+    const webPushResult = await deliverWebPushNotification({
+      userId,
+      event,
+      payload,
+    });
+
+    if (webPushDelivery) {
+      if (webPushResult.status === "sent") {
+        await updateNotificationDelivery(webPushDelivery.id, {
+          status: "sent",
+          sentAt: now,
+          error: null,
+        });
+      } else if (webPushResult.status === "skipped") {
+        await updateNotificationDelivery(webPushDelivery.id, {
+          status: "skipped",
+          error: webPushResult.reason,
+        });
+        skippedChannels.push("web_push");
+      } else {
+        await updateNotificationDelivery(webPushDelivery.id, {
+          status: "failed",
+          error: webPushResult.reason,
+        });
+        skippedChannels.push("web_push");
+      }
+    }
+  }
+
   if (rule) {
     await touchNotificationRuleTriggered(rule.id, {
       lastTriggeredAt: now,
@@ -216,6 +262,6 @@ export async function deliverNotification(
   return {
     status: "delivered",
     event_id: event.id,
-    skipped_channels: channels.filter((channel) => channel !== "in_app"),
+    skipped_channels: skippedChannels,
   };
 }

@@ -10,6 +10,7 @@ import { ConnectedAccountsSection } from "@/components/app/ConnectedAccountsSect
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { UserProfileCard } from "@/components/profile/UserProfileCard";
 import { AgentPermissionsSection } from "@/components/app/AgentPermissionsSection";
+import { NotificationPushSection } from "@/components/app/NotificationPushSection";
 import { useUserProfile } from "@/hooks/useUserProfile";
 
 gsap.registerPlugin(useGSAP);
@@ -71,6 +72,8 @@ export default function SettingsPage() {
       {/* <AgentVaultSection /> — Coming soon: real encrypted vault backend */}
 
       <AgentPermissionsSection />
+
+      <NotificationPushSection />
     </div>
   );
 }

@@ -594,16 +594,16 @@ Ship **Phase 0 + 1 + 2** first: schema + rule CRUD + in-app inbox + SSE. That un
 
 | Status | Task                        | Detail                                                   |
 | ------ | --------------------------- | -------------------------------------------------------- |
-| [ ]    | VAPID key generation script | Document in `.env.example`                               |
-| [ ]    | Service worker              | `client/public/sw.js` — `push`, `notificationclick`      |
-| [ ]    | SW registration             | Radiant shell — not generated apps (platform-owned)      |
-| [ ]    | Soft opt-in UI              | Settings or first alert flow — no cold permission prompt |
-| [ ]    | `subscribeWebPush()`        | Client helper + `POST /push/subscribe`                   |
-| [ ]    | Push subscription CRUD      | `NotificationPushSubscription`                           |
-| [ ]    | Server delivery             | `web-push` npm package, VAPID signing                    |
-| [ ]    | Subscription cleanup        | Delete on 410/404 from push service                      |
-| [ ]    | `pushsubscriptionchange`    | Re-subscribe in SW, POST new endpoint                    |
-| [ ]    | Deep link on click          | Open `/app/projects/:id/run` or installation run URL     |
+| [x]    | VAPID key generation script | Document in `.env.example`                               |
+| [x]    | Service worker              | `client/public/sw.js` — `push`, `notificationclick`      |
+| [x]    | SW registration             | Radiant shell — not generated apps (platform-owned)      |
+| [x]    | Soft opt-in UI              | Settings or first alert flow — no cold permission prompt |
+| [x]    | `subscribeWebPush()`        | Client helper + `POST /push/subscribe`                   |
+| [x]    | Push subscription CRUD      | `NotificationPushSubscription`                           |
+| [x]    | Server delivery             | `web-push` npm package, VAPID signing                    |
+| [x]    | Subscription cleanup        | Delete on 410/404 from push service                      |
+| [x]    | `pushsubscriptionchange`    | Re-subscribe in SW, POST new endpoint                    |
+| [x]    | Deep link on click          | Open `/app/projects/:id/run` or installation run URL     |
 
 ### Phase 4 — App integration (`radiant-client` + agent codegen)
 

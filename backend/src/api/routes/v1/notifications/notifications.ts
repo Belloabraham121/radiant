@@ -24,6 +24,12 @@ import { subscribeNotificationStream } from "../../../../services/notifications/
 import { enqueueNotificationEmit } from "../../../../infrastructure/inngest/enqueue-notification-emit.js";
 import { requireNotificationsInternalAuth } from "../../../middleware/notifications-internal-auth.js";
 import { writeSseComment, writeSseEvent } from "../../../../utils/chat-sse.js";
+import {
+  getWebPushConfigForClient,
+  listPushSubscriptionsForUser,
+  subscribeWebPushForUser,
+  unsubscribeWebPushForUser,
+} from "../../../../services/notifications/notification-push-subscription.service.js";
 
 const notificationChannelSchema = z.enum(["in_app", "web_push", "email"]);
 
@@ -105,6 +111,15 @@ const emitNotificationBodySchema = z
     message: "user_id or privy_user_id is required",
   });
 
+const subscribePushBodySchema = z.object({
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+  user_agent: z.string().max(500).optional(),
+});
+
 function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -141,6 +156,53 @@ notificationsRouter.patch("/api/v1/notifications/preferences", requireAuth, asyn
     return next(err);
   }
 });
+
+notificationsRouter.get("/api/v1/notifications/push/config", requireAuth, async (req, res, next) => {
+  try {
+    return ok(req, res, getWebPushConfigForClient());
+  } catch (err) {
+    return next(err);
+  }
+});
+
+notificationsRouter.get("/api/v1/notifications/push/subscriptions", requireAuth, async (req, res, next) => {
+  try {
+    const subscriptions = await listPushSubscriptionsForUser(req.user.privyUserId);
+    return ok(req, res, { subscriptions });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+notificationsRouter.post("/api/v1/notifications/push/subscribe", requireAuth, async (req, res, next) => {
+  try {
+    const body = parseBody(subscribePushBodySchema, req.body);
+    const subscription = await subscribeWebPushForUser(req.user.privyUserId, {
+      endpoint: body.endpoint,
+      keys: body.keys,
+      user_agent: body.user_agent ?? req.header("user-agent") ?? undefined,
+    });
+    return ok(req, res, subscription);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+notificationsRouter.delete(
+  "/api/v1/notifications/push/subscribe/:subscriptionId",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const result = await unsubscribeWebPushForUser(
+        req.user.privyUserId,
+        req.params.subscriptionId,
+      );
+      return ok(req, res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 notificationsRouter.get("/api/v1/notifications/events", requireAuth, async (req, res, next) => {
   try {

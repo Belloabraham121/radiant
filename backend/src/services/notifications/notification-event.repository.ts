@@ -145,6 +145,35 @@ export async function createNotificationDeliveries(
   });
 }
 
+export async function findNotificationDeliveryForEventChannel(
+  eventId: string,
+  channel: NotificationChannelType,
+): Promise<NotificationDelivery | null> {
+  return prisma.notificationDelivery.findFirst({
+    where: { event_id: eventId, channel },
+  });
+}
+
+export async function updateNotificationDelivery(
+  deliveryId: string,
+  input: {
+    status?: NotificationDeliveryStatus;
+    error?: string | null;
+    externalRef?: string | null;
+    sentAt?: Date | null;
+  },
+): Promise<NotificationDelivery> {
+  return prisma.notificationDelivery.update({
+    where: { id: deliveryId },
+    data: {
+      ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.error !== undefined ? { error: input.error } : {}),
+      ...(input.externalRef !== undefined ? { external_ref: input.externalRef } : {}),
+      ...(input.sentAt !== undefined ? { sent_at: input.sentAt } : {}),
+    },
+  });
+}
+
 export async function markInAppDeliveryRead(
   eventId: string,
   userId: bigint,

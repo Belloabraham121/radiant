@@ -54,6 +54,15 @@ describe("notifications API auth", () => {
       path: "/api/v1/notifications/events/00000000-0000-4000-8000-000000000099/read",
     },
     { method: "GET", path: "/api/v1/notifications/stream" },
+    { method: "GET", path: "/api/v1/notifications/push/config" },
+    {
+      method: "POST",
+      path: "/api/v1/notifications/push/subscribe",
+      body: {
+        endpoint: "https://push.example.test/subscription/auth-test",
+        keys: { p256dh: "x", auth: "y" },
+      },
+    },
   ] as const;
 
   for (const route of protectedRoutes) {
