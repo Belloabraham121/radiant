@@ -24,6 +24,7 @@ describe("app-action result mapping", () => {
       messageId: ctx.messageId,
       approved: true,
       pinnedAppScope: null,
+      source: "ui",
       broadcast: false,
     });
   });
@@ -40,6 +41,7 @@ describe("app-action result mapping", () => {
       messageId: undefined,
       approved: undefined,
       pinnedAppScope: null,
+      source: "agent",
       broadcast: true,
     });
   });
