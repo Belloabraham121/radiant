@@ -12,6 +12,7 @@ import type { PinnedAppScope } from "./pinned-app-scope.types.js";
 const PLATFORM_FILES = new Set([
   "lib/radiant-client.ts",
   "lib/radiant-agent-runtime.ts",
+  "lib/radiant-charts.tsx",
   "components/AgentIndicator.tsx",
 ]);
 

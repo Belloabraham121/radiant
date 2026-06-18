@@ -231,6 +231,7 @@ export function summarizeToolResult(name: string, result: unknown): string {
     const PLATFORM_FILES = new Set([
       "lib/radiant-client.ts",
       "lib/radiant-agent-runtime.ts",
+      "lib/radiant-charts.tsx",
       "components/AgentIndicator.tsx",
     ]);
     const userFiles = fileList.filter((f) => !PLATFORM_FILES.has(f.path));
