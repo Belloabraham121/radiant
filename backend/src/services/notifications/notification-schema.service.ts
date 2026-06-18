@@ -2,6 +2,10 @@ import { z } from "zod";
 import type { AppActionParamField } from "../projects/app-action.types.js";
 import { validateNotificationCondition } from "./notification-condition.validator.js";
 import {
+  validateCronScheduleExpression,
+  validateScheduleSemantics,
+} from "./notification-schedule.service.js";
+import {
   getPlatformNotificationType,
   isPlatformNotificationType,
 } from "./platform-notification-registry.js";
@@ -198,6 +202,22 @@ export function validateNotificationSchedule(
       })),
     };
   }
+
+  const semantics = validateScheduleSemantics(parsed.data);
+  if (!semantics.ok) {
+    return {
+      success: false,
+      errors: [{ code: "INVALID_SCHEDULE", message: semantics.message }],
+    };
+  }
+
+  if (parsed.data.kind === "cron" && !validateCronScheduleExpression(parsed.data.expression, parsed.data.timezone)) {
+    return {
+      success: false,
+      errors: [{ code: "INVALID_CRON", message: "Invalid cron expression or timezone" }],
+    };
+  }
+
   return { success: true, data: parsed.data };
 }
 

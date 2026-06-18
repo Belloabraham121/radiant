@@ -27,6 +27,7 @@ import {
 } from "./notification-rule.repository.js";
 import { resolveNotificationScope } from "./notification-scope.service.js";
 import { isPlatformNotificationType } from "./platform-notification-registry.js";
+import { enqueueNotificationScheduleOnce } from "../../infrastructure/inngest/enqueue-notification-schedule-once.js";
 
 export type NotificationRuleRecord = {
   id: string;
@@ -201,6 +202,9 @@ export async function createNotificationRuleForUser(
     assertValidationErrors(draftResult);
   }
 
+  const triggerOnce =
+    input.trigger_once ?? (input.schedule?.kind === "once" ? true : false);
+
   const rule = await createNotificationRule({
     userId: scope.userId,
     projectId: scope.projectId,
@@ -214,9 +218,13 @@ export async function createNotificationRuleForUser(
     ...(input.schedule != null ? { schedule: input.schedule } : {}),
     channels: channelsResult.data,
     cooldownSeconds: input.cooldown_seconds,
-    triggerOnce: input.trigger_once,
+    triggerOnce,
     expiresAt: parseExpiresAt(input.expires_at),
   });
+
+  if (typeDefinition.trigger_kind === "schedule" && input.schedule) {
+    await enqueueNotificationScheduleOnce(rule.id, input.schedule);
+  }
 
   return toRuleRecord(rule);
 }

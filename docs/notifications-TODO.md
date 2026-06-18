@@ -622,12 +622,12 @@ Ship **Phase 0 + 1 + 2** first: schema + rule CRUD + in-app inbox + SSE. That un
 
 | Status | Task               | Detail                                                 |
 | ------ | ------------------ | ------------------------------------------------------ |
-| [ ]    | Schedule validator | `once`, `cron`, `interval` shapes                      |
-| [ ]    | Inngest scheduler  | Cron or `step.sleepUntil` for `trigger_kind: schedule` |
-| [ ]    | One-shot reminders | Agent: “notify me at 3pm”                              |
-| [ ]    | Recurring rules    | Daily summary / weekly digest                          |
-| [ ]    | Auto-expire        | `trigger_once` → `status: expired` after fire          |
-| [ ]    | Timezone           | Respect `NotificationPreference.timezone`              |
+| [x]    | Schedule validator | `once`, `cron`, `interval` shapes                      |
+| [x]    | Inngest scheduler  | Cron or `step.sleepUntil` for `trigger_kind: schedule` |
+| [x]    | One-shot reminders | Agent: “notify me at 3pm”                              |
+| [x]    | Recurring rules    | Daily summary / weekly digest                          |
+| [x]    | Auto-expire        | `trigger_once` → `status: expired` after fire          |
+| [x]    | Timezone           | Respect `NotificationPreference.timezone`              |
 
 ### Phase 6 — Poll evaluators (pluggable registry; flash loan = first plugin)
 

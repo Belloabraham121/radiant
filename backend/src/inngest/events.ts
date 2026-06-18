@@ -8,6 +8,16 @@ export type DeployRequestedEvent = {
   };
 };
 
+/** One-shot schedule rule — durable sleepUntil then fire. */
+export const NOTIFICATION_SCHEDULE_ONCE_EVENT = "radiant/notification.schedule.once" as const;
+
+export type NotificationScheduleOnceEvent = {
+  name: typeof NOTIFICATION_SCHEDULE_ONCE_EVENT;
+  data: {
+    ruleId: string;
+  };
+};
+
 /** Notification delivery job queued from internal emit. */
 export const NOTIFICATION_EMIT_EVENT = "radiant/notification.emit" as const;
 

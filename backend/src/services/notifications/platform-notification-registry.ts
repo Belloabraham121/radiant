@@ -6,6 +6,25 @@ import {
 /** Server-only platform notification types (not stored on Project.notification_schema). */
 const PLATFORM_NOTIFICATION_TYPES: NotificationTypeDefinition[] = [
   {
+    type: "scheduled_reminder",
+    label: "Scheduled reminder",
+    description: "One-time or recurring reminder at a set time",
+    trigger_kind: "schedule",
+    condition_schema: [
+      {
+        name: "message",
+        type: "string",
+        required: true,
+        description: "Reminder text shown in the notification",
+      },
+    ],
+    default_channels: ["in_app", "web_push"],
+    presentation: {
+      title_template: "{{label}}",
+      body_template: "{{message}}",
+    },
+  },
+  {
     type: "agent_message",
     label: "Agent message",
     description: "Notification when the agent sends an important update in chat",
