@@ -27,6 +27,7 @@ import type {
 } from "../defi/deepbook/deepbook-indexer-analytics.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
 import type { ProjectActionsCatalogResponse } from "../projects/app-action-schema.types.js";
+import type { ProjectNotificationSchema } from "../notifications/notification-schema.types.js";
 import type { ArtifactPayload } from "../projects/project.types.js";
 import {
   agentTransactionCategorySchema,
@@ -151,6 +152,7 @@ const queryChainInputObjectSchema = z.object({
     "agent_transactions",
     "project_actions",
     "session_actions",
+    "project_notification_schema",
     "margin_pool_info",
     "margin_manager_info",
     "margin_tpsl_info",
@@ -315,6 +317,8 @@ export type QueryChainResult =
   | DeepBookOhlcvResult
   | AgentTransactionsQueryResult
   | ProjectActionsCatalogResponse
+  | ProjectNotificationSchema
+  | { schema: ProjectNotificationSchema | null }
   | Record<string, unknown>;
 
 export type ExecuteToolOutcome =
