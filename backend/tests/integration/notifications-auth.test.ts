@@ -48,6 +48,12 @@ describe("notifications API auth", () => {
       method: "GET",
       path: "/api/v1/installations/00000000-0000-4000-8000-000000000002/notifications/rules",
     },
+    { method: "GET", path: "/api/v1/notifications/events" },
+    {
+      method: "POST",
+      path: "/api/v1/notifications/events/00000000-0000-4000-8000-000000000099/read",
+    },
+    { method: "GET", path: "/api/v1/notifications/stream" },
   ] as const;
 
   for (const route of protectedRoutes) {

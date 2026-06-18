@@ -579,16 +579,16 @@ Ship **Phase 0 + 1 + 2** first: schema + rule CRUD + in-app inbox + SSE. That un
 
 | Status | Task                            | Detail                                                                                   |
 | ------ | ------------------------------- | ---------------------------------------------------------------------------------------- |
-| [ ]    | `NotificationDeliveryService`   | Create event, fan out to channels                                                        |
-| [ ]    | In-app inbox API                | `GET /notifications/events`, unread filter                                               |
-| [ ]    | Mark read API                   | `POST /notifications/events/:id/read`                                                    |
-| [ ]    | SSE stream                      | `GET /notifications/stream` — reuse Redis pub/sub pattern from `agent-stream.service.ts` |
-| [ ]    | Rate limiting                   | `max_per_hour`, `cooldown_seconds`, quiet hours                                          |
-| [ ]    | Idempotency                     | `idempotency_key` on emit                                                                |
-| [ ]    | Inngest: `notification/deliver` | Triggered by `notification/emit` event                                                   |
-| [ ]    | Internal emit endpoint          | `POST /internal/notifications/emit` for evaluators                                       |
-| [ ]    | Delivery status logging         | `NotificationDelivery` rows per channel                                                  |
-| [ ]    | Unit tests                      | Cooldown, quiet hours, dedupe, skip when paused                                          |
+| [x]    | `NotificationDeliveryService`   | Create event, fan out to channels                                                        |
+| [x]    | In-app inbox API                | `GET /notifications/events`, unread filter                                               |
+| [x]    | Mark read API                   | `POST /notifications/events/:id/read`                                                    |
+| [x]    | SSE stream                      | `GET /notifications/stream` — reuse Redis pub/sub pattern from `agent-stream.service.ts` |
+| [x]    | Rate limiting                   | `max_per_hour`, `cooldown_seconds`, quiet hours                                          |
+| [x]    | Idempotency                     | `idempotency_key` on emit                                                                |
+| [x]    | Inngest: `notification/deliver` | Triggered by `notification/emit` event                                                   |
+| [x]    | Internal emit endpoint          | `POST /internal/notifications/emit` for evaluators                                       |
+| [x]    | Delivery status logging         | `NotificationDelivery` rows per channel                                                  |
+| [x]    | Unit tests                      | Cooldown, quiet hours, dedupe, skip when paused                                          |
 
 ### Phase 3 — Web Push
 

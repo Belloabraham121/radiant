@@ -83,6 +83,27 @@ export async function findNotificationRuleForUser(
   });
 }
 
+export async function findNotificationRuleById(
+  ruleId: string,
+): Promise<NotificationRule | null> {
+  return prisma.notificationRule.findUnique({
+    where: { id: ruleId },
+  });
+}
+
+export async function touchNotificationRuleTriggered(
+  ruleId: string,
+  input: { lastTriggeredAt: Date; status?: NotificationRuleStatus },
+): Promise<void> {
+  await prisma.notificationRule.update({
+    where: { id: ruleId },
+    data: {
+      last_triggered_at: input.lastTriggeredAt,
+      ...(input.status !== undefined ? { status: input.status } : {}),
+    },
+  });
+}
+
 export async function listNotificationRules(
   filter: ListNotificationRulesFilter,
 ): Promise<{ rules: NotificationRule[]; total: number }> {

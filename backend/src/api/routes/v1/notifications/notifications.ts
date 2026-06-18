@@ -15,6 +15,15 @@ import {
   getNotificationPreferencesForUser,
   patchNotificationPreferencesForUser,
 } from "../../../../services/notifications/notification-preference.service.js";
+import {
+  listNotificationEventsForUser,
+  markNotificationEventReadForUser,
+  requireNotificationStreamUser,
+} from "../../../../services/notifications/notification-event.service.js";
+import { subscribeNotificationStream } from "../../../../services/notifications/notification-stream.service.js";
+import { enqueueNotificationEmit } from "../../../../infrastructure/inngest/enqueue-notification-emit.js";
+import { requireNotificationsInternalAuth } from "../../../middleware/notifications-internal-auth.js";
+import { writeSseComment, writeSseEvent } from "../../../../utils/chat-sse.js";
 
 const notificationChannelSchema = z.enum(["in_app", "web_push", "email"]);
 
@@ -72,6 +81,33 @@ const patchPreferencesBodySchema = z.object({
   default_channels: z.array(notificationChannelSchema).min(1).optional(),
 });
 
+const listEventsQuerySchema = z.object({
+  unread: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+const emitNotificationBodySchema = z
+  .object({
+    user_id: z.string().regex(/^\d+$/).optional(),
+    privy_user_id: z.string().min(1).optional(),
+    rule_id: z.string().uuid().optional(),
+    notification_type: z.string().min(1).max(120),
+    title: z.string().min(1).max(500),
+    body: z.string().min(1).max(5000),
+    payload: z.record(z.string(), z.unknown()).optional(),
+    idempotency_key: z.string().min(1).max(200).optional(),
+    project_id: z.string().uuid().optional(),
+    installation_id: z.string().uuid().optional(),
+    channels: z.array(notificationChannelSchema).min(1).optional(),
+  })
+  .refine((body) => body.user_id != null || body.privy_user_id != null, {
+    message: "user_id or privy_user_id is required",
+  });
+
 function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -108,6 +144,95 @@ notificationsRouter.patch("/api/v1/notifications/preferences", requireAuth, asyn
     return next(err);
   }
 });
+
+notificationsRouter.get("/api/v1/notifications/events", requireAuth, async (req, res, next) => {
+  try {
+    const query = parseQuery(listEventsQuerySchema, req.query);
+    const data = await listNotificationEventsForUser(req.user.privyUserId, query);
+    return ok(req, res, data);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+notificationsRouter.post(
+  "/api/v1/notifications/events/:eventId/read",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await markNotificationEventReadForUser(
+        req.user.privyUserId,
+        req.params.eventId,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
+
+notificationsRouter.get("/api/v1/notifications/stream", requireAuth, async (req, res, next) => {
+  try {
+    const userId = await requireNotificationStreamUser(req.user.privyUserId);
+
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders?.();
+
+    writeSseEvent(res, "connected", { user_id: userId.toString() });
+
+    const unsubscribe = subscribeNotificationStream(userId, (event) => {
+      if (res.writableEnded) {
+        return;
+      }
+      writeSseEvent(res, event.type, event);
+    });
+
+    const heartbeat = setInterval(() => {
+      if (res.writableEnded) {
+        return;
+      }
+      writeSseComment(res, "keepalive");
+    }, 25_000);
+
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+      if (!res.writableEnded) {
+        res.end();
+      }
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+notificationsRouter.post(
+  "/api/v1/internal/notifications/emit",
+  requireNotificationsInternalAuth,
+  async (req, res, next) => {
+    try {
+      const body = parseBody(emitNotificationBodySchema, req.body);
+      const result = await enqueueNotificationEmit({
+        ...(body.user_id ? { userId: BigInt(body.user_id) } : {}),
+        ...(body.privy_user_id ? { privyUserId: body.privy_user_id } : {}),
+        ...(body.rule_id ? { ruleId: body.rule_id } : {}),
+        notificationType: body.notification_type,
+        title: body.title,
+        body: body.body,
+        ...(body.payload ? { payload: body.payload } : {}),
+        ...(body.idempotency_key ? { idempotencyKey: body.idempotency_key } : {}),
+        ...(body.project_id ? { projectId: body.project_id } : {}),
+        ...(body.installation_id ? { installationId: body.installation_id } : {}),
+        ...(body.channels ? { channels: body.channels } : {}),
+      });
+      return ok(req, res, result);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 notificationsRouter.get("/api/v1/notifications/rules", requireAuth, async (req, res, next) => {
   try {
