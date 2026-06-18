@@ -66,24 +66,6 @@ describe("notification delivery", () => {
 
   after(async () => {
     await resetNotificationStreamForTests();
-    resetNotificationsConfigForTests();
-    delete process.env.NOTIFICATIONS_INTERNAL_API_KEY;
-
-    await prisma.notificationDelivery.deleteMany({
-      where: { event: { user: { privy_user_id: privyUserId } } },
-    });
-    await prisma.notificationEvent.deleteMany({
-      where: { user: { privy_user_id: privyUserId } },
-    });
-    await prisma.notificationRule.deleteMany({
-      where: { user: { privy_user_id: privyUserId } },
-    });
-    await prisma.notificationPreference.deleteMany({
-      where: { user: { privy_user_id: privyUserId } },
-    });
-    await prisma.user.deleteMany({
-      where: { privy_user_id: privyUserId },
-    });
   });
 
   it("delivers in-app notification and skips unsupported channels", async () => {
@@ -266,6 +248,22 @@ describe("internal notification emit API", () => {
     resetInngestConfigForTests();
     resetNotificationsConfigForTests();
     delete process.env.NOTIFICATIONS_INTERNAL_API_KEY;
+
+    await prisma.notificationDelivery.deleteMany({
+      where: { event: { user: { privy_user_id: privyUserId } } },
+    });
+    await prisma.notificationEvent.deleteMany({
+      where: { user: { privy_user_id: privyUserId } },
+    });
+    await prisma.notificationRule.deleteMany({
+      where: { user: { privy_user_id: privyUserId } },
+    });
+    await prisma.notificationPreference.deleteMany({
+      where: { user: { privy_user_id: privyUserId } },
+    });
+    await prisma.user.deleteMany({
+      where: { privy_user_id: privyUserId },
+    });
   });
 
   it("returns 401 without internal API key", async () => {

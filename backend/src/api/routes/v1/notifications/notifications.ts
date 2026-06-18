@@ -82,10 +82,7 @@ const patchPreferencesBodySchema = z.object({
 });
 
 const listEventsQuerySchema = z.object({
-  unread: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((value) => value === "true"),
+  unread: z.enum(["true", "false"]).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -148,7 +145,11 @@ notificationsRouter.patch("/api/v1/notifications/preferences", requireAuth, asyn
 notificationsRouter.get("/api/v1/notifications/events", requireAuth, async (req, res, next) => {
   try {
     const query = parseQuery(listEventsQuerySchema, req.query);
-    const data = await listNotificationEventsForUser(req.user.privyUserId, query);
+    const data = await listNotificationEventsForUser(req.user.privyUserId, {
+      ...(query.unread !== undefined ? { unread: query.unread === "true" } : {}),
+      limit: query.limit,
+      offset: query.offset,
+    });
     return ok(req, res, data);
   } catch (err) {
     return next(err);

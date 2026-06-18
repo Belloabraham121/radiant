@@ -73,7 +73,10 @@ export async function findNotificationEventForUser(
 
 export async function listNotificationEvents(
   filter: ListNotificationEventsFilter,
-): Promise<{ events: NotificationEvent[]; total: number }> {
+): Promise<{
+  events: Array<NotificationEvent & { deliveries: NotificationDelivery[] }>;
+  total: number;
+}> {
   const where: Prisma.NotificationEventWhereInput = {
     user_id: filter.userId,
     ...(filter.unread

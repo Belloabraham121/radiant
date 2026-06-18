@@ -5,7 +5,7 @@ import {
   evaluateNotificationDeliveryPolicy,
   isRuleCooldownActive,
   isWithinQuietHours,
-} from "../../src/services/notifications/notification-delivery-policy.service.js";
+} from "../../../src/services/notifications/notification-delivery-policy.service.js";
 
 function basePreference(overrides: Partial<NotificationPreference> = {}): NotificationPreference {
   return {
