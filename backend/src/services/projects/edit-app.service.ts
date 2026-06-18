@@ -23,6 +23,7 @@ import { inferProjectActionSchemaForArtifact } from "./app-action-schema.service
 import type { ProjectActionSchema } from "./app-action-schema.types.js";
 import { Prisma } from "@prisma/client";
 import { normalizeArtifactFileContent } from "./artifact-file-content.js";
+import { resolveEditOldString } from "./edit-app-match.js";
 
 export type EditAppEdit = {
   path: string;
@@ -127,39 +128,9 @@ function applyEdits(
       );
     }
 
-    let matchedOldString = oldString;
-    if (!file.content.includes(matchedOldString)) {
-      // Fallback: try swapping single↔double quotes (common LLM mistake)
-      const quoteSwapped = matchedOldString.replace(/['"]/g, (ch) => (ch === "'" ? '"' : "'"));
-      if (quoteSwapped !== matchedOldString && file.content.includes(quoteSwapped)) {
-        matchedOldString = quoteSwapped;
-      }
-    }
+    const matchedOldString = resolveEditOldString(file.content, oldString);
 
-    if (!file.content.includes(matchedOldString)) {
-      // Fallback: try case-insensitive substring match to find closest actual text
-      const caseInsensitiveIdx = file.content
-        .toLowerCase()
-        .indexOf(matchedOldString.toLowerCase());
-
-      if (caseInsensitiveIdx >= 0) {
-        const actualMatch = file.content.slice(
-          caseInsensitiveIdx,
-          caseInsensitiveIdx + matchedOldString.length,
-        );
-        const lineStart = file.content.lastIndexOf("\n", caseInsensitiveIdx) + 1;
-        const lineEnd = file.content.indexOf("\n", caseInsensitiveIdx + matchedOldString.length);
-        const contextLine = file.content.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
-        throw new AppError(
-          400,
-          "EDIT_STRING_NOT_FOUND",
-          `Could not find exact match in "${normalizedPath}". ` +
-            `Found case-insensitive match: "${actualMatch}". ` +
-            `Line context: ${contextLine.trim()}. ` +
-            `Retry with the exact text as old_string.`,
-        );
-      }
-
+    if (!matchedOldString) {
       // Strip platform CSS from error content so the agent sees clean user code
       let errorContent = file.content;
       if (normalizedPath.endsWith("globals.css")) {
@@ -177,7 +148,9 @@ function applyEdits(
         400,
         "EDIT_STRING_NOT_FOUND",
         `Could not find the string to replace in "${normalizedPath}". ` +
-          `The old_string was not found. Here is the full file content — copy the exact snippet you need and retry with a targeted edit. ` +
+          `The old_string was not found. ` +
+          `IMPORTANT: You MUST immediately retry this edit — copy the EXACT text from the file content below as old_string. ` +
+          `Do NOT tell the user it failed; just retry silently. ` +
           `replace_file is LAST RESORT only for full restructures, not small changes:\n\n${fullContent}`,
       );
     }
