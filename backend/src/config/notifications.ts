@@ -1,5 +1,6 @@
 export type NotificationsConfig = {
   internalApiKey?: string;
+  pollCron: string;
 };
 
 let cached: NotificationsConfig | undefined;
@@ -10,7 +11,8 @@ export function getNotificationsConfig(): NotificationsConfig {
   }
 
   const internalApiKey = process.env.NOTIFICATIONS_INTERNAL_API_KEY?.trim() || undefined;
-  cached = { internalApiKey };
+  const pollCron = process.env.NOTIFICATION_POLL_CRON?.trim() || "*/1 * * * *";
+  cached = { internalApiKey, pollCron };
   return cached;
 }
 

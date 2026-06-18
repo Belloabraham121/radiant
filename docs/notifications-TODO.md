@@ -629,16 +629,16 @@ Ship **Phase 0 + 1 + 2** first: schema + rule CRUD + in-app inbox + SSE. That un
 | [ ]    | Auto-expire        | `trigger_once` → `status: expired` after fire          |
 | [ ]    | Timezone           | Respect `NotificationPreference.timezone`              |
 
-### Phase 6 — Poll evaluators (flash loan = first consumer)
+### Phase 6 — Poll evaluators (pluggable registry; flash loan = first plugin)
 
 | Status | Task                              | Detail                                                          |
 | ------ | --------------------------------- | --------------------------------------------------------------- |
-| [ ]    | Evaluator registry                | Register / lookup by `evaluator` key                            |
-| [ ]    | Inngest cron                      | `notification/evaluate-poll-rules` — batch by evaluator         |
-| [ ]    | **`deepbook.flash_loan_scanner`** | First evaluator — scans opportunities, matches rules            |
-| [ ]    | Flash loan app schema             | Seed `notification_schema` on flash-arb template                |
-| [ ]    | Presentation templates            | Title/body/deep_link from matched opportunity payload           |
-| [ ]    | E2E test                          | Rule → scanner match → event → inbox (+ push when Phase 3 done) |
+| [x]    | Evaluator registry                | Register / lookup by `evaluator` key                            |
+| [x]    | Inngest cron                      | `notification-evaluate-poll` — batch by evaluator               |
+| [x]    | **`deepbook.flash_loan_scanner`** | First evaluator plugin — scans opportunities, matches rules     |
+| [x]    | Flash loan app schema template    | `FLASH_ARB_DASHBOARD_NOTIFICATION_SCHEMA` for agent/templates   |
+| [x]    | Presentation templates            | Title/body/deep_link from matched opportunity payload           |
+| [x]    | Integration test                  | Stub evaluator → poll cycle → inbox (+ dedupe)                  |
 
 ### Phase 7 — Event-driven evaluators (optional, high scale)
 
