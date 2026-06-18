@@ -32,6 +32,8 @@ import {
   unsubscribeWebPushForUser,
 } from "../../../../services/notifications/notification-push-subscription.service.js";
 import { getNotificationObservabilitySnapshot } from "../../../../services/notifications/notification-observability.service.js";
+import { deliverNotification } from "../../../../services/notifications/notification-delivery.service.js";
+import { findUserByPrivyId } from "../../../../services/auth/user.repository.js";
 
 const notificationChannelSchema = z.enum(["in_app", "web_push", "email"]);
 
@@ -196,6 +198,30 @@ notificationsRouter.post("/api/v1/notifications/push/subscribe", requireAuth, as
       user_agent: body.user_agent ?? req.header("user-agent") ?? undefined,
     });
     return ok(req, res, subscription);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+notificationsRouter.post("/api/v1/notifications/push/test", requireAuth, async (req, res, next) => {
+  try {
+    const user = await findUserByPrivyId(req.user.privyUserId);
+    if (!user) {
+      throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    }
+
+    const result = await deliverNotification({
+      userId: user.id,
+      notificationType: "radiant.platform.scheduled_reminder",
+      title: "Radiant test alert",
+      body: "If you see this banner, browser push is working.",
+      channels: ["web_push"],
+      bypassRateLimit: true,
+      idempotencyKey: `push-test:${user.id}:${Date.now()}`,
+      payload: { severity: "info", deep_link: "/app/settings" },
+    });
+
+    return ok(req, res, result);
   } catch (err) {
     return next(err);
   }

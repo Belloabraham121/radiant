@@ -1,5 +1,13 @@
 /* Radiant platform service worker — Web Push only (not used by generated apps). */
 
+self.addEventListener("install", (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("push", (event) => {
   let payload = {
     title: "Radiant",
@@ -21,6 +29,8 @@ self.addEventListener("push", (event) => {
     data: payload.data || { url: "/app/projects" },
     icon: "/file.svg",
     badge: "/file.svg",
+    tag: payload.data?.event_id || "radiant-notification",
+    renotify: true,
   };
 
   event.waitUntil(self.registration.showNotification(title, options));

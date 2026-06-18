@@ -29,6 +29,26 @@ import { resolveNotificationScope } from "./notification-scope.service.js";
 import { isPlatformNotificationType } from "./platform-notification-registry.js";
 import { enqueueNotificationScheduleOnce } from "../../infrastructure/inngest/enqueue-notification-schedule-once.js";
 
+function defaultChannelsForType(typeDefinition: {
+  default_channels: NotificationChannel[];
+}): NotificationChannel[] {
+  return typeDefinition.default_channels.length > 0
+    ? typeDefinition.default_channels
+    : (["in_app", "web_push"] as NotificationChannel[]);
+}
+
+/** Union explicit channels with type defaults so agents cannot drop web_push silently. */
+function mergeRuleChannels(
+  inputChannels: NotificationChannel[] | undefined,
+  typeDefinition: { default_channels: NotificationChannel[] },
+): NotificationChannel[] {
+  const defaults = defaultChannelsForType(typeDefinition);
+  if (!inputChannels?.length) {
+    return defaults;
+  }
+  return [...new Set([...defaults, ...inputChannels])];
+}
+
 export type NotificationRuleRecord = {
   id: string;
   user_id: string;
@@ -179,11 +199,7 @@ export async function createNotificationRuleForUser(
     );
   }
 
-  const channels =
-    input.channels ??
-    (typeDefinition.default_channels.length > 0
-      ? typeDefinition.default_channels
-      : (["in_app", "web_push"] as NotificationChannel[]));
+  const channels = mergeRuleChannels(input.channels, typeDefinition);
 
   const channelsResult = validateNotificationChannels(channels);
   if (!channelsResult.success) {
@@ -329,7 +345,7 @@ export async function updateNotificationRuleForUser(
       : (existing.schedule as NotificationSchedule | null);
   const nextChannels =
     input.channels !== undefined
-      ? input.channels
+      ? mergeRuleChannels(input.channels, typeDefinition)
       : (existing.channels as NotificationChannel[]);
 
   if (input.channels !== undefined) {

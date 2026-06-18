@@ -80,6 +80,7 @@ export function evaluateNotificationDeliveryPolicy(input: {
   preferences: NotificationPreference;
   rule?: NotificationRule | null;
   eventsInLastHour: number;
+  bypassRateLimit?: boolean;
 }): DeliveryPolicyEvaluation {
   if (!input.preferences.enabled) {
     return { allowed: false, skipReason: "disabled" };
@@ -100,7 +101,12 @@ export function evaluateNotificationDeliveryPolicy(input: {
     return { allowed: false, skipReason: "quiet_hours" };
   }
 
-  if (input.eventsInLastHour >= input.preferences.max_per_hour) {
+  const isExplicitScheduleRule = input.rule?.trigger_kind === "schedule";
+  if (
+    !input.bypassRateLimit &&
+    !isExplicitScheduleRule &&
+    input.eventsInLastHour >= input.preferences.max_per_hour
+  ) {
     return { allowed: false, skipReason: "rate_limit" };
   }
 

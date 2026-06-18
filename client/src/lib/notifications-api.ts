@@ -160,6 +160,19 @@ export async function subscribeWebPush(): Promise<{ subscribed: boolean; subscri
   return { subscribed: true, subscription_id: record.id };
 }
 
+export type TestWebPushResult = {
+  status: string;
+  event_id?: string;
+  reason?: string;
+  skipped_channels?: NotificationChannel[];
+};
+
+export async function sendTestWebPush(): Promise<TestWebPushResult> {
+  return apiFetch<TestWebPushResult>("/api/v1/notifications/push/test", {
+    method: "POST",
+  });
+}
+
 export async function unsubscribeWebPush(subscriptionId: string): Promise<void> {
   await apiFetch<{ id: string; revoked: true }>(
     `/api/v1/notifications/push/subscribe/${subscriptionId}`,

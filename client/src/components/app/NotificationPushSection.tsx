@@ -2,6 +2,7 @@
 
 import { Bell, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 import {
   fetchPushConfig,
   isWebPushSupported,
@@ -18,6 +19,7 @@ export function NotificationPushSection() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testSuccess, setTestSuccess] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -100,6 +102,45 @@ export function NotificationPushSection() {
     }
   }
 
+  async function handleTestAlert() {
+    setBusy(true);
+    setError(null);
+    setTestSuccess(null);
+    try {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        try {
+          new Notification("Radiant display check", {
+            body: "If you see this banner, macOS is showing Chrome alerts.",
+            tag: "radiant-display-check",
+          });
+        } catch {
+          // Fall through to push test.
+        }
+      }
+
+      const result = await apiFetch<{
+        status: string;
+        reason?: string;
+      }>("/api/v1/notifications/push/test", { method: "POST" });
+      if (result.status === "suppressed") {
+        setError(`Test alert was suppressed (${result.reason ?? "policy"}).`);
+        return;
+      }
+      if (result.status !== "delivered") {
+        setError("Test alert could not be delivered.");
+        return;
+      }
+
+      setTestSuccess(
+        "Push delivered to this browser. If you did not see a banner, open macOS System Settings → Notifications → Google Chrome and set alert style to Banners or Alerts (not None). Also check Notification Center — alerts may appear there without a banner.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send test alert");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleDisable() {
     const current = subscriptions[0];
     if (!current) {
@@ -164,15 +205,31 @@ export function NotificationPushSection() {
                   {busy ? "Saving…" : subscribed ? "Disable browser alerts" : "Enable browser alerts"}
                 </button>
                 {subscribed ? (
-                  <span className="text-xs font-medium text-[var(--hero-ink)]/50">
-                    Active on this browser
-                  </span>
+                  <>
+                    <span className="text-xs font-medium text-[var(--hero-ink)]/50">
+                      Active on this browser
+                      {typeof Notification !== "undefined"
+                        ? ` · permission: ${Notification.permission}`
+                        : null}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={handleTestAlert}
+                      className="rounded-xl border-2 border-[var(--hero-ink)] bg-white px-4 py-2 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      Send test alert
+                    </button>
+                  </>
                 ) : null}
               </div>
             )}
 
             {error ? (
               <p className="mt-3 text-xs font-medium text-red-600">{error}</p>
+            ) : null}
+            {testSuccess ? (
+              <p className="mt-3 text-xs font-medium text-emerald-700">{testSuccess}</p>
             ) : null}
           </div>
         </div>

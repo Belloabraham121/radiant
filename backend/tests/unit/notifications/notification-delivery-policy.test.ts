@@ -103,6 +103,26 @@ describe("notification delivery policy", () => {
     assert.equal(result.skipReason, "rate_limit");
   });
 
+  it("allows scheduled rule delivery when hourly rate limit is reached", () => {
+    const result = evaluateNotificationDeliveryPolicy({
+      now: new Date("2026-06-18T12:00:00.000Z"),
+      preferences: basePreference({ max_per_hour: 2 }),
+      rule: baseRule({ trigger_kind: "schedule" }),
+      eventsInLastHour: 2,
+    });
+    assert.equal(result.allowed, true);
+  });
+
+  it("allows delivery when bypassRateLimit is set", () => {
+    const result = evaluateNotificationDeliveryPolicy({
+      now: new Date("2026-06-18T12:00:00.000Z"),
+      preferences: basePreference({ max_per_hour: 2 }),
+      eventsInLastHour: 2,
+      bypassRateLimit: true,
+    });
+    assert.equal(result.allowed, true);
+  });
+
   it("blocks delivery during rule cooldown", () => {
     const now = new Date("2026-06-18T12:00:00.000Z");
     const rule = baseRule({

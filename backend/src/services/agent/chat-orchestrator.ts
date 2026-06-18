@@ -24,6 +24,10 @@ import {
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
+import {
+  applyScheduledReminderFallback,
+  tryCreateScheduledReminderFromMessage,
+} from "./notifications/scheduled-reminder-flow.js";
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
 import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
 import { extractArtifactFromToolCalls } from "../projects/extract-artifact.js";
@@ -127,6 +131,30 @@ export async function runChatTurn(
         workflowCompleted: true,
       });
     }
+
+    const scheduledReminderOutcome = await tryCreateScheduledReminderFromMessage(
+      privyUserId,
+      request.message,
+      session.id,
+    );
+
+    if (scheduledReminderOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, {
+        ...scheduledReminderOutcome,
+        pending_clarification: null,
+        workflowCompleted: true,
+      });
+    }
   }
 
   const contextMessages = buildAgentContextMessages([
@@ -174,11 +202,21 @@ export async function runChatTurn(
       }),
   );
 
-  const toolCallsForMessage = await recordInfeasibleFlashLoanQuotesFromToolCalls(
+  let toolCallsForMessage = await recordInfeasibleFlashLoanQuotesFromToolCalls(
     privyUserId,
     session.id,
     result.tool_calls,
   );
+
+  const reminderFallback = await applyScheduledReminderFallback(
+    privyUserId,
+    request.message,
+    session.id,
+    toolCallsForMessage,
+    result.reply,
+  );
+  toolCallsForMessage = reminderFallback.toolCalls;
+  const assistantReply = reminderFallback.reply;
 
   const toolCallsJson: Prisma.InputJsonValue | undefined =
     toolCallsForMessage.length > 0
@@ -188,7 +226,7 @@ export async function runChatTurn(
   const assistantMessage = await appendMessage(
     session.id,
     "assistant",
-    result.reply,
+    assistantReply,
     toolCallsJson,
   );
 
@@ -205,7 +243,7 @@ export async function runChatTurn(
   });
 
   return {
-    reply: result.reply,
+    reply: assistantReply,
     session_id: session.id,
     mode: options.forceRuntime?.id ?? runtime.id,
     tool_calls: toolCallsForMessage,

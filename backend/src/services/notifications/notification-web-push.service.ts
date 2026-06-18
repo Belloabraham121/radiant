@@ -99,6 +99,10 @@ async function sendToSubscription(
         },
       },
       payload,
+      {
+        TTL: 3600,
+        urgency: "high",
+      },
     );
     await touchPushSubscriptionUsed(subscription.id);
     return { ok: true };

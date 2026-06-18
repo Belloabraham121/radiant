@@ -37,6 +37,8 @@ export type EmitNotificationInput = {
   projectId?: string;
   installationId?: string;
   channels?: NotificationChannel[];
+  /** User-initiated or explicit test delivery — skip hourly cap. */
+  bypassRateLimit?: boolean;
 };
 
 export type DeliverNotificationResult =
@@ -127,6 +129,7 @@ export async function deliverNotification(
     preferences,
     rule,
     eventsInLastHour,
+    bypassRateLimit: input.bypassRateLimit,
   });
 
   if (!policy.allowed) {
