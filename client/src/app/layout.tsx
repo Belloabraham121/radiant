@@ -1,6 +1,13 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import { PrivyAuthProvider } from "@/components/providers/PrivyAuthProvider";
+import {
+  getSiteUrl,
+  siteDescription,
+  siteName,
+  siteShareDescription,
+  siteTitle,
+} from "@/lib/site-metadata";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,9 +26,26 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: "Radiant — Your personal AI agent with a wallet, a memory & hands",
-  description:
-    "Radiant acts, remembers, builds, and earns on your behalf. Tell it what you want in plain language — it does the rest.",
+  metadataBase: getSiteUrl(),
+  title: {
+    default: siteTitle,
+    template: `%s · ${siteName}`,
+  },
+  description: siteDescription,
+  applicationName: siteName,
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    siteName,
+    title: siteTitle,
+    description: siteShareDescription,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteTitle,
+    description: siteShareDescription,
+  },
 };
 
 export default function RootLayout({
