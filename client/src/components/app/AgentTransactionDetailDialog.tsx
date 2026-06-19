@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Loader2, MessageSquare } from "lucide-react";
 import {
@@ -127,15 +128,23 @@ function JsonDetailsBlock({
   label: string;
   value: Record<string, unknown>;
 }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <details className="min-w-0 overflow-hidden rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-white px-4 py-3">
-      <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/45">
+    <div className="min-w-0 overflow-hidden rounded-2xl border-2 border-dashed border-(--hero-ink)/20 bg-white px-4 py-3">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="w-full cursor-pointer text-left text-xs font-bold uppercase tracking-widest text-(--hero-ink)/45"
+      >
         {label}
-      </summary>
-      <pre className="mt-2 max-h-40 max-w-full overflow-auto overscroll-x-contain whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-[var(--hero-ink)]/70">
-        {JSON.stringify(value, null, 2)}
-      </pre>
-    </details>
+      </button>
+      {open ? (
+        <pre className="mt-2 max-h-40 max-w-full overflow-auto overscroll-x-contain whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-(--hero-ink)/70">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      ) : null}
+    </div>
   );
 }
 
