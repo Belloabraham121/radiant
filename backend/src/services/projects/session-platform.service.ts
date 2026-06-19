@@ -5,7 +5,7 @@ import { getDeepBookGovernanceState } from "../defi/deepbook/deepbook-governance
 import { getDeepBookOpenOrders } from "../defi/deepbook/deepbook-orders.service.js";
 import { getDeepBookSwapQuote } from "../defi/deepbook/deepbook-swap.service.js";
 import { getDeepBookPoolInfo } from "../defi/deepbook/deepbook-pools.service.js";
-import { getDeepBookStakeBalance } from "../defi/deepbook/deepbook-stake.service.js";
+import { getDeepBookStakeBalance, getDeepBookStakeRequired } from "../defi/deepbook/deepbook-stake.service.js";
 import {
   getMarginManagerInfoForHttp,
   getMarginOpenOrdersForHttp,
@@ -106,6 +106,16 @@ export async function stakeBalanceForSession(
   await assertSessionOwner(privyUserId, sessionId);
   const { pool_key } = poolInfoQuerySchema.parse(query);
   return getDeepBookStakeBalance(privyUserId, { pool_key });
+}
+
+export async function stakeRequiredForSession(
+  privyUserId: string,
+  sessionId: string,
+  query: unknown,
+) {
+  await assertSessionOwner(privyUserId, sessionId);
+  const { pool_key } = poolInfoQuerySchema.parse(query);
+  return getDeepBookStakeRequired(privyUserId, { pool_key });
 }
 
 export async function governanceStateForSession(

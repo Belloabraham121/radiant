@@ -30,6 +30,7 @@ import {
   openOrdersForSession,
   poolInfoForSession,
   stakeBalanceForSession,
+  stakeRequiredForSession,
   swapQuoteForSession,
 } from "../../../../services/projects/session-platform.service.js";
 import { readAppActionSessionId } from "../../../../utils/app-action-request-context.js";
@@ -338,6 +339,23 @@ chatSessionsRouter.get(
   async (req, res, next) => {
     try {
       const data = await stakeBalanceForSession(
+        req.user.privyUserId,
+        req.params.sessionId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+chatSessionsRouter.get(
+  "/api/v1/chat/sessions/:sessionId/deepbook/stake-required",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await stakeRequiredForSession(
         req.user.privyUserId,
         req.params.sessionId,
         req.query,

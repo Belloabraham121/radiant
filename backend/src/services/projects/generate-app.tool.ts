@@ -11,6 +11,8 @@ export const generateAppToolDefinition = {
     "Create or rebuild a UI in the artifact panel. Prefer edit_app for tweaks to an existing pinned or session app. " +
     "When an app is pinned, project scope is applied automatically. " +
     "Partial file lists merge with existing sources — you do not need to resend every file. " +
+    "Generated apps MUST use lib/radiant-client for all platform integrations (DeFi, charts, wallet, margin, predict, notifications, external research APIs via fetchExternalJson with Authorization/X-Api-Key headers) — never invent API names. " +
+    "query_chain / execute_transaction / call_api are chat-agent tools only, not for generated app source code. " +
     "For alert-capable apps, declare alert types in lib/radiant-notifications.ts and wire createNotificationRule/listNotificationRules from lib/radiant-client; the platform persists notification_schema automatically.",
   input_schema: {
     type: "object" as const,

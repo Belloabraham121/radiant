@@ -1,0 +1,19 @@
+node_modules
+dist
+coverage
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+.DS_Store
+
+# Tests and local tooling — not needed in the runtime image
+tests
+.agents
+
+# E2B scaffold has its own node_modules during template builds
+docker/e2b/scaffold/node_modules
+docker/e2b/scaffold/dist

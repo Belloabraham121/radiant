@@ -31,6 +31,23 @@ docker compose down
 
 Images are built from `docker/postgres`, `docker/redis`, and `docker/rabbitmq`.
 
+## Docker API (production)
+
+Build and run the backend API in a container (migrations run on boot):
+
+```bash
+docker build -t radiant-backend .
+docker run --env-file .env -p 3001:3001 radiant-backend
+```
+
+Full local stack (Postgres + Redis + RabbitMQ + API):
+
+```bash
+docker compose --profile app up -d --build
+```
+
+Set `DATABASE_URL`, `REDIS_URL`, and `RABBITMQ_URL` to the compose service hostnames (`postgres`, `redis`, `rabbitmq`) when using the `app` profile. See [docs/deploy-checklist.md](./docs/deploy-checklist.md).
+
 ## Agent wallet (Privy)
 
 Radiant uses **[Privy](https://docs.privy.io/)** to **generate** each user's **agent Sui wallet** on signup (Google, GitHub, or email). Privy provisions an embedded Sui wallet tied to the account and holds signing keys in Privy's secure enclave. Radiant never stores private keys.

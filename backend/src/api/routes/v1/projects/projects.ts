@@ -23,6 +23,7 @@ import {
   openOrdersForProject,
   poolInfoForProject,
   stakeBalanceForProject,
+  stakeRequiredForProject,
   swapQuoteForProject,
 } from "../../../../services/projects/project-platform.service.js";
 import {
@@ -282,6 +283,23 @@ projectsRouter.get(
   async (req, res, next) => {
     try {
       const data = await stakeBalanceForProject(
+        req.user.privyUserId,
+        req.params.projectId,
+        req.query,
+      );
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+projectsRouter.get(
+  "/api/v1/projects/:projectId/deepbook/stake-required",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const data = await stakeRequiredForProject(
         req.user.privyUserId,
         req.params.projectId,
         req.query,

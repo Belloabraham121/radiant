@@ -3,6 +3,7 @@ import { toolErrorToModelContent } from "../../../utils/agent-tool-errors.js";
 import { summarizeQueryChainResult, summarizeQueryChainResultAsync } from "./summarize-query-chain.js";
 import type { AgentToolErrorResult } from "../tools.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
+import { formatRadiantClientApiReminderForToolResult } from "../../projects/radiant-client-api-catalog.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
@@ -259,7 +260,8 @@ export function summarizeToolResult(name: string, result: unknown): string {
       `${verb} "${outcome.name ?? "App"}" (revision ${outcome.revision ?? 0}). ` +
       `${userFiles.length} user files${platformNote}. ` +
       `Full file contents below — use these EXACT strings as old_string when calling edit_app:\n\n` +
-      fileSummaries.join("\n\n")
+      fileSummaries.join("\n\n") +
+      `\n\n${formatRadiantClientApiReminderForToolResult()}`
     );
   }
 

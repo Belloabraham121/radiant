@@ -236,14 +236,14 @@ function hasCustomAlertUi(source: string): boolean {
   return /NotificationAlertsPanel|AlertPanel|AlertsPanel|alert settings/i.test(source);
 }
 
-/** Inject generic alert panel when app uses notification SDK but has no alert UI yet. */
+/** Inject generic alert panel when app uses notification SDK or declares lib/radiant-notifications.ts. */
 export function mergeNotificationReferenceFiles<T extends { path: string; content: string }>(
   files: T[],
 ): T[] {
   const source = files.map((file) => file.content).join("\n");
-  const usesSdk = /\b(createNotificationRule|listNotificationRules|getNotificationSchema)\s*\(/.test(
-    source,
-  );
+  const usesSdk =
+    /\b(createNotificationRule|listNotificationRules|getNotificationSchema)\s*\(/.test(source) ||
+    files.some((file) => normalizeManifestPath(file.path) === "lib/radiant-notifications.ts");
 
   if (
     !usesSdk ||
