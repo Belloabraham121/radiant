@@ -14,7 +14,10 @@ import {
   formatTransactionStatus,
   transactionStatusChipClass,
 } from "@/lib/agent-transactions-api";
-import { chainExplorerTxUrl } from "@/lib/chain-meta";
+import {
+  explorerLinkLabelForActivityCategory,
+  resolveActivityExplorerUrl,
+} from "@/lib/explorer-tx-link";
 
 type AgentTransactionDetailDialogProps = {
   transactionId: string | null;
@@ -22,9 +25,7 @@ type AgentTransactionDetailDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-function readFlashLoanQuoteFromResult(
-  result: Record<string, unknown> | null,
-): {
+function readFlashLoanQuoteFromResult(result: Record<string, unknown> | null): {
   steps: Array<{
     side: string;
     in_amount: number;
@@ -92,9 +93,13 @@ function FlashLoanQuoteBreakdown({
           Borrow {quote.borrow_amount} {quote.coin_key}
         </li>
         {quote.steps.map((step, index) => (
-          <li key={`${step.pool_key}-${index}`} className="text-sm font-medium text-[var(--hero-ink)]/70">
-            Swap {index + 1}: {step.side} {step.in_amount} {step.input_coin} → ~{step.out_est}{" "}
-            {step.output_coin} on {step.pool_key} (min out ~{step.min_out})
+          <li
+            key={`${step.pool_key}-${index}`}
+            className="text-sm font-medium text-[var(--hero-ink)]/70"
+          >
+            Swap {index + 1}: {step.side} {step.in_amount} {step.input_coin} → ~
+            {step.out_est} {step.output_coin} on {step.pool_key} (min out ~
+            {step.min_out})
           </li>
         ))}
         <li className="text-sm font-medium text-[var(--hero-ink)]/70">
@@ -139,12 +144,15 @@ export function AgentTransactionDetailDialog({
   open,
   onOpenChange,
 }: AgentTransactionDetailDialogProps) {
-  const { detail, loading, error } = useAgentTransactionDetail(transactionId, open);
+  const { detail, loading, error } = useAgentTransactionDetail(
+    transactionId,
+    open,
+  );
 
-  const explorerUrl =
-    detail?.explorer_url ??
-    (detail?.digest ? chainExplorerTxUrl(detail.chain_id, detail.digest) : null);
-  const flashLoanQuote = detail ? readFlashLoanQuoteFromResult(detail.result) : null;
+  const explorerUrl = detail ? resolveActivityExplorerUrl(detail) : null;
+  const flashLoanQuote = detail
+    ? readFlashLoanQuoteFromResult(detail.result)
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -162,12 +170,16 @@ export function AgentTransactionDetailDialog({
               Loading…
             </div>
           ) : error ? (
-            <p className="text-sm font-semibold text-[var(--hero-coral)]">{error}</p>
+            <p className="text-sm font-semibold text-[var(--hero-coral)]">
+              {error}
+            </p>
           ) : detail ? (
             <>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-heading text-lg font-extrabold tracking-tight">{detail.title}</p>
+                  <p className="font-heading text-lg font-extrabold tracking-tight">
+                    {detail.title}
+                  </p>
                   <p className="mt-1 text-sm font-medium text-[var(--hero-ink)]/55">
                     {formatAmountDisplayText(detail.amount_display)}
                   </p>
@@ -179,32 +191,42 @@ export function AgentTransactionDetailDialog({
                 </span>
               </div>
 
-              {flashLoanQuote ? <FlashLoanQuoteBreakdown quote={flashLoanQuote} /> : null}
+              {flashLoanQuote ? (
+                <FlashLoanQuoteBreakdown quote={flashLoanQuote} />
+              ) : null}
 
               <dl className="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <dt className="font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/40">
                     Chain
                   </dt>
-                  <dd className="mt-0.5 font-semibold capitalize">{detail.chain_id}</dd>
+                  <dd className="mt-0.5 font-semibold capitalize">
+                    {detail.chain_id}
+                  </dd>
                 </div>
                 <div>
                   <dt className="font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/40">
                     Category
                   </dt>
-                  <dd className="mt-0.5 font-semibold">{detail.category.replace(/_/g, " ")}</dd>
+                  <dd className="mt-0.5 font-semibold">
+                    {detail.category.replace(/_/g, " ")}
+                  </dd>
                 </div>
                 <div>
                   <dt className="font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/40">
                     Created
                   </dt>
-                  <dd className="mt-0.5 font-semibold">{formatTimestamp(detail.created_at)}</dd>
+                  <dd className="mt-0.5 font-semibold">
+                    {formatTimestamp(detail.created_at)}
+                  </dd>
                 </div>
                 <div>
                   <dt className="font-bold uppercase tracking-[0.1em] text-[var(--hero-ink)]/40">
                     Completed
                   </dt>
-                  <dd className="mt-0.5 font-semibold">{formatTimestamp(detail.completed_at)}</dd>
+                  <dd className="mt-0.5 font-semibold">
+                    {formatTimestamp(detail.completed_at)}
+                  </dd>
                 </div>
               </dl>
 
@@ -241,9 +263,9 @@ export function AgentTransactionDetailDialog({
                     href={explorerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-4 py-2 text-xs font-bold text-[var(--hero-ink)]"
+                    className="inline-flex items-center gap-1.5 rounded-full border-2 border-(--hero-ink) bg-white px-4 py-2 text-xs font-bold text-[var(--hero-ink)]"
                   >
-                    View on explorer
+                    {explorerLinkLabelForActivityCategory(detail.category)}
                     <ExternalLink className="size-3.5" />
                   </a>
                 ) : null}

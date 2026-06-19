@@ -8,7 +8,10 @@ import {
   formatTransactionStatus,
   transactionStatusChipClass,
 } from "@/lib/agent-transactions-api";
-import { chainExplorerTxUrl } from "@/lib/chain-meta";
+import {
+  explorerLinkLabelForActivityCategory,
+  resolveActivityExplorerUrl,
+} from "@/lib/explorer-tx-link";
 import { formatSessionTime } from "@/lib/chat-messages";
 
 type AgentTransactionRowProps = {
@@ -17,7 +20,7 @@ type AgentTransactionRowProps = {
 };
 
 export function AgentTransactionRow({ item, onSelect }: AgentTransactionRowProps) {
-  const explorerUrl = item.digest ? chainExplorerTxUrl(item.chain_id, item.digest) : null;
+  const explorerUrl = resolveActivityExplorerUrl(item);
   const when = formatSessionTime(item.completed_at ?? item.created_at);
   const timeLabel = when === "now" ? "just now" : `${when} ago`;
 
@@ -52,7 +55,7 @@ export function AgentTransactionRow({ item, onSelect }: AgentTransactionRowProps
             onClick={(event) => event.stopPropagation()}
             className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--hero-blue)] hover:underline"
           >
-            Explorer
+            {explorerLinkLabelForActivityCategory(item.category, { compact: true })}
             <ExternalLink className="size-3" />
           </a>
         ) : null}

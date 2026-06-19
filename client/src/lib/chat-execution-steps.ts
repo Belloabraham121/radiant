@@ -390,7 +390,7 @@ function buildFlashLoanExecutionSteps(
         steps.push({
           id: "execute",
           status: "ok",
-          label: "Execute bundle",
+          label: "Flash loan executed",
           detail:
             flashLoan?.borrow_amount != null && flashLoan.coin_key
               ? `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key} · ${digest.slice(0, 10)}…`

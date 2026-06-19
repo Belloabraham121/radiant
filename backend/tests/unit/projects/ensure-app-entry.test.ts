@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ensureAppEntry, ensureTailwindInGlobalsCss } from "../../../src/services/projects/ensure-app-entry.js";
+import { RADIANT_CLIENT_TEMPLATE_VERSION } from "../../../src/services/projects/radiant-client-template.js";
 
 describe("ensureAppEntry", () => {
   it("keeps legacy src/App.tsx and adds radiant-client", () => {
@@ -52,13 +53,15 @@ describe("ensureAppEntry", () => {
     assert.ok(result.some((f) => f.path === "lib/radiant-client.ts"));
   });
 
-  it("injects radiant-client template v6 with browser-safe env and swap helpers", () => {
+  it("injects current radiant-client template with browser-safe env and swap helpers", () => {
     const result = ensureAppEntry([{ path: "app/page.tsx", content: "export default function Page() { return null; }" }]);
     const client = result.find((f) => f.path === "lib/radiant-client.ts");
     assert.ok(client);
     assert.match(client!.content, /export async function executeAction/);
     assert.match(client!.content, /export async function executeSwap/);
-    assert.match(client!.content, /Template v6/);
+    assert.match(client!.content, new RegExp(`Template v${RADIANT_CLIENT_TEMPLATE_VERSION}`));
+    assert.match(client!.content, /export async function deepbookPools/);
+    assert.match(client!.content, /export async function tokenBalances/);
     assert.match(client!.content, /readPublicEnv/);
     assert.match(client!.content, /resolveSwapSide/);
   });
@@ -70,7 +73,7 @@ describe("ensureAppEntry", () => {
     ]);
     const client = result.find((f) => f.path === "lib/radiant-client.ts");
     assert.ok(client);
-    assert.match(client!.content, /Template v6/);
+    assert.match(client!.content, new RegExp(`Template v${RADIANT_CLIENT_TEMPLATE_VERSION}`));
     assert.doesNotMatch(client!.content, /stale/);
   });
 
