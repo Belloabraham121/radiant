@@ -15,6 +15,7 @@ const sampleItem = (overrides: Partial<AgentTransactionListItem> = {}): AgentTra
   title: "Swap on DeepBook (SUI_USDC)",
   amount_display: "0.5 SUI → ~1.2 USDC",
   digest: "9GjRb8giW9T2V5JorAeMnpXu66KzzA6m5HeBkqf5EVrm",
+  explorer_url: "https://suiscan.xyz/mainnet/tx/9GjRb8giW9T2V5JorAeMnpXu66KzzA6m5HeBkqf5EVrm",
   effects_status: "success",
   session_id: "00000000-0000-4000-8000-000000000099",
   message_id: "00000000-0000-4000-8000-000000000098",

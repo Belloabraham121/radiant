@@ -11,6 +11,7 @@ import {
   shouldSuppressQueryFailureReceipts,
   type ExecutionStep,
 } from "@/lib/chat-execution-steps";
+import { flashLoanExecutedReceiptLabel } from "@/lib/explorer-tx-link";
 
 export type { ExecutionStep };
 
@@ -73,7 +74,10 @@ export function receiptFromExecutionStep(step: ExecutionStep): Receipt | null {
   }
 
   return {
-    label: step.id === "execute" ? "Transaction sent" : "On-chain step",
+    label:
+      step.id === "execute"
+        ? flashLoanExecutedReceiptLabel(step)
+        : "On-chain step",
     detail: formatDigestShort(step.digest),
     digest: step.digest,
     chainId: step.chainId ?? "sui",

@@ -5,7 +5,7 @@ import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
 import type { ExecutionStep } from "@/lib/chat-execution-steps";
 import { inferStatusCategoryFromExecutionSteps } from "@/lib/agent-status-category";
 import type { AgentStatusCategory } from "@/lib/agent-status-category";
-import { chainExplorerTxUrl } from "@/lib/chain-meta";
+import { explorerLinkLabel, explorerUrlForDigest } from "@/lib/explorer-tx-link";
 
 function StepIcon({ status }: { status: ExecutionStep["status"] }) {
   switch (status) {
@@ -74,9 +74,10 @@ export function ExecutionTimeline({
       )}
       <ol className="flex flex-col gap-0">
         {steps.map((step, index) => {
-          const explorerUrl = step.digest
-            ? chainExplorerTxUrl(step.chainId ?? "sui", step.digest)
-            : null;
+          const explorerUrl = explorerUrlForDigest(
+            step.digest,
+            step.chainId ?? "sui",
+          );
           const isLast = index === steps.length - 1;
           const isActive = live && step.status === "running";
 
@@ -114,7 +115,7 @@ export function ExecutionTimeline({
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-0.5 text-[10px] font-bold text-[var(--hero-blue)] hover:underline"
                     >
-                      View on Sui Explorer
+                      {explorerLinkLabel(step)}
                       <ExternalLink className="size-2.5" />
                     </a>
                   </div>

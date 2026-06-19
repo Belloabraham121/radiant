@@ -9,11 +9,9 @@
 # Optional E2B orphan cleanup loop (dev/staging). Requires E2B_API_KEY on host.
 #   cd backend && npm run e2b:cleanup:cron
 #
-# See api-ref.md for DATABASE_URL, REDIS_URL, and app env vars.
-# Docker profile `app` expects:
-#   DATABASE_URL=postgresql://radiant:radiant@postgres:5432/radiant
-#   REDIS_URL=redis://redis:6379
-#   RABBITMQ_URL=amqp://radiant:radiant@rabbitmq:5672/
+# See api-ref.md and .env.docker.example for app env vars.
+# The `api` service loads secrets from .env via env_file and overrides
+# DATABASE_URL / REDIS_URL / RABBITMQ_URL to use compose service hostnames.
 
 name: radiant
 
@@ -100,9 +98,10 @@ services:
     environment:
       NODE_ENV: production
       PORT: ${PORT:-3001}
-      DATABASE_URL: ${DATABASE_URL:-postgresql://radiant:radiant@postgres:5432/radiant}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://radiant:radiant@rabbitmq:5672/}
+      # Always use compose network hostnames (ignore localhost URLs from .env).
+      DATABASE_URL: postgresql://${POSTGRES_USER:-radiant}:${POSTGRES_PASSWORD:-radiant}@postgres:5432/${POSTGRES_DB:-radiant}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-radiant}:${RABBITMQ_PASSWORD:-radiant}@rabbitmq:5672${RABBITMQ_VHOST:-/}
     ports:
       - "${PORT:-3001}:3001"
     depends_on:

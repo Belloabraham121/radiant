@@ -18,16 +18,19 @@ import type { ChatMessage, Receipt } from "@/lib/chat-messages";
 import type { ArtifactPayload } from "@/lib/artifact-types";
 import { saveStoredChatAppScope, scopeToChipLabel, type ChatAppScope } from "@/lib/chat-app-scope";
 import { requestArtifactPreviewTab } from "@/lib/artifact-preview-tab";
-import { chainExplorerTxUrl } from "@/lib/chain-meta";
+import {
+  explorerLinkLabelForReceipt,
+  explorerUrlForDigest,
+} from "@/lib/explorer-tx-link";
 
 const CHAT_COL = "mx-auto w-full max-w-[53.76rem]";
 const CHAT_INPUT_MAX_HEIGHT_PX = 160;
 
 function ReceiptPill({ receipt }: { receipt: Receipt }) {
-  const explorerUrl =
-    receipt.digest
-      ? chainExplorerTxUrl(receipt.chainId ?? "sui", receipt.digest)
-      : null;
+  const explorerUrl = explorerUrlForDigest(
+    receipt.digest,
+    receipt.chainId ?? "sui",
+  );
 
   return (
     <span className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-3 py-1.5 text-xs font-bold">
@@ -48,7 +51,7 @@ function ReceiptPill({ receipt }: { receipt: Receipt }) {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-0.5 font-bold text-[var(--hero-blue)] hover:underline"
         >
-          View on Sui Explorer
+          {explorerLinkLabelForReceipt(receipt.label)}
           <ExternalLink className="size-3" />
         </a>
       ) : null}

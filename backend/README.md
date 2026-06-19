@@ -46,7 +46,7 @@ Full local stack (Postgres + Redis + RabbitMQ + API):
 docker compose --profile app up -d --build
 ```
 
-Set `DATABASE_URL`, `REDIS_URL`, and `RABBITMQ_URL` to the compose service hostnames (`postgres`, `redis`, `rabbitmq`) when using the `app` profile. See [docs/deploy-checklist.md](./docs/deploy-checklist.md).
+Fill secrets in `.env` (Privy, OpenAI, Inngest, etc.); compose overrides `DATABASE_URL` / `REDIS_URL` / `RABBITMQ_URL` to internal service names. See [`.env.docker.example`](./.env.docker.example) and [docs/deploy-checklist.md](./docs/deploy-checklist.md).
 
 ## Agent wallet (Privy)
 

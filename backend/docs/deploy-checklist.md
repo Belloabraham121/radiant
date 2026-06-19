@@ -14,14 +14,38 @@ docker run --env-file .env -p 3001:3001 radiant-backend
 Or run infra + API together (uses the `app` compose profile):
 
 ```bash
-# In .env, point at compose service hostnames:
-# DATABASE_URL=postgresql://radiant:radiant@postgres:5432/radiant
-# REDIS_URL=redis://redis:6379
-# RABBITMQ_URL=amqp://radiant:radiant@rabbitmq:5672/
+cp .env.example .env
+# Fill secrets in .env (Privy, OpenAI, etc.). Connection strings are overridden
+# automatically in compose — see .env.docker.example for reference.
 
 docker compose --profile app up -d --build
 curl -s http://localhost:3001/health
 ```
+
+### Environment variables in Docker
+
+| Layer | How vars are supplied |
+| ----- | --------------------- |
+| `docker compose --profile app` | `env_file: .env` loads **all** app secrets; compose **overrides** `DATABASE_URL`, `REDIS_URL`, and `RABBITMQ_URL` to internal service names |
+| `docker run --env-file .env` | You must set connection strings yourself (use `.env.docker.example` values or managed DB/Redis URLs) |
+| Railway / Fly / Render | Inject the same vars as `.env.example` in the platform dashboard |
+
+**Required for a working API** (beyond infra URLs):
+
+- `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_AUTHORIZATION_PRIVATE_KEY`
+- `CORS_ORIGIN` (production frontend URL)
+- `OPENAI_API_KEY` (or `AGENT_FALLBACK_STUB=true` for smoke tests only)
+
+**Common production add-ons** (same in Docker or bare metal):
+
+- `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` — durable jobs + notification crons
+- `E2B_API_KEY`, `SANDBOX_PROVIDER=e2b` — custom app builds
+- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` — web push
+- `NOTIFICATIONS_INTERNAL_API_KEY` — internal notification emit API
+- `BRAVE_SEARCH_API_KEY` or `EXA_API_KEY` — agent web search
+- `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `APP_DATA_STORAGE=turso` — optional Turso app data
+
+Full list: `backend/.env.example`. Docker connection-string reference: `backend/.env.docker.example`.
 
 On Railway, Fly.io, Render, etc.: set the Dockerfile path to `backend/Dockerfile`, build context to `backend/`, expose port `3001`, and inject env vars from this checklist. Migrations run automatically via `npm run start:prod`.
 

@@ -104,15 +104,23 @@ export async function ensureAgentChainWallet(deps: EnsureChainWalletDeps) {
 
   if (!hasSigner) {
     const policyId = getPolicyIdForChain(deps.chainId);
-    await deps.addSigners({
-      address: wallet.address,
-      signers: [
-        {
-          signerId: quorumId,
-          policyIds: policyId ? [policyId] : [],
-        },
-      ],
-    });
+    try {
+      await deps.addSigners({
+        address: wallet.address,
+        signers: [
+          {
+            signerId: quorumId,
+            policyIds: policyId ? [policyId] : [],
+          },
+        ],
+      });
+    } catch (err) {
+      // Same Privy user across envs: wallet + signer exist in Privy but prod DB is fresh.
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/duplicate signer/i.test(message)) {
+        throw err;
+      }
+    }
     hasSigner = true;
   }
 

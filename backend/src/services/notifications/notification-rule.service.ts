@@ -18,6 +18,7 @@ import type {
   NotificationSchedule,
   ProjectNotificationSchema,
 } from "./notification-schema.types.js";
+import type { NotificationScheduleInput } from "./notification-schedule.service.js";
 import {
   createNotificationRule,
   findNotificationRuleForUser,
@@ -74,7 +75,7 @@ export type NotificationRuleRecord = {
 export type CreateNotificationRuleInput = {
   notification_type: string;
   condition?: Record<string, unknown>;
-  schedule?: NotificationSchedule;
+  schedule?: NotificationScheduleInput;
   channels?: NotificationChannel[];
   label?: string;
   cooldown_seconds?: number;
@@ -87,7 +88,7 @@ export type CreateNotificationRuleInput = {
 export type UpdateNotificationRuleInput = {
   label?: string | null;
   condition?: Record<string, unknown>;
-  schedule?: NotificationSchedule | null;
+  schedule?: NotificationScheduleInput | null;
   channels?: NotificationChannel[];
   status?: NotificationRuleStatus;
   cooldown_seconds?: number;

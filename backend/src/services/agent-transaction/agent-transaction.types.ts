@@ -61,6 +61,7 @@ export type AgentTransactionListItem = {
   title: string;
   amount_display: string;
   digest: string | null;
+  explorer_url: string | null;
   effects_status: string | null;
   session_id: string | null;
   message_id: string | null;

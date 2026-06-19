@@ -14,6 +14,7 @@ RUN apt-get update \
 FROM base AS deps
 
 COPY package.json package-lock.json ./
+COPY prisma ./prisma
 RUN npm ci
 
 FROM base AS runner
@@ -25,8 +26,6 @@ COPY package.json package-lock.json tsconfig.json ./
 COPY prisma ./prisma
 COPY src ./src
 COPY scripts ./scripts
-
-RUN npx prisma generate
 
 USER node
 

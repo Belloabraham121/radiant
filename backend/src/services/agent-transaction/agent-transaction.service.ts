@@ -65,14 +65,16 @@ async function resolveWalletAddress(privyUserId: string, chainId: ChainId): Prom
 }
 
 function toListItem(row: AgentTransactionRecord): AgentTransactionListItem {
+  const chainId = parseChainId(row.chain_id);
   return {
     id: row.id,
     status: row.status,
     category: row.category,
-    chain_id: parseChainId(row.chain_id),
+    chain_id: chainId,
     title: row.title,
     amount_display: row.amount_display,
     digest: row.digest,
+    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest) : null,
     effects_status: row.effects_status,
     session_id: row.session_id,
     message_id: row.message_id,

@@ -197,13 +197,21 @@ function emitExecuteProgressFromResult(
   }
 
   if (outcome.status === "executed" && outcome.result?.digest) {
+    const isFlashLoan = toolInput.action === "deepbook_flash_loan";
+    const flashLoan = outcome.result.deepbook?.flash_loan;
+    const digest = outcome.result.digest;
     emitExecutionProgress({
       step: {
         id: "execute",
         status: "ok",
-        label: executeLabel,
-        detail: `Broadcast · ${outcome.result.digest.slice(0, 10)}…`,
-        digest: outcome.result.digest,
+        label: isFlashLoan ? "Flash loan executed" : executeLabel,
+        detail:
+          isFlashLoan &&
+          flashLoan?.borrow_amount != null &&
+          flashLoan.coin_key
+            ? `Borrow ${flashLoan.borrow_amount} ${flashLoan.coin_key} · ${digest.slice(0, 10)}…`
+            : `Broadcast · ${digest.slice(0, 10)}…`,
+        digest,
         chain_id: outcome.result.chain_id,
         agent_transaction_id: outcome.agent_transaction_id,
       },

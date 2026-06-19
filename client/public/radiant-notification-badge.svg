@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" role="img" aria-label="Radiant">
+  <circle cx="36" cy="36" r="36" fill="#1b1610"/>
+  <path
+    d="M36 18l4 11 11 4-11 4-4 11-4-11-11-4 11-4 4-11z"
+    fill="#ffb01f"
+    stroke="#faf6ec"
+    stroke-width="2.5"
+    stroke-linejoin="round"
+  />
+</svg>
