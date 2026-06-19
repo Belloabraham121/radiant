@@ -1,5 +1,8 @@
 /* Radiant platform service worker — Web Push only (not used by generated apps). */
 
+const RADIANT_PUSH_ICON = "/radiant-notification-icon.svg";
+const RADIANT_PUSH_BADGE = "/radiant-notification-badge.svg";
+
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
 });
@@ -27,8 +30,8 @@ self.addEventListener("push", (event) => {
   const options = {
     body: payload.body || "",
     data: payload.data || { url: "/app/projects" },
-    icon: "/file.svg",
-    badge: "/file.svg",
+    icon: payload.icon || RADIANT_PUSH_ICON,
+    badge: payload.badge || RADIANT_PUSH_BADGE,
     tag: payload.data?.event_id || "radiant-notification",
     renotify: true,
   };
