@@ -513,6 +513,7 @@ Phase 0 (infra + dashboard)
 | [x] | Phase 0.5 — Chain and token allowlists | [Backend] |
 | [x] | Phase 0.6 — DeFi caching layer (catalogs, quotes, RPC balances) | [Backend] |
 | [x] | Phase 1 — Li-Fi cross-chain (ETH ↔ Arbitrum ↔ Base) | [Backend] |
+| [x] | Phase 1 — Li-Fi reusable approval popup (`DeFiApprovalPreview`) | [Both] |
 | [ ] | Phase 2 — Soroswap (Stellar / Soroban) | [Backend] |
 | [ ] | Phase 3 — SushiSwap (EVM same-chain aggregator) | [Backend] |
 | [ ] | Phase 4 — Simple provider router | [Backend] |

@@ -43,12 +43,14 @@ import {
   validateExecuteTransactionInput,
 } from "./deepbook/validate-execute-transaction.js";
 import { buildTransactionDisplay } from "../agent-transaction/deepbook/build-display.js";
+import { buildDeFiApprovalPreview } from "../agent-transaction/approval-preview/build-preview.js";
+import { enrichExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/registry.js";
 import {
-  enrichSwapExecuteInputForApproval,
-  isSwapQuoteExpired,
-  readQuoteExpiresAt,
-} from "./deepbook/swap-quote-enrichment.js";
+  isDeFiQuoteExpired,
+  readDeFiQuoteExpiresAt,
+} from "../agent-transaction/approval-preview/quote-expiry.js";
 import { previewExecuteTransactionFiat } from "../market/valuation.service.js";
+import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
 import {
   claimPendingApprovalForUser,
   claimPendingRejectionForUser,
@@ -95,6 +97,8 @@ const MUTATING_EXECUTE_ACTIONS = new Set([
   "deepbook_unstake",
   "deepbook_submit_proposal",
   "deepbook_vote",
+  "cross_chain_swap",
+  "lifi_approve",
   "execute_bytes",
 ]);
 
@@ -120,7 +124,7 @@ export async function buildPendingTransactionPreview(
   input: ExecuteTransactionInput,
   id = randomUUID(),
 ): Promise<PendingTransaction> {
-  const enriched = await enrichSwapExecuteInputForApproval(privyUserId, input);
+  const enriched = await enrichExecuteInputForApproval(privyUserId, input);
   validateExecuteTransactionInput(enriched);
   const { title, amount_display: amountDisplay } = await buildTransactionDisplay(
     privyUserId,
@@ -128,16 +132,22 @@ export async function buildPendingTransactionPreview(
   );
 
   const fiat_preview = await previewExecuteTransactionFiat(enriched);
+  const defi_preview = buildDeFiApprovalPreview(
+    { title, amount_display: amountDisplay },
+    enriched,
+    fiat_preview,
+  );
 
   return {
     id,
     chain_id: enriched.chain_id,
     action: enriched.action,
     params: enriched.params,
-    amount_display: amountDisplay,
-    summary: title,
-    quote_expires_at: readQuoteExpiresAt(enriched.params),
+    amount_display: defi_preview?.amount_display ?? amountDisplay,
+    summary: defi_preview?.title ?? title,
+    quote_expires_at: readDeFiQuoteExpiresAt(enriched.params),
     fiat_preview,
+    defi_preview,
   };
 }
 
@@ -147,6 +157,13 @@ function parseAmountAtomic(params: Record<string, unknown>): bigint | null {
     return null;
   }
   return BigInt(raw);
+}
+
+export function bridgeRequiresApprovalWithPermissions(
+  _permissions: AgentPermissions,
+  input: ExecuteTransactionInput,
+): boolean {
+  return isLifiExecuteAction(input.action);
 }
 
 export function swapRequiresApprovalWithPermissions(
@@ -269,6 +286,10 @@ export function transferRequiresApprovalWithPermissions(
     return swapRequiresApprovalWithPermissions(permissions, input);
   }
 
+  if (isLifiExecuteAction(input.action)) {
+    return bridgeRequiresApprovalWithPermissions(permissions, input);
+  }
+
   if (isDeepBookCancelOrderAction(input.action)) {
     return true;
   }
@@ -375,11 +396,16 @@ export async function approvePendingTransaction(
   const pending = pendingTransactionFromRecord(claimed);
   const executeInput = executeInputFromRecord(claimed);
 
-  if (isDeepBookSwapAction(executeInput.action) && isSwapQuoteExpired(executeInput.params)) {
+  if (
+    (isDeepBookSwapAction(executeInput.action) || isLifiExecuteAction(executeInput.action)) &&
+    isDeFiQuoteExpired(executeInput.params)
+  ) {
     const error = new AppError(
       400,
       "QUOTE_EXPIRED",
-      "This swap quote expired. Cancel and ask again to get a fresh rate before approving.",
+      isLifiExecuteAction(executeInput.action)
+        ? "This bridge quote expired. Cancel and ask again to get a fresh rate before approving."
+        : "This swap quote expired. Cancel and ask again to get a fresh rate before approving.",
     );
     await markCompleted(transactionId, {
       kind: "failure",

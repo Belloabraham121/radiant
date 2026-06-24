@@ -53,6 +53,6 @@ export function resolveQuoteExpiresAt(pending: {
   if (pending.quote_expires_at) {
     return pending.quote_expires_at;
   }
-  const fromParams = pending.params?.quote_expires_at;
+  const fromParams = pending.params?.quote_expires_at ?? pending.params?.expires_at;
   return typeof fromParams === "string" ? fromParams : null;
 }

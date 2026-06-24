@@ -1,7 +1,7 @@
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { parseChainId } from "../chains/registry.js";
-import { readQuoteExpiresAt } from "../agent/deepbook/swap-quote-enrichment.js";
+import { readDeFiQuoteExpiresAt } from "../agent-transaction/approval-preview/quote-expiry.js";
 import type { ChainId, ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "../agent/agent.types.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
@@ -108,7 +108,7 @@ export function pendingTransactionFromRecord(row: AgentTransactionRecord): Pendi
     params,
     amount_display: row.amount_display,
     summary: row.title,
-    quote_expires_at: readQuoteExpiresAt(params),
+    quote_expires_at: readDeFiQuoteExpiresAt(params),
   };
 }
 

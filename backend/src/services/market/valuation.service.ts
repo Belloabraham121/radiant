@@ -1,6 +1,7 @@
 import { isStablecoinSymbol } from "../defi/deepbook/asset-scalars.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 import { isDeepBookSwapAction, parseDeepBookSwapParams } from "../defi/deepbook/deepbook-swap.service.js";
+import { isLifiExecuteAction } from "../agent/chains/evm/lifi/execute-actions.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
 import type { WalletAssetsData } from "../wallet/wallet-assets.types.js";
 import { resolveCoingeckoMarketData } from "./coingecko.client.js";
@@ -216,6 +217,34 @@ export async function previewExecuteTransactionFiat(
     } catch {
       return null;
     }
+  }
+
+  if (isLifiExecuteAction(input.action) && input.action === "cross_chain_swap") {
+    const payAmount = Number(input.params.from_amount_display);
+    const receiveAmount = Number(input.params.to_amount_display);
+    const paySymbol =
+      typeof input.params.from_token_symbol === "string"
+        ? input.params.from_token_symbol
+        : null;
+    const receiveSymbol =
+      typeof input.params.to_token_symbol === "string"
+        ? input.params.to_token_symbol
+        : null;
+
+    if (
+      !Number.isFinite(payAmount) ||
+      !Number.isFinite(receiveAmount) ||
+      !paySymbol ||
+      !receiveSymbol
+    ) {
+      return null;
+    }
+
+    return previewSwapFiat({
+      chain_id: input.chain_id,
+      pay: { amount_display: payAmount, symbol: paySymbol },
+      receive: { amount_display: receiveAmount, symbol: receiveSymbol },
+    });
   }
 
   return null;

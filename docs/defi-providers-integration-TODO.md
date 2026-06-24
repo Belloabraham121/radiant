@@ -135,6 +135,7 @@ infrastructure/
 5. **Prompt modules** are scoped per provider (`protocol:lifi:*`, `protocol:soroswap:*`, `protocol:sushiswap:*`).
 6. **Tool-first for new providers** — no regex swap parsers for EVM/Stellar; use `token_resolve` + clarification.
 7. **Cache read paths, not execute** — catalogs and quotes are cached per Phase 0.6; execution always re-validates.
+8. **Reusable approval UX** — `backend/src/services/agent-transaction/approval-preview/` defines `DeFiApprovalPreview` + provider enrichers (`enrichers/deepbook.ts`, `enrichers/lifi.ts`, …). Register new providers in `enrichers/registry.ts`; client renders via `client/src/components/app/defi/DeFiApprovalPreview.tsx`.
 
 ---
 
@@ -611,6 +612,7 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 | [x] | Triggers in `module-triggers.ts` — keywords: bridge, cross-chain, Li-Fi, jumper; chains: `ethereum` | `backend/src/services/agent/prompts/module-triggers.ts` |
 | [x] | Register modules in `registry.ts` | `backend/src/services/agent/prompts/registry.ts` |
 | [x] | Extend `transaction-approval.service.ts` for cross-chain notional (USD estimate via existing valuation) | [Backend] |
+| [x] | Reusable approval popup: `DeFiApprovalPreview` contract + Li-Fi enricher + `cross_chain_swap` / `lifi_approve` gating | `backend/src/services/agent-transaction/approval-preview/`, `client/src/components/app/defi/DeFiApprovalPreview.tsx` |
 
 **Prompt content (lifi/swap.ts) must include**
 
@@ -627,6 +629,7 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 | [x] | `tests/unit/defi/lifi/lifi-quote.service.test.ts` |
 | [x] | `tests/unit/defi/lifi/lifi.errors.test.ts` |
 | [x] | `tests/unit/defi/lifi/lifi-rate-limit.test.ts` |
+| [x] | `tests/unit/agent-transaction/approval-preview-lifi.test.ts` — bridge approval gating + preview shape |
 | [x] | Integration test (mocked Li-Fi): quote → normalized output |
 
 **Exit criteria:** Agent can quote ETH→Base USDC, bridge Base↔Arbitrum, and execute on staging; status tracked; errors are user-friendly; only `ENABLED_EVM_CHAIN_IDS` chains accepted.
@@ -710,6 +713,8 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 | [ ] | `protocol:soroswap:swap` | `backend/src/services/agent/prompts/protocols/soroswap/swap.ts` |
 | [ ] | Triggers — keywords: soroswap, stellar, soroban, XLM; chains: `stellar` | `module-triggers.ts` |
 | [ ] | Wallet assets: Stellar balances via Soroswap `/balances` or Horizon | `wallet-assets.service.ts` |
+| [ ] | Wire `stellar_swap` into reusable `DeFiApprovalPreview` — add `enrichers/soroswap.ts`, register in `approval-preview/enrichers/registry.ts`, gate in `transaction-approval.service.ts` | `backend/src/services/agent-transaction/approval-preview/` |
+| [ ] | Client: Soroswap swaps use shared `DeFiApprovalPreviewCard` (quote countdown, pay/receive, fiat preview) | `client/src/components/app/defi/DeFiApprovalPreview.tsx` |
 
 **Prompt content (soroswap/swap.ts) must include**
 
@@ -793,6 +798,8 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 | [ ] | ERC-20 approval via viem (mirror Li-Fi approval pattern) | `backend/src/services/defi/sushiswap/sushiswap-approval.service.ts` |
 | [ ] | `execute_transaction` action: `evm_swap` / `sushiswap_swap` | `evm.ts` adapter |
 | [ ] | swap-registry: same-chain EVM → `evm-sushiswap` | `swap-registry.ts` |
+| [ ] | Wire `evm_swap` / `sushiswap_swap` into reusable `DeFiApprovalPreview` — add `enrichers/sushiswap.ts`, register in `approval-preview/enrichers/registry.ts`, swap approval gating (mirror DeepBook threshold rules) | `backend/src/services/agent-transaction/approval-preview/` |
+| [ ] | Client: SushiSwap swaps use shared `DeFiApprovalPreviewCard` | `client/src/components/app/defi/DeFiApprovalPreview.tsx` |
 
 **Error handling:** same as Li-Fi EVM execution patterns.
 

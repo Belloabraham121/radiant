@@ -33,6 +33,7 @@ import {
 } from "../../defi/deepbook/deepbook-governance.service.js";
 import type { ExecuteTransactionInput, ChainId, TxResult } from "../../chains/types.js";
 import { fmtDisplayNumber } from "../../../utils/format-display-number.js";
+import { formatRadiantChainLabel } from "../approval-preview/chain-labels.js";
 
 const DEEPBOOK_WRITE_ACTIONS = new Set(["deepbook_deposit", "deepbook_withdraw"]);
 
@@ -138,6 +139,53 @@ export async function buildTransactionDisplay(
       amount_display = "DeepBook swap";
       title = "Swap via DeepBook";
     }
+  } else if (input.action === "cross_chain_swap") {
+    const fromSymbol =
+      typeof input.params.from_token_symbol === "string"
+        ? input.params.from_token_symbol
+        : "token";
+    const toSymbol =
+      typeof input.params.to_token_symbol === "string"
+        ? input.params.to_token_symbol
+        : "token";
+    const fromAmount =
+      typeof input.params.from_amount_display === "string"
+        ? input.params.from_amount_display
+        : null;
+    const toAmount =
+      typeof input.params.to_amount_display === "string"
+        ? input.params.to_amount_display
+        : null;
+    const fromChainLabel = formatRadiantChainLabel(
+      (typeof input.params.from_chain_id === "string"
+        ? input.params.from_chain_id
+        : input.chain_id) as ChainId,
+      typeof input.params.from_evm_chain_id === "number"
+        ? input.params.from_evm_chain_id
+        : undefined,
+    );
+    const toChainLabel = formatRadiantChainLabel(
+      (typeof input.params.to_chain_id === "string"
+        ? input.params.to_chain_id
+        : input.chain_id) as ChainId,
+      typeof input.params.to_evm_chain_id === "number"
+        ? input.params.to_evm_chain_id
+        : undefined,
+    );
+    const bridges = Array.isArray(input.params.bridges)
+      ? input.params.bridges.filter((entry): entry is string => typeof entry === "string")
+      : [];
+    amount_display =
+      fromAmount && toAmount
+        ? `${fromAmount} ${fromSymbol} (${fromChainLabel}) → ~${toAmount} ${toSymbol} (${toChainLabel})`
+        : `Bridge ${fromSymbol} → ${toSymbol}`;
+    title =
+      bridges.length > 0
+        ? `Bridge ${fromSymbol} ${fromChainLabel} → ${toChainLabel} via ${bridges.join(" → ")}`
+        : `Bridge ${fromSymbol} ${fromChainLabel} → ${toChainLabel}`;
+  } else if (input.action === "lifi_approve") {
+    title = "Approve ERC-20 for Li-Fi bridge";
+    amount_display = "Token allowance approval";
   } else if (input.action === "deepbook_place_limit_order") {
     try {
       const parsed = parseDeepBookLimitOrderParams(input.params);

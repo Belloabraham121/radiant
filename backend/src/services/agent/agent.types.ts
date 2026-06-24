@@ -1,4 +1,5 @@
 import type { TransactionFiatPreview } from "../market/valuation.types.js";
+import type { DeFiApprovalPreview } from "../agent-transaction/approval-preview/approval-preview.types.js";
 import { z } from "zod";
 import { chainIdSchema } from "../chains/types.js";
 import type { BalanceResult, ChainId, TxResult } from "../chains/types.js";
@@ -115,6 +116,8 @@ export type PendingTransaction = {
   quote_expires_at?: string | null;
   /** USD estimates for approval UI (pay / receive / net). */
   fiat_preview?: TransactionFiatPreview | null;
+  /** Provider-agnostic DeFi approval card payload (swap, bridge, etc.). */
+  defi_preview?: DeFiApprovalPreview | null;
 };
 
 export type ChatResponse = {
