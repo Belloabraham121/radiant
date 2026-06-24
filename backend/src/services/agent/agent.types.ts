@@ -171,10 +171,17 @@ const queryChainInputObjectSchema = z.object({
     "predict_range_amounts",
     "predict_manager_info",
     "predict_vault_summary",
+    "token_resolve",
+    "supported_chains",
   ]),
   params: z
     .object({
       evm_chain_id: z.number().int().positive().optional(),
+      to_chain_id: chainIdSchema.optional(),
+      to_evm_chain_id: z.number().int().positive().optional(),
+      symbol: z.string().min(1).optional(),
+      token: z.string().min(1).optional(),
+      input: z.string().min(1).optional(),
       include_zero: z.boolean().optional(),
       include_usd: z.boolean().optional(),
       coin_key: z.string().min(1).optional(),

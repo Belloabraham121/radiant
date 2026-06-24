@@ -49,6 +49,18 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds: number):
   }
 }
 
+export async function cacheDelete(key: string): Promise<void> {
+  memory.delete(key);
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      await redis.del(key);
+    } catch {
+      // Memory cache already cleared.
+    }
+  }
+}
+
 export async function cachedFetch<T>(
   key: string,
   ttlSeconds: number,

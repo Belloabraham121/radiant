@@ -348,27 +348,27 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `backend/src/config/supported-tokens.ts` — per-chain symbol → address/code map for v1 tokens | [Backend] |
-| [ ] | `validateTokenAllowed(chain_id, evm_chain_id?, symbol)` — reject unknown symbols | [Backend] |
-| [ ] | `resolveTokenSymbol(chain_id, userInput)` — exact match + fuzzy suggestions (no silent execute) | [Backend] |
-| [ ] | `getSupportedChains()` — returns Radiant v1 chain list for agent / REST | [Backend] |
-| [ ] | Filter Li-Fi `/chains` and Sushi chain lists through `ENABLED_EVM_CHAIN_IDS` | [Backend] |
-| [ ] | `tests/unit/config/supported-tokens.test.ts` | [Backend] |
+| [x] | `backend/src/config/supported-tokens.ts` — per-chain symbol → address/code map for v1 tokens | [Backend] |
+| [x] | `validateTokenAllowed(chain_id, evm_chain_id?, symbol)` — reject unknown symbols | [Backend] |
+| [x] | `resolveTokenSymbol(chain_id, userInput)` — exact match + fuzzy suggestions (no silent execute) | [Backend] |
+| [x] | `getSupportedChains()` — returns Radiant v1 chain list for agent / REST | [Backend] |
+| [x] | Filter Li-Fi `/chains` and Sushi chain lists through `ENABLED_EVM_CHAIN_IDS` | [Backend] |
+| [x] | `tests/unit/config/supported-tokens.test.ts` | [Backend] |
 
 **Error handling**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `TOKEN_NOT_RECOGNIZED` — user input does not match any allowlisted symbol (e.g. "shot") |
-| [ ] | `TOKEN_NOT_SUPPORTED` — symbol known globally but not on v1 allowlist |
-| [ ] | `TOKEN_AMBIGUOUS` — symbol valid on multiple enabled chains without `evm_chain_id` |
-| [ ] | `CROSS_ECOSYSTEM_NOT_SUPPORTED` — source chain ecosystem ≠ dest (e.g. stellar → base) |
+| [x] | `TOKEN_NOT_RECOGNIZED` — user input does not match any allowlisted symbol (e.g. "shot") |
+| [x] | `TOKEN_NOT_SUPPORTED` — symbol known globally but not on v1 allowlist |
+| [x] | `TOKEN_AMBIGUOUS` — symbol valid on multiple enabled chains without `evm_chain_id` |
+| [x] | `CROSS_ECOSYSTEM_NOT_SUPPORTED` — source chain ecosystem ≠ dest (e.g. stellar → base) |
 
 **Rate limiting**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `token_resolve` query: 60 / min per user (lightweight, cache 30 s per input) |
+| [x] | `token_resolve` query: 60 / min per user (lightweight, cache 30 s per input) |
 
 **Exit criteria:** `stellar` adapter passes balance read on testnet; swap-registry routes by chain; configs validate at boot; requests for Polygon/Base-outside-allowlist/Base-in-allowlist behave correctly.
 
@@ -403,12 +403,12 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `backend/src/services/defi/cache.ts` — namespaced keys `defi:{provider}:{resource}:…` | [Backend] |
-| [ ] | `defiCachedFetch(key, ttlSeconds, fetcher)` — thin wrapper over `cachedFetch` | ↑ |
-| [ ] | `hashQuoteParams(params)` — stable cache key for quote dedupe | ↑ |
-| [ ] | Env TTLs in `backend/src/config/defi-cache.ts` (or per-provider config) | [Backend] |
-| [ ] | Document vars in `backend/.env.example` | [Backend] |
-| [ ] | `tests/unit/defi/defi-cache.test.ts` | [Backend] |
+| [x] | `backend/src/services/defi/cache.ts` — namespaced keys `defi:{provider}:{resource}:…` | [Backend] |
+| [x] | `defiCachedFetch(key, ttlSeconds, fetcher)` — thin wrapper over `cachedFetch` | ↑ |
+| [x] | `hashQuoteParams(params)` — stable cache key for quote dedupe | ↑ |
+| [x] | Env TTLs in `backend/src/config/defi-cache.ts` (or per-provider config) | [Backend] |
+| [x] | Document vars in `backend/.env.example` | [Backend] |
+| [x] | `tests/unit/defi/defi-cache.test.ts` | [Backend] |
 
 **Env (suggested defaults)**
 
@@ -427,29 +427,29 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Status | Task | TTL | Owner |
 | ------ | ---- | --- | ----- |
-| [ ] | Li-Fi chains (filtered to `ENABLED_EVM_CHAIN_IDS`) | 5–15 min | [Backend] |
-| [ ] | Li-Fi tokens per chain set | 10–30 min | [Backend] |
-| [ ] | Li-Fi `connections` + `tools` (bridges/DEX list) | 10–30 min | [Backend] |
-| [ ] | Li-Fi quotes — read dedupe only; re-validate before execute | 5–15 s | [Backend] |
-| [ ] | Li-Fi status per `txHash` | 10–30 s | [Backend] |
-| [ ] | Soroswap `/api/tokens` + asset lists | 10 min | [Backend] |
-| [ ] | Soroswap `/health` + protocols | 2–5 min | [Backend] |
-| [ ] | Soroswap quotes — read dedupe | 5 s | [Backend] |
-| [ ] | Sushi supported chain IDs | 24 h / boot | [Backend] |
-| [ ] | Sushi token metadata per `(chainId, address)` | 1–24 h | [Backend] |
-| [ ] | Sushi `/price/v1` batches | 30–60 s | [Backend] |
-| [ ] | Sushi quotes — read dedupe | 5–15 s | [Backend] |
-| [ ] | Radiant `getSupportedChains()` / allowlist | process lifetime | [Backend] |
-| [ ] | `token_resolve` (exact); fuzzy always live | 30 s | [Backend] |
-| [ ] | RPC balances (`/auth/me` funded check, `wallets/balances`) | 15–30 s | [Backend] |
+| [x] | Li-Fi chains (filtered to `ENABLED_EVM_CHAIN_IDS`) | 5–15 min | [Backend] |
+| [x] | Li-Fi tokens per chain set | 10–30 min | [Backend] |
+| [x] | Li-Fi `connections` + `tools` (bridges/DEX list) | 10–30 min | [Backend] |
+| [x] | Li-Fi quotes — read dedupe only; re-validate before execute | 5–15 s | [Backend] |
+| [x] | Li-Fi status per `txHash` | 10–30 s | [Backend] |
+| [x] | Soroswap `/api/tokens` + asset lists | 10 min | [Backend] |
+| [x] | Soroswap `/health` + protocols | 2–5 min | [Backend] |
+| [x] | Soroswap quotes — read dedupe | 5 s | [Backend] |
+| [x] | Sushi supported chain IDs | 24 h / boot | [Backend] |
+| [x] | Sushi token metadata per `(chainId, address)` | 1–24 h | [Backend] |
+| [x] | Sushi `/price/v1` batches | 30–60 s | [Backend] |
+| [x] | Sushi quotes — read dedupe | 5–15 s | [Backend] |
+| [x] | Radiant `getSupportedChains()` / allowlist | process lifetime | [Backend] |
+| [x] | `token_resolve` (exact); fuzzy always live | 30 s | [Backend] |
+| [x] | RPC balances (`/auth/me` funded check, `wallets/balances`) | 15–30 s | [Backend] |
 
 **Quote vs execute policy (all providers)**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Document: cached quotes OK for `query_chain` only |
+| [x] | Document: cached quotes OK for `query_chain` only |
 | [ ] | `execute_transaction` must re-quote or verify `expiresAt` at approval (mirror DeepBook `quote_expires_at`) |
-| [ ] | Never cache execution payloads across users or requests |
+| [x] | Never cache execution payloads across users or requests |
 
 **Valuation de-dupe**
 
@@ -462,20 +462,20 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | Wallet assets per `(chainId, evmChainId)` — **existing** `wallet-session-cache.ts` | [Client] |
-| [ ] | Token logos — **existing** `token-metadata-cache.ts` | [Client] |
-| [ ] | Optional: cache `GET /api/v1/defi/chains` / `supported_chains` response | 5–10 min | [Client] |
-| [ ] | Clear all DeFi client caches on logout — extend `clearWalletSessionCache()` | [Client] |
-| [ ] | Invalidate wallet assets after swap/bridge/deposit success — **existing** `invalidateWalletAssetsForChain` | [Client] |
+| [x] | Wallet assets per `(chainId, evmChainId)` — **existing** `wallet-session-cache.ts` | [Client] |
+| [x] | Token logos — **existing** `token-metadata-cache.ts` | [Client] |
+| [x] | Optional: cache `GET /api/v1/defi/chains` / `supported_chains` response | 5–10 min | [Client] |
+| [x] | Clear all DeFi client caches on logout — extend `clearWalletSessionCache()` | [Client] |
+| [x] | Invalidate wallet assets after swap/bridge/deposit success — **existing** `invalidateWalletAssetsForChain` | [Client] |
 
 #### 0.6.4 Invalidation triggers
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | User logout → `clearWalletSessionCache()` + clear token metadata |
-| [ ] | Successful `execute_transaction` → invalidate balances + assets for affected chain(s) |
-| [ ] | Settings “Refresh balances” → `invalidateAllWalletCaches()` — **existing** |
-| [ ] | `ENABLED_EVM_CHAIN_IDS` / `SOROSWAP_NETWORK` change → process restart (document) |
+| [x] | User logout → `clearWalletSessionCache()` + clear token metadata |
+| [x] | Successful `execute_transaction` → invalidate balances + assets for affected chain(s) |
+| [x] | Settings “Refresh balances” → `invalidateAllWalletCaches()` — **existing** |
+| [x] | `ENABLED_EVM_CHAIN_IDS` / `SOROSWAP_NETWORK` change → process restart (document) |
 | [ ] | Phase 8 `route_quote` → short TTL only; invalidate after any leg executes |
 
 **Exit criteria:** Catalog reads hit cache on second request; identical quotes within 5 s do not fan out to providers; `/auth/me` does not hammer RPC when called repeatedly; execute path never uses stale quote without expiry check.

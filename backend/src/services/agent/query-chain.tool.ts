@@ -62,6 +62,10 @@ import {
   queryMarginIndexerSupply,
   queryMarginManagerState,
 } from "../defi/deepbook/deepbook-margin-indexer-read.service.js";
+import {
+  querySupportedChains,
+  queryTokenResolve,
+} from "../defi/token-resolve.service.js";
 import type { BalanceContext } from "../chains/types.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
 import {
@@ -137,9 +141,11 @@ export const queryChainToolDefinition = {
           "predict_range_amounts",
           "predict_manager_info",
           "predict_vault_summary",
+          "token_resolve",
+          "supported_chains",
         ],
         description:
-          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, project_notification_schema, margin_pool_info, margin_manager_info, margin_tpsl_info, margin_open_orders, margin_liquidations, margin_collateral_history, margin_loan_history, margin_at_risk_states, margin_managers_info, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, or predict_vault_summary.",
+          "Read-only query type: balances, wallet holdings, DeepBook manager, pool market data, swap_quote, flash_loan_quote, deepbook_open_orders, stake/governance, deepbook_trades, deepbook_volume, deepbook_ohlcv, agent_transactions, project_actions, session_actions, project_notification_schema, margin_pool_info, margin_manager_info, margin_tpsl_info, margin_open_orders, margin_liquidations, margin_collateral_history, margin_loan_history, margin_at_risk_states, margin_managers_info, predict_markets, predict_trade_amounts, predict_range_amounts, predict_manager_info, predict_vault_summary, token_resolve, or supported_chains.",
       },
       params: {
         type: "object",
@@ -183,6 +189,8 @@ export const queryChainToolDefinition = {
           "predict_range_amounts: { oracle_id, expiry, lower_strike, higher_strike, quantity } — preview for range position. " +
           "predict_manager_info: { manager_id? } — predict manager balances and positions. " +
           "predict_vault_summary: {} — vault total value, PLP supply, max payout, withdrawal available. " +
+          "token_resolve: { symbol } (or token / input) — resolve allowlisted token; optional evm_chain_id, to_chain_id for cross-ecosystem checks. Fuzzy typos return suggestions only. " +
+          "supported_chains: {} — Radiant v1 enabled chains, providers, and token allowlists. " +
           "EVM balances: { evm_chain_id }.",
         additionalProperties: true,
       },
@@ -486,6 +494,27 @@ export async function runQueryChainTool(
         withdrawal_available: vault.withdrawalAvailable,
       };
     }
+    case "token_resolve": {
+      const symbol = String(
+        parsed.params.symbol ?? parsed.params.token ?? parsed.params.input ?? "",
+      ).trim();
+      if (!symbol) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "token_resolve requires params.symbol (or token / input).",
+        );
+      }
+      return queryTokenResolve(privyUserId, {
+        chain_id: parsed.chain_id,
+        symbol,
+        evm_chain_id: parsed.params.evm_chain_id,
+        to_chain_id: parsed.params.to_chain_id as typeof parsed.chain_id | undefined,
+        to_evm_chain_id: parsed.params.to_evm_chain_id,
+      });
+    }
+    case "supported_chains":
+      return querySupportedChains();
     case "project_actions":
     case "session_actions": {
       const useSession = parsed.query === "session_actions";
