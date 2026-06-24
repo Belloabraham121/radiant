@@ -183,12 +183,12 @@ Move every remaining line from `prompts.ts` into typed modules. Composer loads *
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Create `prompts/resolve-modules.ts` — union of: always-core, chain module, keyword triggers, `detectInstructionMode`, `classifyFlashLoanTurnIntent`, `parseSwapExecutionIntent`, pinned app hints |
-| [ ] | Extend `BuildSystemPromptInput` with optional `userMessage`, `activeModuleIds`, `knownAppActions`, `mode?: 'full' \| 'scoped'` |
-| [ ] | `buildSystemPrompt`: if `mode !== 'full'`, compose selected modules only; else all modules (parity) |
-| [ ] | Compound messages: union modules from workflow planner step actions (`workflow/planner-prompt.ts` action list) |
-| [ ] | Safety widen: ambiguous execution messages include default swap module for active chain |
-| [ ] | Unit tests: swap message excludes margin; margin message excludes predict; build message includes artifact modules not deepbook margin |
+| [x] | Create `prompts/resolve-modules.ts` — union of: always-core, chain module, keyword triggers, `detectInstructionMode`, `classifyFlashLoanTurnIntent`, `parseSwapExecutionIntent`, pinned app hints |
+| [x] | Extend `BuildSystemPromptInput` with optional `userMessage`, `activeModuleIds`, `knownAppActions`, `mode?: 'full' \| 'scoped'` |
+| [x] | `buildSystemPrompt`: if `mode !== 'full'`, compose selected modules only; else all modules (parity) |
+| [x] | Compound messages: union modules from workflow planner step actions (`workflow/planner-prompt.ts` action list) |
+| [x] | Safety widen: ambiguous execution messages include default swap module for active chain |
+| [x] | Unit tests: swap message excludes margin; margin message excludes predict; build message includes artifact modules not deepbook margin |
 
 ---
 

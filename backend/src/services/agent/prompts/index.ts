@@ -1,7 +1,11 @@
 import { getDefaultAgentChainId } from "../../../config/chains.js";
 import { defaultAgentPermissions } from "../agent-permissions.service.js";
 import { formatPinnedAppScopeForPrompt } from "../../projects/pinned-app-scope.types.js";
-import { buildFullModePromptLines } from "./registry.js";
+import { buildFullModePromptLines, buildScopedModePromptLines } from "./registry.js";
+import {
+  getDefaultPromptScopeMode,
+  resolvePromptModules,
+} from "./resolve-modules.js";
 import type { BuildSystemPromptInput, PromptBuildContext } from "./types.js";
 
 export type { BuildSystemPromptInput, PromptModuleId, PromptScopeMode } from "./types.js";
@@ -21,9 +25,17 @@ export {
   resolvePromptModulesForQueryType,
 } from "./action-module-map.js";
 export { PROMPT_MODULE_TRIGGERS } from "./module-triggers.js";
+export {
+  getDefaultPromptScopeMode,
+  resolveOptionalPromptModules,
+  resolvePromptModules,
+  type ResolvePromptModulesInput,
+} from "./resolve-modules.js";
+export { buildScopedModePromptLines } from "./registry.js";
 
 function toPromptBuildContext(input: BuildSystemPromptInput): PromptBuildContext {
   const chainId = getDefaultAgentChainId();
+  const mode = input.mode ?? getDefaultPromptScopeMode();
   return {
     chainId,
     permissions: input.agentPermissions ?? defaultAgentPermissions(),
@@ -33,17 +45,32 @@ function toPromptBuildContext(input: BuildSystemPromptInput): PromptBuildContext
     userMessage: input.userMessage,
     activeModuleIds: input.activeModuleIds,
     knownAppActions: input.knownAppActions,
-    mode: input.mode ?? "full",
+    mode,
   };
 }
 
 /**
- * Composes the agent system prompt via the module registry (full mode).
- * Scoped mode (Phase 4) will select modules via resolve-modules.ts.
+ * Composes the agent system prompt via the module registry.
+ * Full mode (default): all modules. Scoped mode: core + resolved optional modules.
  */
 export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
   const ctx = toPromptBuildContext(input);
-  const lines = [...buildFullModePromptLines(ctx)];
+  const lines =
+    ctx.mode === "full"
+      ? buildFullModePromptLines(ctx)
+      : buildScopedModePromptLines(
+          ctx,
+          resolvePromptModules({
+            chainId: ctx.chainId,
+            permissions: ctx.permissions,
+            userMessage: input.userMessage,
+            activeModuleIds: input.activeModuleIds,
+            knownAppActions: input.knownAppActions,
+            pinnedAppScope: input.pinnedAppScope,
+            workflowActions: input.workflowActions,
+            workflowQueries: input.workflowQueries,
+          }),
+        );
 
   if (input.pinnedAppScope) {
     lines.push("", formatPinnedAppScopeForPrompt(input.pinnedAppScope));

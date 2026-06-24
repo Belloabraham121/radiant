@@ -78,4 +78,8 @@ export type BuildSystemPromptInput = {
   activeModuleIds?: PromptModuleId[];
   knownAppActions?: string[];
   mode?: PromptScopeMode;
+  /** execute_transaction action names from a workflow plan (compound messages). */
+  workflowActions?: string[];
+  /** query_chain query types from a workflow plan. */
+  workflowQueries?: string[];
 };

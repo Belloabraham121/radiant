@@ -204,7 +204,7 @@ export const PROMPT_MODULES: Record<PromptModuleId, PromptModule> = Object.fromE
 
 type ComposeStep =
   | { kind: "module"; id: PromptModuleId }
-  | { kind: "lines"; build: () => string[] };
+  | { kind: "lines"; id: PromptModuleId; build: () => string[] };
 
 /** Full-mode line sequence — some modules contribute lines in multiple segments. */
 const FULL_MODE_COMPOSE_STEPS: ComposeStep[] = [
@@ -214,12 +214,13 @@ const FULL_MODE_COMPOSE_STEPS: ComposeStep[] = [
   { kind: "module", id: "core:tool-routing:overview" },
   { kind: "module", id: "protocol:deepbook:env" },
   { kind: "module", id: "protocol:deepbook:balance" },
-  { kind: "lines", build: buildDeepBookSwapLinesBeforeWorkflow },
+  { kind: "lines", id: "protocol:deepbook:swap", build: buildDeepBookSwapLinesBeforeWorkflow },
   { kind: "module", id: "artifact:build:swap-vs-build" },
   { kind: "module", id: "core:tool-routing:workflow" },
-  { kind: "lines", build: buildDeepBookSwapExecuteLines },
+  { kind: "lines", id: "protocol:deepbook:swap", build: buildDeepBookSwapExecuteLines },
   {
     kind: "lines",
+    id: "protocol:deepbook:orders",
     build: () => buildDeepBookOrdersLines().slice(0, 2),
   },
   { kind: "module", id: "protocol:deepbook:flash-loan" },
@@ -228,11 +229,13 @@ const FULL_MODE_COMPOSE_STEPS: ComposeStep[] = [
   { kind: "module", id: "core:errors" },
   {
     kind: "lines",
+    id: "artifact:build",
     build: () => buildArtifactBuildLines().slice(0, 3),
   },
   { kind: "module", id: "artifact:edit" },
   {
     kind: "lines",
+    id: "artifact:build",
     build: () => buildArtifactBuildLines().slice(3, 7),
   },
   { kind: "module", id: "artifact:defi-ui" },
@@ -241,11 +244,13 @@ const FULL_MODE_COMPOSE_STEPS: ComposeStep[] = [
   { kind: "module", id: "platform:notifications" },
   {
     kind: "lines",
+    id: "artifact:build",
     build: () => [buildArtifactBuildLines()[7]],
   },
   { kind: "module", id: "platform:explorer" },
   {
     kind: "lines",
+    id: "protocol:deepbook:orders",
     build: () => [buildDeepBookOrdersLines()[2]],
   },
   { kind: "module", id: "protocol:deepbook:margin" },
@@ -253,14 +258,32 @@ const FULL_MODE_COMPOSE_STEPS: ComposeStep[] = [
   { kind: "module", id: "core:personality:context" },
 ];
 
-/** Builds all prompt lines in full mode (Phase 2 — registry-only composition). */
-export function buildFullModePromptLines(ctx: PromptBuildContext): string[] {
+function buildPromptLinesForModuleIds(
+  ctx: PromptBuildContext,
+  moduleIds: ReadonlySet<PromptModuleId>,
+): string[] {
   return FULL_MODE_COMPOSE_STEPS.flatMap((step) => {
+    if (!moduleIds.has(step.id)) {
+      return [];
+    }
     if (step.kind === "lines") {
       return step.build();
     }
     return PROMPT_MODULES[step.id].build(ctx);
   });
+}
+
+/** Builds all prompt lines in full mode (Phase 2 — registry-only composition). */
+export function buildFullModePromptLines(ctx: PromptBuildContext): string[] {
+  return buildPromptLinesForModuleIds(ctx, new Set(ALL_MODULE_IDS));
+}
+
+/** Builds prompt lines for a resolved module set (scoped mode). */
+export function buildScopedModePromptLines(
+  ctx: PromptBuildContext,
+  moduleIds: readonly PromptModuleId[],
+): string[] {
+  return buildPromptLinesForModuleIds(ctx, new Set(moduleIds));
 }
 
 /** @deprecated Use buildFullModePromptLines — kept for unit tests. */
