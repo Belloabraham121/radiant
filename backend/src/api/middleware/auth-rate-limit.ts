@@ -27,6 +27,18 @@ const AUTH_EXPORT_LIMIT: RateLimitConfig = {
   refillIntervalMs: 60_000,
 };
 
+const CHAT_LIMIT: RateLimitConfig = {
+  prefix: "agent-chat",
+  capacity: 20,
+  refillIntervalMs: 60_000,
+};
+
+const PROXY_LIMIT: RateLimitConfig = {
+  prefix: "agent-proxy",
+  capacity: 30,
+  refillIntervalMs: 60_000,
+};
+
 function clientIp(req: Request): string {
   return req.ip ?? "unknown";
 }
@@ -92,6 +104,30 @@ export async function authExportRateLimitMiddleware(
 ): Promise<void> {
   const suffix = req.user?.privyUserId ?? "anonymous";
   if (!(await enforceRateLimit(req, res, AUTH_EXPORT_LIMIT, suffix))) {
+    return;
+  }
+  next();
+}
+
+export async function chatRateLimitMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const suffix = req.user?.privyUserId ?? "anonymous";
+  if (!(await enforceRateLimit(req, res, CHAT_LIMIT, suffix))) {
+    return;
+  }
+  next();
+}
+
+export async function proxyRateLimitMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const suffix = req.user?.privyUserId ?? "anonymous";
+  if (!(await enforceRateLimit(req, res, PROXY_LIMIT, suffix))) {
     return;
   }
   next();

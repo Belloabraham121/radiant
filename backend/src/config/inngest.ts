@@ -54,4 +54,47 @@ export function getInngestConfig(): InngestConfig {
 
 export function resetInngestConfigForTests(): void {
   cached = undefined;
+  cachedNetworkEnv = undefined;
+}
+
+/**
+ * Network ACL for POST /api/inngest.
+ *
+ * Set `INNGEST_ALLOWED_IPS` to a comma-separated list of caller IPs or CIDR-less
+ * host IPs allowed to reach the serve endpoint. Use `127.0.0.1,::1` for local
+ * Inngest Dev Server. In production with Inngest enabled, an allowlist is required.
+ *
+ * Inngest Cloud egress IPs: configure from your Inngest dashboard / support docs
+ * for the region where your app runs.
+ */
+export type InngestNetworkEnv = {
+  allowedIps: string[];
+  requireAllowlist: boolean;
+};
+
+let cachedNetworkEnv: InngestNetworkEnv | undefined;
+
+export function getInngestNetworkEnv(): InngestNetworkEnv {
+  if (cachedNetworkEnv) return cachedNetworkEnv;
+
+  const raw = optional("INNGEST_ALLOWED_IPS", "");
+  const allowedIps = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  const inngestEnabled = getInngestConfig().enabled;
+  const isProduction = optional("NODE_ENV", "development") === "production";
+  const dev = optional("INNGEST_DEV", "0") === "1";
+
+  cachedNetworkEnv = {
+    allowedIps,
+    requireAllowlist: inngestEnabled && isProduction && !dev,
+  };
+
+  return cachedNetworkEnv;
+}
+
+export function resetInngestNetworkEnvForTests(): void {
+  cachedNetworkEnv = undefined;
 }

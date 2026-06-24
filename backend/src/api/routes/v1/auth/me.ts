@@ -7,6 +7,7 @@ import { getOrCreateUser, toAuthMeData } from "../../../../services/auth/user.se
 import type { ChainId } from "../../../../services/chains/types.js";
 import { isWalletFunded } from "../../../../services/wallet/agent-wallet.service.js";
 import { ok } from "../../../../utils/http-response.js";
+import { issueCsrfCookie } from "../../../middleware/csrf-token.js";
 
 export const authMeRouter = Router();
 
@@ -31,6 +32,8 @@ authMeRouter.get(
     if (user.agent_wallets.length === 0) {
       fundedByChain.set(getDefaultAgentChainId(), false);
     }
+
+    issueCsrfCookie(res);
 
     return ok(req, res, toAuthMeData(user, privyUser, fundedByChain));
   } catch (err) {

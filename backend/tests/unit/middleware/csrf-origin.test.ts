@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { NextFunction, Request, Response } from "express";
 import { describe, it, mock } from "node:test";
 import { csrfOriginMiddleware } from "../../../src/api/middleware/csrf-origin.js";
+import { getAuthCookieNames } from "../../../src/config/env.js";
 
 function mockResponse() {
   const res = {
@@ -21,12 +22,14 @@ function mockResponse() {
 
 describe("csrfOriginMiddleware", () => {
   const originalNodeEnv = process.env.NODE_ENV;
+  const cookieNames = getAuthCookieNames();
 
   it("allows matching Origin on POST", () => {
     process.env.NODE_ENV = "development";
     const req = {
       method: "POST",
       path: "/api/v1/chat",
+      cookies: { [cookieNames.accessToken]: "token" },
       get(name: string) {
         if (name === "origin") return "http://localhost:3000";
         return undefined;
@@ -44,6 +47,7 @@ describe("csrfOriginMiddleware", () => {
     const req = {
       method: "POST",
       path: "/api/v1/chat",
+      cookies: { [cookieNames.accessToken]: "token" },
       get(name: string) {
         if (name === "origin") return "https://evil.example";
         return undefined;
@@ -57,12 +61,54 @@ describe("csrfOriginMiddleware", () => {
     assert.equal(res.statusCode, 403);
   });
 
-  it("allows POST without Origin header (non-browser clients)", () => {
+  it("allows POST without Origin for non-browser clients", () => {
     process.env.NODE_ENV = "development";
     const req = {
       method: "POST",
       path: "/api/v1/chat",
+      cookies: {},
       get() {
+        return undefined;
+      },
+    } as Request;
+    const res = mockResponse();
+    const next = mock.fn() as NextFunction;
+
+    csrfOriginMiddleware(req, res, next);
+    assert.equal(next.mock.calls.length, 1);
+  });
+
+  it("blocks browser-like POST without Origin when cookie-authenticated", () => {
+    process.env.NODE_ENV = "development";
+    const req = {
+      method: "POST",
+      path: "/api/v1/chat",
+      cookies: { [cookieNames.session]: "session" },
+      get(name: string) {
+        if (name === "sec-fetch-site") return "same-origin";
+        return undefined;
+      },
+    } as Request;
+    const res = mockResponse();
+    const next = mock.fn() as NextFunction;
+
+    csrfOriginMiddleware(req, res, next);
+    assert.equal(next.mock.calls.length, 0);
+    assert.equal(res.statusCode, 403);
+  });
+
+  it("allows POST without Origin when CSRF double-submit token matches", () => {
+    process.env.NODE_ENV = "development";
+    const req = {
+      method: "POST",
+      path: "/api/v1/chat",
+      cookies: {
+        [cookieNames.accessToken]: "token",
+        "radiant-csrf": "abc123",
+      },
+      get(name: string) {
+        if (name === "sec-fetch-site") return "same-origin";
+        if (name === "x-csrf-token") return "abc123";
         return undefined;
       },
     } as Request;

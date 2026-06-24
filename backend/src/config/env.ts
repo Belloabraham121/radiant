@@ -29,13 +29,24 @@ export function getCorsEnv() {
   };
 }
 
-const privyEnvSchema = z.object({
-  PRIVY_APP_ID: z.string().min(1),
-  PRIVY_APP_SECRET: z.string().min(1),
-  DATABASE_URL: z.string().min(1),
-  CORS_ORIGIN: z.string().min(1),
-  PRIVY_WEBHOOK_SIGNING_SECRET: z.string().min(1).optional(),
-});
+const privyEnvSchema = z
+  .object({
+    PRIVY_APP_ID: z.string().min(1),
+    PRIVY_APP_SECRET: z.string().min(1),
+    DATABASE_URL: z.string().min(1),
+    CORS_ORIGIN: z.string().min(1),
+    PRIVY_WEBHOOK_SIGNING_SECRET: z.string().min(1).optional(),
+    NODE_ENV: z.string().optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.NODE_ENV === "production" && !input.PRIVY_WEBHOOK_SIGNING_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "PRIVY_WEBHOOK_SIGNING_SECRET is required when NODE_ENV=production",
+        path: ["PRIVY_WEBHOOK_SIGNING_SECRET"],
+      });
+    }
+  });
 
 export type PrivyEnv = z.infer<typeof privyEnvSchema>;
 
@@ -50,6 +61,7 @@ export function getPrivyEnv(): PrivyEnv {
       DATABASE_URL: process.env.DATABASE_URL,
       CORS_ORIGIN: process.env.CORS_ORIGIN,
       PRIVY_WEBHOOK_SIGNING_SECRET: process.env.PRIVY_WEBHOOK_SIGNING_SECRET,
+      NODE_ENV: process.env.NODE_ENV,
     });
   }
   return cachedPrivyEnv;

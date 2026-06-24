@@ -54,6 +54,10 @@ export type E2bSandboxProviderOptions = {
   createSandbox?: E2bSandboxFactory;
 };
 
+/** Safe dependency install — lifecycle scripts are ignored; build runs explicitly afterward. */
+export const E2B_WORKSPACE_INSTALL_COMMAND = "cd /workspace && npm ci --ignore-scripts";
+export const E2B_WORKSPACE_BUILD_COMMAND = "cd /workspace && npm run build";
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

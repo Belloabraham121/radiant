@@ -11,6 +11,24 @@ function isFencedCodeBlock(className?: string): boolean {
   return /language-[\w-]+/.test(className ?? "");
 }
 
+function allowedMarkdownUrl(url: string): string {
+  const trimmed = url.trim();
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+    return trimmed;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.toString();
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
 const markdownComponents: Components = {
   p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
   strong: ({ children }) => (
@@ -37,16 +55,22 @@ const markdownComponents: Components = {
   h3: ({ children }) => (
     <h4 className="mb-1.5 font-heading text-sm font-extrabold tracking-tight">{children}</h4>
   ),
-  a: ({ href, children }) => (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="font-bold text-[var(--hero-coral)] underline underline-offset-2"
-    >
-      {children}
-    </a>
-  ),
+  a: ({ href, children }) => {
+    const safeHref = href ? allowedMarkdownUrl(href) : "";
+    if (!safeHref) {
+      return <span>{children}</span>;
+    }
+    return (
+      <a
+        href={safeHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-bold text-[var(--hero-coral)] underline underline-offset-2"
+      >
+        {children}
+      </a>
+    );
+  },
   blockquote: ({ children }) => (
     <blockquote className="my-2 border-l-4 border-[var(--hero-amber)] pl-3 text-[var(--hero-ink)]/75">
       {children}
@@ -87,7 +111,11 @@ export function AgentMessageMarkdown({ text }: { text: string }) {
 
   return (
     <div className="agent-markdown [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-      <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+        urlTransform={allowedMarkdownUrl}
+      >
         {linkedText}
       </Markdown>
     </div>

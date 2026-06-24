@@ -54,6 +54,38 @@ export class ApiError extends Error {
 
 const TRANSIENT_RETRY_DELAY_MS = 400;
 
+const CSRF_COOKIE_NAME = "radiant-csrf";
+const CSRF_HEADER_NAME = "x-csrf-token";
+const RADIANT_CLIENT_HEADER = "x-radiant-client";
+
+function readCsrfTokenFromCookie(): string | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  const match = document.cookie.match(
+    new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([^;]+)`),
+  );
+  return match?.[1] ?? null;
+}
+
+function applyMutationSecurityHeaders(headers: Headers, method: string): void {
+  if (isIdempotentMethod(method)) {
+    return;
+  }
+  headers.set(RADIANT_CLIENT_HEADER, "fetch");
+  const csrf = readCsrfTokenFromCookie();
+  if (csrf) {
+    headers.set(CSRF_HEADER_NAME, csrf);
+  }
+}
+
+/** Attach CSRF + client markers for cookie-authenticated mutations. */
+export function withMutationSecurityHeaders(headersInit?: HeadersInit): Headers {
+  const headers = new Headers(headersInit);
+  applyMutationSecurityHeaders(headers, "POST");
+  return headers;
+}
+
 function isIdempotentMethod(method: string): boolean {
   const upper = method.toUpperCase();
   return upper === "GET" || upper === "HEAD";
@@ -76,6 +108,7 @@ async function apiFetchOnce<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+  applyMutationSecurityHeaders(headers, method);
 
   let response: Response;
   try {

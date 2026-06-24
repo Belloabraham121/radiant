@@ -1,7 +1,9 @@
+import dns from "node:dns/promises";
 import { AppError } from "../../errors/app-error.js";
 import { getProxyEnv } from "../../config/env.js";
 
 export const MAX_OUTBOUND_REDIRECTS = 5;
+const DNS_CACHE_TTL_MS = 60_000;
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
@@ -92,6 +94,78 @@ export function isPrivateOrLocalHostname(hostname: string): boolean {
   return false;
 }
 
+type DnsCacheEntry = {
+  ips: string[];
+  expiresAt: number;
+};
+
+const dnsCache = new Map<string, DnsCacheEntry>();
+
+function isIpLiteral(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
+  return (
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized) ||
+    normalized.includes(":")
+  );
+}
+
+/** Resolve hostname and reject answers in private/local ranges (mitigates DNS rebinding). */
+export async function resolveAndValidateHostname(
+  hostname: string,
+  codes: SsrfErrorCodes = PROXY_SSRF_ERROR_CODES,
+): Promise<string[]> {
+  const normalized = normalizeHostname(hostname);
+
+  if (isIpLiteral(normalized)) {
+    if (isPrivateOrLocalHostname(normalized)) {
+      throw new AppError(
+        403,
+        codes.blockedHost,
+        `Requests to ${hostname} are not allowed.`,
+      );
+    }
+    return [normalized];
+  }
+
+  const cached = dnsCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.ips;
+  }
+
+  let results: Array<{ address: string }>;
+  try {
+    results = await dns.lookup(normalized, { all: true, verbatim: true });
+  } catch {
+    throw new AppError(
+      403,
+      codes.blockedHost,
+      `Could not resolve hostname ${hostname}.`,
+    );
+  }
+
+  const ips = results.map((entry) => entry.address);
+  for (const ip of ips) {
+    if (isPrivateOrLocalHostname(ip)) {
+      throw new AppError(
+        403,
+        codes.blockedHost,
+        `Requests to ${hostname} are not allowed.`,
+      );
+    }
+  }
+
+  dnsCache.set(normalized, {
+    ips,
+    expiresAt: Date.now() + DNS_CACHE_TTL_MS,
+  });
+
+  return ips;
+}
+
+export function clearDnsCacheForTests(): void {
+  dnsCache.clear();
+}
+
 function matchesAllowlistEntry(hostname: string, entry: string): boolean {
   const normalized = normalizeHostname(hostname);
   const pattern = entry.toLowerCase();
@@ -165,8 +239,7 @@ export function sanitizeOutboundRequestHeaders(
 
 /**
  * Manual redirect handling with SSRF validation on every hop.
- * Hostname is checked at request time; DNS rebinding to a private IP after
- * validation is not mitigated (would require per-hop DNS resolution).
+ * Hostname is resolved before fetch; private answers are blocked (short TTL cache).
  */
 export async function fetchWithSsrfGuard(
   url: URL,
@@ -182,6 +255,8 @@ export async function fetchWithSsrfGuard(
   let redirectCount = 0;
 
   while (true) {
+    await resolveAndValidateHostname(currentUrl.hostname, codes);
+
     const res = await fetch(currentUrl.toString(), {
       ...init,
       redirect: "manual",

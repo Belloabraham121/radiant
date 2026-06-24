@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ZodError } from "zod";
 import { requireAuth } from "../../../middleware/auth.js";
+import { chatRateLimitMiddleware } from "../../../middleware/auth-rate-limit.js";
 import { chatRequestSchema } from "../../../../services/agent/agent.types.js";
 import { handleChatMessage, handleChatMessageStream } from "../../../../services/agent/chat.service.js";
 import { fail, ok } from "../../../../utils/http-response.js";
@@ -12,7 +13,7 @@ function wantsEventStream(req: { query: { stream?: unknown }; headers: { accept?
   return req.query.stream === "1" || (req.headers.accept?.includes("text/event-stream") ?? false);
 }
 
-chatRouter.post("/api/v1/chat", requireAuth, async (req, res, next) => {
+chatRouter.post("/api/v1/chat", requireAuth, chatRateLimitMiddleware, async (req, res, next) => {
   try {
     const body = chatRequestSchema.parse(req.body);
 

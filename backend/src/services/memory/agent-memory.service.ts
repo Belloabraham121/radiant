@@ -13,6 +13,25 @@ import type {
 import { updateMemoryInputSchema } from "./agent-memory.types.js";
 
 const MAX_FACTS = 50;
+const MAX_FACT_VALUE_LENGTH = 240;
+
+const BLOCKED_MEMORY_PATTERNS: RegExp[] = [
+  /ignore\s+(all\s+)?(previous\s+)?instructions/i,
+  /always\s+auto[- ]?approve/i,
+  /disregard\s+(the\s+)?(rules|instructions|approval)/i,
+  /you\s+(must|should)\s+(always|never)/i,
+  /^system\s*:/i,
+  /override\s+(security|approval|policy)/i,
+];
+
+function sanitizeMemoryValue(raw: string): string {
+  const trimmed = raw.trim().slice(0, MAX_FACT_VALUE_LENGTH);
+  return trimmed.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+}
+
+export function isBlockedMemoryContent(value: string): boolean {
+  return BLOCKED_MEMORY_PATTERNS.some((pattern) => pattern.test(value));
+}
 
 export function emptyAgentMemoryData(): AgentMemoryData {
   return { preferences: {}, facts: [] };
@@ -60,17 +79,19 @@ export async function loadAgentMemory(privyUserId: string): Promise<AgentMemoryD
 }
 
 export function formatMemoryBlock(data: AgentMemoryData): string {
-  const lines: string[] = [];
-
-  if (data.preferences.default_chain_id) {
-    lines.push(`- default_chain_id: ${data.preferences.default_chain_id}`);
+  if (data.facts.length === 0 && !data.preferences.default_chain_id) {
+    return "";
   }
 
-  for (const fact of data.facts) {
-    lines.push(`- ${fact.key}: ${fact.value}`);
-  }
-
-  return lines.join("\n");
+  return JSON.stringify(
+    {
+      type: "user_memory_data",
+      preferences: data.preferences,
+      facts: data.facts.map(({ key, value }) => ({ key, value })),
+    },
+    null,
+    0,
+  );
 }
 
 export function mergeAgentMemoryData(
@@ -95,7 +116,14 @@ export function mergeAgentMemoryData(
       continue;
     }
 
-    const value = factInput.value?.trim() ?? "";
+    const value = sanitizeMemoryValue(factInput.value?.trim() ?? "");
+    if (isBlockedMemoryContent(value)) {
+      throw new AppError(
+        400,
+        "MEMORY_CONTENT_BLOCKED",
+        `Memory value for "${key}" contains disallowed instruction-like content.`,
+      );
+    }
     const updatedAt = new Date().toISOString();
     const existingIndex = next.facts.findIndex((fact) => fact.key === key);
 

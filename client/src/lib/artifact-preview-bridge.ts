@@ -10,6 +10,20 @@ export const PREVIEW_TX_APPROVAL_RESOLVED = "radiant-tx-approval-resolved";
 export const PREVIEW_EXECUTE_RESULT = "radiant-preview-execute-result";
 export const RADIANT_SESSION_ID_HEADER = "x-radiant-session-id";
 
+const UUID_PATTERN =
+  "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+
+const BLOCKED_PREVIEW_API_EXACT = new Set(["/api/v1/chat", "/api/v1/proxy"]);
+
+const BLOCKED_PREVIEW_API_PREFIXES = [
+  "/api/v1/auth/",
+  "/api/v1/agent/permissions",
+  "/api/v1/agent/transactions",
+  "/api/v1/wallets/",
+  "/api/v1/deploy/",
+  "/api/v1/notifications/",
+];
+
 export type PreviewApiRequestMessage = {
   type: typeof PREVIEW_API_REQUEST;
   requestId: string;
@@ -68,6 +82,95 @@ export function isNotificationApiPath(path: string): boolean {
   return /\/notifications(\/|$)/.test(path);
 }
 
+function normalizePreviewApiPath(path: string): string {
+  const trimmed = path.trim();
+  if (!trimmed.startsWith("/")) {
+    return `/${trimmed}`;
+  }
+  return trimmed.split(/[?#]/)[0] ?? trimmed;
+}
+
+function matchesScopedPrefix(
+  path: string,
+  prefix: string,
+  expectedId?: string,
+): boolean {
+  const re = new RegExp(`^${prefix}/(${UUID_PATTERN})(/.*)?$`, "i");
+  const match = path.match(re);
+  if (!match) {
+    return false;
+  }
+  if (expectedId && match[1]?.toLowerCase() !== expectedId.toLowerCase()) {
+    return false;
+  }
+  return true;
+}
+
+function isAllowedScopedSubpath(path: string, basePrefix: string): boolean {
+  const suffix = path.slice(basePrefix.length);
+  if (!suffix || suffix === "/") {
+    return false;
+  }
+  return (
+    /^\/(?:data(?:\/[^/]+)?|shared\/[^/]+|actions(?:\/[^/]+)?|notifications\/schema)$/.test(
+      suffix,
+    )
+  );
+}
+
+/** Allowlist for preview iframe API proxy — rejects auth, proxy, wallet, and global routes. */
+export function isAllowedPreviewApiPath(
+  rawPath: string,
+  scope: {
+    projectId?: string;
+    installationId?: string;
+    sessionId?: string;
+  },
+): boolean {
+  const path = normalizePreviewApiPath(rawPath);
+
+  if (BLOCKED_PREVIEW_API_EXACT.has(path)) {
+    return false;
+  }
+
+  for (const blocked of BLOCKED_PREVIEW_API_PREFIXES) {
+    if (path === blocked.replace(/\/$/, "") || path.startsWith(blocked)) {
+      return false;
+    }
+  }
+
+  if (path === "/api/v1/platform/radiant-client") {
+    return true;
+  }
+
+  if (scope.installationId) {
+    const prefix = `/api/v1/installations/${scope.installationId}`;
+    if (matchesScopedPrefix(path, "/api/v1/installations", scope.installationId)) {
+      return isAllowedScopedSubpath(path, prefix);
+    }
+    return false;
+  }
+
+  if (scope.projectId) {
+    const prefix = `/api/v1/projects/${scope.projectId}`;
+    if (matchesScopedPrefix(path, "/api/v1/projects", scope.projectId)) {
+      return isAllowedScopedSubpath(path, prefix);
+    }
+  }
+
+  if (scope.sessionId) {
+    const prefix = `/api/v1/chat/sessions/${scope.sessionId}`;
+    if (matchesScopedPrefix(path, "/api/v1/chat/sessions", scope.sessionId)) {
+      const suffix = path.slice(prefix.length);
+      return /^\/(?:data(?:\/[^/]+)?|actions(?:\/[^/]+)?|transactions(?:\/[^/]+)?)$/.test(
+        suffix,
+      );
+    }
+  }
+
+  return false;
+}
+
 /** Rewrite project-scoped API paths to installation paths when previewing an installed app. */
 export function rewritePreviewApiPath(
   path: string,
@@ -111,6 +214,18 @@ export async function proxyPreviewApiRequest(
   },
 ): Promise<{ response: PreviewApiResponseMessage; path: string }> {
   const path = rewritePreviewApiPath(message.path ?? "", options.projectId, options.installationId);
+
+  if (!isAllowedPreviewApiPath(path, options)) {
+    return {
+      path,
+      response: {
+        type: PREVIEW_API_RESPONSE,
+        requestId: message.requestId,
+        error: "Preview API path is not allowed",
+      },
+    };
+  }
+
   const hasBody = Boolean(message.body);
 
   try {

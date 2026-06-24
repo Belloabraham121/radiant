@@ -3,8 +3,10 @@ import cors from "cors";
 import express from "express";
 import { correlationIdMiddleware } from "./api/middleware/correlation-id.js";
 import { csrfOriginMiddleware } from "./api/middleware/csrf-origin.js";
+import { inngestNetworkGuardMiddleware } from "./api/middleware/inngest-network-guard.js";
 import { errorHandlerMiddleware } from "./api/middleware/error-handler.js";
 import { requestLoggerMiddleware } from "./api/middleware/request-logger.js";
+import { createSecurityHeadersMiddleware } from "./config/security-headers.js";
 import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
 import { agentPermissionsRouter } from "./api/routes/v1/agent/permissions.js";
 import { agentTransactionsRouter } from "./api/routes/v1/agent/transactions.js";
@@ -39,6 +41,7 @@ import { serve } from "inngest/express";
 export function createApp() {
   const app = express();
 
+  app.use(createSecurityHeadersMiddleware());
   app.use(cors(createCorsOptions()));
   app.use(
     "/api/v1/webhooks/privy",
@@ -60,6 +63,7 @@ export function createApp() {
   if (getInngestConfig().enabled) {
     app.use(
       "/api/inngest",
+      inngestNetworkGuardMiddleware,
       serve({
         client: inngest,
         functions: inngestFunctions,

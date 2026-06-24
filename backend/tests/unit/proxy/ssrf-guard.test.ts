@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import dns from "node:dns/promises";
+import { describe, it, mock } from "node:test";
 import {
+  clearDnsCacheForTests,
   isHostAllowlistedForSecretHeaders,
   isPrivateOrLocalHostname,
+  resolveAndValidateHostname,
   sanitizeOutboundRequestHeaders,
   validateOutboundUrl,
 } from "../../../src/services/proxy/ssrf-guard.js";
@@ -60,5 +63,25 @@ describe("ssrf-guard", () => {
     assert.equal(isHostAllowlistedForSecretHeaders("api.stripe.com"), true);
     assert.equal(isHostAllowlistedForSecretHeaders("evil.example"), false);
     delete process.env.PROXY_SECRET_HEADER_ALLOWLIST_HOSTS;
+  });
+
+  it("resolveAndValidateHostname blocks private DNS answers", async () => {
+    clearDnsCacheForTests();
+    const lookupMock = mock.method(dns, "lookup", async () => [
+      { address: "127.0.0.1", family: 4, verbatim: true },
+    ]);
+
+    try {
+      await assert.rejects(
+        () => resolveAndValidateHostname("rebind.example"),
+        (err: Error & { code?: string }) => {
+          assert.equal(err.code, "PROXY_BLOCKED_HOST");
+          return true;
+        },
+      );
+    } finally {
+      lookupMock.mock.restore();
+      clearDnsCacheForTests();
+    }
   });
 });

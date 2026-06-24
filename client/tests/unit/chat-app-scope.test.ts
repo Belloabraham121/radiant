@@ -36,7 +36,7 @@ describe("chat-app-scope client helpers", () => {
 
   it("clearAllStoredChatAppScopes removes all scope keys", () => {
     const storage = new Map<string, string>();
-    const localStorageMock = {
+    const sessionStorageMock = {
       get length() {
         return storage.size;
       },
@@ -56,7 +56,7 @@ describe("chat-app-scope client helpers", () => {
     const originalWindow = globalThis.window;
     Object.defineProperty(globalThis, "window", {
       configurable: true,
-      value: { localStorage: localStorageMock },
+      value: { sessionStorage: sessionStorageMock, localStorage: sessionStorageMock },
     });
 
     try {
@@ -69,7 +69,7 @@ describe("chat-app-scope client helpers", () => {
         project_id: "00000000-0000-4000-8000-000000000001",
         name: "Project B",
       });
-      localStorageMock.setItem("radiant:other", "keep");
+      sessionStorageMock.setItem("radiant:other", "keep");
       clearAllStoredChatAppScopes();
       assert.equal(storage.has("radiant:chat-app-scope:session-a"), false);
       assert.equal(storage.has("radiant:chat-app-scope:session-b"), false);

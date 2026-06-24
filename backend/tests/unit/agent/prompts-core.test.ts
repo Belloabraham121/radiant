@@ -36,6 +36,8 @@ describe("prompt core modules", () => {
     assert.match(text, /You are Radiant/);
     assert.match(text, /RESEARCH, EXECUTION, or BUILD/);
     assert.match(text, /always write a complete reply/);
+    assert.match(text, /Default to concise answers/);
+    assert.match(text, /~2000 words/);
     assert.match(text, /agent wallet is resolved from their authenticated session/);
   });
 

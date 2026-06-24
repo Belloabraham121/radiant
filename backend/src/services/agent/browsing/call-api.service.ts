@@ -3,6 +3,7 @@ import { logger } from "../../../shared/logger.js";
 import {
   CALL_API_SSRF_ERROR_CODES,
   fetchWithSsrfGuard,
+  sanitizeOutboundRequestHeaders,
   validateOutboundUrl,
 } from "../../proxy/ssrf-guard.js";
 
@@ -38,11 +39,14 @@ export async function callApi(input: CallApiInput): Promise<CallApiOutput> {
 
   const parsed = validateOutboundUrl(input.url, CALL_API_SSRF_ERROR_CODES);
 
-  const headers: Record<string, string> = {
-    "User-Agent": "RadiantAgent/1.0",
-    Accept: "application/json, text/plain, */*",
-    ...(input.headers ?? {}),
-  };
+  const headers = sanitizeOutboundRequestHeaders(
+    {
+      "User-Agent": "RadiantAgent/1.0",
+      Accept: "application/json, text/plain, */*",
+      ...(input.headers ?? {}),
+    },
+    parsed.hostname,
+  );
 
   const fetchInit: RequestInit = {
     method,

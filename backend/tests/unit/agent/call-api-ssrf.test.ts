@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import dns from "node:dns/promises";
 import { describe, it, mock } from "node:test";
 import { callApi } from "../../../src/services/agent/browsing/call-api.service.js";
 
@@ -6,7 +7,7 @@ describe("call-api SSRF hardening", () => {
   it("blocks redirect hops to private hosts", async () => {
     const originalFetch = globalThis.fetch;
 
-    globalThis.fetch = mock.fn(async (url: string | URL) => {
+    globalThis.fetch = async (url: string | URL) => {
       const target = url.toString();
       if (target.startsWith("https://public.example/")) {
         return new Response(null, {
@@ -15,7 +16,7 @@ describe("call-api SSRF hardening", () => {
         });
       }
       return new Response("{}", { status: 200 });
-    }) as typeof fetch;
+    };
 
     try {
       await assert.rejects(
@@ -38,5 +39,31 @@ describe("call-api SSRF hardening", () => {
         return true;
       },
     );
+  });
+
+  it("strips credential headers before fetch", async () => {
+    const originalFetch = globalThis.fetch;
+    let seenAuthorization: string | undefined;
+
+    globalThis.fetch = async (_url: string | URL, init?: RequestInit) => {
+      const headers = init?.headers as Record<string, string> | undefined;
+      seenAuthorization = headers?.Authorization;
+      return new Response("{}", { status: 200 });
+    };
+
+    const lookupMock = mock.method(dns, "lookup", async () => [
+      { address: "93.184.216.34", family: 4, verbatim: true },
+    ]);
+
+    try {
+      await callApi({
+        url: "https://public.example/check",
+        headers: { Authorization: "Bearer secret" },
+      });
+      assert.equal(seenAuthorization, undefined);
+    } finally {
+      globalThis.fetch = originalFetch;
+      lookupMock.mock.restore();
+    }
   });
 });

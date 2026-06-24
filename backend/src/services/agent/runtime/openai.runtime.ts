@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import { getOpenAiConfig } from "../../../config/agent.js";
+import { getOpenAiConfig, getAgentOutputLimitsConfig } from "../../../config/agent.js";
 import { AppError } from "../../../errors/app-error.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
 import {
@@ -87,6 +87,12 @@ import { buildPreviewArtifactPayload } from "../../projects/preview-artifact.js"
 import type { GenerateAppResult } from "../../projects/project.types.js";
 import { streamChatCompletion } from "./openai-stream-completion.js";
 import { openAiMaxOutputTokens } from "./openai-completion-params.js";
+import {
+  buildOversizedToolArgsError,
+  OUTPUT_TURN_LIMIT_MESSAGE,
+  OutputLimitTracker,
+  truncateAssistantOutput,
+} from "./output-limits.js";
 import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.service.js";
 import { transactionContextFromInput } from "../deepbook/transaction-error-context.js";
 import { summarizeToolResultAsync } from "./summarize-tool-result.js";
@@ -356,11 +362,27 @@ function emitQueryChainFailureProgress(
   });
 }
 
+function finalizeAssistantStepText(
+  turnTracker: OutputLimitTracker,
+  maxReplyChars: number,
+  text: string,
+  options: { streamHardCapped?: boolean } = {},
+): string {
+  const budget = turnTracker.budgetForStep(maxReplyChars);
+  const { text: capped } = truncateAssistantOutput(text, budget, {
+    assumeOverLimit: options.streamHardCapped,
+  });
+  turnTracker.recordAssistantOutput(capped);
+  return capped;
+}
+
 export const openaiRuntime: AgentRuntime = {
   id: "openai",
 
   async runTurn(input: AgentTurnInput): Promise<AgentTurnResult> {
     const { apiKey, model, maxToolSteps } = getOpenAiConfig();
+    const outputLimits = getAgentOutputLimitsConfig();
+    const turnTracker = new OutputLimitTracker(outputLimits.maxTurnOutputChars);
     if (!apiKey) {
       throw new AppError(
         503,
@@ -423,19 +445,36 @@ export const openaiRuntime: AgentRuntime = {
     };
 
     for (let step = 0; step < maxToolSteps; step += 1) {
+      if (turnTracker.isExhausted) {
+        reply = OUTPUT_TURN_LIMIT_MESSAGE;
+        break;
+      }
+
+      const stepContentBudget = turnTracker.budgetForStep(outputLimits.maxReplyChars);
+      if (stepContentBudget <= 0) {
+        reply = OUTPUT_TURN_LIMIT_MESSAGE;
+        break;
+      }
+
       let choice;
       let streamedReplyText = false;
+      let streamContentHardCapped = false;
+      let streamToolArgsHardCapped = false;
       streamedReplyAccum = "";
       try {
         if (hasExecutionProgressContext()) {
           let toolCallSeenDuringStream = false;
-          choice = await streamChatCompletion(
+          const streamResult = await streamChatCompletion(
             client,
             {
               model,
               messages,
               tools,
-              max_tokens: 4096,
+              max_tokens: outputLimits.maxOutputTokensChat,
+              limits: {
+                maxContentChars: stepContentBudget,
+                maxToolArgsChars: outputLimits.maxToolArgsChars,
+              },
             },
             {
               onContentDelta: (delta) => {
@@ -480,13 +519,16 @@ export const openaiRuntime: AgentRuntime = {
               },
             },
           );
+          choice = streamResult.message;
+          streamContentHardCapped = streamResult.contentTruncated;
+          streamToolArgsHardCapped = streamResult.toolArgsTruncated;
         } else {
           const completion = await client.chat.completions.create({
             model,
             messages,
             tools,
             tool_choice: "auto",
-            ...openAiMaxOutputTokens(model, 4096),
+            ...openAiMaxOutputTokens(model, outputLimits.maxOutputTokensChat),
           });
           choice = completion.choices[0]?.message;
           if (!choice) {
@@ -510,6 +552,28 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       const toolCallList = choice.tool_calls ?? [];
+
+      const rawAssistantText =
+        streamedReplyAccum.trim() ||
+        (typeof choice.content === "string" ? choice.content.trim() : "");
+      if (rawAssistantText) {
+        const cappedText = finalizeAssistantStepText(
+          turnTracker,
+          outputLimits.maxReplyChars,
+          rawAssistantText,
+          { streamHardCapped: streamContentHardCapped },
+        );
+        streamedReplyAccum = cappedText;
+        if (choice.content != null) {
+          choice = { ...choice, content: cappedText };
+        }
+      }
+
+      if (turnTracker.isExhausted && toolCallList.length > 0) {
+        reply = streamedReplyAccum.trim() || OUTPUT_TURN_LIMIT_MESSAGE;
+        break;
+      }
+
       if (toolCallList.length > 0 && streamedReplyText && streamedReplyAccum) {
         if (streamedReplyAccum.length < 200) {
           emitReplyClear();
@@ -612,12 +676,24 @@ export const openaiRuntime: AgentRuntime = {
       for (const toolCall of toolCallList) {
         if (toolCall.type !== "function") continue;
 
+        const rawArgs = toolCall.function.arguments;
+        if (
+          rawArgs.length > outputLimits.maxToolArgsChars ||
+          streamToolArgsHardCapped
+        ) {
+          const result = buildOversizedToolArgsError(outputLimits.maxToolArgsChars);
+          tool_calls.push({ name: toolCall.function.name, result });
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: await summarizeToolResultAsync(toolCall.function.name, result),
+          });
+          continue;
+        }
+
         let args: Record<string, unknown>;
         try {
-          args = JSON.parse(toolCall.function.arguments) as Record<
-            string,
-            unknown
-          >;
+          args = JSON.parse(rawArgs) as Record<string, unknown>;
         } catch {
           args = {};
         }
@@ -1064,6 +1140,8 @@ export const openaiRuntime: AgentRuntime = {
         }
       }
     }
+
+    reply = truncateAssistantOutput(reply, outputLimits.maxReplyChars).text;
 
     return {
       reply,

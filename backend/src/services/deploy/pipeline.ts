@@ -21,6 +21,10 @@ import {
   writeDistFilesToDir,
 } from "./dist-collector.js";
 import { getSandboxProviderByName } from "../sandbox/sandbox.factory.js";
+import {
+  E2B_WORKSPACE_BUILD_COMMAND,
+  E2B_WORKSPACE_INSTALL_COMMAND,
+} from "../sandbox/e2b.provider.js";
 import { setProjectStatus, updateProject } from "../projects/project.repository.js";
 import { logger } from "../../shared/logger.js";
 import type { SandboxProviderName } from "../sandbox/sandbox.provider.js";
@@ -126,9 +130,24 @@ export async function runDeployPipeline(jobId: string): Promise<void> {
           await sandboxProvider.writeFiles(handleId, writes);
         }
 
-        await logStep(jobId, "build", "Running production build in sandbox");
+        await logStep(jobId, "build", "Installing dependencies in sandbox (ignore-scripts)");
         const { buildCommandTimeoutMs } = getSandboxConfig();
-        const build = await sandboxProvider.run(handleId, "cd /workspace && npm run build", {
+        const install = await sandboxProvider.run(handleId, E2B_WORKSPACE_INSTALL_COMMAND, {
+          cwd: "/workspace",
+          timeoutMs: buildCommandTimeoutMs,
+          onLine: (line) => {
+            void appendDeployJobLog(jobId, line);
+          },
+        });
+
+        if (install.exitCode !== 0) {
+          throw new AppError(500, "BUILD_FAILED", "Dependency install failed in sandbox", {
+            stderr: install.stderr,
+          });
+        }
+
+        await logStep(jobId, "build", "Running production build in sandbox");
+        const build = await sandboxProvider.run(handleId, E2B_WORKSPACE_BUILD_COMMAND, {
           cwd: "/workspace",
           timeoutMs: buildCommandTimeoutMs,
           onLine: (line) => {

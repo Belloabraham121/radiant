@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { getAgentProvider, getOpenAiConfig, getPromptScopeConfig } from "../../config/agent.js";
+import { getAgentProvider, getOpenAiConfig, getPromptScopeConfig, getAgentOutputLimitsConfig } from "../../config/agent.js";
 import { getAgentPermissions } from "./agent-permissions.service.js";
 import { deriveSessionTitle, resolveOrCreateSession } from "../conversation/conversation.service.js";
 import { appendMessage, listRecentMessagesBySessionId } from "../conversation/message.repository.js";
@@ -33,6 +33,7 @@ import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-tra
 import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
 import { extractArtifactFromToolCalls } from "../projects/extract-artifact.js";
 import { buildPinnedArtifactContextBlock } from "../projects/artifact-context.service.js";
+import { truncateAssistantOutput } from "./runtime/output-limits.js";
 
 type RunChatTurnOptions = {
   forceRuntime?: AgentRuntime;
@@ -223,7 +224,10 @@ export async function runChatTurn(
     result.reply,
   );
   toolCallsForMessage = reminderFallback.toolCalls;
-  const assistantReply = reminderFallback.reply;
+  const assistantReply = truncateAssistantOutput(
+    reminderFallback.reply,
+    getAgentOutputLimitsConfig().maxReplyChars,
+  ).text;
 
   const toolCallsJson: Prisma.InputJsonValue | undefined =
     toolCallsForMessage.length > 0
@@ -288,19 +292,22 @@ export async function persistToolFailureTurn(
   ]);
   const memoryBlock = formatMemoryBlock(memory);
 
-  const reply = await synthesizeErrorExplanationReply({
-    toolName: input.toolName,
-    toolResult: input.toolResult,
-    messages: contextMessages,
-    memoryBlock,
-    agentPermissions,
-    userContext: input.userContext,
-    transactionContext: input.transactionContext,
-    promptContext: {
-      userMessage: request.message,
-      mode: getPromptScopeConfig().mode,
-    },
-  });
+  const reply = truncateAssistantOutput(
+    await synthesizeErrorExplanationReply({
+      toolName: input.toolName,
+      toolResult: input.toolResult,
+      messages: contextMessages,
+      memoryBlock,
+      agentPermissions,
+      userContext: input.userContext,
+      transactionContext: input.transactionContext,
+      promptContext: {
+        userMessage: request.message,
+        mode: getPromptScopeConfig().mode,
+      },
+    }),
+    getAgentOutputLimitsConfig().maxReplyChars,
+  ).text;
 
   const toolCalls = [{ name: input.toolName, result: input.toolResult }];
   const assistantMessage = await appendMessage(
@@ -337,10 +344,15 @@ export async function persistApprovalTurn(
 
   await appendMessage(session.id, "user", request.message);
 
+  const boundedReply = truncateAssistantOutput(
+    reply,
+    getAgentOutputLimitsConfig().maxReplyChars,
+  ).text;
+
   const assistantMessage = await appendMessage(
     session.id,
     "assistant",
-    reply,
+    boundedReply,
     toolCalls.length > 0 ? (toolCalls as Prisma.InputJsonValue) : undefined,
   );
 
@@ -349,7 +361,7 @@ export async function persistApprovalTurn(
   await touchSession(session.id, { updated_at: new Date() });
 
   return {
-    reply,
+    reply: boundedReply,
     session_id: session.id,
     mode: getAgentProvider(),
     tool_calls: toolCalls,

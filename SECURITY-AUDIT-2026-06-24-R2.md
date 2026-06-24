@@ -388,34 +388,34 @@ Authenticated session
 
 ### Critical
 
-- [ ] **AUTH-02** — Always require approval for `execute_bytes`
+- [x] **AUTH-02** — Always require approval for `execute_bytes`
 - [ ] **FE-03** — Remove same-origin from preview sandbox OR isolate preview origin (no auth cookies)
 
 ### High
 
-- [ ] **DATA-03** — Per-installation (or per-user) shared app-data tenancy
-- [ ] **API-04** — Strip credential headers in `call_api` (match proxy policy)
+- [x] **DATA-03** — Per-installation (or per-user) shared app-data tenancy
+- [x] **API-04** — Strip credential headers in `call_api` (match proxy policy)
 
 ### Medium
 
 - [ ] **AUTH-10** — Default `auto_approve_enabled: false`
-- [ ] **FE-04** — Path allowlist on preview API proxy
-- [ ] **CSRF-01** — Fail closed or CSRF token when Origin absent on cookie auth
-- [ ] **API-05** — DNS resolve + IP pin on outbound fetch
-- [ ] **AGENT-01** — Rate limit `POST /api/v1/chat`
-- [ ] **AGENT-02** — Rate limit `POST /api/v1/proxy`
-- [ ] **LLM-01** — Harden agent memory injection surface
-- [ ] **LLM-02** — Tool-arg policy validation for sensitive tools
-- [ ] **DEPLOY-01** — Harden E2B npm build (ignore-scripts, egress limits)
-- [ ] **INFRA-01** — Helmet + CSP + HSTS
-- [ ] **INFRA-02** — Network-restrict Inngest endpoint
+- [x] **FE-04** — Path allowlist on preview API proxy
+- [x] **CSRF-01** — Fail closed or CSRF token when Origin absent on cookie auth
+- [x] **API-05** — DNS resolve + IP pin on outbound fetch
+- [x] **AGENT-01** — Rate limit `POST /api/v1/chat`
+- [x] **AGENT-02** — Rate limit `POST /api/v1/proxy`
+- [x] **LLM-01** — Harden agent memory injection surface
+- [x] **LLM-02** — Tool-arg policy validation for sensitive tools
+- [x] **DEPLOY-01** — Harden E2B npm build (ignore-scripts, egress limits)
+- [x] **INFRA-01** — Helmet + CSP + HSTS
+- [x] **INFRA-02** — Network-restrict Inngest endpoint
 - [ ] **FE-02** — Strict postMessage origin + schema validation
 
 ### Low
 
-- [ ] **INFRA-03** — Require webhook secrets at boot in production
-- [ ] **FE-01** — URL scheme allowlist for agent markdown links
-- [ ] **DATA-02** — sessionStorage for chat scope (optional)
+- [x] **INFRA-03** — Require webhook secrets at boot in production
+- [x] **FE-01** — URL scheme allowlist for agent markdown links
+- [x] **DATA-02** — sessionStorage for chat scope (optional)
 - [ ] **LOGIC-01** — Alert on email merge conflicts
 - [ ] **LOGIC-02** — Audit Privy account-transfer webhooks
 - [ ] **NOTIF-01** — Timing-safe internal key comparison

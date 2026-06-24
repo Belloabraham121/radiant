@@ -42,7 +42,7 @@ export async function querySharedAppData(query: SharedAppDataQuery): Promise<App
 }
 
 export async function countSharedAppData(
-  query: Pick<SharedAppDataQuery, "projectId" | "collection">,
+  query: Pick<SharedAppDataQuery, "projectId" | "collection" | "installationId">,
 ): Promise<number> {
   return getAppDataProvider().countShared(query);
 }

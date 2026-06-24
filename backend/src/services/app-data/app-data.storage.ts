@@ -52,6 +52,7 @@ export type AppDataDeleteQuery = {
 export type SharedAppDataQuery = {
   projectId: string;
   collection: string;
+  installationId?: string | null;
   since?: string | null;
   limit?: number;
   offset?: number;
@@ -65,7 +66,9 @@ export interface AppDataStorageProvider {
   delete(query: AppDataDeleteQuery): Promise<number>;
   deleteAllByProjectId(projectId: string): Promise<number>;
   queryShared(query: SharedAppDataQuery): Promise<AppDataRow[]>;
-  countShared(query: Pick<SharedAppDataQuery, "projectId" | "collection">): Promise<number>;
+  countShared(
+    query: Pick<SharedAppDataQuery, "projectId" | "collection" | "installationId">,
+  ): Promise<number>;
 }
 
 // --- Provider registry ---

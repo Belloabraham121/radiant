@@ -120,6 +120,7 @@ export class PostgresAppDataProvider implements AppDataStorageProvider {
       where: {
         project_id: query.projectId,
         collection: query.collection,
+        installation_id: query.installationId ?? null,
         ...(query.since ? { created_at: { gt: new Date(query.since) } } : {}),
       },
       orderBy: { created_at: order },
@@ -130,12 +131,13 @@ export class PostgresAppDataProvider implements AppDataStorageProvider {
   }
 
   async countShared(
-    query: Pick<SharedAppDataQuery, "projectId" | "collection">,
+    query: Pick<SharedAppDataQuery, "projectId" | "collection" | "installationId">,
   ): Promise<number> {
     return prisma.appData.count({
       where: {
         project_id: query.projectId,
         collection: query.collection,
+        installation_id: query.installationId ?? null,
       },
     });
   }

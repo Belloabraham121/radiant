@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../../../middleware/auth.js";
+import { proxyRateLimitMiddleware } from "../../../middleware/auth-rate-limit.js";
 import { fetchExternal } from "../../../../services/proxy/external-fetch.service.js";
 import { ok } from "../../../../utils/http-response.js";
 import { AppError } from "../../../../errors/app-error.js";
@@ -17,6 +18,7 @@ export const proxyRouter = Router();
 proxyRouter.post(
   "/api/v1/proxy",
   requireAuth,
+  proxyRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const parsed = proxyRequestSchema.safeParse(req.body);

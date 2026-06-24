@@ -18,6 +18,7 @@ import {
   type AgentToolOptions,
 } from "./execute-transaction-context.js";
 import { validateExecuteTransactionInput } from "./deepbook/validate-execute-transaction.js";
+import { validateExecuteTransactionToolPolicy } from "./tool-arg-policy.js";
 import {
   recordAutoExecuted,
   markCompleted,
@@ -71,6 +72,7 @@ export async function runExecuteTransactionToolWithApproval(
   const streamParams = (input.params ?? {}) as Record<string, unknown>;
 
   validateExecuteTransactionInput(input);
+  validateExecuteTransactionToolPolicy(input);
   emitAgentStreamExecutionStart(streamCtx, streamAction, streamParams);
 
   try {
