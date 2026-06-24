@@ -41,5 +41,5 @@ export const template = Template()
     { src: "scaffold/lib/", dest: "/opt/radiant-scaffold/lib/" },
     { src: "scaffold/components/", dest: "/opt/radiant-scaffold/components/" },
   ])
-  .runCmd("npm ci")
+  .runCmd("npm ci --ignore-scripts")
   .runCmd("mkdir -p /workspace && chown -R user:user /workspace", { user: "root" });

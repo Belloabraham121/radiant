@@ -2,6 +2,8 @@ import { generateAppForUser } from "./generate-app.service.js";
 import { normalizeGenerateAppInput } from "./normalize-generate-app-input.js";
 import { generateAppInputSchema } from "./project.types.js";
 import type { PinnedAppScope } from "./pinned-app-scope.types.js";
+import { getAgentOutputLimitsConfig } from "../../config/agent.js";
+import { buildOversizedToolArgsError } from "../agent/runtime/output-limits.js";
 
 export const GENERATE_APP_TOOL_NAME = "generate_app" as const;
 
@@ -61,7 +63,13 @@ export async function runGenerateAppTool(
   input: Record<string, unknown>,
   context: { sessionId?: string; rawArguments?: string; pinnedAppScope?: PinnedAppScope | null } = {},
 ): Promise<unknown> {
-  const normalized = normalizeGenerateAppInput(input, context.rawArguments ?? "");
+  const rawArguments = context.rawArguments ?? "";
+  const { maxToolArgsChars } = getAgentOutputLimitsConfig();
+  if (rawArguments.length > maxToolArgsChars) {
+    return buildOversizedToolArgsError(maxToolArgsChars);
+  }
+
+  const normalized = normalizeGenerateAppInput(input, rawArguments);
   const parsed = generateAppInputSchema.parse(normalized);
   return generateAppForUser(privyUserId, parsed, context);
 }

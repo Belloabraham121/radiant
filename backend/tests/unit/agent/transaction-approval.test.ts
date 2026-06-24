@@ -53,6 +53,17 @@ describe("transaction approval", () => {
     );
   });
 
+  it("always requires approval for execute_bytes when auto-approve is enabled", () => {
+    assert.equal(
+      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+        chain_id: "sui",
+        action: "execute_bytes",
+        params: { transaction_bytes: "YWJjZA==" },
+      }),
+      true,
+    );
+  });
+
   it("requires approval for every transfer when auto-approve is disabled", () => {
     assert.equal(
       transferRequiresApprovalWithPermissions(

@@ -3,3 +3,5 @@ Load the Inngest skills from `backend/.agents/skills/inngest/` (vendored from ht
 For Radiant deploy jobs, also read `backend/.agents/skills/inngest-radiant/SKILL.md`.
 
 When adding or changing Inngest functions, follow `inngest-setup`, `inngest-durable-functions`, and `inngest-events` skills. Official docs: https://www.inngest.com/llms.txt
+
+For auth, proxy, outbound fetch, or data-export changes, read `.cursor/rules/security-api-guards.mdc` and `backend/.agents/skills/radiant-backend/SKILL.md` § Security guards.

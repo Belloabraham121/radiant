@@ -36,16 +36,24 @@ export type ChatAppScopeCandidate = {
 
 const STORAGE_PREFIX = "radiant:chat-app-scope:";
 
+function getBrowserStorage(): Storage | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.sessionStorage;
+}
+
 export function chatAppScopeStorageKey(sessionId?: string): string {
   return `${STORAGE_PREFIX}${sessionId ?? "new"}`;
 }
 
 export function loadStoredChatAppScope(sessionId?: string): ChatAppScope | null {
-  if (typeof window === "undefined") {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return null;
   }
   try {
-    const raw = window.localStorage.getItem(chatAppScopeStorageKey(sessionId));
+    const raw = storage.getItem(chatAppScopeStorageKey(sessionId));
     if (!raw) {
       return null;
     }
@@ -56,19 +64,47 @@ export function loadStoredChatAppScope(sessionId?: string): ChatAppScope | null 
 }
 
 export function saveStoredChatAppScope(sessionId: string | undefined, scope: ChatAppScope | null): void {
-  if (typeof window === "undefined") {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return;
   }
   const key = chatAppScopeStorageKey(sessionId);
   if (!scope) {
-    window.localStorage.removeItem(key);
+    storage.removeItem(key);
     return;
   }
-  window.localStorage.setItem(key, JSON.stringify(scope));
+  storage.setItem(key, JSON.stringify(scope));
 }
 
 export function clearStoredChatAppScope(sessionId: string): void {
   saveStoredChatAppScope(sessionId, null);
+}
+
+/** Remove all persisted chat app scope keys (e.g. on logout). */
+export function clearAllStoredChatAppScopes(): void {
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return;
+  }
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < storage.length; i += 1) {
+    const key = storage.key(i);
+    if (key?.startsWith(STORAGE_PREFIX)) {
+      keysToRemove.push(key);
+    }
+  }
+  for (const key of keysToRemove) {
+    storage.removeItem(key);
+  }
+
+  if (typeof window !== "undefined" && window.localStorage) {
+    for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(STORAGE_PREFIX)) {
+        window.localStorage.removeItem(key);
+      }
+    }
+  }
 }
 
 /** Parse API / DB `app_scope` JSON into a typed scope (invalid → null). */

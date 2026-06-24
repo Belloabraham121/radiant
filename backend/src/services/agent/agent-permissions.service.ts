@@ -17,6 +17,19 @@ export function defaultAgentPermissions(): AgentPermissions {
   };
 }
 
+/** Safe deny defaults when the Postgres user row is missing (pre-/auth/me race). */
+export function denyDefaultAgentPermissions(): AgentPermissions {
+  return {
+    auto_approve_enabled: false,
+    auto_approve_max_sui: 0,
+    allow_flash_loans: false,
+    auto_approve_flash_loans: false,
+    allow_governance: false,
+    allow_margin: false,
+    allow_predict: false,
+  };
+}
+
 export function agentPermissionsFromUser(user: {
   agent_auto_approve_enabled: boolean;
   agent_auto_approve_max_sui: number;
@@ -40,7 +53,7 @@ export function agentPermissionsFromUser(user: {
 export async function getAgentPermissions(privyUserId: string): Promise<AgentPermissions> {
   const user = await findUserByPrivyId(privyUserId);
   if (!user) {
-    return defaultAgentPermissions();
+    return denyDefaultAgentPermissions();
   }
   return agentPermissionsFromUser(user);
 }

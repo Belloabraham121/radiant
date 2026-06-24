@@ -14,6 +14,7 @@ import {
   type TransactionErrorContext,
 } from "../deepbook/transaction-error-context.js";
 import { buildSystemPrompt } from "./prompts.js";
+import type { AgentPromptContext } from "../prompts/prompt-context.js";
 import { openAiMaxOutputTokens } from "./openai-completion-params.js";
 import type { AgentTurnMessage } from "./types.js";
 
@@ -201,6 +202,8 @@ export async function synthesizeErrorExplanationReply(input: {
   agentPermissions?: AgentPermissions;
   userContext?: string;
   transactionContext?: TransactionErrorContext;
+  promptContext?: AgentPromptContext;
+  compoundRequest?: boolean;
 }): Promise<string> {
   const { apiKey, model } = getOpenAiConfig();
   if (!apiKey) {
@@ -208,6 +211,9 @@ export async function synthesizeErrorExplanationReply(input: {
   }
 
   const client = new OpenAI({ apiKey });
+  const lastUserMessage =
+    input.promptContext?.userMessage ??
+    [...input.messages].reverse().find((message) => message.role === "user")?.content;
 
   try {
     return await explainTransactionError({
@@ -216,10 +222,17 @@ export async function synthesizeErrorExplanationReply(input: {
       messages: [
         {
           role: "system",
-          content: buildSystemPrompt({
-            memoryBlock: input.memoryBlock,
-            agentPermissions: input.agentPermissions,
-          }),
+          content: buildSystemPrompt(
+            buildSystemPromptInputFromContext({
+              memoryBlock: input.memoryBlock,
+              agentPermissions: input.agentPermissions,
+              promptContext: {
+                ...input.promptContext,
+                userMessage: lastUserMessage,
+                forceFullMode: input.compoundRequest === true,
+              },
+            }),
+          ),
         },
         ...input.messages.map((message) => ({
           role: message.role,
@@ -230,6 +243,7 @@ export async function synthesizeErrorExplanationReply(input: {
       toolResult: input.toolResult,
       transactionContext: input.transactionContext,
       userContext: input.userContext,
+      compoundRequest: input.compoundRequest,
     });
   } catch (err) {
     if (err instanceof AppError) {

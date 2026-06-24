@@ -1,4 +1,4 @@
-import { ApiError } from "@/lib/api";
+import { ApiError, withMutationSecurityHeaders } from "@/lib/api";
 import { messageForApiFailure, messageForChatStreamError } from "@/lib/api-error-messages";
 import type { ChatRequest, ChatResponse } from "@/lib/chat-api";
 import type { ArtifactPayload } from "@/lib/artifact-types";
@@ -59,10 +59,10 @@ export async function postChatStream(
     response = await fetch("/api/v1/chat?stream=1", {
       method: "POST",
       credentials: "include",
-      headers: {
+      headers: withMutationSecurityHeaders({
         "Content-Type": "application/json",
         Accept: "text/event-stream",
-      },
+      }),
       body: JSON.stringify(body),
       signal: options.signal,
     });

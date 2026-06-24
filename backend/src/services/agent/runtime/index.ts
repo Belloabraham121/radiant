@@ -14,3 +14,4 @@ export type {
   AgentTurnMessage,
   AgentTurnResult,
 } from "./types.js";
+export type { AgentPromptContext } from "../prompts/prompt-context.js";

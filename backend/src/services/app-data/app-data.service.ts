@@ -249,7 +249,7 @@ function toSharedRecord(row: {
 }
 
 /**
- * Store data into a shared collection. All users of the same project can read it.
+ * Store data into a shared collection scoped to the install instance or publisher project.
  * The write is still attributed to the authenticated user (author_id).
  */
 export async function storeSharedAppDataForUser(
@@ -280,8 +280,8 @@ export async function storeSharedAppDataForUser(
 }
 
 /**
- * Query a shared collection — returns records from ALL users in the project.
- * Supports `since` for polling new messages.
+ * Query a shared collection scoped to the install instance (installation_id) or,
+ * for publisher project scope, rows with no installation_id.
  */
 export async function querySharedAppDataForUser(
   privyUserId: string,
@@ -296,6 +296,7 @@ export async function querySharedAppDataForUser(
   const [rows, total] = await Promise.all([
     querySharedAppData({
       projectId: scope.projectId,
+      installationId: scope.installationId ?? null,
       collection: input.collection,
       since: input.since,
       limit,
@@ -304,6 +305,7 @@ export async function querySharedAppDataForUser(
     }),
     countSharedAppData({
       projectId: scope.projectId,
+      installationId: scope.installationId ?? null,
       collection: input.collection,
     }),
   ]);

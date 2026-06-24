@@ -65,6 +65,16 @@ export function getAgentContextConfig() {
   };
 }
 
+/** Hard caps on LLM assistant output per reply and per turn (chars + tokens). */
+export function getAgentOutputLimitsConfig() {
+  return {
+    maxOutputTokensChat: parsePositiveInt("AGENT_MAX_OUTPUT_TOKENS_CHAT", 4096),
+    maxReplyChars: parsePositiveInt("AGENT_MAX_REPLY_CHARS", 12_000),
+    maxTurnOutputChars: parsePositiveInt("AGENT_MAX_TURN_OUTPUT_CHARS", 32_000),
+    maxToolArgsChars: parsePositiveInt("AGENT_MAX_TOOL_ARGS_CHARS", 524_288),
+  };
+}
+
 /** Select production OpenAI runtime or local stub (default when no API key). */
 export function getAgentProvider(): AgentProvider {
   const explicit = process.env.AGENT_PROVIDER?.trim().toLowerCase();
@@ -73,4 +83,24 @@ export function getAgentProvider(): AgentProvider {
     return getOpenAiConfig().apiKey ? "openai" : "stub";
   }
   return getOpenAiConfig().apiKey ? "openai" : "stub";
+}
+
+export type PromptScopeMode = "full" | "scoped";
+
+/** Agent prompt scope — default scoped (Phase 8). Override with PROMPT_SCOPE_MODE=full. */
+export function getPromptScopeConfig(): {
+  mode: PromptScopeMode;
+  logMetrics: boolean;
+} {
+  const raw = process.env.PROMPT_SCOPE_MODE?.trim().toLowerCase();
+  const mode: PromptScopeMode = raw === "full" ? "full" : "scoped";
+  const logMetrics =
+    process.env.NODE_ENV !== "test" &&
+    (process.env.PROMPT_SCOPE_LOG === "true" ||
+      (process.env.NODE_ENV === "development" && process.env.PROMPT_SCOPE_LOG !== "false"));
+  return { mode, logMetrics };
+}
+
+export function getDefaultPromptScopeMode(): PromptScopeMode {
+  return getPromptScopeConfig().mode;
 }

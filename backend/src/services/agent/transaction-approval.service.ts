@@ -277,6 +277,10 @@ export function transferRequiresApprovalWithPermissions(
     return orderRequiresApprovalWithPermissions(permissions, input);
   }
 
+  if (input.action === "execute_bytes") {
+    return true;
+  }
+
   if (!TRANSFER_ACTIONS.has(input.action)) {
     return false;
   }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { callApi } from "./call-api.service.js";
+import { validateCallApiToolPolicy } from "../tool-arg-policy.js";
 
 export const CALL_API_TOOL_NAME = "call_api" as const;
 
@@ -53,5 +54,6 @@ export async function runCallApiTool(
   input: Record<string, unknown>,
 ): Promise<unknown> {
   const parsed = callApiInputSchema.parse(input);
+  validateCallApiToolPolicy(parsed);
   return callApi(parsed);
 }

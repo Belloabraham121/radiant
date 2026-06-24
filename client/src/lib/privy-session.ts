@@ -1,5 +1,6 @@
 /** Cookie names — keep in sync with backend `getAuthCookieNames()`. */
 export const PRIVY_ACCESS_TOKEN_COOKIE = "privy-token";
+export const PRIVY_IDENTITY_TOKEN_COOKIE = "privy-id-token";
 export const PRIVY_SESSION_COOKIE = "privy-session";
 
 const OAUTH_QUERY_KEYS = [

@@ -3,7 +3,10 @@ import type { Request } from "express";
 import { getAuthCookieNames } from "../../config/env.js";
 import { AppError } from "../../errors/app-error.js";
 import { getPrivyClient } from "../../infrastructure/privy/client.js";
+import { createLogger } from "../../shared/logger.js";
 import type { AuthenticatedSession } from "./auth.types.js";
+
+const log = createLogger("privy-auth");
 
 export function readAccessTokenFromRequest(req: Request): string | null {
   const { accessToken } = getAuthCookieNames();
@@ -47,8 +50,11 @@ export async function fetchPrivyUser(
   if (identityToken) {
     try {
       return await privy.users().get({ id_token: identityToken });
-    } catch {
-      // Fall through to server API lookup.
+    } catch (err) {
+      log.warn("Privy identity token verification failed; falling back to server lookup", {
+        privyUserId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

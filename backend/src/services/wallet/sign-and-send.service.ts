@@ -1,37 +1,33 @@
 import { getDefaultAgentChainId } from "../../config/chains.js";
-import { executeTransactionForUser } from "../chains/execute-transaction.js";
+import { AppError } from "../../errors/app-error.js";
+import { runExecuteTransactionToolWithApproval } from "../agent/execute-transaction-with-approval.js";
 import type { SignAndSendBody, SignAndSendResult } from "./wallet.types.js";
-
-function toChainAction(body: SignAndSendBody): { action: string; params: Record<string, unknown> } {
-  if (body.action === "transfer_sui") {
-    return {
-      action: "transfer_native",
-      params: {
-        recipient: body.recipient,
-        amount_mist: body.amount_mist,
-      },
-    };
-  }
-
-  return {
-    action: "execute_bytes",
-    params: {
-      transaction_bytes: body.transaction_bytes,
-    },
-  };
-}
 
 export async function signAndSendForUser(
   privyUserId: string,
   body: SignAndSendBody,
 ): Promise<SignAndSendResult> {
-  const { action, params } = toChainAction(body);
-  const result = await executeTransactionForUser(privyUserId, {
+  const input = {
     chain_id: getDefaultAgentChainId(),
-    action,
-    params,
+    action: "transfer_native" as const,
+    params: {
+      recipient: body.recipient,
+      amount_mist: body.amount_mist,
+    },
+  };
+
+  const outcome = await runExecuteTransactionToolWithApproval(privyUserId, input, {
+    source: "ui",
   });
 
+  if (outcome.status === "approval_required") {
+    throw new AppError(409, "APPROVAL_REQUIRED", "Transaction requires in-app approval", {
+      pending_transaction: outcome.pending,
+      agent_transaction_id: outcome.agent_transaction_id,
+    });
+  }
+
+  const result = outcome.result;
   return {
     digest: result.digest,
     sui_address: result.address,

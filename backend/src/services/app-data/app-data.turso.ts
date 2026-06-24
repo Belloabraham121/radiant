@@ -243,8 +243,15 @@ export class TursoAppDataProvider implements AppDataStorageProvider {
     const offset = query.offset ?? 0;
     const order = (query.order ?? "asc").toUpperCase();
 
-    const conditions: string[] = ["project_id = ?", "collection = ?"];
+    const conditions: string[] = [
+      "project_id = ?",
+      "collection = ?",
+      query.installationId ? "installation_id = ?" : "installation_id IS NULL",
+    ];
     const args: InValue[] = [query.projectId, query.collection];
+    if (query.installationId) {
+      args.push(query.installationId);
+    }
 
     if (query.since) {
       conditions.push("created_at > ?");
@@ -265,11 +272,21 @@ export class TursoAppDataProvider implements AppDataStorageProvider {
   }
 
   async countShared(
-    query: Pick<SharedAppDataQuery, "projectId" | "collection">,
+    query: Pick<SharedAppDataQuery, "projectId" | "collection" | "installationId">,
   ): Promise<number> {
+    const conditions: string[] = [
+      "project_id = ?",
+      "collection = ?",
+      query.installationId ? "installation_id = ?" : "installation_id IS NULL",
+    ];
+    const args: InValue[] = [query.projectId, query.collection];
+    if (query.installationId) {
+      args.push(query.installationId);
+    }
+
     const result = await this.client.execute({
-      sql: `SELECT COUNT(*) as cnt FROM app_data WHERE project_id = ? AND collection = ?`,
-      args: [query.projectId, query.collection],
+      sql: `SELECT COUNT(*) as cnt FROM app_data WHERE ${conditions.join(" AND ")}`,
+      args,
     });
 
     return Number(result.rows[0].cnt);

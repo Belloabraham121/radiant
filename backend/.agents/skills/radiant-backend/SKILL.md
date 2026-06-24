@@ -176,6 +176,20 @@ Move contracts live in `packages/move/` — not `backend/contracts/` (reference 
 
 ---
 
+## Security guards
+
+When adding auth, outbound HTTP, proxy, or data-export code:
+
+- **Cookie auth** — protect routes with `requireAuth`; validate CSRF via `csrfOriginMiddleware` on state-changing requests; never store tokens or secrets in client storage.
+- **Outbound fetch** (proxy, `call_api`, agent tools) — use `services/proxy/ssrf-guard.ts` (`validateOutboundUrl`, `fetchWithSsrfGuard`); manual redirects with SSRF re-validation on every hop; no `redirect: "follow"`.
+- **Proxy headers** — strip `Authorization`, `Cookie`, `X-Api-Key`, `Proxy-Authorization` unless hostname matches `PROXY_SECRET_HEADER_ALLOWLIST_HOSTS` (comma-separated exact hosts or `.suffix` patterns).
+- **Sensitive routes** — apply rate limits (`auth-rate-limit.ts`); emit structured audit logs (`privyUserId`, `correlationId`, timestamp) for exports and similar PII access.
+- **IDOR** — always scope queries and mutations by `req.user.privyUserId` from the verified session; never trust client-supplied user ids.
+
+DNS rebinding (hostname validated but IP resolves to private range) is not mitigated; document if adding new outbound fetch paths.
+
+---
+
 ## Tests
 
 | Type | Location | Notes |

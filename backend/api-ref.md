@@ -47,6 +47,7 @@ Auth happens on the **client** (Privy SDK). The backend only **verifies** the Ht
 | `GET` | `/api/v1/auth/me` | Current user, profile (`avatar_seed`, `display_name`), agent wallets (cookie required). Upserts local `User` on first call. |
 | `POST` | `/api/v1/auth/register-wallet` | **First-time only** — persist embedded Sui wallet after client creates it |
 | `POST` | `/api/v1/auth/logout` | End session |
+| `GET` | `/api/v1/auth/export` | Export user data (notification prefs, profile). Requires `X-Export-Confirm: true` header. Rate limited (5/min). Emits audit log. |
 | `POST` | `/api/v1/webhooks/privy` | Privy webhooks (Svix signature). Handles `user.linked_account`, `user.transferred_account`. |
 | `GET` | `/api/v1/wallets/balances` | Agent wallet native balance (from session) |
 | `GET` | `/api/v1/wallets/assets` | Multi-token holdings. Sui via RPC; EVM/Solana via Privy. Query: `chain`, `evm_chain_id`, `include_zero`, `include_usd` |
