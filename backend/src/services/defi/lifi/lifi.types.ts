@@ -149,14 +149,18 @@ export const lifiStatusInputSchema = z.object({
 });
 export type LifiStatusInput = z.infer<typeof lifiStatusInputSchema>;
 
-export const lifiExecuteInputSchema = z.object({
-  route_id: z.string().min(1).optional(),
-  route: z.record(z.unknown()).optional(),
-  lifi_route: z.record(z.unknown()).optional(),
-  from_chain_id: chainIdSchema.optional(),
-  from_evm_chain_id: evmChainIdSchema.optional(),
-  skip_approval: z.boolean().optional(),
-});
+export const lifiExecuteInputSchema = z
+  .object({
+    route_id: z.string().min(1).optional(),
+    route: z.record(z.unknown()).optional(),
+    lifi_route: z.record(z.unknown()).optional(),
+    from_chain_id: chainIdSchema.optional(),
+    from_evm_chain_id: evmChainIdSchema.optional(),
+    skip_approval: z.boolean().optional(),
+    expires_at: z.string().min(1).optional(),
+    quote_expires_at: z.string().min(1).optional(),
+  })
+  .passthrough();
 export type LifiExecuteInput = z.infer<typeof lifiExecuteInputSchema>;
 
 export type LifiTransactionRequest = {

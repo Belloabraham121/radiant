@@ -102,6 +102,32 @@ describe("lifi-quote.service", () => {
     );
   });
 
+  it("resolveLifiRouteForExecute prefers embedded lifi_route over cache lookup", async () => {
+    const route = {
+      id: "embedded-only",
+      fromAmount: "1000000",
+      toAmount: "999000",
+      steps: [{ action: { fromChainId: 1, toChainId: 8453 } }],
+    } as unknown as Route;
+
+    const resolved = await resolveLifiRouteForExecute({
+      routeId: "missing-cache-id",
+      lifiRoute: route,
+      privyUserId: "did:privy:test",
+      snapshotParams: {
+        route_id: "missing-cache-id",
+        from_token: "USDC",
+        to_token: "USDC",
+        from_amount_atomic: "1000000",
+        from_chain_id: "ethereum",
+        to_chain_id: "ethereum",
+        to_evm_chain_id: 8453,
+      },
+    });
+
+    assert.equal(resolved.id, "embedded-only");
+  });
+
   it("resolveLifiTokens accepts allowlisted USDC on Base", () => {
     process.env.ENABLED_CHAINS = "sui,ethereum";
     process.env.ENABLED_EVM_CHAIN_IDS = "1,42161,8453";

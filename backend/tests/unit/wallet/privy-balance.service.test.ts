@@ -66,6 +66,21 @@ describe("privy-balance.service", () => {
     assert.equal(usdt?.balance_display, 0);
   });
 
+  it("requests each asset individually as a single value (never a comma-joined array)", async () => {
+    const seenAssets: unknown[] = [];
+    setPrivyBalanceGetForTests(async (_walletId, query) => {
+      seenAssets.push(query.asset);
+      return { balances: [] };
+    });
+
+    await fetchEvmPrivyWalletAssets("wallet-evm-1", { evmChainId: 1, includeUsd: true });
+
+    // One call per asset; each `asset` is a single string, not an array — the
+    // Privy SDK serializes arrays as `asset=eth,usdc,usdt`, which Privy rejects.
+    assert.deepEqual(seenAssets, ["eth", "usdc", "usdt"]);
+    assert.ok(seenAssets.every((asset) => typeof asset === "string"));
+  });
+
   it("maps Solana SOL and zero USDC", async () => {
     setPrivyBalanceGetForTests(async () => SOLANA_RESPONSE);
 

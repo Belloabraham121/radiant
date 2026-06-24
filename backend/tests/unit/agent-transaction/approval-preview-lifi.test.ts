@@ -6,6 +6,7 @@ import { resetEvmConfigCacheForTests } from "../../../src/config/evm.js";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import { buildDeFiApprovalPreview } from "../../../src/services/agent-transaction/approval-preview/build-preview.js";
 import { enrichLifiExecuteInputForApproval } from "../../../src/services/agent-transaction/approval-preview/enrichers/lifi.js";
+import { isExecutableLifiRoute } from "../../../src/services/defi/lifi/lifi-normalize.js";
 import {
   buildPendingTransactionPreview,
   transferRequiresApprovalWithPermissions,
@@ -272,5 +273,38 @@ describe("approval preview — Li-Fi", () => {
     assert.equal(pending.defi_preview!.kind, "bridge");
     assert.equal(pending.defi_preview!.provider_id, "evm-lifi");
     assert.match(pending.summary, /Bridge USDC/i);
+  });
+
+  it("buildPendingTransactionPreview persists lifi_route for execute after cache expiry", async () => {
+    const pending = await buildPendingTransactionPreview("did:privy:test", {
+      chain_id: "ethereum",
+      action: "cross_chain_swap",
+      params: { route: mockRoute },
+    });
+
+    assert.ok(isExecutableLifiRoute(pending.params.lifi_route));
+    assert.ok(pending.params.from_amount_display);
+    assert.ok(pending.params.to_amount_display);
+  });
+
+  it("still enriches lifi_route when display fields are complete but route object omitted", async () => {
+    const enriched = await enrichLifiExecuteInputForApproval("did:privy:test", {
+      chain_id: "ethereum",
+      action: "cross_chain_swap",
+      params: {
+        route: mockRoute,
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+        from_token_symbol: "USDC",
+        to_token_symbol: "USDC",
+        from_amount_display: "1",
+        to_amount_display: "0.999",
+        from_chain_id: "ethereum",
+        to_chain_id: "ethereum",
+        from_evm_chain_id: 1,
+        to_evm_chain_id: 8453,
+      },
+    });
+
+    assert.ok(isExecutableLifiRoute(enriched.params.lifi_route));
   });
 });

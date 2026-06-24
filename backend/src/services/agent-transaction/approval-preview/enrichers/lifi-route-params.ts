@@ -2,6 +2,7 @@ import type { Route } from "@lifi/types";
 import { resolveTokenSymbol, resolveEvmTokenByAddress } from "../../../../config/supported-tokens.js";
 import type { ChainId } from "../../../chains/types.js";
 import { formatAtomicAmount, lifiToRadiantChainRef } from "../../../defi/lifi/lifi-chain-map.js";
+import { coalesceDeFiQuoteExpiresAt } from "../quote-expiry.js";
 import {
   isExecutableLifiRoute,
   normalizeLifiRouteToRouteQuote,
@@ -201,8 +202,12 @@ function enrichFromQuoteSnapshot(params: Record<string, unknown>): Record<string
     to_evm_chain_id: toEvmChainId ?? undefined,
     bridges,
     fee_cost_usd: resolveSnapshotFeeUsd(params),
-    expires_at: readString(params, "expires_at") ?? readString(params, "quote_expires_at"),
-    quote_expires_at: readString(params, "quote_expires_at") ?? readString(params, "expires_at"),
+    expires_at: coalesceDeFiQuoteExpiresAt(
+      readString(params, "expires_at") ?? readString(params, "quote_expires_at"),
+    ),
+    quote_expires_at: coalesceDeFiQuoteExpiresAt(
+      readString(params, "quote_expires_at") ?? readString(params, "expires_at"),
+    ),
     slippage: readNumber(params, "slippage"),
   };
 }
@@ -231,6 +236,8 @@ export function applyLifiRouteToExecuteParams(
     toTokenSymbol: toSymbol,
   });
 
+  const expiresAt = coalesceDeFiQuoteExpiresAt(normalized.expires_at);
+
   return {
     ...params,
     route,
@@ -251,8 +258,8 @@ export function applyLifiRouteToExecuteParams(
     to_evm_chain_id: toRef.chain_id === "ethereum" ? toRef.evm_chain_id : undefined,
     bridges: normalized.bridges,
     fee_cost_usd: resolveRouteFeeUsd(route),
-    expires_at: normalized.expires_at,
-    quote_expires_at: normalized.expires_at,
+    expires_at: expiresAt,
+    quote_expires_at: expiresAt,
     slippage: firstStep.action.slippage,
   };
 }
@@ -267,6 +274,8 @@ export async function resolveLifiApprovalParams(
     return applyLifiRouteToExecuteParams(params, embedded);
   }
 
+  const requoteOnCacheMiss = options?.requoteOnCacheMiss ?? Boolean(options?.privyUserId);
+
   const routeId = readString(params, "route_id");
   if (routeId) {
     try {
@@ -280,7 +289,7 @@ export async function resolveLifiApprovalParams(
       });
       return applyLifiRouteToExecuteParams(params, route);
     } catch {
-      if (options?.requoteOnCacheMiss && options.privyUserId) {
+      if (requoteOnCacheMiss && options?.privyUserId) {
         const requoted = await requoteLifiFromSnapshot(options.privyUserId, params);
         const refreshedRoute = requoted?.lifi_route;
         if (requoted && refreshedRoute) {

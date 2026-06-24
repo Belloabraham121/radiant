@@ -1,4 +1,5 @@
-import { Signer } from "@mysten/sui/cryptography";
+import { toBase64 } from "@mysten/bcs";
+import { Signer, type SignatureWithBytes } from "@mysten/sui/cryptography";
 import { publicKeyFromRawBytes } from "@mysten/sui/verify";
 import { EthereumProvider } from "@lifi/sdk-provider-ethereum";
 import { SolanaProvider } from "@lifi/sdk-provider-solana";
@@ -16,6 +17,7 @@ import {
   buildSuiSerializedSignature,
   parsePrivyEd25519PublicKey,
   parsePrivyEd25519Signature,
+  signSuiTransactionBytes,
 } from "../../wallet/sui-signing.service.js";
 import { buildSignerAuthorizationContext } from "../../../utils/privy-authorization.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
@@ -61,6 +63,24 @@ class PrivySuiSigner extends Signer {
 
   toSuiAddress(): string {
     return this.meta.suiAddress;
+  }
+
+  /**
+   * Mysten {@link Signer.signWithIntent} hashes intent+payload then calls `sign(digest)`.
+   * Privy expects the TransactionData intent message and applies blake2b256 itself
+   * ({@link signSuiTransactionBytes}), so the default Signer path double-hashes and Sui rejects the sig.
+   */
+  async signTransaction(bytes: Uint8Array): Promise<SignatureWithBytes> {
+    const signature = await signSuiTransactionBytes({
+      privyWalletId: this.meta.privyWalletId,
+      suiAddress: this.meta.suiAddress,
+      publicKeyBase58: this.meta.publicKeyBase58,
+      transactionBytes: bytes,
+    });
+    return {
+      signature,
+      bytes: toBase64(bytes),
+    };
   }
 
   async sign(bytes: Uint8Array): Promise<Uint8Array<ArrayBuffer>> {

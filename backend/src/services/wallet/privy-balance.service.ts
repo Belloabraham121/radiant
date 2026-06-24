@@ -125,18 +125,37 @@ async function fetchNamedAssets(
   privyChain: PrivyChain,
   includeUsd: boolean,
 ): Promise<WalletAssetRow[]> {
-  const response = await balanceGetFn(privyWalletId, {
-    asset: assets,
-    chain: privyChain,
-    ...(includeUsd ? { include_currency: "usd" } : {}),
-  });
-
-  const byAsset = new Map(
-    response.balances.map((balance) => [
-      balance.asset,
-      mapPrivyBalance(balance, privyChain, includeUsd),
-    ]),
+  // Privy's SDK serializes query arrays with `arrayFormat: 'comma'`, so passing
+  // `asset: [...]` is sent as `asset=eth,usdc,usdt` — which Privy's API rejects
+  // (it expects a single enum value). Request one asset per call (single value
+  // serializes correctly) and merge the results.
+  const settled = await Promise.allSettled(
+    assets.map((asset) =>
+      balanceGetFn(privyWalletId, {
+        asset,
+        chain: privyChain,
+        ...(includeUsd ? { include_currency: "usd" } : {}),
+      }),
+    ),
   );
+
+  const byAsset = new Map<PrivyNamedAsset, WalletAssetRow>();
+  let firstError: unknown = null;
+  for (const result of settled) {
+    if (result.status === "rejected") {
+      firstError ??= result.reason;
+      continue;
+    }
+    for (const balance of result.value.balances) {
+      byAsset.set(balance.asset, mapPrivyBalance(balance, privyChain, includeUsd));
+    }
+  }
+
+  // Surface a systemic failure (auth, wallet not found, etc.) rather than masking
+  // it as an all-zero wallet; a single failed asset still falls back to a zero row.
+  if (byAsset.size === 0 && firstError !== null) {
+    throw firstError;
+  }
 
   return assets.map((asset) => byAsset.get(asset) ?? zeroRow(asset, privyChain, includeUsd));
 }

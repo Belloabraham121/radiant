@@ -153,22 +153,7 @@ export async function withLifiSdk<T>(fn: (client: SDKClient) => Promise<T>): Pro
     const result = await fn(getLifiSdkClient());
     return result;
   } catch (err) {
-    const mapped = mapLifiError(err);
-    // #region agent log
-    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-      body: JSON.stringify({
-        sessionId: "90234e",
-        hypothesisId: "F",
-        location: "lifi.client.ts:withLifiSdk",
-        message: "Li-Fi SDK error",
-        data: { code: mapped.code, errorMessage: mapped.message.slice(0, 200) },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    throw mapped;
+    throw mapLifiError(err);
   }
 }
 

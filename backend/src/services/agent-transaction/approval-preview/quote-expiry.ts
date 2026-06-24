@@ -1,3 +1,28 @@
+import { LIFI_QUOTE_TTL_MS } from "../../defi/lifi/lifi-normalize.js";
+
+/** Max remaining time we accept for a DeFi quote countdown (60s TTL + small slack). */
+export const DEFI_QUOTE_MAX_REMAINING_MS = LIFI_QUOTE_TTL_MS + 30_000;
+
+/**
+ * Normalize quote expiry for approval UI — agents sometimes pass bridge ETA
+ * (estimated_duration_seconds, e.g. ~349 min) as expires_at instead of the short quote TTL.
+ */
+export function coalesceDeFiQuoteExpiresAt(
+  raw: string | null | undefined,
+  nowMs = Date.now(),
+): string {
+  if (raw) {
+    const parsed = Date.parse(raw);
+    if (Number.isFinite(parsed)) {
+      const remaining = parsed - nowMs;
+      if (remaining > 0 && remaining <= DEFI_QUOTE_MAX_REMAINING_MS) {
+        return new Date(parsed).toISOString();
+      }
+    }
+  }
+  return new Date(nowMs + LIFI_QUOTE_TTL_MS).toISOString();
+}
+
 /** Read quote expiry from execute params — supports DeepBook and Li-Fi field names. */
 export function readDeFiQuoteExpiresAt(params: Record<string, unknown>): string | null {
   const quoteExpiresAt = params.quote_expires_at;

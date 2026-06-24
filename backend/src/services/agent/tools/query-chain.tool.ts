@@ -67,31 +67,6 @@ export async function runQueryChainTool(
     );
   }
 
-  // #region agent log
-  if (parsed.query.startsWith("cross_chain_")) {
-    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-      body: JSON.stringify({
-        sessionId: "90234e",
-        hypothesisId: "E",
-        location: "query-chain.tool.ts:runQueryChainTool",
-        message: "cross_chain query params",
-        data: {
-          query: parsed.query,
-          chain_id: parsed.chain_id,
-          from_chain_id: parsed.params.from_chain_id,
-          to_chain_id: parsed.params.to_chain_id,
-          to_evm_chain_id: parsed.params.to_evm_chain_id,
-          from_token: parsed.params.from_token,
-          to_token: parsed.params.to_token,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
-
   return handler({
     privyUserId,
     chainId: parsed.chain_id,

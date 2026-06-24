@@ -76,29 +76,6 @@ export async function getLifiQuote(
   return lifiCachedQuoteFetch(cacheParams, async () => {
     const fromTokenAddr = toLifiTokenAddress(tokens.fromToken, tokens.from);
     const toTokenAddr = toLifiTokenAddress(tokens.toToken, tokens.to);
-    // #region agent log
-    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-      body: JSON.stringify({
-        sessionId: "90234e",
-        hypothesisId: "C-D",
-        location: "lifi-quote.service.ts:getLifiQuote",
-        message: "Li-Fi getQuote params",
-        data: {
-          fromChain: fromLifiChainId,
-          toChain: toLifiChainId,
-          fromToken: tokens.fromSymbol,
-          toToken: tokens.toSymbol,
-          fromTokenAddrLen: fromTokenAddr.length,
-          toTokenAddrLen: toTokenAddr.length,
-          fromAddressLen: fromAddress.length,
-          toAddressLen: toAddress.length,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     const step = await lifiSdk.getQuote({
       fromChain: fromLifiChainId,
       toChain: toLifiChainId,
@@ -114,24 +91,6 @@ export async function getLifiQuote(
     const routeId = createRouteId(JSON.stringify(cacheParams));
     const route = { ...convertQuoteToRoute(step), id: routeId };
     await storeLifiRoute(routeId, route);
-    // #region agent log
-    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-      body: JSON.stringify({
-        sessionId: "90234e",
-        hypothesisId: "C-D",
-        location: "lifi-quote.service.ts:getLifiQuote",
-        message: "Li-Fi getQuote succeeded",
-        data: {
-          routeId,
-          toAmount: step.estimate?.toAmount ?? null,
-          runId: "post-fix",
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
 
     return normalizeLifiStepToCrossChainQuote({
       step,
@@ -149,6 +108,8 @@ export async function resolveLifiRouteForExecute(input: {
   routeId?: string;
   route?: Record<string, unknown>;
   lifiRoute?: Record<string, unknown>;
+  privyUserId?: string;
+  snapshotParams?: Record<string, unknown>;
 }): Promise<Route> {
   const embedded = input.lifiRoute ?? input.route;
   if (isExecutableLifiRoute(embedded)) {
@@ -160,6 +121,25 @@ export async function resolveLifiRouteForExecute(input: {
     if (isExecutableLifiRoute(stored)) {
       return stored;
     }
+
+    if (input.privyUserId && input.snapshotParams) {
+      let requoteError: unknown = null;
+      const requoted = await requoteLifiFromSnapshot(input.privyUserId, input.snapshotParams, {
+        onError: (err) => {
+          requoteError = err;
+        },
+      });
+      if (requoted?.lifi_route && isExecutableLifiRoute(requoted.lifi_route)) {
+        return requoted.lifi_route;
+      }
+      // A fresh quote was attempted but Li-Fi could not provide a usable route
+      // (no liquidity / amount too small to cover fees / provider down). Surface
+      // that real reason rather than masking it as a stale-cache error.
+      if (requoteError instanceof AppError) {
+        throw requoteError;
+      }
+    }
+
     throw new AppError(404, "LIFI_NO_ROUTE", "Bridge route expired. Fetch a fresh quote and try again.");
   }
 
@@ -190,6 +170,7 @@ function readSnapshotChainId(
 export async function requoteLifiFromSnapshot(
   privyUserId: string,
   params: Record<string, unknown>,
+  options?: { onError?: (err: unknown) => void },
 ): Promise<CrossChainQuote | null> {
   const fromToken =
     readSnapshotString(params, "from_token_symbol") ??
@@ -221,7 +202,11 @@ export async function requoteLifiFromSnapshot(
       confirm_same_token:
         typeof params.confirm_same_token === "boolean" ? params.confirm_same_token : undefined,
     });
-  } catch {
+  } catch (err) {
+    // Callers that just want display fallback ignore this; the execute path uses
+    // it to surface the real Li-Fi reason (e.g. "no route can generate a tx")
+    // instead of a misleading "route expired" message.
+    options?.onError?.(err);
     return null;
   }
 }

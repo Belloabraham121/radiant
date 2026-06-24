@@ -4,7 +4,9 @@ import {
 } from "../../../agent/chains/evm/lifi/execute-actions.js";
 import { AppError } from "../../../../errors/app-error.js";
 import { isDeFiQuoteFresh } from "../quote-expiry.js";
+import { isExecutableLifiRoute } from "../../../defi/lifi/lifi-normalize.js";
 import {
+  applyLifiRouteToExecuteParams,
   isLifiApprovalDisplayComplete,
   resolveLifiApprovalParams,
 } from "./lifi-route-params.js";
@@ -48,13 +50,25 @@ export async function enrichLifiExecuteInputForApproval(
     );
   }
 
-  if (isDeFiQuoteFresh(input.params) && isLifiApprovalDisplayComplete(input.params)) {
-    return input;
+  const embeddedRoute = input.params.lifi_route ?? input.params.route;
+  const hasStoredRoute = isExecutableLifiRoute(embeddedRoute);
+  if (
+    hasStoredRoute &&
+    isDeFiQuoteFresh(input.params) &&
+    isLifiApprovalDisplayComplete(input.params)
+  ) {
+    if (isExecutableLifiRoute(input.params.lifi_route)) {
+      return input;
+    }
+    return {
+      ...input,
+      params: applyLifiRouteToExecuteParams(input.params, embeddedRoute),
+    };
   }
 
   const params = await resolveLifiApprovalParams(input.params, {
     privyUserId,
-    requoteOnCacheMiss: options?.requoteOnCacheMiss,
+    requoteOnCacheMiss: options?.requoteOnCacheMiss ?? true,
   });
   return { ...input, params };
 }

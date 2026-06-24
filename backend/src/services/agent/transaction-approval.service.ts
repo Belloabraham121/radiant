@@ -46,7 +46,10 @@ import { buildTransactionDisplay } from "../agent-transaction/deepbook/build-dis
 import { buildDeFiApprovalPreview } from "../agent-transaction/approval-preview/build-preview.js";
 import { enrichExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/registry.js";
 import { enrichLifiExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/lifi.js";
+import { isLifiApprovalDisplayComplete } from "../agent-transaction/approval-preview/enrichers/lifi-route-params.js";
+import { isExecutableLifiRoute } from "../defi/lifi/lifi-normalize.js";
 import {
+  coalesceDeFiQuoteExpiresAt,
   isDeFiQuoteExpired,
   readDeFiQuoteExpiresAt,
 } from "../agent-transaction/approval-preview/quote-expiry.js";
@@ -56,7 +59,6 @@ import {
   claimPendingApprovalForUser,
   claimPendingRejectionForUser,
   clearPendingApprovalsForTests,
-  describePendingApprovalState,
   executeInputFromRecord,
   expireStalePendingApprovals,
   markCompleted,
@@ -127,6 +129,14 @@ export async function buildPendingTransactionPreview(
   id = randomUUID(),
 ): Promise<PendingTransaction> {
   const enriched = await enrichExecuteInputForApproval(privyUserId, input);
+  if (isLifiExecuteAction(enriched.action)) {
+    const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(enriched.params));
+    enriched.params = {
+      ...enriched.params,
+      expires_at: coalescedExpiry,
+      quote_expires_at: coalescedExpiry,
+    };
+  }
   validateExecuteTransactionInput(enriched);
   const { title, amount_display: amountDisplay } = await buildTransactionDisplay(
     privyUserId,
@@ -392,23 +402,6 @@ export async function approvePendingTransaction(
 
   const claimed = await claimPendingApprovalForUser(privyUserId, transactionId);
   if (!claimed) {
-    // #region agent log
-    const state = await describePendingApprovalState(privyUserId, transactionId).catch(
-      () => "unknown",
-    );
-    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-      body: JSON.stringify({
-        sessionId: "90234e",
-        hypothesisId: "H",
-        location: "transaction-approval.service.ts:approvePendingTransaction",
-        message: "claim failed",
-        data: { transactionId, state },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     return null;
   }
 
@@ -416,9 +409,24 @@ export async function approvePendingTransaction(
   let executeInput = executeInputFromRecord(claimed);
 
   if (isLifiExecuteAction(executeInput.action)) {
-    executeInput = await enrichLifiExecuteInputForApproval(privyUserId, executeInput, {
-      requoteOnCacheMiss: true,
-    });
+    const hasStoredRoute = isExecutableLifiRoute(
+      executeInput.params.lifi_route ?? executeInput.params.route,
+    );
+    const displayComplete = isLifiApprovalDisplayComplete(executeInput.params);
+    if (!hasStoredRoute || !displayComplete) {
+      executeInput = await enrichLifiExecuteInputForApproval(privyUserId, executeInput, {
+        requoteOnCacheMiss: true,
+      });
+    }
+    const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(executeInput.params));
+    executeInput = {
+      ...executeInput,
+      params: {
+        ...executeInput.params,
+        expires_at: coalescedExpiry,
+        quote_expires_at: coalescedExpiry,
+      },
+    };
   } else if (isDeepBookSwapAction(executeInput.action)) {
     executeInput = await enrichExecuteInputForApproval(privyUserId, executeInput);
   }
