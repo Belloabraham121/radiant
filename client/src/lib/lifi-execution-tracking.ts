@@ -1,7 +1,102 @@
 import type { AgentTransactionDetail, AgentTransactionListItem } from "@/lib/agent-transactions-api";
 import type { AgentChainId } from "@/lib/agent-chains";
+import type { PendingTransaction } from "@/lib/chat-api";
 import type { ExecutionStep } from "@/lib/chat-execution-steps";
 import { mergeExecutionSteps } from "@/lib/chat-execution-steps";
+
+export const OPTIMISTIC_APPROVAL_MESSAGE_PREFIX = "optimistic-approval-";
+
+export function optimisticApprovalMessageId(transactionId: string): string {
+  return `${OPTIMISTIC_APPROVAL_MESSAGE_PREFIX}${transactionId}`;
+}
+
+/** Live execution steps shown after Approve while the server broadcasts. */
+export function executionStepsForPendingApproval(
+  pending: PendingTransaction,
+): ExecutionStep[] {
+  const chainId = (pending.chain_id ?? "sui") as AgentChainId;
+  const fromChainId = (
+    typeof pending.params.from_chain_id === "string"
+      ? pending.params.from_chain_id
+      : pending.chain_id
+  ) as AgentChainId;
+  const toChainId = (
+    typeof pending.params.to_chain_id === "string"
+      ? pending.params.to_chain_id
+      : pending.chain_id
+  ) as AgentChainId;
+  const fromEvmChainId =
+    typeof pending.params.from_evm_chain_id === "number"
+      ? pending.params.from_evm_chain_id
+      : undefined;
+
+  const meta = {
+    agentTransactionId: pending.id,
+    chainId: fromChainId,
+    ...(fromEvmChainId !== undefined ? { evmChainId: fromEvmChainId } : {}),
+  };
+
+  const isLifi =
+    pending.action === "cross_chain_swap" ||
+    pending.defi_preview?.provider_id === "evm-lifi";
+
+  if (isLifi) {
+    const isSameChain =
+      fromChainId === toChainId &&
+      (fromEvmChainId === undefined ||
+        fromEvmChainId ===
+          (typeof pending.params.to_evm_chain_id === "number"
+            ? pending.params.to_evm_chain_id
+            : fromEvmChainId));
+    const bridgeTool =
+      pending.defi_preview?.bridges?.[0] ??
+      (Array.isArray(pending.params.bridges)
+        ? (pending.params.bridges as string[])[0]
+        : null);
+    const routeDetail =
+      pending.defi_preview?.route_summary ??
+      (pending.defi_preview?.pay?.symbol && pending.defi_preview?.receive?.symbol
+        ? `${pending.defi_preview.pay.symbol} → ${pending.defi_preview.receive.symbol}`
+        : isSameChain
+          ? "Same-chain swap"
+          : "Cross-chain route");
+
+    return [
+      {
+        id: "lifi-quote",
+        status: "ok",
+        label: "Routequoted",
+        detail: bridgeTool ? `${routeDetail} via ${bridgeTool}` : routeDetail,
+        ...meta,
+      },
+      {
+        id: "lifi-submit",
+        status: "running",
+        label: "Submitting",
+        detail: "Signing and broadcasting transaction",
+        ...meta,
+      },
+    ];
+  }
+
+  const label =
+    pending.action === "deepbook_swap" || pending.action === "swap"
+      ? "Swapping"
+      : pending.defi_preview?.kind === "bridge"
+        ? "Bridging"
+        : "Submitting";
+
+  return [
+    {
+      id: "execute",
+      status: "running",
+      label,
+      detail: "Signing and broadcasting transaction",
+      agentTransactionId: pending.id,
+      chainId,
+    },
+  ];
+}
 
 type LifiTrackingMeta = {
   route_id?: string;

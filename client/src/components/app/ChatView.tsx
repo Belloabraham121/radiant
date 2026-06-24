@@ -180,7 +180,7 @@ function Bubble({
           />
         ) : null}
 
-        {(isUser || message.text || !message.streaming) && (
+        {(isUser || message.text?.trim()) && (
         <div
           className={`text-sm font-medium leading-relaxed ${
             isUser

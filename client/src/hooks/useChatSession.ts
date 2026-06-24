@@ -31,9 +31,11 @@ import {
   type AgentTransactionDetail,
 } from "@/lib/agent-transactions-api";
 import {
+  executionStepsForPendingApproval,
   executionStepsFromAgentTransaction,
   isInFlightLifiTransaction,
   mergeTransactionStepsIntoMessages,
+  optimisticApprovalMessageId,
 } from "@/lib/lifi-execution-tracking";
 import { agentStreamUrl } from "@/lib/agent-stream";
 import { ChatStreamAbortedError, postChatStream } from "@/lib/chat-stream";
@@ -718,14 +720,28 @@ export function useChatSession(sessionId?: string) {
   const approvePending = useCallback(async () => {
     if (!pendingTx || approving) return;
 
+    const snapshot = pendingTx;
+    const optimisticId = optimisticApprovalMessageId(snapshot.id);
+
     setApproving(true);
     setChatError(null);
+    applyPendingTransaction(null);
+    setMessages((current) => [
+      ...current,
+      {
+        id: optimisticId,
+        role: "agent",
+        text: "",
+        executionSteps: executionStepsForPendingApproval(snapshot),
+        statusCategory: "defi",
+      },
+    ]);
 
     try {
       const data = await postChat({
         message: "Approve transaction",
         session_id: activeSessionId,
-        approve_transaction_id: pendingTx.id,
+        approve_transaction_id: snapshot.id,
       });
 
       setActiveSessionId(data.session_id);
@@ -735,7 +751,7 @@ export function useChatSession(sessionId?: string) {
       );
       setPendingClarification(data.pending_clarification ?? null);
       setMessages((current) => [
-        ...current,
+        ...current.filter((message) => message.id !== optimisticId),
         {
           id: data.message_id,
           role: "agent",
@@ -768,6 +784,10 @@ export function useChatSession(sessionId?: string) {
           ? (messageForChatStreamError(err.code) ?? err.message)
           : "Approval failed. Try again.";
       setChatError(message);
+      applyPendingTransaction(snapshot);
+      setMessages((current) =>
+        current.filter((message) => message.id !== optimisticId),
+      );
     } finally {
       setApproving(false);
     }
