@@ -316,7 +316,6 @@ function AgentWalletChainRow({
   onEvmChainIdChange,
   evmNetworks,
   footer,
-  className = "",
 }: {
   wallet: ChainWalletState;
   provisioning: boolean;
@@ -331,7 +330,6 @@ function AgentWalletChainRow({
   onEvmChainIdChange?: (chainId: number) => void;
   evmNetworks: EvmNetworkMeta[];
   footer?: ReactNode;
-  className?: string;
 }) {
   const meta = getChainMeta(wallet.chainId);
   const address = wallet.address ?? "";
@@ -512,7 +510,7 @@ function AgentWalletUnifiedCard({
         Tap a chain to view its address, explorer, and assets.
       </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mt-4 flex flex-col gap-2">
         {enabledChains.map((chainId) => {
           const wallet = wallets.find((w) => w.chainId === chainId);
           if (!wallet) return null;
@@ -520,7 +518,6 @@ function AgentWalletUnifiedCard({
           return (
             <AgentWalletChainRow
               key={chainId}
-              className="h-full"
               wallet={wallet}
               provisioning={provisioning}
               expanded={expandedChainId === chainId}
