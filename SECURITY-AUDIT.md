@@ -10,17 +10,19 @@
 
 ### Attacker profiles
 
-| Profile | Access | Goals |
-|---------|--------|-------|
-| **Anonymous** | Public routes (`/health`, `/api/v1/apps`, marketing pages) | Recon, abuse unauthenticated endpoints, webhook probing |
-| **Authenticated user** | Valid Privy session + HttpOnly cookies | Horizontal privilege escalation (IDOR), wallet abuse, SSRF via proxy/agent tools |
-| **Malicious API consumer** | Stolen session cookie or same-origin XSS | Drain agent wallet, exfiltrate data, pivot to internal networks |
-| **Insider / compromised dependency** | Repo, CI, env vars, Privy dashboard | Key theft, policy bypass, supply-chain backdoors |
+
+| Profile                              | Access                                                     | Goals                                                                            |
+| ------------------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Anonymous**                        | Public routes (`/health`, `/api/v1/apps`, marketing pages) | Recon, abuse unauthenticated endpoints, webhook probing                          |
+| **Authenticated user**               | Valid Privy session + HttpOnly cookies                     | Horizontal privilege escalation (IDOR), wallet abuse, SSRF via proxy/agent tools |
+| **Malicious API consumer**           | Stolen session cookie or same-origin XSS                   | Drain agent wallet, exfiltrate data, pivot to internal networks                  |
+| **Insider / compromised dependency** | Repo, CI, env vars, Privy dashboard                        | Key theft, policy bypass, supply-chain backdoors                                 |
+
 
 ### Entry points
 
-- **Frontend:** `/auth` (OAuth, email OTP), `/app/*`, Next.js middleware, Privy SDK cookies
-- **Backend:** `/api/v1/*` (Express), webhooks (`/api/v1/webhooks/*`), Inngest (`/api/inngest`)
+- **Frontend:** `/auth` (OAuth, email OTP), `/app/`*, Next.js middleware, Privy SDK cookies
+- **Backend:** `/api/v1/`* (Express), webhooks (`/api/v1/webhooks/*`), Inngest (`/api/inngest`)
 - **Third-party:** Privy auth/signing, E2B sandboxes, OpenAI, Sui RPC, external APIs via agent/proxy
 
 ### Trust boundaries
@@ -45,13 +47,15 @@ Browser (Privy cookies) ──rewrite──► Next.js ──proxy──► Expr
 
 ## 1. Vulnerability Summary
 
-| Severity | Count |
-|----------|------:|
-| **Critical** | 2 |
-| **High** | 5 |
-| **Medium** | 10 |
-| **Low** | 8 |
-| **Total** | 25 |
+
+| Severity     | Count |
+| ------------ | ----- |
+| **Critical** | 2     |
+| **High**     | 5     |
+| **Medium**   | 10    |
+| **Low**      | 8     |
+| **Total**    | 25    |
+
 
 ---
 
@@ -100,7 +104,7 @@ Browser (Privy cookies) ──rewrite──► Next.js ──proxy──► Expr
 
 ---
 
-### AUTH-04 — Frontend `/app/*` not enforced for unauthenticated users
+### AUTH-04 — Frontend `/app/`* not enforced for unauthenticated users
 
 - **Severity:** High  
 - **Affected component:** Frontend — `client/src/middleware.ts`, `client/src/app/app/layout.tsx`  
@@ -110,7 +114,7 @@ Browser (Privy cookies) ──rewrite──► Next.js ──proxy──► Expr
   2. Shell UI renders; API calls return 401 but client-side state may briefly expose layout, cached data, or error messages.
   3. Shared-device users may see stale in-memory cache from a prior session if not cleared.
 - **Impact:** Defense-in-depth failure; information disclosure; confused UX enabling social engineering.  
-- **Recommended fix:** In middleware, redirect `/app/*` to `/auth` when `privy-token` is absent (unless OAuth return or `/refresh`). Add a client-side `AuthenticatedGate` in `AppShell` that redirects when `!authenticated`.
+- **Recommended fix:** In middleware, redirect `/app/`* to `/auth` when `privy-token` is absent (unless OAuth return or `/refresh`). Add a client-side `AuthenticatedGate` in `AppShell` that redirects when `!authenticated`.
 
 ---
 
@@ -350,7 +354,7 @@ Browser (Privy cookies) ──rewrite──► Next.js ──proxy──► Expr
 
 ---
 
-### LOGIC-02 — Privy `user.transferred_account` webhook can merge wallets without user present
+### LOGIC-01 — Privy `user.transferred_account` webhook can merge wallets without user present
 
 - **Severity:** Low (by design)  
 - **Affected component:** `backend/src/services/auth/privy-webhook.service.ts`  
@@ -415,7 +419,7 @@ Shared computer, user A logs out incompletely
 
 ### Authentication & sessions
 
-1. **Unify auth gate:** Middleware + `AppShell` must both require `privy-token` for `/app/*`.
+1. **Unify auth gate:** Middleware + `AppShell` must both require `privy-token` for `/app/`*.
 2. **Verify wallet ownership server-side** on every `register-wallet` call via Privy API.
 3. **Treat logout as authenticated** or move cookie clearing exclusively to the Next.js origin.
 4. **Document and test cookie topology** for every production deployment (app host, API host, `Domain`, `SameSite`).
@@ -460,7 +464,7 @@ Track fixes below. Check off when merged and verified.
 ### High
 
 - [x] **AUTH-03** — Verify `privy_wallet_id` ownership via Privy API on `register-wallet`
-- [x] **AUTH-04** — Enforce auth redirect on `/app/*` in middleware + `AppShell`
+- [x] **AUTH-04** — Enforce auth redirect on `/app/`* in middleware + `AppShell`
 - [x] **API-01** — Harden proxy SSRF (redirects, DNS, IPv6, private ranges)
 - [x] **API-02** — Align agent `call_api` SSRF policy with proxy hardening
 
@@ -495,25 +499,29 @@ Track fixes below. Check off when merged and verified.
 
 ### Backend flow
 
-| Step | Implementation | Status |
-|------|----------------|--------|
-| Token extraction | `readAccessTokenFromRequest` → `privy-token` cookie | OK |
-| Verification | `PrivyClient.verifyAccessToken` | OK |
-| Middleware | `requireAuth` on protected routes | OK |
-| User upsert | `GET /auth/me` → `getOrCreateUser` | OK |
-| Email uniqueness | `assertNoEmailConflict` → 409 merge | OK |
-| Webhooks | Svix signature verification | OK |
+
+| Step             | Implementation                                      | Status |
+| ---------------- | --------------------------------------------------- | ------ |
+| Token extraction | `readAccessTokenFromRequest` → `privy-token` cookie | OK     |
+| Verification     | `PrivyClient.verifyAccessToken`                     | OK     |
+| Middleware       | `requireAuth` on protected routes                   | OK     |
+| User upsert      | `GET /auth/me` → `getOrCreateUser`                  | OK     |
+| Email uniqueness | `assertNoEmailConflict` → 409 merge                 | OK     |
+| Webhooks         | Svix signature verification                         | OK     |
+
 
 ### Frontend flow
 
-| Step | Implementation | Status |
-|------|----------------|--------|
-| Privy provider | HttpOnly cookies, no localStorage tokens | OK |
-| OAuth | Whitelabel + CAPTCHA | OK |
-| API calls | `apiFetch` with `credentials: "include"` | OK |
-| Session refresh | `/refresh` + `sanitizeRedirectPath` | OK |
-| Route protection | Middleware partial only | **Gap (AUTH-04)** |
-| Logout | Backend + Privy SDK | **Gap (AUTH-05, AUTH-06)** |
+
+| Step             | Implementation                           | Status                     |
+| ---------------- | ---------------------------------------- | -------------------------- |
+| Privy provider   | HttpOnly cookies, no localStorage tokens | OK                         |
+| OAuth            | Whitelabel + CAPTCHA                     | OK                         |
+| API calls        | `apiFetch` with `credentials: "include"` | OK                         |
+| Session refresh  | `/refresh` + `sanitizeRedirectPath`      | OK                         |
+| Route protection | Middleware partial only                  | **Gap (AUTH-04)**          |
+| Logout           | Backend + Privy SDK                      | **Gap (AUTH-05, AUTH-06)** |
+
 
 ### Positive security controls observed
 

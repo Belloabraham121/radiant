@@ -172,10 +172,10 @@ Move every remaining line from `prompts.ts` into typed modules. Composer loads *
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Create `prompts/action-module-map.ts` — map `execute_transaction` actions + `query_chain` types → `PromptModuleId[]` (use `classify-execute-action.ts` groupings as reference) |
-| [ ] | Add `PromptTrigger` on each module: `keywords`, `executeActions`, `queryTypes`, `requiresPermission`, `chains` |
-| [ ] | Export `ALL_MODULE_IDS` and `CORE_MODULE_IDS` from registry |
-| [ ] | Unit tests per map entry (e.g. `deepbook_margin_borrow` → margin module only) |
+| [x] | Create `prompts/action-module-map.ts` — map `execute_transaction` actions + `query_chain` types → `PromptModuleId[]` (use `classify-execute-action.ts` groupings as reference) |
+| [x] | Add `PromptTrigger` on each module: `keywords`, `executeActions`, `queryTypes`, `requiresPermission`, `chains` |
+| [x] | Export `ALL_MODULE_IDS` and `CORE_MODULE_IDS` from registry |
+| [x] | Unit tests per map entry (e.g. `deepbook_margin_borrow` → margin module only) |
 
 ---
 

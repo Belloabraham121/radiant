@@ -31,6 +31,7 @@ import { buildPlatformBrowsingLines } from "./platform/browsing.js";
 import { buildPlatformStorageLines } from "./platform/storage.js";
 import { buildPlatformNotificationsLines } from "./platform/notifications.js";
 import { buildPlatformExplorerLines } from "./platform/explorer.js";
+import { PROMPT_MODULE_TRIGGERS } from "./module-triggers.js";
 import type { PromptBuildContext, PromptModule, PromptModuleId } from "./types.js";
 
 export const CORE_MODULE_IDS: PromptModuleId[] = [
@@ -43,7 +44,7 @@ export const CORE_MODULE_IDS: PromptModuleId[] = [
   "core:personality:context",
 ];
 
-export const ALL_PROMPT_MODULES: PromptModule[] = [
+const BASE_PROMPT_MODULES: PromptModule[] = [
   {
     id: "core:personality",
     layer: "core",
@@ -189,6 +190,11 @@ export const ALL_PROMPT_MODULES: PromptModule[] = [
     build: () => buildDeepBookPredictLines(),
   },
 ];
+
+export const ALL_PROMPT_MODULES: PromptModule[] = BASE_PROMPT_MODULES.map((module) => {
+  const triggers = PROMPT_MODULE_TRIGGERS[module.id];
+  return triggers ? { ...module, triggers } : module;
+});
 
 export const ALL_MODULE_IDS: PromptModuleId[] = ALL_PROMPT_MODULES.map((module) => module.id);
 

@@ -12,6 +12,15 @@ export {
   CORE_MODULE_IDS,
   PROMPT_MODULES,
 } from "./registry.js";
+export {
+  DEEPBOOK_MARGIN_EXECUTE_ACTIONS,
+  DEEPBOOK_PREDICT_EXECUTE_ACTIONS,
+  QUERY_TYPE_PROMPT_MODULES,
+  listMappedPromptModuleIds,
+  resolvePromptModulesForExecuteAction,
+  resolvePromptModulesForQueryType,
+} from "./action-module-map.js";
+export { PROMPT_MODULE_TRIGGERS } from "./module-triggers.js";
 
 function toPromptBuildContext(input: BuildSystemPromptInput): PromptBuildContext {
   const chainId = getDefaultAgentChainId();
