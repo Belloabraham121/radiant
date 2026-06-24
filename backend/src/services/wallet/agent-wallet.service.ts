@@ -24,6 +24,7 @@ import type {
 } from "./wallet.types.js";
 import { parseChainId } from "../chains/registry.js";
 import { assertPrivyWalletOwnership } from "./privy-wallet-ownership.service.js";
+import { isEvmWalletFundedAnyNetwork } from "./evm-wallet-funding.service.js";
 
 /** Map Prisma row → adapter shape (schema uses `address`, not legacy `sui_address`). */
 function toResolvedAgentWallet(wallet: AgentWallet): ResolvedAgentWallet {
@@ -59,7 +60,12 @@ export async function listAgentWalletsForPrivyUser(
 export async function isWalletFunded(
   address: string,
   chainId: ChainId = getDefaultAgentChainId(),
+  options?: { privyWalletId?: string },
 ): Promise<boolean> {
+  if (chainId === "ethereum") {
+    return isEvmWalletFundedAnyNetwork(address, options?.privyWalletId);
+  }
+
   try {
     const result = await getBalanceForAddress(chainId, address);
     return result.funded;

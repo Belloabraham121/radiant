@@ -38,6 +38,8 @@ export type ChainWalletState = {
   balanceDisplay: number | null;
   funded: boolean;
   signerAdded: boolean;
+  /** Per-network funded flags for the shared EVM wallet address. */
+  evmFundedByNetwork?: Record<number, boolean>;
 };
 
 export type AgentWalletContextValue = {
@@ -172,6 +174,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
             balanceDisplay: balance.balanceDisplay,
             nativeSymbol: balance.nativeSymbol,
             funded: balance.funded,
+            evmFundedByNetwork: balance.evmFundedByNetwork,
           };
         } catch {
           return wallet;

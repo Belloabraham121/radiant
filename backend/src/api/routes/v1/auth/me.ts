@@ -24,7 +24,9 @@ authMeRouter.get(
     await Promise.all(
       user.agent_wallets.map(async (wallet) => {
         const chainType = wallet.chain_type as ChainId;
-        const funded = await isWalletFunded(wallet.address, chainType);
+        const funded = await isWalletFunded(wallet.address, chainType, {
+          privyWalletId: wallet.privy_wallet_id,
+        });
         fundedByChain.set(chainType, funded);
       }),
     );

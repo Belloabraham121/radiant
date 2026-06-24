@@ -436,7 +436,10 @@ function AgentWalletChainRow({
               <span className="w-full text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
                 EVM network (assets)
               </span>
-              {evmNetworks.map((network) => (
+              {evmNetworks.map((network) => {
+                const networkFunded =
+                  wallet.evmFundedByNetwork?.[network.chainId] === true;
+                return (
                 <button
                   key={network.chainId}
                   type="button"
@@ -444,15 +447,22 @@ function AgentWalletChainRow({
                     event.stopPropagation();
                     onEvmChainIdChange(network.chainId);
                   }}
-                  className={`rounded-full border-2 px-3 py-1 text-xs font-bold ${
+                  className={`relative rounded-full border-2 px-3 py-1 text-xs font-bold ${
                     evmChainId === network.chainId
                       ? "border-[var(--hero-ink)] bg-[var(--hero-ink)] text-[var(--hero-bg)]"
                       : "border-[var(--hero-ink)]/25 bg-white text-[var(--hero-ink)]"
                   }`}
                 >
+                  {networkFunded ? (
+                    <span
+                      className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[var(--hero-mint)] ring-2 ring-white"
+                      aria-hidden
+                    />
+                  ) : null}
                   {network.label}
                 </button>
-              ))}
+                );
+              })}
             </div>
           ) : null}
 
