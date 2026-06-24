@@ -12,6 +12,7 @@ import { runExecuteTransactionToolWithApproval } from "../tools.js";
 import { withDefaultChain } from "./swap-clarification-gaps.js";
 import type { ResolvedSwapOutcome } from "./swap-execute.js";
 import type { PartialSwapIntent } from "./swap-intent.types.js";
+import { isTokenOnChain } from "./token-chain-affinity.js";
 
 const APPROVAL_REPLY =
   "This swap needs your approval before I can submit it. Review the route and confirm in the dialog.";
@@ -49,6 +50,22 @@ export function isLifiSameChainSwapEligible(intent: PartialSwapIntent): boolean 
   }
 
   const resolved = withDefaultChain(intent);
+  if (
+    !resolved.chainId ||
+    !resolved.inputCoin ||
+    !resolved.outputCoin ||
+    (resolved.chainId === "ethereum" && resolved.evmChainId === undefined)
+  ) {
+    return false;
+  }
+
+  if (
+    !isTokenOnChain(resolved.inputCoin, resolved.chainId, resolved.evmChainId) ||
+    !isTokenOnChain(resolved.outputCoin, resolved.chainId, resolved.evmChainId)
+  ) {
+    return false;
+  }
+
   if (resolved.chainId === "ethereum" && resolved.evmChainId !== undefined) {
     return true;
   }

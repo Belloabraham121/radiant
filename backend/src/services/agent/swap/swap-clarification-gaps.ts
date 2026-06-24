@@ -6,6 +6,10 @@ import type { PartialSwapIntent, SwapIntentField } from "./swap-intent.types.js"
 import { SWAP_KNOWN_COINS } from "./swap-intent.types.js";
 import { parsePositiveNumber } from "./text-tokenize.js";
 import { isSwapIntentComplete, withDefaultChain } from "./swap-intent-parser.js";
+import {
+  detectCrossChainSwapIntent,
+  formatCrossChainBridgeConfirmQuestion,
+} from "./token-chain-affinity.js";
 
 function coinOptions(exclude?: string) {
   return SWAP_KNOWN_COINS.filter((symbol) => symbol !== exclude).map((symbol) => ({
@@ -165,6 +169,19 @@ export function collectSwapClarificationGap(intent: PartialSwapIntent): Clarific
       action: "swap",
       kind: "intent",
       options,
+    };
+  }
+
+  const crossChain = detectCrossChainSwapIntent(filled);
+  if (crossChain) {
+    return {
+      gap_id: "swap.bridge_confirm",
+      interaction_type: "confirm",
+      question: formatCrossChainBridgeConfirmQuestion(crossChain),
+      step_index: 0,
+      field: "bridge_confirm",
+      action: "swap",
+      kind: "intent",
     };
   }
 

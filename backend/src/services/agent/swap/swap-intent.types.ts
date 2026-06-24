@@ -17,7 +17,8 @@ export type SwapIntentField =
   | "output_coin"
   | "amount"
   | "amount_side"
-  | "chain_id";
+  | "chain_id"
+  | "bridge_confirm";
 
 export const SWAP_KNOWN_COINS = [
   "SUI",

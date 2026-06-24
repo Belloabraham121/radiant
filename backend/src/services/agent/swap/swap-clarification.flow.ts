@@ -26,13 +26,149 @@ import {
   parsePartialSwapIntent,
 } from "./swap-intent-parser.js";
 import type { PartialSwapIntent } from "./swap-intent.types.js";
+import {
+  detectCrossChainSwapIntent,
+  swapIntentToBridgeIntent,
+} from "./token-chain-affinity.js";
 import { executeResolvedSwapIntent } from "./swap-execute.js";
 import {
   executeResolvedLifiSameChainSwap,
   isLifiSameChainSwapEligible,
 } from "./swap-lifi-execute.js";
+import {
+  bridgeIntentPreview,
+  bridgeIntentReadyForExecute,
+  collectBridgeClarificationGap,
+  withDefaultBridgeChains,
+} from "../bridge/bridge-clarification-gaps.js";
+import { executeResolvedBridgeIntent } from "../bridge/bridge-execute.js";
 
 const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [] };
+
+function startBridgeClarificationFromSwap(
+  sessionId: string,
+  bridgeIntent: ReturnType<typeof swapIntentToBridgeIntent>,
+  gap: NonNullable<ReturnType<typeof collectBridgeClarificationGap>>,
+): WorkflowRunOutcome {
+  const state = startSessionClarification({
+    sessionId,
+    gap,
+    plan: EMPTY_WORKFLOW_PLAN,
+    context: "bridge_intent",
+    bridgeIntent: withDefaultBridgeChains(bridgeIntent),
+  });
+  const pending = gapToPending(gap, state.id);
+  return {
+    reply: gap.question,
+    tool_calls: [],
+    pending_transaction: null,
+    pending_clarification: {
+      ...pending,
+      plan_preview: bridgeIntentPreview(bridgeIntent),
+    },
+    workflowCompleted: false,
+  };
+}
+
+async function finishResolvedBridgeFromSwap(
+  privyUserId: string,
+  bridgeIntent: ReturnType<typeof swapIntentToBridgeIntent>,
+  sessionId: string,
+): Promise<WorkflowRunOutcome> {
+  const resolved = withDefaultBridgeChains(bridgeIntent);
+  if (!bridgeIntentReadyForExecute(resolved)) {
+    return {
+      reply: "I still need a bit more detail to run this bridge. Try specifying both chains, tokens, and an amount.",
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
+  const outcome = await executeResolvedBridgeIntent(privyUserId, resolved, sessionId);
+  if (!outcome) {
+    return {
+      reply: "I couldn't run that bridge — check the chains, tokens, and amount, then try again.",
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
+  return {
+    reply: outcome.reply,
+    tool_calls: outcome.tool_calls,
+    pending_transaction: outcome.pending_transaction,
+    pending_clarification: null,
+    workflowCompleted: true,
+  };
+}
+
+async function handleBridgeConfirmAnswer(
+  privyUserId: string,
+  sessionId: string,
+  swapIntent: PartialSwapIntent,
+  answer: ClarificationAnswer,
+): Promise<WorkflowRunOutcome> {
+  clearSessionClarification(sessionId);
+
+  if (answer.confirm === "no") {
+    return {
+      reply:
+        "No problem — pick tokens that both exist on the same network, or say \"bridge\" to move assets between chains.",
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
+  if (answer.confirm !== "yes") {
+    const mismatch = detectCrossChainSwapIntent(swapIntent);
+    if (!mismatch) {
+      return {
+        reply: "I couldn't route that swap. Try rephrasing or say \"bridge\" explicitly.",
+        tool_calls: [],
+        pending_transaction: null,
+        pending_clarification: null,
+        workflowCompleted: true,
+      };
+    }
+    const gap = collectSwapClarificationGap(withDefaultChain(swapIntent));
+    if (gap) {
+      return startSwapClarification(sessionId, swapIntent, gap);
+    }
+    return {
+      reply: "I didn't understand that answer. Please choose Yes or No.",
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
+  const mismatch = detectCrossChainSwapIntent(swapIntent);
+  if (!mismatch) {
+    return {
+      reply: "I couldn't route that swap anymore — try rephrasing or say \"bridge\" explicitly.",
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
+  const bridgeIntent = swapIntentToBridgeIntent(swapIntent, mismatch);
+  const nextGap = collectBridgeClarificationGap(withDefaultBridgeChains(bridgeIntent));
+  if (nextGap) {
+    return startBridgeClarificationFromSwap(sessionId, bridgeIntent, nextGap);
+  }
+
+  return finishResolvedBridgeFromSwap(privyUserId, bridgeIntent, sessionId);
+}
+
 
 function buildClarificationOutcome(
   question: string,
@@ -189,6 +325,10 @@ export async function continueSwapClarification(
   }
   if (!state.swapIntent) {
     return null;
+  }
+
+  if (state.gap.interaction_type === "confirm" && state.gap.field === "bridge_confirm") {
+    return handleBridgeConfirmAnswer(privyUserId, sessionId, state.swapIntent, answer);
   }
 
   const applied = applySwapClarificationAnswer(state.swapIntent, state.gap, answer);

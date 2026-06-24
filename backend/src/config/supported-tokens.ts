@@ -526,7 +526,7 @@ function tokenNotAllowedError(
     return new AppError(
       400,
       "TOKEN_NOT_SUPPORTED",
-      `Token "${symbol}" is not supported on this chain in Radiant v1.`,
+      `Token "${symbol}" is not supported on this chain.`,
       { chain_id: chainId, evm_chain_id: evmChainId, symbol },
     );
   }
