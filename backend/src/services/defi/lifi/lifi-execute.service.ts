@@ -28,6 +28,7 @@ import { buildLifiSdkProvidersForRoute } from "./lifi-providers.service.js";
 import { getLifiExecuteContext } from "./lifi-execute-context.js";
 import { emitAgentStreamExecutionStep } from "../../agent/agent-stream-lifi.js";
 import { formatLifiEtaLabel } from "./lifi-tracking.js";
+import { mapAgentToolError } from "../../../utils/agent-tool-errors.js";
 import type { LifiExecuteInput, LifiExecuteResult } from "./lifi.types.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
 import type { ChainId } from "../../chains/types.js";
@@ -242,9 +243,7 @@ async function runLifiCrossChainSwap(
       },
     });
   } catch (err) {
-    throw new AppError(400, "TRANSACTION_FAILED", "Cross-chain route execution failed.", {
-      cause: err instanceof Error ? err.message : String(err),
-    });
+    throw mapAgentToolError(err);
   }
 
   const txHashes = collectTxHashes(executedRoute);

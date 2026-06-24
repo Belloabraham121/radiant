@@ -83,6 +83,14 @@ export function buildErrorExplanationInstructions(input: {
               "If the error mentions network gas, explain the wallet needs SUI for gas in addition to the swap amount — suggest a smaller swap or adding SUI.",
           );
           break;
+        case "cross_chain_swap":
+        case "lifi_approve":
+          parts.push(
+            "The failure is about an EVM cross-chain bridge or swap from the agent wallet. " +
+              "Explain the user needs enough of the source token on the specific EVM network (e.g. Base, Arbitrum, Ethereum) AND native ETH on that same network for gas. " +
+              "Suggest funding the agent wallet on that network or using a smaller amount.",
+          );
+          break;
         default:
           parts.push(
             "Explain which balance is too low (wallet vs DeepBook manager) based on what they were trying to do.",

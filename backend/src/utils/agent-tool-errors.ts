@@ -32,11 +32,15 @@ export function mapAgentToolError(err: unknown): AppError {
 
   const message = errorMessage(err);
 
-  if (/insufficient\s*balance|insufficientcoinbalance|not enough\s+\w+/i.test(message)) {
+  if (
+    /insufficient\s*balance|insufficientcoinbalance|not enough\s+\w+|insufficient funds|exceeds balance|gas required exceeds/i.test(
+      message,
+    )
+  ) {
     return new AppError(
       400,
       "INSUFFICIENT_BALANCE",
-      "You do not have enough of the required token to complete this transaction.",
+      "You do not have enough of the required token or native ETH for network gas to complete this transaction.",
       { cause: message },
     );
   }
@@ -111,7 +115,7 @@ export function toolErrorToModelContent(error: AgentToolErrorPayload): string {
 function guidanceForErrorCode(code: string): string {
   switch (code) {
     case "INSUFFICIENT_BALANCE":
-      return "Explain the wallet lacks enough of the required token or SUI for network gas. Suggest funding the agent wallet or using a smaller amount.";
+      return "Explain the wallet lacks enough of the required token and/or native gas on the source network (SUI for Sui, ETH on the specific EVM network for bridges). Suggest funding the agent wallet on that network or using a smaller amount.";
     case "SLIPPAGE_EXCEEDED":
       return "Explain the swap could not complete due to price movement. Suggest a smaller amount or higher slippage.";
     case "SUI_RPC_UNAVAILABLE":

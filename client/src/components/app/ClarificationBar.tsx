@@ -4,6 +4,16 @@ import { useState } from "react";
 import { HelpCircle } from "lucide-react";
 import type { ClarificationAnswer, PendingClarification } from "@/lib/chat-api";
 
+/** At this count or above, choice options render as horizontal chips instead of a vertical list. */
+export const CLARIFICATION_CHIP_LAYOUT_THRESHOLD = 5;
+
+const choiceChipClass =
+  "rounded-full border-2 border-[var(--hero-ink)] px-4 py-1.5 text-xs font-semibold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50";
+
+export function useChipLayoutForClarificationOptions(optionCount: number): boolean {
+  return optionCount >= CLARIFICATION_CHIP_LAYOUT_THRESHOLD;
+}
+
 function interactionLabel(type: PendingClarification["interaction_type"]): string {
   switch (type) {
     case "confirm":
@@ -152,60 +162,108 @@ export function ClarificationBar({
           ) : null}
 
           {pending.interaction_type === "single_choice" && pending.options?.length ? (
-            <div className="mt-4 space-y-2">
-              {pending.options.map((option) => (
-                <label
-                  key={option.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--hero-ink)]/15 bg-white/70 px-3 py-2 text-sm text-[var(--hero-ink)]"
-                >
-                  <input
-                    type="radio"
-                    name={`clarify-${pending.id}`}
-                    value={option.id}
-                    checked={selectedOptionId === option.id}
+            useChipLayoutForClarificationOptions(pending.options.length) ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {pending.options.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
                     disabled={busy}
-                    onChange={() => setSelectedOptionId(option.id)}
-                  />
-                  {option.label}
-                </label>
-              ))}
-              <button
-                type="button"
-                disabled={busy || !selectedOptionId}
-                onClick={() => onRespond({ selected_option_id: selectedOptionId })}
-                className="mt-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
-              >
-                Continue
-              </button>
-            </div>
+                    onClick={() => onRespond({ selected_option_id: option.id })}
+                    className={`${choiceChipClass} bg-white`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {pending.options.map((option) => (
+                  <label
+                    key={option.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--hero-ink)]/15 bg-white/70 px-3 py-2 text-sm text-[var(--hero-ink)]"
+                  >
+                    <input
+                      type="radio"
+                      name={`clarify-${pending.id}`}
+                      value={option.id}
+                      checked={selectedOptionId === option.id}
+                      disabled={busy}
+                      onChange={() => setSelectedOptionId(option.id)}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  disabled={busy || !selectedOptionId}
+                  onClick={() => onRespond({ selected_option_id: selectedOptionId })}
+                  className="mt-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+                >
+                  Continue
+                </button>
+              </div>
+            )
           ) : null}
 
           {pending.interaction_type === "multi_choice" && pending.options?.length ? (
-            <div className="mt-4 space-y-2">
-              {pending.options.map((option) => (
-                <label
-                  key={option.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--hero-ink)]/15 bg-white/70 px-3 py-2 text-sm text-[var(--hero-ink)]"
+            useChipLayoutForClarificationOptions(pending.options.length) ? (
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {pending.options.map((option) => {
+                    const selected = selectedOptionIds.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        disabled={busy}
+                        aria-pressed={selected}
+                        onClick={() => toggleMultiOption(option.id)}
+                        className={`${choiceChipClass} ${
+                          selected ? "bg-[var(--hero-mint)]" : "bg-white"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  disabled={busy || selectedOptionIds.length === 0}
+                  onClick={() => onRespond({ selected_option_ids: selectedOptionIds })}
+                  className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
                 >
-                  <input
-                    type="checkbox"
-                    value={option.id}
-                    checked={selectedOptionIds.includes(option.id)}
-                    disabled={busy}
-                    onChange={() => toggleMultiOption(option.id)}
-                  />
-                  {option.label}
-                </label>
-              ))}
-              <button
-                type="button"
-                disabled={busy || selectedOptionIds.length === 0}
-                onClick={() => onRespond({ selected_option_ids: selectedOptionIds })}
-                className="mt-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
-              >
-                Continue
-              </button>
-            </div>
+                  Continue
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {pending.options.map((option) => (
+                  <label
+                    key={option.id}
+                    className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--hero-ink)]/15 bg-white/70 px-3 py-2 text-sm text-[var(--hero-ink)]"
+                  >
+                    <input
+                      type="checkbox"
+                      value={option.id}
+                      checked={selectedOptionIds.includes(option.id)}
+                      disabled={busy}
+                      onChange={() => toggleMultiOption(option.id)}
+                    />
+                    {option.label}
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  disabled={busy || selectedOptionIds.length === 0}
+                  onClick={() => onRespond({ selected_option_ids: selectedOptionIds })}
+                  className="mt-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+                >
+                  Continue
+                </button>
+              </div>
+            )
           ) : null}
         </div>
       </div>

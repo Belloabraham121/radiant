@@ -55,6 +55,7 @@ import {
 } from "../agent-transaction/approval-preview/quote-expiry.js";
 import { previewExecuteTransactionFiat } from "../market/valuation.service.js";
 import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
+import { preflightLifiExecuteBalance } from "./chains/evm/lifi/approval-preflight.js";
 import { enqueueLifiCrossChainTrackingJob, enqueueLifiSwapTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
 import {
   attachLifiMetaToTxResult,
@@ -461,6 +462,10 @@ export async function approvePendingTransaction(
   }
 
   try {
+    if (isLifiExecuteAction(executeInput.action)) {
+      await preflightLifiExecuteBalance(privyUserId, executeInput);
+    }
+
     const sessionId = claimed.session_id ?? undefined;
     const result = await runWithLifiExecuteContext(
       { sessionId, transactionId },
