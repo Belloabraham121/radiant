@@ -5,7 +5,7 @@ import { buildPersonalityIntroLines } from "../../../src/services/agent/prompts/
 
 describe("buildSystemPrompt call_app_action routing", () => {
   it("prefers call_app_action for saved projects and execute_transaction for chat-only trades", () => {
-    const prompt = buildSystemPrompt();
+    const prompt = buildSystemPrompt({ mode: "full" });
 
     assert.match(prompt, /call_app_action/);
     assert.match(prompt, /execute_transaction for chat-only/);
@@ -15,7 +15,7 @@ describe("buildSystemPrompt call_app_action routing", () => {
   });
 
   it("still composes modular core personality at the start of the prompt", () => {
-    const prompt = buildSystemPrompt();
+    const prompt = buildSystemPrompt({ mode: "full" });
     const intro = buildPersonalityIntroLines()[0];
     assert.ok(prompt.startsWith(intro));
   });

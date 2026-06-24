@@ -11,7 +11,7 @@ const PROMPT_BASELINE_LINE_COUNT = 89;
 
 describe("buildSystemPrompt baseline parity", () => {
   it("matches frozen line count and SHA-256 (Phase 0 regression guard)", () => {
-    const prompt = buildSystemPrompt();
+    const prompt = buildSystemPrompt({ mode: "full" });
     const hash = createHash("sha256").update(prompt).digest("hex");
 
     assert.equal(prompt.split("\n").length, PROMPT_BASELINE_LINE_COUNT);
@@ -20,6 +20,7 @@ describe("buildSystemPrompt baseline parity", () => {
 
   it("appends pinned scope and memory without changing core line count semantics", () => {
     const withExtras = buildSystemPrompt({
+      mode: "full",
       memoryBlock: "prefers SUI",
       pinnedAppScope: {
         kind: "session_draft",
@@ -30,6 +31,6 @@ describe("buildSystemPrompt baseline parity", () => {
     assert.ok(withExtras.includes("User memory:"));
     assert.ok(withExtras.includes("prefers SUI"));
     assert.ok(withExtras.includes("User pinned chat app"));
-    assert.ok(withExtras.length > buildSystemPrompt().length);
+    assert.ok(withExtras.length > buildSystemPrompt({ mode: "full" }).length);
   });
 });

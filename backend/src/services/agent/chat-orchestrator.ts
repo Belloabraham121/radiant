@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { getAgentProvider, getOpenAiConfig } from "../../config/agent.js";
+import { getAgentProvider, getOpenAiConfig, getPromptScopeConfig } from "../../config/agent.js";
 import { getAgentPermissions } from "./agent-permissions.service.js";
 import { deriveSessionTitle, resolveOrCreateSession } from "../conversation/conversation.service.js";
 import { appendMessage, listRecentMessagesBySessionId } from "../conversation/message.repository.js";
@@ -11,6 +11,7 @@ import { runWithExecutionProgress } from "./execution-progress-context.js";
 import type { ChatStreamSender } from "./execution-progress.types.js";
 import { getAgentRuntime } from "./runtime/index.js";
 import type { AgentRuntime } from "./runtime/types.js";
+import type { AgentPromptContext } from "./prompts/prompt-context.js";
 import type { TransactionErrorContext } from "./deepbook/transaction-error-context.js";
 import { synthesizeErrorExplanationReply } from "./runtime/error-explanation.js";
 import { stubRuntime } from "./runtime/stub.runtime.js";
@@ -172,6 +173,11 @@ export async function runChatTurn(
       : undefined;
 
   const runtime = options.forceRuntime ?? getAgentRuntime();
+  const promptContext: AgentPromptContext = {
+    userMessage: request.message,
+    mode: getPromptScopeConfig().mode,
+  };
+
   const result = await runWithExecutionProgress(
     {
       onProgress: (event) => {
@@ -199,6 +205,7 @@ export async function runChatTurn(
         agentPermissions,
         pinnedAppScope: request.app_scope ?? null,
         artifactContextBlock,
+        promptContext,
       }),
   );
 
@@ -289,6 +296,10 @@ export async function persistToolFailureTurn(
     agentPermissions,
     userContext: input.userContext,
     transactionContext: input.transactionContext,
+    promptContext: {
+      userMessage: request.message,
+      mode: getPromptScopeConfig().mode,
+    },
   });
 
   const toolCalls = [{ name: input.toolName, result: input.toolResult }];

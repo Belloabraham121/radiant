@@ -74,3 +74,23 @@ export function getAgentProvider(): AgentProvider {
   }
   return getOpenAiConfig().apiKey ? "openai" : "stub";
 }
+
+export type PromptScopeMode = "full" | "scoped";
+
+/** Agent prompt scope — default scoped (Phase 8). Override with PROMPT_SCOPE_MODE=full. */
+export function getPromptScopeConfig(): {
+  mode: PromptScopeMode;
+  logMetrics: boolean;
+} {
+  const raw = process.env.PROMPT_SCOPE_MODE?.trim().toLowerCase();
+  const mode: PromptScopeMode = raw === "full" ? "full" : "scoped";
+  const logMetrics =
+    process.env.NODE_ENV !== "test" &&
+    (process.env.PROMPT_SCOPE_LOG === "true" ||
+      (process.env.NODE_ENV === "development" && process.env.PROMPT_SCOPE_LOG !== "false"));
+  return { mode, logMetrics };
+}
+
+export function getDefaultPromptScopeMode(): PromptScopeMode {
+  return getPromptScopeConfig().mode;
+}

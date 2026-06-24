@@ -10,6 +10,7 @@ import {
   resolvePromptModulesForExecuteAction,
   resolvePromptModulesForQueryType,
 } from "./action-module-map.js";
+import { getDefaultPromptScopeMode as readPromptScopeModeFromConfig } from "../../../config/agent.js";
 import { CORE_MODULE_IDS, PROMPT_MODULES } from "./registry.js";
 import { PROMPT_MODULE_TRIGGERS } from "./module-triggers.js";
 import type { PromptLayer, PromptModuleId, PromptScopeMode } from "./types.js";
@@ -39,10 +40,9 @@ const SUI_DEFAULT_SWAP_MODULE_IDS: PromptModuleId[] = [
   "protocol:deepbook:swap",
 ];
 
-/** Default prompt scope from env — `full` unless PROMPT_SCOPE_MODE=scoped. */
+/** Default prompt scope from env — `scoped` unless PROMPT_SCOPE_MODE=full. */
 export function getDefaultPromptScopeMode(): PromptScopeMode {
-  const raw = process.env.PROMPT_SCOPE_MODE?.trim().toLowerCase();
-  return raw === "scoped" ? "scoped" : "full";
+  return readPromptScopeModeFromConfig();
 }
 
 function addOptionalModules(target: Set<PromptModuleId>, ids: readonly PromptModuleId[]): void {

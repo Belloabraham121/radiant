@@ -56,6 +56,7 @@ import {
 } from "../deepbook/unsupported-capabilities.js";
 import { agentToolDefinitions, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
+import { buildSystemPromptInputFromContext } from "../prompts/prompt-context.js";
 import { toOpenAiTools } from "./openai-tools.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import {
@@ -371,15 +372,26 @@ export const openaiRuntime: AgentRuntime = {
     const client = new OpenAI({ apiKey });
     const tools = toOpenAiTools(agentToolDefinitions);
 
+    const lastUserMessage =
+      input.promptContext?.userMessage ??
+      [...input.messages].reverse().find((message) => message.role === "user")?.content ??
+      "";
+
     const messages: ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: buildSystemPrompt({
-          memoryBlock: input.memoryBlock,
-          agentPermissions: input.agentPermissions,
-          pinnedAppScope: input.pinnedAppScope,
-          artifactContextBlock: input.artifactContextBlock,
-        }),
+        content: buildSystemPrompt(
+          buildSystemPromptInputFromContext({
+            memoryBlock: input.memoryBlock,
+            agentPermissions: input.agentPermissions,
+            pinnedAppScope: input.pinnedAppScope,
+            artifactContextBlock: input.artifactContextBlock,
+            promptContext: {
+              ...input.promptContext,
+              userMessage: lastUserMessage,
+            },
+          }),
+        ),
       },
       ...input.messages.map((message) => ({
         role: message.role,
@@ -392,9 +404,6 @@ export const openaiRuntime: AgentRuntime = {
     let reply = "";
     let streamedReplyAccum = "";
     let lastExecuteInput: ExecuteTransactionInput | null = null;
-    const lastUserMessage =
-      [...input.messages].reverse().find((message) => message.role === "user")
-        ?.content ?? "";
     const flashLoanTurnIntent = classifyFlashLoanTurnIntent(lastUserMessage);
 
     let streamingArtifactPreview:

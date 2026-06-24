@@ -196,37 +196,37 @@ Move every remaining line from `prompts.ts` into typed modules. Composer loads *
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Extend `AgentTurnInput` in `runtime/types.ts` with `promptContext` (userMessage, activeModuleIds, mode) |
-| [ ] | `chat-orchestrator.ts` — pass last user message + read `PROMPT_SCOPE_MODE` from env |
-| [ ] | `openai.runtime.ts` — forward `promptContext` to `buildSystemPrompt` |
-| [ ] | `error-explanation.ts` — pass same module set as failing turn (or `full` on compound errors) |
-| [ ] | `workflow-runner.ts` — optional: pass workflow-derived module ids for agent steps |
+| [x] | Extend `AgentTurnInput` in `runtime/types.ts` with `promptContext` (userMessage, activeModuleIds, mode) |
+| [x] | `chat-orchestrator.ts` — pass last user message + read `PROMPT_SCOPE_MODE` from env |
+| [x] | `openai.runtime.ts` — forward `promptContext` to `buildSystemPrompt` |
+| [x] | `error-explanation.ts` — pass same module set as failing turn (or `full` on compound errors) |
+| [x] | `workflow-runner.ts` — optional: pass workflow-derived module ids for agent steps |
 
 ---
 
-## Phase 6 — Session stickiness (optional, post-scoped validation)
+## Phase 6 — Session stickiness (deferred)
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Derive `activeModuleIds` from tool calls after each turn (`swap_quote` → deepbook swap, etc.) |
-| [ ] | Persist on `ChatSession` JSON column or in-memory for MVP (`session_prompt_modules`) |
-| [ ] | Load sticky modules on next turn so “do it” / “retry” retains protocol context |
-| [ ] | Clear sticky modules on explicit venue switch or new chat |
+| [-] | Derive `activeModuleIds` from tool calls after each turn (`swap_quote` → deepbook swap, etc.) |
+| [-] | Persist on `ChatSession` JSON column or in-memory for MVP (`session_prompt_modules`) |
+| [-] | Load sticky modules on next turn so “do it” / “retry” retains protocol context |
+| [-] | Clear sticky modules on explicit venue switch or new chat |
 
 ---
 
-## Phase 7 — Provider registry alignment (prep for Soroswap / Stella / Lefi / ramps)
+## Phase 7 — Provider registry alignment (deferred)
 
 Extend `swap-registry.ts` → `defi/provider-registry.ts` (names TBD). **Prompt modules only** in this phase — no new execute paths required.
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Define `DeFiProviderId` union with future ids: `sui-soroswap`, `sui-stella`, `sui-lefi` (disabled until backend) |
-| [ ] | Each provider entry lists `promptModules: PromptModuleId[]` |
-| [ ] | Stub modules under `protocols/soroswap/`, `stella/`, `lefi/` with placeholder “not enabled” one-liners — **not injected** when provider disabled |
-| [ ] | Stub `fiat/on-ramp.ts`, `fiat/off-ramp.ts` — triggered by keywords only when `FIAT_RAMP_ENABLED=true` |
-| [ ] | `resolvePromptModules`: if user names provider (“Soroswap”), select that provider’s modules; else default swap provider (`sui-deepbook`) |
-| [ ] | Split `radiant-client-api-catalog.ts` by provider when adding Soroswap/Stella exports (mirror prompt modules) |
+| [-] | Define `DeFiProviderId` union with future ids: `sui-soroswap`, `sui-stella`, `sui-lefi` (disabled until backend) |
+| [-] | Each provider entry lists `promptModules: PromptModuleId[]` |
+| [-] | Stub modules under `protocols/soroswap/`, `stella/`, `lefi/` with placeholder “not enabled” one-liners — **not injected** when provider disabled |
+| [-] | Stub `fiat/on-ramp.ts`, `fiat/off-ramp.ts` — triggered by keywords only when `FIAT_RAMP_ENABLED=true` |
+| [-] | `resolvePromptModules`: if user names provider (“Soroswap”), select that provider’s modules; else default swap provider (`sui-deepbook`) |
+| [-] | Split `radiant-client-api-catalog.ts` by provider when adding Soroswap/Stella exports (mirror prompt modules) |
 
 ---
 
@@ -234,11 +234,11 @@ Extend `swap-registry.ts` → `defi/provider-registry.ts` (names TBD). **Prompt 
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Run eval suite / manual matrix: swap, deposit, margin research, build UI, edit artifact, notifications, flash loan research vs execution |
-| [ ] | Compare token counts: scoped vs full (log in dev) |
-| [ ] | Flip default `PROMPT_SCOPE_MODE=scoped` in staging |
-| [ ] | Monitor wrong-tool regressions (swap calling margin actions, etc.) |
-| [ ] | Remove monolith dead code; keep `runtime/prompts.ts` as re-export only |
+| [x] | Run eval suite / manual matrix: swap, deposit, margin research, build UI, edit artifact, notifications, flash loan research vs execution |
+| [x] | Compare token counts: scoped vs full (log in dev) |
+| [x] | Flip default `PROMPT_SCOPE_MODE=scoped` in staging |
+| [x] | Monitor wrong-tool regressions (swap calling margin actions, etc.) |
+| [x] | Remove monolith dead code; keep `runtime/prompts.ts` as re-export only |
 
 ---
 
@@ -250,7 +250,7 @@ Extend `swap-registry.ts` → `defi/provider-registry.ts` (names TBD). **Prompt 
 | `tests/unit/agent/prompts-core.test.ts` | Personality isolation |
 | `tests/unit/agent/prompts-resolve-modules.test.ts` | Scoped selection |
 | `tests/unit/agent/prompts-call-app-action.test.ts` | Existing routing strings |
-| `tests/unit/agent/prompts-deepbook-swap.test.ts` | Swap module only |
+| `tests/unit/agent/prompts-scoped-eval.test.ts` | Scoped eval matrix + token savings |
 
 Manual smoke (before scoped prod):
 
@@ -270,10 +270,10 @@ Manual smoke (before scoped prod):
 3. **Phase 2** — split DeepBook / artifacts / platform into modules (still full mode)  
 4. **Phase 3** — registry + action map  
 5. **Phase 4** — scoped resolver  
-6. **Phase 5** — orchestrator + runtime wiring  
-7. **Phase 6** — session stickiness (optional)  
-8. **Phase 7** — provider stubs for Soroswap / Stella / Lefi / ramps  
-9. **Phase 8** — enable scoped mode  
+6. **Phase 5** — orchestrator + runtime wiring ✅
+7. **Phase 6** — session stickiness (deferred)
+8. **Phase 7** — provider stubs for Soroswap / Stella / Lefi / ramps (deferred)
+9. **Phase 8** — enable scoped mode ✅
 
 **Not in this list:** cross-chain routing — track separately when LiFi / multi-hop design is ready.
 

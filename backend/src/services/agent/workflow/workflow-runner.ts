@@ -1,5 +1,7 @@
 import type { Prisma } from "@prisma/client";
-import { getAgentProvider } from "../../../config/agent.js";
+import { getAgentProvider, getPromptScopeConfig } from "../../../config/agent.js";
+import { extractWorkflowPromptModules } from "../prompts/prompt-context.js";
+import type { AgentPromptContext } from "../prompts/prompt-context.js";
 import type { TxResult } from "../../chains/types.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import type { AgentPermissions } from "../agent-permissions.types.js";
@@ -110,6 +112,19 @@ function buildAgentStepMessage(
   return `${header}${doneBlock}Current step: ${step.instruction}`;
 }
 
+function workflowPromptContext(
+  state: SessionWorkflowState,
+  userMessage: string,
+): AgentPromptContext {
+  const { workflowActions, workflowQueries } = extractWorkflowPromptModules(state.plan);
+  return {
+    userMessage,
+    mode: getPromptScopeConfig().mode,
+    workflowActions,
+    workflowQueries,
+  };
+}
+
 async function runBuildWorkflowStep(
   privyUserId: string,
   sessionId: string,
@@ -121,20 +136,22 @@ async function runBuildWorkflowStep(
 ): Promise<WorkflowStepOutcome> {
   const runtime = getAgentRuntime();
   const context = buildAgentStepMessage(state, { kind: "agent", label: step.label, instruction: step.instruction }, stepIndex);
+  const userContent =
+    `BUILD MODE — create or update a UI in the artifact panel using generate_app only. ` +
+    `Do NOT call execute_transaction.\n\n${context}`;
   const result = await runtime.runTurn({
     privyUserId,
     sessionId,
     messages: [
       {
         role: "user",
-        content:
-          `BUILD MODE — create or update a UI in the artifact panel using generate_app only. ` +
-          `Do NOT call execute_transaction.\n\n${context}`,
+        content: userContent,
       },
     ],
     memoryBlock,
     agentPermissions,
     workflowMode: true,
+    promptContext: workflowPromptContext(state, userContent),
   });
 
   return {
@@ -153,13 +170,15 @@ async function runAgentWorkflowStep(
   agentPermissions?: AgentPermissions,
 ): Promise<WorkflowStepOutcome> {
   const runtime = getAgentRuntime();
+  const userContent = buildAgentStepMessage(state, step, stepIndex);
   const result = await runtime.runTurn({
     privyUserId,
     sessionId,
-    messages: [{ role: "user", content: buildAgentStepMessage(state, step, stepIndex) }],
+    messages: [{ role: "user", content: userContent }],
     memoryBlock,
     agentPermissions,
     workflowMode: true,
+    promptContext: workflowPromptContext(state, userContent),
   });
 
   let tool_calls = [...result.tool_calls];
