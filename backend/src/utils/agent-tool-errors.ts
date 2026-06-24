@@ -1,5 +1,10 @@
 import { ZodError } from "zod";
 import { AppError } from "../errors/app-error.js";
+import {
+  isStellarRpcRateLimitError,
+  stellarRpcRateLimitAppError,
+} from "../infrastructure/stellar/rpc-retry.js";
+import { isStellarRpcUnavailableError, stellarRpcUnavailableAppError } from "../config/stellar.js";
 import { isSuiRpcRateLimitError, suiRpcRateLimitAppError } from "../infrastructure/sui/rpc-retry.js";
 import { formatZodValidationError } from "./format-zod-validation.js";
 
@@ -70,6 +75,14 @@ export function mapAgentToolError(err: unknown): AppError {
     return suiRpcRateLimitAppError(err);
   }
 
+  if (isStellarRpcUnavailableError(err)) {
+    return stellarRpcUnavailableAppError(err);
+  }
+
+  if (isStellarRpcRateLimitError(err)) {
+    return stellarRpcRateLimitAppError(err);
+  }
+
   return new AppError(400, "TRANSACTION_ERROR", message.slice(0, 500));
 }
 
@@ -104,6 +117,15 @@ function guidanceForErrorCode(code: string): string {
     case "SUI_RPC_UNAVAILABLE":
     case "SUI_RPC_RATE_LIMITED":
       return "Explain Sui RPC was temporarily busy or unreachable. Suggest waiting a few seconds and retrying the swap. Do NOT use this explanation for deploy_app or publish_app failures — those are not on-chain.";
+    case "STELLAR_RPC_UNAVAILABLE":
+    case "STELLAR_RPC_RATE_LIMITED":
+      return "Explain Stellar RPC (Horizon or Soroban) was temporarily busy or unreachable. Suggest waiting a few seconds and retrying.";
+    case "STELLAR_CHAIN_NOT_CONFIGURED":
+      return "Explain Stellar is not configured on this deployment. Suggest contacting the operator or using an enabled chain.";
+    case "CHAIN_NOT_ENABLED":
+      return "Explain the requested chain or EVM network is not enabled on this deployment. List enabled chains if known from context.";
+    case "CHAIN_NOT_SUPPORTED":
+      return "Explain the chain id is not supported. Suggest using an enabled chain from the Radiant allowlist.";
     case "TRANSACTION_ERROR":
     case "TRANSACTION_FAILED":
       return "Explain the transaction failed on chain in plain language.";

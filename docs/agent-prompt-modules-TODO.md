@@ -14,8 +14,7 @@ Modular system prompts for Radiant: **personality and platform core** stay small
 
 **Explicitly deferred (separate planning doc — do not implement here)**
 
-- Cross-chain / multi-hop routing (`route_quote`, LiFi + Stellar double-bridge, capability graph, session route stickiness)
-- See future: `docs/cross-chain-routing-TODO.md` (not created yet)
+- Cross-chain / multi-hop routing (`route_quote`, capability graph, Stellar ↔ EVM) — **Phase 8** in [docs/defi-providers-integration-TODO.md](./defi-providers-integration-TODO.md) (implement last)
 
 ---
 
@@ -33,7 +32,7 @@ Modular system prompts for Radiant: **personality and platform core** stay small
 
 ### Explicitly out of scope (this doc)
 
-- Cross-chain route planner and `core:cross-chain-routing`
+- Cross-chain route planner and `core:cross-venue-routing` — **Phase 8** in [defi-providers-integration-TODO.md](./defi-providers-integration-TODO.md)
 - Tool definition filtering (optional phase 6 — all tools remain registered until then)
 - Streaming / multi-model prompt variants
 - Client-side prompt editing

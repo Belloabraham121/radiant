@@ -500,6 +500,28 @@ Phase 0 (infra + dashboard)
 
 ---
 
+## Phase 13 — Multi-provider DeFi (Li-Fi, Soroswap, SushiSwap)
+
+> Full checklist: [docs/defi-providers-integration-TODO.md](../../docs/defi-providers-integration-TODO.md). Plug-and-play `services/defi/{lifi,soroswap,sushiswap}/` + Stellar chain adapter. **v1 chains:** Sui, Ethereum, Arbitrum, Base, Stellar.
+
+| Status | Task | Owner |
+| ------ | ---- | ----- |
+| [x] | Phase 0.1 — Chain catalog + EVM allowlist + client wallet UI | [Backend] |
+| [ ] | Phase 0.2 — Stellar adapter + shared defi registry | [Backend] |
+| [ ] | Phase 1 — Li-Fi cross-chain (ETH ↔ Arbitrum ↔ Base) | [Backend] |
+| [ ] | Phase 2 — Soroswap (Stellar / Soroban) | [Backend] |
+| [ ] | Phase 3 — SushiSwap (EVM same-chain aggregator) | [Backend] |
+| [ ] | Phase 4 — Simple provider router | [Backend] |
+| [ ] | Phase 5 — Agent DeFi guardrails (token resolve, typos) | [Backend] |
+| [ ] | Phase 6 — Client / REST | [Both] |
+| [ ] | Phase 7 — Security and ops | [Backend] |
+| [ ] | Phase 8 — Cross-ecosystem route planner (**final**) | [Backend] |
+| [ ] | Phase L — Li-Fi Intents (deferred) | [Backend] |
+
+**Depends on:** Phase 7 (chain abstraction), Phase 8 (EVM adapter), Phase 9 (DeepBook pattern).
+
+---
+
 ## Quick reference: who builds what
 
 | Concern | Backend | Client | Dashboard |

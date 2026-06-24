@@ -156,6 +156,7 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       sui: async () => createExtendedChainWallet({ chainType: "sui" }),
       ethereum: async () => createEthereumWallet(),
       solana: async () => createSolanaWallet(),
+      stellar: async () => createExtendedChainWallet({ chainType: "stellar" }),
     }),
     [createEthereumWallet, createExtendedChainWallet, createSolanaWallet],
   );

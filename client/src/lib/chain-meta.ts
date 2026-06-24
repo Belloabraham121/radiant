@@ -1,4 +1,5 @@
 import type { AgentChainId } from "@/lib/agent-chains";
+import { evmExplorerAccountUrl } from "@/lib/evm-chains";
 
 export type DepositRail = "sui-dapp-kit" | "evm-injected" | "solana-injected" | "direct-only";
 
@@ -36,6 +37,13 @@ export const CHAIN_META: Record<AgentChainId, ChainMeta> = {
     depositFallbackHint:
       "Install Phantom or use Brave’s Solana wallet, or send SOL to the address below.",
   },
+  stellar: {
+    id: "stellar",
+    label: "Stellar",
+    nativeSymbol: "XLM",
+    depositRail: "direct-only",
+    depositFallbackHint: "Send XLM to the agent address below from any Stellar wallet.",
+  },
 };
 
 export function getChainMeta(chainId: AgentChainId): ChainMeta {
@@ -56,24 +64,28 @@ export function formatChainAddress(chainId: AgentChainId, address: string): stri
   if (chainId === "ethereum") {
     return `${address.slice(0, 6)}…${address.slice(-4)}`;
   }
+  if (chainId === "stellar") {
+    return `${address.slice(0, 4)}…${address.slice(-4)}`;
+  }
   return `${address.slice(0, 4)}…${address.slice(-4)}`;
 }
 
 /** Block explorer URL for the agent wallet address (mainnet defaults). */
-export function chainExplorerAccountUrl(chainId: AgentChainId, address: string): string | null {
+export function chainExplorerAccountUrl(
+  chainId: AgentChainId,
+  address: string,
+  evmChainId?: number,
+): string | null {
   if (!address) return null;
   switch (chainId) {
     case "sui":
       return `https://suiscan.xyz/mainnet/account/${address}`;
-    case "ethereum": {
-      const chainIdNum = getEvmDefaultChainId();
-      if (chainIdNum === 8453) {
-        return `https://basescan.org/address/${address}`;
-      }
-      return `https://etherscan.io/address/${address}`;
-    }
+    case "ethereum":
+      return evmExplorerAccountUrl(evmChainId ?? getEvmDefaultChainId(), address);
     case "solana":
       return `https://solscan.io/account/${address}`;
+    case "stellar":
+      return `https://stellar.expert/explorer/public/account/${address}`;
     default:
       return null;
   }
@@ -94,6 +106,8 @@ export function chainExplorerTxUrl(chainId: AgentChainId, digest: string): strin
     }
     case "solana":
       return `https://solscan.io/tx/${digest}`;
+    case "stellar":
+      return `https://stellar.expert/explorer/public/tx/${digest}`;
     default:
       return null;
   }

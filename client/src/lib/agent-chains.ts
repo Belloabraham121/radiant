@@ -1,5 +1,5 @@
 /** Agent wallet chain families — must match backend `CHAIN_IDS`. */
-export const AGENT_CHAIN_IDS = ["sui", "ethereum", "solana"] as const;
+export const AGENT_CHAIN_IDS = ["sui", "ethereum", "solana", "stellar"] as const;
 
 export type AgentChainId = (typeof AGENT_CHAIN_IDS)[number];
 

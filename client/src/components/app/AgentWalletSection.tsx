@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,6 +24,7 @@ import {
 } from "@/components/wallet/AgentWalletProvider";
 import { EvmDepositDialog } from "@/components/wallet/deposits/EvmDepositDialog";
 import { SolanaDepositDialog } from "@/components/wallet/deposits/SolanaDepositDialog";
+import { StellarDepositDialog } from "@/components/wallet/deposits/StellarDepositDialog";
 import { SuiDepositDialog } from "@/components/wallet/deposits/SuiDepositDialog";
 import type { AgentChainId } from "@/lib/agent-chains";
 import {
@@ -31,6 +33,7 @@ import {
   chainExplorerAccountUrl,
   getEvmDefaultChainId,
 } from "@/lib/chain-meta";
+import { getEnabledEvmNetworks } from "@/lib/evm-chains";
 import {
   depositRailForChain,
   isDepositRailAvailable,
@@ -152,22 +155,24 @@ function AssetSkeletonRows() {
 
 function AgentWalletAssetsInline({
   chainId,
+  evmChainId,
   hasAddress,
   walletReady,
   refreshBalancesOnly,
 }: {
   chainId: AgentChainId;
+  evmChainId?: number;
   hasAddress: boolean;
   walletReady: boolean;
   refreshBalancesOnly: () => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const evmChainId =
-    chainId === "ethereum" ? getEvmDefaultChainId() : undefined;
+  const resolvedEvmChainId =
+    chainId === "ethereum" ? (evmChainId ?? getEvmDefaultChainId()) : undefined;
 
   const { data, loading, error, reload, loadIfNeeded } = useWalletAssets({
     chainId,
-    evmChainId,
+    evmChainId: resolvedEvmChainId,
     enabled: walletReady && hasAddress,
   });
 
@@ -302,6 +307,8 @@ function AgentWalletChainCard({
   footer,
   walletReady,
   refreshBalancesOnly,
+  evmChainId,
+  evmNetworkPicker,
 }: {
   wallet: ChainWalletState;
   provisioning: boolean;
@@ -311,11 +318,17 @@ function AgentWalletChainCard({
   footer?: ReactNode;
   walletReady: boolean;
   refreshBalancesOnly: () => Promise<void>;
+  evmChainId?: number;
+  evmNetworkPicker?: ReactNode;
 }) {
   const meta = getChainMeta(wallet.chainId);
   const address = wallet.address ?? "";
   const short = address ? formatChainAddress(wallet.chainId, address) : "—";
-  const explorerUrl = chainExplorerAccountUrl(wallet.chainId, address);
+  const explorerUrl = chainExplorerAccountUrl(
+    wallet.chainId,
+    address,
+    wallet.chainId === "ethereum" ? evmChainId : undefined,
+  );
   const showProvisioning = provisioning && !address;
   return (
     <div className="rounded-3xl border-2 border-[var(--hero-ink)] bg-white p-5 shadow-[4px_4px_0_var(--hero-ink)]">
@@ -393,13 +406,74 @@ function AgentWalletChainCard({
       <p className="mt-3 text-xs font-medium text-[var(--hero-ink)]/50">
         {meta.depositFallbackHint}
       </p>
+      {evmNetworkPicker}
       {footer}
       <AgentWalletAssetsInline
         chainId={wallet.chainId}
+        evmChainId={evmChainId}
         hasAddress={Boolean(wallet.address)}
         walletReady={walletReady}
         refreshBalancesOnly={refreshBalancesOnly}
       />
+    </div>
+  );
+}
+
+function AgentWalletOverview({
+  wallets,
+  enabledChains,
+  selectedChainId,
+  onSelectChain,
+  provisioning,
+}: {
+  wallets: ChainWalletState[];
+  enabledChains: AgentChainId[];
+  selectedChainId: AgentChainId;
+  onSelectChain: (chainId: AgentChainId) => void;
+  provisioning: boolean;
+}) {
+  if (enabledChains.length <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="mb-5 grid gap-2 sm:grid-cols-2">
+      {enabledChains.map((chainId) => {
+        const wallet = wallets.find((w) => w.chainId === chainId);
+        const meta = getChainMeta(chainId);
+        const address = wallet?.address ?? "";
+        const isSelected = chainId === selectedChainId;
+        const showProvisioning = provisioning && !address;
+
+        return (
+          <button
+            key={chainId}
+            type="button"
+            onClick={() => onSelectChain(chainId)}
+            className={`rounded-2xl border-2 px-4 py-3 text-left transition-transform hover:-translate-y-0.5 ${
+              isSelected
+                ? "border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 shadow-[3px_3px_0_var(--hero-ink)]"
+                : "border-[var(--hero-ink)]/15 bg-white"
+            }`}
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/45">
+              {meta.label}
+            </p>
+            <p className="mt-1 font-mono text-xs font-semibold text-[var(--hero-ink)]/75">
+              {showProvisioning
+                ? "Provisioning…"
+                : address
+                  ? formatChainAddress(chainId, address)
+                  : "Not set up"}
+            </p>
+            {chainId === "ethereum" && address ? (
+              <p className="mt-1 text-[10px] font-medium text-[var(--hero-ink)]/45">
+                Same 0x on Ethereum, Arbitrum, Base
+              </p>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -424,9 +498,25 @@ export function AgentWalletSection() {
   const [copiedChain, setCopiedChain] = useState<AgentChainId | null>(null);
   const [depositChain, setDepositChain] = useState<AgentChainId | null>(null);
   const [depositHint, setDepositHint] = useState<string | null>(null);
+  const [selectedEvmChainId, setSelectedEvmChainId] = useState(() => getEvmDefaultChainId());
+  const enabledEvmNetworks = useMemo(() => getEnabledEvmNetworks(), []);
 
   const walletReady = walletStatus === "ready";
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const autoProvisionRef = useRef(false);
+
+  const hasMissingWallet = enabledChains.some(
+    (chainId) => !wallets.find((w) => w.chainId === chainId)?.address,
+  );
+
+  useEffect(() => {
+    if (autoProvisionRef.current) return;
+    if (!hasMissingWallet || provisioning || walletStatus === "loading") {
+      return;
+    }
+    autoProvisionRef.current = true;
+    refreshAgentWallet();
+  }, [hasMissingWallet, provisioning, refreshAgentWallet, walletStatus]);
 
   if (defaultChainId !== prevDefaultChainId) {
     setPrevDefaultChainId(defaultChainId);
@@ -475,6 +565,30 @@ export function AgentWalletSection() {
   const suiWallet = wallets.find((w) => w.chainId === "sui");
   const evmWallet = wallets.find((w) => w.chainId === "ethereum");
   const solanaWallet = wallets.find((w) => w.chainId === "solana");
+  const stellarWallet = wallets.find((w) => w.chainId === "stellar");
+
+  const evmNetworkPicker =
+    activeChainId === "ethereum" && enabledEvmNetworks.length > 1 ? (
+      <div className="mt-4 flex flex-wrap gap-2">
+        <span className="w-full text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
+          EVM network (assets)
+        </span>
+        {enabledEvmNetworks.map((network) => (
+          <button
+            key={network.chainId}
+            type="button"
+            onClick={() => setSelectedEvmChainId(network.chainId)}
+            className={`rounded-full border-2 px-3 py-1 text-xs font-bold ${
+              selectedEvmChainId === network.chainId
+                ? "border-[var(--hero-ink)] bg-[var(--hero-ink)] text-[var(--hero-bg)]"
+                : "border-[var(--hero-ink)]/25 bg-white text-[var(--hero-ink)]"
+            }`}
+          >
+            {network.label}
+          </button>
+        ))}
+      </div>
+    ) : null;
 
   return (
     <>
@@ -573,6 +687,14 @@ export function AgentWalletSection() {
           </div>
         ) : null}
 
+        <AgentWalletOverview
+          wallets={wallets}
+          enabledChains={enabledChains}
+          selectedChainId={activeChainId}
+          onSelectChain={setSelectedChainId}
+          provisioning={provisioning}
+        />
+
         <div className="flex flex-col gap-4">
           {selectedWallet ? (
             <AgentWalletChainCard
@@ -587,6 +709,10 @@ export function AgentWalletSection() {
               copied={copiedChain === selectedWallet.chainId}
               walletReady={walletReady}
               refreshBalancesOnly={refreshBalancesOnly}
+              evmChainId={
+                selectedWallet.chainId === "ethereum" ? selectedEvmChainId : undefined
+              }
+              evmNetworkPicker={evmNetworkPicker}
               onCopy={() => {
                 if (selectedWallet.address) {
                   void copyAddress(
@@ -646,6 +772,14 @@ export function AgentWalletSection() {
             void refreshBalancesOnly();
             invalidateWalletAssetsForChain("solana");
           }}
+        />
+      )}
+
+      {stellarWallet?.address && (
+        <StellarDepositDialog
+          open={depositChain === "stellar"}
+          onOpenChange={(open) => !open && setDepositChain(null)}
+          agentAddress={stellarWallet.address}
         />
       )}
     </>

@@ -56,3 +56,7 @@ export function findPrivyEthereumWallet(
 export function findPrivySolanaWallet(user: User | null): PrivyEmbeddedWalletRef | null {
   return findPrivyEmbeddedWallet(user, "solana");
 }
+
+export function findPrivyStellarWallet(user: User | null): PrivyEmbeddedWalletRef | null {
+  return findPrivyEmbeddedWallet(user, "stellar");
+}

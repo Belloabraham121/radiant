@@ -1,5 +1,5 @@
 import { AppError } from "../../errors/app-error.js";
-import { getDefaultEvmChainId } from "../../config/evm.js";
+import { resolveEvmChainId } from "../../config/evm.js";
 import type { PrivyChain } from "./privy-balance.types.js";
 
 const EVM_CHAIN_ID_TO_PRIVY: Record<number, PrivyChain> = {
@@ -17,7 +17,7 @@ const EVM_CHAIN_ID_TO_PRIVY: Record<number, PrivyChain> = {
 };
 
 export function evmChainIdToPrivyChain(evmChainId?: number): PrivyChain {
-  const resolved = evmChainId ?? getDefaultEvmChainId();
+  const resolved = resolveEvmChainId(evmChainId);
   const privyChain = EVM_CHAIN_ID_TO_PRIVY[resolved];
   if (!privyChain) {
     throw new AppError(
@@ -30,5 +30,5 @@ export function evmChainIdToPrivyChain(evmChainId?: number): PrivyChain {
 }
 
 export function resolvePrivyEvmChainId(evmChainId?: number): number {
-  return evmChainId ?? getDefaultEvmChainId();
+  return resolveEvmChainId(evmChainId);
 }

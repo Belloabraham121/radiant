@@ -11,6 +11,7 @@ const adapters: Record<ChainId, ChainAdapter | undefined> = {
   sui: suiAdapter,
   ethereum: evmAdapter,
   solana: solanaAdapter,
+  stellar: undefined,
 };
 
 export function parseChainId(value: string): ChainId {

@@ -14,6 +14,7 @@ describe("chains/registry", () => {
     setAdapterForTests("sui", suiAdapter);
     setAdapterForTests("ethereum", evmAdapter);
     setAdapterForTests("solana", solanaAdapter);
+    setAdapterForTests("stellar", undefined);
   });
 
   it("getAdapter returns sui adapter when enabled", () => {

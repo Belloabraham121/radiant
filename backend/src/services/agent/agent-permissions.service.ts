@@ -163,6 +163,8 @@ export function resolveAutoApproveMaxAtomic(
       return BigInt(Math.floor(display * 1e18));
     case "solana":
       return BigInt(Math.floor(display * 1_000_000_000));
+    case "stellar":
+      return BigInt(Math.floor(display * 10_000_000));
     default:
       return BigInt(0);
   }
@@ -180,6 +182,8 @@ export function approvalThresholdLabel(
       return `${max} ETH`;
     case "solana":
       return `${max} SOL`;
+    case "stellar":
+      return `${max} XLM`;
     default:
       return String(max);
   }

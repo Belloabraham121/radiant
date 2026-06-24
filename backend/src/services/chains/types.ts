@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Supported agent-wallet chains. Extend when adding adapters in Phase 8. */
-export const CHAIN_IDS = ["sui", "ethereum", "solana"] as const;
+export const CHAIN_IDS = ["sui", "ethereum", "solana", "stellar"] as const;
 
 export type ChainId = (typeof CHAIN_IDS)[number];
 

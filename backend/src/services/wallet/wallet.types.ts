@@ -14,6 +14,11 @@ export const solanaAddressSchema = z
   .string()
   .regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, "Invalid Solana address");
 
+/** Stellar account id (StrKey, starts with G). */
+export const stellarAddressSchema = z
+  .string()
+  .regex(/^G[ABCDEFGHIJKLMNOPQRSTUVWXYZ234567]{55}$/, "Invalid Stellar address");
+
 const registerWalletBodyBaseSchema = z.object({
   chain_type: chainIdSchema.default("sui"),
   privy_wallet_id: z.string().min(1),
@@ -51,6 +56,13 @@ export const registerWalletBodySchema = registerWalletBodyBaseSchema.superRefine
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Invalid Solana address",
+        path: ["address"],
+      });
+    }
+    if (body.chain_type === "stellar" && !stellarAddressSchema.safeParse(address).success) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid Stellar address",
         path: ["address"],
       });
     }
