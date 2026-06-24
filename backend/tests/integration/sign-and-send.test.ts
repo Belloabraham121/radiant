@@ -47,4 +47,17 @@ describe("POST /api/v1/wallets/sign-and-send", () => {
     assert.equal(body.success, false);
     assert.equal(body.error.code, "UNAUTHORIZED");
   });
+
+  it("rejects execute_bytes action", async () => {
+    const response = await fetch(`${baseUrl}/api/v1/wallets/sign-and-send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "execute_bytes",
+        transaction_bytes: "abc",
+      }),
+    });
+
+    assert.equal(response.status, 401);
+  });
 });

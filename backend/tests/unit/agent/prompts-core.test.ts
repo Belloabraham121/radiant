@@ -12,17 +12,23 @@ import {
 } from "../../../src/services/agent/prompts/core/tool-routing.js";
 import { buildErrorHandlingLines } from "../../../src/services/agent/prompts/core/errors.js";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
-import { CORE_MODULE_IDS, CORE_PROMPT_MODULES } from "../../../src/services/agent/prompts/registry.js";
+import { ALL_PROMPT_MODULES, ALL_MODULE_IDS, CORE_MODULE_IDS } from "../../../src/services/agent/prompts/registry.js";
 
 describe("prompt core modules", () => {
-  it("registers four core module ids", () => {
+  it("registers core module ids and full module catalog", () => {
     assert.deepEqual(CORE_MODULE_IDS, [
       "core:personality",
       "core:tool-routing",
+      "core:tool-routing:overview",
       "core:permissions",
+      "core:tool-routing:workflow",
       "core:errors",
+      "core:personality:context",
     ]);
-    assert.equal(CORE_PROMPT_MODULES.length, 4);
+    const coreModules = ALL_PROMPT_MODULES.filter((module) => module.layer === "core");
+    assert.equal(coreModules.length, CORE_MODULE_IDS.length);
+    assert.equal(ALL_MODULE_IDS.length, ALL_PROMPT_MODULES.length);
+    assert.equal(ALL_MODULE_IDS.length, 24);
   });
 
   it("personality includes Radiant identity and research/execution/build routing", () => {

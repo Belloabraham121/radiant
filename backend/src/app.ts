@@ -2,6 +2,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import { correlationIdMiddleware } from "./api/middleware/correlation-id.js";
+import { csrfOriginMiddleware } from "./api/middleware/csrf-origin.js";
 import { errorHandlerMiddleware } from "./api/middleware/error-handler.js";
 import { requestLoggerMiddleware } from "./api/middleware/request-logger.js";
 import { authLogoutRouter } from "./api/routes/v1/auth/logout.js";
@@ -52,6 +53,7 @@ export function createApp() {
   app.use(express.json({ limit: "10mb" }));
   app.use(cookieParser());
   app.use(correlationIdMiddleware);
+  app.use(csrfOriginMiddleware);
   app.use(requestLoggerMiddleware);
   app.use("/api/v1/webhooks/notifications", notificationsWebhookRouter);
 

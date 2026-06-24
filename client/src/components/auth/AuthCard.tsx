@@ -167,8 +167,8 @@ export function AuthCard() {
     }
 
     handledAuthRef.current = true;
-    router.replace("/app");
-  }, [ready, authenticated, completeLogin, router]);
+    void completeLogin();
+  }, [ready, authenticated, completeLogin]);
 
   const resetEmailFlow = () => {
     setEmailStep("idle");

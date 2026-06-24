@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../../../middleware/auth.js";
+import { registerWalletRateLimitMiddleware } from "../../../middleware/auth-rate-limit.js";
 import {
   isWalletFunded,
   registerAgentWallet,
@@ -15,6 +16,7 @@ export const authRegisterWalletRouter = Router();
 authRegisterWalletRouter.post(
   "/api/v1/auth/register-wallet",
   requireAuth,
+  registerWalletRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const body = registerWalletBodySchema.parse(req.body);

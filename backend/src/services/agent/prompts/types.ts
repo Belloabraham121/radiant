@@ -12,12 +12,32 @@ export type PromptLayer =
   | "fiat"
   | "platform";
 
-/** Registered prompt module ids — extended in later phases. */
+/** Registered prompt module ids. */
 export type PromptModuleId =
   | "core:personality"
+  | "core:personality:context"
   | "core:tool-routing"
+  | "core:tool-routing:overview"
+  | "core:tool-routing:workflow"
   | "core:permissions"
-  | "core:errors";
+  | "core:errors"
+  | "protocol:deepbook:env"
+  | "protocol:deepbook:balance"
+  | "protocol:deepbook:swap"
+  | "protocol:deepbook:orders"
+  | "protocol:deepbook:flash-loan"
+  | "protocol:deepbook:stake"
+  | "protocol:deepbook:governance"
+  | "protocol:deepbook:margin"
+  | "protocol:deepbook:predict"
+  | "artifact:build"
+  | "artifact:build:swap-vs-build"
+  | "artifact:edit"
+  | "artifact:defi-ui"
+  | "platform:browsing"
+  | "platform:storage"
+  | "platform:notifications"
+  | "platform:explorer";
 
 export type PromptBuildContext = {
   chainId: ChainId;
@@ -42,7 +62,7 @@ export type PromptTrigger = {
 export type PromptModule = {
   id: PromptModuleId;
   layer: PromptLayer;
-  /** Lower values appear earlier in the composed system prompt. */
+  /** Lower values appear earlier when modules are sorted by order alone. */
   order: number;
   build: (ctx: PromptBuildContext) => string[];
   triggers?: PromptTrigger;

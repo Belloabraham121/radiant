@@ -146,25 +146,25 @@ Move every remaining line from `prompts.ts` into typed modules. Composer loads *
 
 | Status | Module | Content to extract |
 | ------ | ------ | ------------------ |
-| [ ] | `chains/sui.ts` | `Default chain`, dynamic DeepBook env one-liner can move to `deepbook/env` instead |
-| [ ] | `protocols/deepbook/env.ts` | L74–75, pool/ticker/volume queries |
-| [ ] | `protocols/deepbook/balance.ts` | L76–80, provision manager |
-| [ ] | `protocols/deepbook/swap.ts` | L81–83, L88, chat vs app swap routing |
-| [ ] | `protocols/deepbook/orders.ts` | L89–90, L121 |
-| [ ] | `protocols/deepbook/flash-loan.ts` | L91 |
-| [ ] | `protocols/deepbook/stake.ts` | L92 |
-| [ ] | `protocols/deepbook/governance.ts` | L93 |
-| [ ] | `protocols/deepbook/margin.ts` | L122–133, `MARGIN_RADIANT_ID_GUIDE` |
-| [ ] | `protocols/deepbook/predict.ts` | L134–138 |
-| [ ] | `artifacts/build.ts` | L84, L96–98, L101–103, L118 |
-| [ ] | `artifacts/edit.ts` | L99–100 |
-| [ ] | `artifacts/defi-ui.ts` | L105–111, live quotes, radiant-agent handlers |
-| [ ] | `platform/notifications.ts` | L117 |
-| [ ] | `platform/browsing.ts` | L112–114, L115–116 (app data + shared data split or sub-modules) |
-| [ ] | `platform/explorer.ts` | L119–120 |
-| [ ] | Wire `formatRadiantClientApiGuideForPrompt()` inside `artifacts/defi-ui` or dedicated `artifacts/radiant-client.ts` | L106 |
-| [ ] | Delete `legacyRestLines()` — composer uses registry only |
-| [ ] | Baseline test still passes (byte-identical or documented intentional diffs) |
+| [x] | `chains/sui.ts` | `Default chain`, dynamic DeepBook env one-liner can move to `deepbook/env` instead |
+| [x] | `protocols/deepbook/env.ts` | L74–75, pool/ticker/volume queries |
+| [x] | `protocols/deepbook/balance.ts` | L76–80, provision manager |
+| [x] | `protocols/deepbook/swap.ts` | L81–83, L88, chat vs app swap routing |
+| [x] | `protocols/deepbook/orders.ts` | L89–90, L121 |
+| [x] | `protocols/deepbook/flash-loan.ts` | L91 |
+| [x] | `protocols/deepbook/stake.ts` | L92 |
+| [x] | `protocols/deepbook/governance.ts` | L93 |
+| [x] | `protocols/deepbook/margin.ts` | L122–133, `MARGIN_RADIANT_ID_GUIDE` |
+| [x] | `protocols/deepbook/predict.ts` | L134–138 |
+| [x] | `artifacts/build.ts` | L84, L96–98, L101–103, L118 |
+| [x] | `artifacts/edit.ts` | L99–100 |
+| [x] | `artifacts/defi-ui.ts` | L105–111, live quotes, radiant-agent handlers |
+| [x] | `platform/notifications.ts` | L117 |
+| [x] | `platform/browsing.ts` | L112–114, L115–116 (app data + shared data split or sub-modules) |
+| [x] | `platform/explorer.ts` | L119–120 |
+| [x] | Wire `formatRadiantClientApiGuideForPrompt()` inside `artifacts/defi-ui` or dedicated `artifacts/radiant-client.ts` | L106 |
+| [x] | Delete `legacyRestLines()` — composer uses registry only |
+| [x] | Baseline test still passes (byte-identical or documented intentional diffs) |
 
 ---
 

@@ -454,25 +454,25 @@ Track fixes below. Check off when merged and verified.
 
 ### Critical
 
-- [ ] **AUTH-01** — Route `sign-and-send` through approval service or remove `execute_bytes` support
+- [x] **AUTH-01** — Route `sign-and-send` through approval service or remove `execute_bytes` support
 - [ ] **AUTH-02** — Always require user approval for `execute_bytes` in agent flow
 
 ### High
 
-- [ ] **AUTH-03** — Verify `privy_wallet_id` ownership via Privy API on `register-wallet`
-- [ ] **AUTH-04** — Enforce auth redirect on `/app/*` in middleware + `AppShell`
-- [ ] **API-01** — Harden proxy SSRF (redirects, DNS, IPv6, private ranges)
+- [x] **AUTH-03** — Verify `privy_wallet_id` ownership via Privy API on `register-wallet`
+- [x] **AUTH-04** — Enforce auth redirect on `/app/*` in middleware + `AppShell`
+- [x] **API-01** — Harden proxy SSRF (redirects, DNS, IPv6, private ranges)
 - [ ] **API-02** — Align agent `call_api` SSRF policy with proxy hardening
 
 ### Medium
 
-- [ ] **AUTH-05** — Protect logout endpoint (require auth or CSRF token)
-- [ ] **AUTH-06** — Fix cookie clearing domain alignment for production
-- [ ] **AUTH-07** — Add CSRF protection or Origin validation on mutations
-- [ ] **AUTH-08** — Always sync via `fetchAuthMe` before auth redirects
-- [ ] **AUTH-09** — Deny-by-default permissions when user row missing
+- [x] **AUTH-05** — Protect logout endpoint (require auth or CSRF token)
+- [x] **AUTH-06** — Fix cookie clearing domain alignment for production
+- [x] **AUTH-07** — Add CSRF protection or Origin validation on mutations
+- [x] **AUTH-08** — Always sync via `fetchAuthMe` before auth redirects
+- [x] **AUTH-09** — Deny-by-default permissions when user row missing
 - [ ] **AUTH-10** — Change default `auto_approve_enabled` to `false`
-- [ ] **AUTH-12** — Rate limit auth/export endpoints
+- [x] **AUTH-12** — Rate limit auth/export endpoints
 - [ ] **API-03** — Strip sensitive headers in proxy unless allowlisted
 - [ ] **INFRA-01** — Add Helmet, CSP, HSTS
 - [ ] **INFRA-02** — Network-restrict Inngest endpoint
@@ -480,8 +480,8 @@ Track fixes below. Check off when merged and verified.
 
 ### Low
 
-- [ ] **AUTH-11** — Log identity-token verification failures
-- [ ] **AUTH-13** — Refresh loop detection on `/refresh`
+- [x] **AUTH-11** — Log identity-token verification failures
+- [x] **AUTH-13** — Refresh loop detection on `/refresh`
 - [ ] **INFRA-03** — Require `PRIVY_WEBHOOK_SIGNING_SECRET` in production
 - [ ] **DATA-01** — Step-up auth + audit for `/auth/export`
 - [ ] **DATA-02** — Clear chat scope localStorage on logout

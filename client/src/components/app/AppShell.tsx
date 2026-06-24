@@ -4,6 +4,7 @@ import { ChatSessionsProvider } from "@/components/app/ChatSessionsProvider";
 import { ArtifactProvider } from "@/components/app/ArtifactContext";
 import { Sidebar } from "@/components/app/Sidebar";
 import { SidebarProvider } from "@/components/app/SidebarContext";
+import { AuthenticatedGate } from "@/components/auth/AuthenticatedGate";
 import { AgentWalletProvider } from "@/components/wallet/AgentWalletProvider";
 import { AppWalletProvider } from "@/components/wallet/AppWalletProvider";
 import { NotificationServiceWorkerRegistrar } from "@/components/app/NotificationServiceWorkerRegistrar";
@@ -12,7 +13,8 @@ import { NotificationToaster } from "@/components/app/NotificationToaster";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <ChatSessionsProvider>
+    <AuthenticatedGate>
+      <ChatSessionsProvider>
       <ArtifactProvider>
         <AgentWalletProvider>
           <AppWalletProvider>
@@ -32,5 +34,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </AgentWalletProvider>
       </ArtifactProvider>
     </ChatSessionsProvider>
+    </AuthenticatedGate>
   );
 }

@@ -15,15 +15,50 @@ export type ExternalFetchResult = {
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2 MB
 const FETCH_TIMEOUT_MS = 15_000;
+const MAX_REDIRECTS = 5;
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
   "127.0.0.1",
   "0.0.0.0",
   "[::1]",
+  "::1",
   "metadata.google.internal",
   "169.254.169.254",
 ]);
+
+function normalizeHostname(hostname: string): string {
+  return hostname.replace(/^\[|\]$/g, "").toLowerCase();
+}
+
+function isPrivateOrLocalHostname(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
+
+  if (BLOCKED_HOSTNAMES.has(normalized) || BLOCKED_HOSTNAMES.has(hostname)) {
+    return true;
+  }
+
+  if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.)/.test(normalized)) {
+    return true;
+  }
+
+  if (normalized.includes(":")) {
+    if (normalized === "::" || normalized.startsWith("fe80:")) {
+      return true;
+    }
+    if (/^f[cd][0-9a-f]{2}:/i.test(normalized)) {
+      return true;
+    }
+    if (normalized.startsWith("::ffff:")) {
+      const mapped = normalized.slice("::ffff:".length);
+      if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.)/.test(mapped)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 
 function validateUrl(raw: string): URL {
   let parsed: URL;
@@ -41,20 +76,12 @@ function validateUrl(raw: string): URL {
     );
   }
 
-  const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
-  if (BLOCKED_HOSTNAMES.has(hostname)) {
+  const hostname = parsed.hostname;
+  if (isPrivateOrLocalHostname(hostname)) {
     throw new AppError(
       403,
       "PROXY_BLOCKED_HOST",
       `Requests to ${hostname} are not allowed.`,
-    );
-  }
-
-  if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(hostname)) {
-    throw new AppError(
-      403,
-      "PROXY_BLOCKED_HOST",
-      "Requests to private IP ranges are not allowed.",
     );
   }
 
@@ -66,7 +93,6 @@ const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"
 const STRIPPED_REQUEST_HEADERS = new Set([
   "host",
   "cookie",
-  // Forward caller-supplied Authorization / API keys — proxy is requireAuth-gated.
   "x-forwarded-for",
   "x-real-ip",
   "connection",
@@ -78,6 +104,86 @@ const STRIPPED_RESPONSE_HEADERS = new Set([
   "transfer-encoding",
   "connection",
 ]);
+
+async function readResponseBody(res: Response): Promise<string> {
+  const contentLength = res.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_BYTES) {
+    throw new AppError(
+      413,
+      "PROXY_RESPONSE_TOO_LARGE",
+      `Response exceeds ${MAX_RESPONSE_BYTES / 1024 / 1024} MB limit.`,
+    );
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalSize = 0;
+  const reader = res.body?.getReader();
+
+  if (reader) {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      totalSize += value.byteLength;
+      if (totalSize > MAX_RESPONSE_BYTES) {
+        reader.cancel();
+        throw new AppError(
+          413,
+          "PROXY_RESPONSE_TOO_LARGE",
+          `Response exceeds ${MAX_RESPONSE_BYTES / 1024 / 1024} MB limit.`,
+        );
+      }
+      chunks.push(value);
+    }
+  }
+
+  const bodyBuffer = new Uint8Array(totalSize);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bodyBuffer.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bodyBuffer);
+}
+
+async function fetchWithoutRedirect(
+  url: URL,
+  init: RequestInit,
+): Promise<Response> {
+  let currentUrl = url;
+  let redirectCount = 0;
+
+  while (true) {
+    const res = await fetch(currentUrl.toString(), {
+      ...init,
+      redirect: "manual",
+    });
+
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      if (!location) {
+        throw new AppError(
+          502,
+          "PROXY_REDIRECT_ERROR",
+          `Redirect response from ${currentUrl.hostname} missing Location header.`,
+        );
+      }
+
+      redirectCount += 1;
+      if (redirectCount > MAX_REDIRECTS) {
+        throw new AppError(
+          502,
+          "PROXY_TOO_MANY_REDIRECTS",
+          `Too many redirects while fetching ${url.hostname}.`,
+        );
+      }
+
+      currentUrl = validateUrl(new URL(location, currentUrl).toString());
+      continue;
+    }
+
+    return res;
+  }
+}
 
 export async function fetchExternal(input: ExternalFetchInput): Promise<ExternalFetchResult> {
   const url = validateUrl(input.url);
@@ -100,51 +206,14 @@ export async function fetchExternal(input: ExternalFetchInput): Promise<External
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetchWithoutRedirect(url, {
       method,
       headers,
       body: method !== "GET" && method !== "HEAD" ? input.body : undefined,
       signal: controller.signal,
-      redirect: "follow",
     });
 
-    const contentLength = res.headers.get("content-length");
-    if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_BYTES) {
-      throw new AppError(
-        413,
-        "PROXY_RESPONSE_TOO_LARGE",
-        `Response exceeds ${MAX_RESPONSE_BYTES / 1024 / 1024} MB limit.`,
-      );
-    }
-
-    const chunks: Uint8Array[] = [];
-    let totalSize = 0;
-    const reader = res.body?.getReader();
-
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        totalSize += value.byteLength;
-        if (totalSize > MAX_RESPONSE_BYTES) {
-          reader.cancel();
-          throw new AppError(
-            413,
-            "PROXY_RESPONSE_TOO_LARGE",
-            `Response exceeds ${MAX_RESPONSE_BYTES / 1024 / 1024} MB limit.`,
-          );
-        }
-        chunks.push(value);
-      }
-    }
-
-    const bodyBuffer = new Uint8Array(totalSize);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bodyBuffer.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    const body = new TextDecoder().decode(bodyBuffer);
+    const body = await readResponseBody(res);
 
     const responseHeaders: Record<string, string> = {};
     res.headers.forEach((value, key) => {

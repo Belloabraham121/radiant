@@ -22,6 +22,7 @@ import type {
   WalletBalanceData,
 } from "./wallet.types.js";
 import { parseChainId } from "../chains/registry.js";
+import { assertPrivyWalletOwnership } from "./privy-wallet-ownership.service.js";
 
 /** Map Prisma row → adapter shape (schema uses `address`, not legacy `sui_address`). */
 function toResolvedAgentWallet(wallet: AgentWallet): ResolvedAgentWallet {
@@ -98,6 +99,8 @@ export async function registerAgentWallet(
   if (!user) {
     throw new AppError(404, "USER_NOT_FOUND", "User not found. Call GET /api/v1/auth/me first.");
   }
+
+  await assertPrivyWalletOwnership(privyUserId, input);
 
   const existing = await findAgentWalletForUserChain(user.id, input.chain_type);
   if (existing) {

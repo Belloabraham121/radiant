@@ -31,14 +31,23 @@ export function middleware(req: NextRequest) {
     req.nextUrl.pathname.startsWith(prefix),
   );
 
-  if (isProtected && !definitelyAuthenticated && maybeAuthenticated) {
-    const refreshUrl = req.nextUrl.clone();
-    refreshUrl.pathname = "/refresh";
-    refreshUrl.searchParams.set(
-      "redirect_uri",
-      `${req.nextUrl.pathname}${req.nextUrl.search}`,
-    );
-    return NextResponse.redirect(refreshUrl);
+  if (isProtected) {
+    if (!definitelyAuthenticated && !maybeAuthenticated) {
+      const authUrl = req.nextUrl.clone();
+      authUrl.pathname = "/auth";
+      authUrl.search = "";
+      return NextResponse.redirect(authUrl);
+    }
+
+    if (!definitelyAuthenticated && maybeAuthenticated) {
+      const refreshUrl = req.nextUrl.clone();
+      refreshUrl.pathname = "/refresh";
+      refreshUrl.searchParams.set(
+        "redirect_uri",
+        `${req.nextUrl.pathname}${req.nextUrl.search}`,
+      );
+      return NextResponse.redirect(refreshUrl);
+    }
   }
 
   return NextResponse.next();
