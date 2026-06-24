@@ -69,7 +69,12 @@ export function csrfOriginMiddleware(
   const allowedOrigin = normalizeOrigin(getCorsEnv().corsOrigin);
   const origin = requestOrigin(req);
 
-  if (!origin || origin !== allowedOrigin) {
+  if (!origin) {
+    next();
+    return;
+  }
+
+  if (origin !== allowedOrigin) {
     const err = new AppError(
       403,
       "CSRF_ORIGIN_MISMATCH",

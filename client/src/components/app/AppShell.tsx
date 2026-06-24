@@ -15,25 +15,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthenticatedGate>
       <ChatSessionsProvider>
-      <ArtifactProvider>
-        <AgentWalletProvider>
-          <AppWalletProvider>
-            <SidebarProvider>
-              <NotificationProvider>
-                <NotificationServiceWorkerRegistrar />
-                <NotificationToaster />
-                <div className="flex h-screen overflow-hidden bg-[var(--hero-bg)] text-[var(--hero-ink)]">
-                  <Sidebar />
-                  <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
-                    {children}
-                  </main>
-                </div>
-              </NotificationProvider>
-            </SidebarProvider>
-          </AppWalletProvider>
-        </AgentWalletProvider>
-      </ArtifactProvider>
-    </ChatSessionsProvider>
+        <ArtifactProvider>
+          <AgentWalletProvider>
+            <AppWalletProvider>
+              <SidebarProvider>
+                <NotificationProvider>
+                  <NotificationServiceWorkerRegistrar />
+                  <NotificationToaster />
+                  <div className="flex h-screen overflow-hidden bg-[var(--hero-bg)] text-[var(--hero-ink)]">
+                    <Sidebar />
+                    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+                      {children}
+                    </main>
+                  </div>
+                </NotificationProvider>
+              </SidebarProvider>
+            </AppWalletProvider>
+          </AgentWalletProvider>
+        </ArtifactProvider>
+      </ChatSessionsProvider>
     </AuthenticatedGate>
   );
 }

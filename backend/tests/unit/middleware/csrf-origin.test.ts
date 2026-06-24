@@ -57,6 +57,22 @@ describe("csrfOriginMiddleware", () => {
     assert.equal(res.statusCode, 403);
   });
 
+  it("allows POST without Origin header (non-browser clients)", () => {
+    process.env.NODE_ENV = "development";
+    const req = {
+      method: "POST",
+      path: "/api/v1/chat",
+      get() {
+        return undefined;
+      },
+    } as Request;
+    const res = mockResponse();
+    const next = mock.fn() as NextFunction;
+
+    csrfOriginMiddleware(req, res, next);
+    assert.equal(next.mock.calls.length, 1);
+  });
+
   it("skips GET requests", () => {
     process.env.NODE_ENV = "development";
     const req = {

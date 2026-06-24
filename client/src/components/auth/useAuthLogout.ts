@@ -4,6 +4,7 @@ import { useLogout } from "@privy-io/react-auth";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { logoutSession } from "@/lib/auth-api";
+import { clearAllStoredChatAppScopes } from "@/lib/chat-app-scope";
 import { clearWalletSessionCache } from "@/lib/wallet-session-cache";
 
 export function useAuthLogout() {
@@ -26,6 +27,7 @@ export function useAuthLogout() {
         // Privy logout still runs if backend cookies were already cleared.
       }
       clearWalletSessionCache();
+      clearAllStoredChatAppScopes();
       await privyLogout();
       router.replace("/auth");
     } finally {

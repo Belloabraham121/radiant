@@ -1,4 +1,4 @@
-import type { Wallet } from "@privy-io/node";
+import type { LinkedAccountEmbeddedWallet, Wallet } from "@privy-io/node";
 import { AppError } from "../../errors/app-error.js";
 import { getPrivyClient } from "../../infrastructure/privy/client.js";
 import type { ChainId } from "../chains/types.js";
@@ -32,14 +32,14 @@ async function userOwnsEmbeddedWallet(
 
   const normalizedInput = normalizeWalletAddress(input.address, input.chain_type);
 
-  return privyUser.linked_accounts.some((account) => {
+  return privyUser.linked_accounts.some((account): account is LinkedAccountEmbeddedWallet => {
     if (account.type !== "wallet" || account.connector_type !== "embedded") {
       return false;
     }
     if (account.id !== input.privy_wallet_id) {
       return false;
     }
-    if ("chain_type" in account && account.chain_type !== input.chain_type) {
+    if (account.chain_type !== input.chain_type) {
       return false;
     }
     return normalizeWalletAddress(account.address, input.chain_type) === normalizedInput;

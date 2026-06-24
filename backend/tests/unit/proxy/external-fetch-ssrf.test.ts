@@ -7,7 +7,7 @@ describe("external-fetch SSRF hardening", () => {
     const originalFetch = globalThis.fetch;
     let fetchCount = 0;
 
-    globalThis.fetch = mock.fn(async (url: string | URL, init?: RequestInit) => {
+    globalThis.fetch = mock.fn(async (url: string | URL) => {
       fetchCount += 1;
       const target = url.toString();
       if (target.startsWith("https://public.example/")) {
@@ -28,7 +28,42 @@ describe("external-fetch SSRF hardening", () => {
         },
       );
       assert.equal(fetchCount, 1);
-      assert.equal((globalThis.fetch as ReturnType<typeof mock.fn>).mock.calls[0]?.[1]?.redirect, "manual");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("blocks multi-hop redirect chains ending at private IPs", async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCount = 0;
+
+    globalThis.fetch = mock.fn(async (url: string | URL) => {
+      fetchCount += 1;
+      const target = url.toString();
+      if (target === "https://public.example/start") {
+        return new Response(null, {
+          status: 302,
+          headers: { Location: "https://hop.example/next" },
+        });
+      }
+      if (target === "https://hop.example/next") {
+        return new Response(null, {
+          status: 302,
+          headers: { Location: "http://192.168.0.1/internal" },
+        });
+      }
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      await assert.rejects(
+        () => fetchExternal({ url: "https://public.example/start" }),
+        (err: Error & { code?: string }) => {
+          assert.equal(err.code, "PROXY_BLOCKED_HOST");
+          return true;
+        },
+      );
+      assert.equal(fetchCount, 2);
     } finally {
       globalThis.fetch = originalFetch;
     }

@@ -1,0 +1,15 @@
+---
+description: Security guards for auth, outbound fetch, proxy, and sensitive API routes
+globs: backend/src/api/**,backend/src/services/proxy/**,backend/src/services/agent/browsing/**,client/src/lib/**,client/src/components/auth/**
+alwaysApply: false
+---
+
+# Security guards (Radiant)
+
+Read `backend/.agents/skills/radiant-backend/SKILL.md` § Security guards and `client/AGENTS.md` § Security guards.
+
+- **Auth** — `requireAuth` on protected routes; `csrfOriginMiddleware` on mutations; scope by `req.user.privyUserId` (IDOR).
+- **Outbound fetch** — `services/proxy/ssrf-guard.ts` for proxy and `call_api`; manual redirects; block private/link-local IPs and `.internal` hosts.
+- **Proxy** — strip credential headers unless host is in `PROXY_SECRET_HEADER_ALLOWLIST_HOSTS`.
+- **Sensitive routes** — rate limits + structured audit logs (export: `X-Export-Confirm: true`).
+- **Client logout** — clear wallet cache and `radiant:chat-app-scope:*` localStorage keys.

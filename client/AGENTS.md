@@ -231,6 +231,15 @@ OAuth callback setup is documented in `.env.example` (Privy + Google + GitHub re
 
 ---
 
+## Security guards
+
+- **Cookie auth** — Privy HttpOnly cookies only; use `AuthenticatedGate` / middleware for `/app/*`; no tokens in `localStorage` or `sessionStorage`.
+- **Mutations** — browser calls use same-origin `apiFetch` with cookies; backend validates `Origin` on POST/PATCH/DELETE.
+- **Client cache** — clear user-scoped in-memory and `localStorage` on logout (`clearWalletSessionCache`, `clearAllStoredChatAppScopes`); never persist PII or API keys.
+- **Outbound fetch** — backend proxy and agent `call_api` share SSRF policy; do not add parallel fetch helpers without `ssrf-guard.ts`.
+
+---
+
 ## Related docs
 
 - Backend API & auth plan: `backend/docs/privy-implementation-plan.md`

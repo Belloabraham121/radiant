@@ -462,7 +462,7 @@ Track fixes below. Check off when merged and verified.
 - [x] **AUTH-03** — Verify `privy_wallet_id` ownership via Privy API on `register-wallet`
 - [x] **AUTH-04** — Enforce auth redirect on `/app/*` in middleware + `AppShell`
 - [x] **API-01** — Harden proxy SSRF (redirects, DNS, IPv6, private ranges)
-- [ ] **API-02** — Align agent `call_api` SSRF policy with proxy hardening
+- [x] **API-02** — Align agent `call_api` SSRF policy with proxy hardening
 
 ### Medium
 
@@ -473,7 +473,7 @@ Track fixes below. Check off when merged and verified.
 - [x] **AUTH-09** — Deny-by-default permissions when user row missing
 - [ ] **AUTH-10** — Change default `auto_approve_enabled` to `false`
 - [x] **AUTH-12** — Rate limit auth/export endpoints
-- [ ] **API-03** — Strip sensitive headers in proxy unless allowlisted
+- [x] **API-03** — Strip sensitive headers in proxy unless allowlisted
 - [ ] **INFRA-01** — Add Helmet, CSP, HSTS
 - [ ] **INFRA-02** — Network-restrict Inngest endpoint
 - [ ] **FE-02** — Harden artifact preview iframe sandbox + postMessage validation
@@ -483,8 +483,8 @@ Track fixes below. Check off when merged and verified.
 - [x] **AUTH-11** — Log identity-token verification failures
 - [x] **AUTH-13** — Refresh loop detection on `/refresh`
 - [ ] **INFRA-03** — Require `PRIVY_WEBHOOK_SIGNING_SECRET` in production
-- [ ] **DATA-01** — Step-up auth + audit for `/auth/export`
-- [ ] **DATA-02** — Clear chat scope localStorage on logout
+- [x] **DATA-01** — Step-up auth + audit for `/auth/export`
+- [x] **DATA-02** — Clear chat scope localStorage on logout
 - [ ] **FE-01** — URL scheme allowlist for agent markdown links
 - [ ] **LOGIC-01** — Alert on email merge conflicts during webhook sync
 - [ ] **LOGIC-02** — Audit logging for Privy account transfer webhooks

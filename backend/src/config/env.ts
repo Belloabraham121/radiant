@@ -62,3 +62,13 @@ export function getAuthCookieNames() {
     session: "privy-session",
   } as const;
 }
+
+/** Proxy outbound fetch — comma-separated hostnames or `.suffix` patterns. */
+export function getProxyEnv() {
+  const raw = optional("PROXY_SECRET_HEADER_ALLOWLIST_HOSTS", "");
+  const secretHeaderAllowlistHosts = raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return { secretHeaderAllowlistHosts };
+}

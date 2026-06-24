@@ -71,6 +71,23 @@ export function clearStoredChatAppScope(sessionId: string): void {
   saveStoredChatAppScope(sessionId, null);
 }
 
+/** Remove all persisted chat app scope keys (e.g. on logout). */
+export function clearAllStoredChatAppScopes(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i);
+    if (key?.startsWith(STORAGE_PREFIX)) {
+      keysToRemove.push(key);
+    }
+  }
+  for (const key of keysToRemove) {
+    window.localStorage.removeItem(key);
+  }
+}
+
 /** Parse API / DB `app_scope` JSON into a typed scope (invalid → null). */
 export function parseChatAppScope(value: unknown): ChatAppScope | null {
   if (value == null) {
