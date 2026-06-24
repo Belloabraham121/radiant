@@ -13,11 +13,12 @@ import { getCoreQueryHandler } from "./core/queries.js";
 import { CORE_QUERY_TYPES } from "./core/query-schema.js";
 import { getSuiChainPlugin } from "./sui/index.js";
 import {
-  EVM_DEFI_QUERY_TYPES,
-  EVM_DEFI_QUERY_SCHEMA,
-  EVM_EXECUTE_ACTIONS,
-  EVM_EXECUTE_SCHEMA,
+  EVM_DEFI_QUERY_TYPES_ALL,
+  EVM_DEFI_QUERY_SCHEMA_MERGED,
+  EVM_EXECUTE_ACTIONS_ALL,
+  EVM_EXECUTE_SCHEMA_MERGED,
   getEvmDefiQueryHandler,
+  lifiPreflightHooks,
 } from "./evm/index.js";
 import {
   getStellarQueryHandler,
@@ -44,7 +45,7 @@ function getEvmChainPlugin(): ChainPlugin {
     queries: [
       {
         chainIds: ["ethereum"],
-        queryTypes: EVM_DEFI_QUERY_TYPES,
+        queryTypes: EVM_DEFI_QUERY_TYPES_ALL,
         handler: async (ctx) => {
           const handler = getEvmDefiQueryHandler(ctx.query);
           if (!handler) {
@@ -53,17 +54,18 @@ function getEvmChainPlugin(): ChainPlugin {
           return handler(ctx);
         },
         schema: {
-          queryTypes: EVM_DEFI_QUERY_TYPES,
-          description: EVM_DEFI_QUERY_SCHEMA.description,
-          paramsDescription: EVM_DEFI_QUERY_SCHEMA.paramsDescription,
+          queryTypes: EVM_DEFI_QUERY_TYPES_ALL,
+          description: EVM_DEFI_QUERY_SCHEMA_MERGED.description,
+          paramsDescription: EVM_DEFI_QUERY_SCHEMA_MERGED.paramsDescription,
         },
       },
     ],
     execute: {
       chainIds: ["ethereum"],
-      actions: [...EVM_EXECUTE_ACTIONS],
-      actionDescription: EVM_EXECUTE_SCHEMA.actionDescription,
-      paramsDescription: EVM_EXECUTE_SCHEMA.paramsDescription,
+      actions: [...EVM_EXECUTE_ACTIONS_ALL],
+      actionDescription: EVM_EXECUTE_SCHEMA_MERGED.actionDescription,
+      paramsDescription: EVM_EXECUTE_SCHEMA_MERGED.paramsDescription,
+      preflightHooks: lifiPreflightHooks,
     },
   };
 }

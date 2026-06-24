@@ -75,6 +75,9 @@ function isPredictExecuteAction(action: string): boolean {
 
 /** Optional prompt modules for a single execute_transaction action (core modules omitted). */
 export function resolvePromptModulesForExecuteAction(action: string): PromptModuleId[] {
+  if (action === "cross_chain_swap" || action === "lifi_approve") {
+    return ["protocol:lifi:env", "protocol:lifi:bridge", "protocol:lifi:swap"];
+  }
   if (isMarginExecuteAction(action)) {
     return EXECUTE_CLASS_PROMPT_MODULES.margin;
   }
@@ -118,6 +121,10 @@ export const QUERY_TYPE_PROMPT_MODULES: Readonly<Record<string, readonly PromptM
   predict_range_amounts: EXECUTE_CLASS_PROMPT_MODULES.predict,
   predict_manager_info: EXECUTE_CLASS_PROMPT_MODULES.predict,
   predict_vault_summary: EXECUTE_CLASS_PROMPT_MODULES.predict,
+  cross_chain_quote: ["protocol:lifi:env", "protocol:lifi:bridge"],
+  cross_chain_routes: ["protocol:lifi:env", "protocol:lifi:bridge"],
+  cross_chain_connections: ["protocol:lifi:env", "protocol:lifi:bridge"],
+  cross_chain_status: ["protocol:lifi:env", "protocol:lifi:bridge"],
   project_actions: ["artifact:build", "artifact:defi-ui"],
   session_actions: ["artifact:build", "artifact:defi-ui"],
   project_notification_schema: ["platform:notifications"],

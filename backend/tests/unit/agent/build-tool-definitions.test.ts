@@ -31,6 +31,27 @@ describe("buildAgentToolDefinitions", () => {
     assert.equal(queryEnum.includes("swap_quote"), false);
   });
 
+  it("ethereum deploy includes cross_chain_quote when ethereum is enabled", () => {
+    process.env.ENABLED_CHAINS = "ethereum";
+    resetChainConfigCacheForTests();
+
+    const definition = buildQueryChainToolDefinition({
+      enabledChains: ["ethereum"],
+      permissions: denyDefaultAgentPermissions(),
+    });
+
+    const queryEnum = (
+      definition.input_schema.properties as {
+        query: { enum: string[] };
+      }
+    ).query.enum;
+
+    assert.ok(queryEnum.includes("cross_chain_quote"));
+    assert.ok(queryEnum.includes("cross_chain_routes"));
+    assert.ok(queryEnum.includes("cross_chain_status"));
+    assert.equal(queryEnum.includes("deepbook_pools"), false);
+  });
+
   it("sui deploy includes deepbook_pools when sui is enabled", () => {
     const definition = buildQueryChainToolDefinition({
       enabledChains: ["sui"],

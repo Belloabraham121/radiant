@@ -1,19 +1,31 @@
 import { AppError } from "../../../../errors/app-error.js";
-import type { ChainQueryHandler, QueryHandlerContext } from "../types.js";
+import type { ChainQueryHandler } from "../types.js";
+import {
+  EVM_EXECUTE_ACTIONS,
+  EVM_EXECUTE_SCHEMA,
+  EVM_DEFI_QUERY_TYPES,
+  EVM_DEFI_QUERY_SCHEMA,
+} from "./evm-defi-stubs.js";
+import {
+  getLifiQueryHandler,
+  LIFI_QUERY_HANDLERS,
+  LIFI_QUERY_SCHEMA,
+  LIFI_QUERY_TYPES,
+} from "./lifi/query-handlers.js";
+import {
+  LIFI_EXECUTE_ACTIONS,
+  LIFI_EXECUTE_SCHEMA,
+} from "./lifi/execute-actions.js";
+import { lifiPreflightHooks } from "./lifi/approval-preflight.js";
 
-/** Phase 1 — Li-Fi / SushiSwap query stubs (schema only until HTTP clients ship). */
-export const EVM_DEFI_QUERY_TYPES = [
-  "evm_swap_quote",
-  "cross_chain_quote",
-  "cross_chain_status",
+export const EVM_DEFI_QUERY_TYPES_ALL = [
+  ...EVM_DEFI_QUERY_TYPES,
+  ...LIFI_QUERY_TYPES,
 ] as const;
 
-export const EVM_DEFI_QUERY_SCHEMA = {
-  description: "evm_swap_quote (SushiSwap, Phase 1), cross_chain_quote, cross_chain_status (Li-Fi, Phase 1).",
-  paramsDescription:
-    "evm_swap_quote: { evm_chain_id, token_in, token_out, amount } — same-chain EVM swap quote (Phase 1). " +
-    "cross_chain_quote: { from_evm_chain_id, to_evm_chain_id, token, amount } — Li-Fi bridge quote (Phase 1). " +
-    "cross_chain_status: { bridge_id } — poll Li-Fi transfer status (Phase 1).",
+export const EVM_DEFI_QUERY_SCHEMA_MERGED = {
+  description: `${EVM_DEFI_QUERY_SCHEMA.description} ${LIFI_QUERY_SCHEMA.description}`,
+  paramsDescription: `${EVM_DEFI_QUERY_SCHEMA.paramsDescription} ${LIFI_QUERY_SCHEMA.paramsDescription}`,
 };
 
 const NOT_IMPLEMENTED: ChainQueryHandler = async (ctx) => {
@@ -24,19 +36,23 @@ const NOT_IMPLEMENTED: ChainQueryHandler = async (ctx) => {
   );
 };
 
-const EVM_QUERY_HANDLERS: Record<string, ChainQueryHandler> = Object.fromEntries(
-  EVM_DEFI_QUERY_TYPES.map((query) => [query, NOT_IMPLEMENTED]),
-);
+const EVM_QUERY_HANDLERS: Record<string, ChainQueryHandler> = {
+  ...Object.fromEntries(EVM_DEFI_QUERY_TYPES.map((query) => [query, NOT_IMPLEMENTED])),
+  ...LIFI_QUERY_HANDLERS,
+};
 
 export function getEvmDefiQueryHandler(query: string): ChainQueryHandler | null {
-  return EVM_QUERY_HANDLERS[query] ?? null;
+  return EVM_QUERY_HANDLERS[query] ?? getLifiQueryHandler(query);
 }
 
-export const EVM_EXECUTE_ACTIONS = ["transfer_native", "transfer_eth", "evm_swap"] as const;
+export const EVM_EXECUTE_ACTIONS_ALL = [
+  ...EVM_EXECUTE_ACTIONS,
+  ...LIFI_EXECUTE_ACTIONS,
+] as const;
 
-export const EVM_EXECUTE_SCHEMA = {
-  actionDescription: "transfer_native, transfer_eth, evm_swap (SushiSwap — Phase 1).",
-  paramsDescription:
-    "transfer_native / transfer_eth: { recipient, amount_atomic } or { recipient, amount_wei }. " +
-    "evm_swap: { evm_chain_id, ... } — Phase 1; requires evm_swap_quote first.",
+export const EVM_EXECUTE_SCHEMA_MERGED = {
+  actionDescription: `${EVM_EXECUTE_SCHEMA.actionDescription} ${LIFI_EXECUTE_SCHEMA.actionDescription}`,
+  paramsDescription: `${EVM_EXECUTE_SCHEMA.paramsDescription} ${LIFI_EXECUTE_SCHEMA.paramsDescription}`,
 };
+
+export { lifiPreflightHooks };

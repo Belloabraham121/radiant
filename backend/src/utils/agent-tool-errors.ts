@@ -126,6 +126,16 @@ function guidanceForErrorCode(code: string): string {
       return "Explain cross-ecosystem bridging (e.g. Stellar to EVM) is not supported in v1. Suggest same-chain swaps or enabled EVM bridges only.";
     case "DEFI_ROUTE_NOT_FOUND":
       return "Explain no DeFi provider is configured for the requested chain and capability. Suggest an enabled chain or same-chain swap.";
+    case "LIFI_RATE_LIMITED":
+      return "Explain Li-Fi is temporarily rate limiting. Suggest waiting a few seconds before retrying cross_chain_quote or cross_chain_status.";
+    case "LIFI_NO_ROUTE":
+      return "Explain no bridge route exists for this token pair or amount. Suggest a different amount, token, or enabled EVM chain pair.";
+    case "LIFI_VALIDATION_ERROR":
+      return "Explain the Li-Fi request params were invalid or the quote expired. Re-run cross_chain_quote with correct from_address and chain ids.";
+    case "LIFI_UNAVAILABLE":
+      return "Explain Li-Fi is temporarily unavailable. Suggest retrying shortly.";
+    case "APPROVAL_FAILED":
+      return "Explain the ERC-20 approval transaction failed. Suggest checking gas and retrying lifi_approve or cross_chain_swap.";
     case "CHAIN_NOT_ENABLED":
       return "Explain the requested chain or EVM network is not enabled on this deployment. List enabled chains if known from context.";
     case "CHAIN_NOT_SUPPORTED":

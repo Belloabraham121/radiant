@@ -1,6 +1,8 @@
 import { filterEnabledEvmChainIds } from "../../../config/supported-tokens.js";
 import { getDefiCacheConfig } from "../../../config/defi-cache.js";
+import { cacheGet, cacheSet } from "../../../infrastructure/redis/cache.js";
 import { defiCachedFetch, hashQuoteParams } from "../cache.js";
+import type { Route } from "@lifi/types";
 
 /** Li-Fi catalog cache keys — filtered to `ENABLED_EVM_CHAIN_IDS` at fetch time. */
 export function lifiChainsCacheKey(): string {
@@ -22,6 +24,14 @@ export function lifiToolsCacheKey(): string {
 
 export function lifiQuoteCacheKey(params: Record<string, unknown>): string {
   return `defi:lifi:quote:${hashQuoteParams(params)}`;
+}
+
+export function lifiRoutesListCacheKey(params: Record<string, unknown>): string {
+  return `defi:lifi:cross_chain_routes:${hashQuoteParams(params)}`;
+}
+
+export function lifiRouteStoreKey(routeId: string): string {
+  return `defi:lifi:route:${routeId}`;
 }
 
 export function lifiStatusCacheKey(txHash: string, fromChain: number, toChain: number): string {
@@ -52,4 +62,15 @@ export async function lifiCachedStatusFetch<T>(
   fetcher: () => Promise<T>,
 ): Promise<T> {
   return defiCachedFetch(key, getDefiCacheConfig().statusCacheTtlSeconds, fetcher);
+}
+
+const ROUTE_STORE_TTL_SECONDS = 600;
+
+/** Store a Li-Fi route snapshot for execute-by-route_id (read path only). */
+export async function storeLifiRoute(routeId: string, route: Route): Promise<void> {
+  await cacheSet(lifiRouteStoreKey(routeId), route, ROUTE_STORE_TTL_SECONDS);
+}
+
+export async function getStoredLifiRoute(routeId: string): Promise<Route | null> {
+  return cacheGet<Route>(lifiRouteStoreKey(routeId));
 }

@@ -125,7 +125,7 @@ infrastructure/
 1. **One folder per provider** under `services/defi/` — mirror `deepbook/` layout (client, services, types, errors).
 2. **Chain adapter** picks provider: same-chain EVM → Sushi; cross-chain EVM (enabled ids) → Li-Fi; Stellar → Soroswap; Sui → DeepBook.
 3. **Allowlist first** — reject chains/tokens outside v1 before any provider HTTP call.
-4. **No provider SDK in routes** — HTTP clients in `services/defi/<provider>/` only.
+4. **No provider SDK in routes** — HTTP/SDK clients live in `services/defi/<provider>/` only; Li-Fi uses `@lifi/sdk` in that layer, not in `src/api/`.
 5. **Prompt modules** are scoped per provider (`protocol:lifi:*`, `protocol:soroswap:*`, `protocol:sushiswap:*`).
 6. **Tool-first for new providers** — no regex swap parsers for EVM/Stellar; use `token_resolve` + clarification.
 7. **Cache read paths, not execute** — catalogs and quotes are cached per Phase 0.6; execution always re-validates.
@@ -138,11 +138,20 @@ Li-Fi docs describe three agent-facing surfaces. **“Resolve” is not a separa
 
 | Mode | What it is | Radiant fit |
 | ---- | ---------- | ----------- |
-| **Aggregator REST API** (`https://li.quest/v1`) | Classic routing across 27+ bridges and 31+ DEXes; `GET /quote` returns `transactionRequest` | **Recommended for v1** |
+| **Aggregator REST API** (`https://li.quest/v1`) | Classic routing across 27+ bridges and 31+ DEXes; `GET /quote` returns `transactionRequest` | **REST fallback** — SDK wraps the same API |
 | **Intents API** (`https://order.li.fi`) | Intent-based cross-chain; solvers fill orders; EIP-712 signed orders, escrow/resource locks | Phase L — advanced cross-chain |
 | **MCP Servers** (`mcp.li.quest`, Intents MCP) | Hosted tool discovery for external MCP hosts (Cursor, Claude) | **Do not use in production** — Radiant owns `query_chain` / `execute_transaction` |
 
-### Recommendation: **Aggregator REST API** (not MCP, not Intents for v1)
+### Recommendation: **SDK-first + REST fallback** (not MCP, not Intents for v1)
+
+Radiant Phase 1 uses **`@lifi/sdk`** + **`@lifi/sdk-provider-ethereum`** for quotes, multi-route comparison, step transactions, status, and `executeRoute`. **`lifiRestFetch`** in `lifi.client.ts` calls `https://li.quest/v1` when the SDK lacks a parameter or for `/advanced/*` edge cases. **Signing is always via Privy** (`createPrivyViemAccount` + `EthereumProvider({ getWalletClient })`) — no private keys on the server.
+
+| Layer | Surface | Radiant usage |
+| ----- | ------- | ------------- |
+| **SDK** | `getQuote`, `getRoutes`, `getStepTransaction`, `getStatus`, `executeRoute` | Primary path in `services/defi/lifi/` |
+| **REST fallback** | `lifiRestFetch(path)` → `https://li.quest/v1` | Advanced `/advanced/*`, missing SDK params |
+| **Intents API** | `https://order.li.fi` | Phase L — deferred |
+| **MCP** | `mcp.li.quest` | Do not use in production |
 
 **Rationale**
 
@@ -492,38 +501,38 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | Li-Fi API client (fetch wrapper, API key header, timeout) | `backend/src/services/defi/lifi/lifi.client.ts` |
-| [ ] | Zod schemas for quote, status, chains, tokens responses | `backend/src/services/defi/lifi/lifi.types.ts` |
-| [ ] | Unit tests with mocked fetch | `backend/tests/unit/defi/lifi/lifi.client.test.ts` |
+| [x] | Li-Fi API client (fetch wrapper, API key header, timeout) | `backend/src/services/defi/lifi/lifi.client.ts` |
+| [x] | Zod schemas for quote, status, chains, tokens responses | `backend/src/services/defi/lifi/lifi.types.ts` |
+| [x] | Unit tests with mocked fetch | `backend/tests/unit/defi/lifi/lifi.client.test.ts` |
 
 **Error handling**
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `lifi.errors.ts` — map Li-Fi HTTP/body errors to `AppError` | `backend/src/services/defi/lifi/lifi.errors.ts` |
-| [ ] | `LIFI_RATE_LIMITED` (429) — user: “Li-Fi is rate limiting; retry shortly.” | ↑ |
-| [ ] | `LIFI_NO_ROUTE` (404 / no route) — suggest different token pair or amount | ↑ |
-| [ ] | `LIFI_VALIDATION_ERROR` (400) — pass through sanitized message | ↑ |
-| [ ] | `LIFI_UNAVAILABLE` (5xx / timeout) | ↑ |
-| [ ] | Extend `guidanceForErrorCode` in `agent-tool-errors.ts` for Li-Fi codes | `backend/src/utils/agent-tool-errors.ts` |
+| [x] | `lifi.errors.ts` — map Li-Fi HTTP/body errors to `AppError` | `backend/src/services/defi/lifi/lifi.errors.ts` |
+| [x] | `LIFI_RATE_LIMITED` (429) — user: “Li-Fi is rate limiting; retry shortly.” | ↑ |
+| [x] | `LIFI_NO_ROUTE` (404 / no route) — suggest different token pair or amount | ↑ |
+| [x] | `LIFI_VALIDATION_ERROR` (400) — pass through sanitized message | ↑ |
+| [x] | `LIFI_UNAVAILABLE` (5xx / timeout) | ↑ |
+| [x] | Extend `guidanceForErrorCode` in `agent-tool-errors.ts` for Li-Fi codes | `backend/src/utils/agent-tool-errors.ts` |
 
 **Rate limiting**
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | Outbound token bucket: global + per-user (stay under 200/min with key) | `backend/src/services/defi/lifi/lifi-rate-limit.ts` |
-| [ ] | Env: `LIFI_RATE_LIMIT_CAPACITY`, `LIFI_RATE_LIMIT_REFILL_MS` | `backend/src/config/lifi.ts` |
-| [ ] | On 429 from Li-Fi: exponential backoff (max 3) before surfacing `LIFI_RATE_LIMITED` | `lifi.client.ts` |
-| [ ] | Status polling: max 1 req / 10 s per `txHash` per user (separate bucket) | `lifi-rate-limit.ts` |
+| [x] | Outbound token bucket: global + per-user (stay under 200/min with key) | `backend/src/services/defi/lifi/lifi-rate-limit.ts` |
+| [x] | Env: `LIFI_RATE_LIMIT_CAPACITY`, `LIFI_RATE_LIMIT_REFILL_MS` | `backend/src/config/lifi.ts` |
+| [x] | On 429 from Li-Fi: exponential backoff (max 3) before surfacing `LIFI_RATE_LIMITED` | `lifi.client.ts` |
+| [x] | Status polling: max 1 req / 10 s per `txHash` per user (separate bucket) | `lifi-rate-limit.ts` |
 
 ### 1.2 Read services
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `getLifiChains()` — cache 5 min | `backend/src/services/defi/lifi/lifi-chains.service.ts` |
-| [ ] | `getLifiTokens(chainIds)` — cache per chain set | `backend/src/services/defi/lifi/lifi-token-catalog.service.ts` |
-| [ ] | `getLifiConnections(fromChain, toChain)` | `backend/src/services/defi/lifi/lifi-connections.service.ts` |
-| [ ] | `getLifiTools()` — bridges + exchanges list | `backend/src/services/defi/lifi/lifi-tools.service.ts` |
+| [x] | `getLifiChains()` — cache 5 min | `backend/src/services/defi/lifi/lifi-chains.service.ts` |
+| [x] | `getLifiTokens(chainIds)` — cache per chain set | `backend/src/services/defi/lifi/lifi-token-catalog.service.ts` |
+| [x] | `getLifiConnections(fromChain, toChain)` | `backend/src/services/defi/lifi/lifi-connections.service.ts` |
+| [x] | `getLifiTools()` — bridges + exchanges list | `backend/src/services/defi/lifi/lifi-tools.service.ts` |
 
 **Error handling:** each service catches client errors; never leak API key in logs.
 
@@ -533,65 +542,65 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `getLifiQuote(input)` — wraps `GET /v1/quote` | `backend/src/services/defi/lifi/lifi-quote.service.ts` |
-| [ ] | `getLifiAdvancedRoutes(input)` — multi-option routes | `backend/src/services/defi/lifi/lifi-routes.service.ts` |
-| [ ] | `getLifiStepTransaction(step)` — for multi-step routes | ↑ |
-| [ ] | Normalize to shared `RouteQuote` / `CrossChainQuote` | `backend/src/services/defi/lifi/lifi-normalize.ts` |
-| [ ] | Map `evm_chain_id` ↔ Li-Fi chain id | `backend/src/services/defi/lifi/lifi-chain-map.ts` |
+| [x] | `getLifiQuote(input)` — wraps `GET /v1/quote` | `backend/src/services/defi/lifi/lifi-quote.service.ts` |
+| [x] | `getLifiAdvancedRoutes(input)` — multi-option routes | `backend/src/services/defi/lifi/lifi-routes.service.ts` |
+| [x] | `getLifiStepTransaction(step)` — for multi-step routes | ↑ |
+| [x] | Normalize to shared `RouteQuote` / `CrossChainQuote` | `backend/src/services/defi/lifi/lifi-normalize.ts` |
+| [x] | Map `evm_chain_id` ↔ Li-Fi chain id | `backend/src/services/defi/lifi/lifi-chain-map.ts` |
 
 **Error handling**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Validate `fromAddress` matches user's agent wallet for `chain_id: ethereum` |
-| [ ] | `INSUFFICIENT_BALANCE` when quote estimate flags insufficient funds |
-| [ ] | Slippage / `toAmountMin` below user threshold → `SLIPPAGE_EXCEEDED` |
+| [x] | Validate `fromAddress` matches user's agent wallet for `chain_id: ethereum` |
+| [x] | `INSUFFICIENT_BALANCE` when quote estimate flags insufficient funds |
+| [x] | Slippage / `toAmountMin` below user threshold → `SLIPPAGE_EXCEEDED` |
 
 **Rate limiting**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Quote calls cost 2 tokens (heavier than status) |
-| [ ] | Per-session dedupe: identical quote params within 5 s return cached result |
+| [x] | Quote calls cost 2 tokens (heavier than status) |
+| [x] | Per-session dedupe: identical quote params within 5 s return cached result |
 
 ### 1.4 Execute service
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `executeLifiQuote(privyUserId, quote)` — sign `transactionRequest` via EVM adapter | `backend/src/services/defi/lifi/lifi-execute.service.ts` |
-| [ ] | ERC-20 approval detection via Li-Fi allowance or viem `allowance` | `backend/src/services/defi/lifi/lifi-approval.service.ts` |
-| [ ] | `execute_transaction` action: `cross_chain_swap` / `lifi_swap` | wire in `backend/src/services/chains/adapters/evm.ts` |
-| [ ] | Post-tx: start status polling job or return `status_poll_id` | `backend/src/services/defi/lifi/lifi-status.service.ts` |
-| [ ] | Persist cross-chain intent in agent transaction ledger | extend existing transaction history |
+| [x] | `executeLifiQuote(privyUserId, quote)` — sign `transactionRequest` via EVM adapter | `backend/src/services/defi/lifi/lifi-execute.service.ts` |
+| [x] | ERC-20 approval detection via Li-Fi allowance or viem `allowance` | `backend/src/services/defi/lifi/lifi-approval.service.ts` |
+| [x] | `execute_transaction` action: `cross_chain_swap` / `lifi_swap` | wire in `backend/src/services/chains/adapters/evm.ts` |
+| [x] | Post-tx: start status polling job or return `status_poll_id` | `backend/src/services/defi/lifi/lifi-status.service.ts` |
+| [x] | Persist cross-chain intent in agent transaction ledger | extend existing transaction history |
 
 **Error handling**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Approval tx failure → `APPROVAL_FAILED` with explorer link |
-| [ ] | Source tx reverted → `TRANSACTION_FAILED` + Li-Fi substatus if available |
-| [ ] | Status `FAILED` / `REFUNDED` → map to user-facing messages |
-| [ ] | Multi-step: if step 2 required on dest chain, return structured `pending_step` for agent (don't fail silently) |
+| [x] | Approval tx failure → `APPROVAL_FAILED` with explorer link |
+| [x] | Source tx reverted → `TRANSACTION_FAILED` + Li-Fi substatus if available |
+| [x] | Status `FAILED` / `REFUNDED` → map to user-facing messages |
+| [x] | Multi-step: if step 2 required on dest chain, return structured `pending_step` for agent (don't fail silently) |
 
 **Rate limiting**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Execute path: per-user max 5 cross-chain txs / hour (configurable) |
-| [ ] | Status polling via Inngest or internal scheduler — not unbounded agent loops |
+| [x] | Execute path: per-user max 5 cross-chain txs / hour (configurable) |
+| [x] | Status polling via Inngest or internal scheduler — not unbounded agent loops |
 
 ### 1.5 Agent integration
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `query_chain` types: `cross_chain_quote`, `cross_chain_status`, `cross_chain_connections` | `backend/src/services/agent/query-chain.tool.ts` |
-| [ ] | `execute_transaction` actions: `cross_chain_swap`, `lifi_approve` (if separate) | `backend/src/services/agent/execute-transaction.tool.ts` |
-| [ ] | Prompt module `protocol:lifi:env` | `backend/src/services/agent/prompts/protocols/lifi/env.ts` |
-| [ ] | Prompt module `protocol:lifi:swap` | `backend/src/services/agent/prompts/protocols/lifi/swap.ts` |
-| [ ] | Prompt module `protocol:lifi:bridge` | `backend/src/services/agent/prompts/protocols/lifi/bridge.ts` |
-| [ ] | Triggers in `module-triggers.ts` — keywords: bridge, cross-chain, Li-Fi, jumper; chains: `ethereum` | `backend/src/services/agent/prompts/module-triggers.ts` |
-| [ ] | Register modules in `registry.ts` | `backend/src/services/agent/prompts/registry.ts` |
-| [ ] | Extend `transaction-approval.service.ts` for cross-chain notional (USD estimate via existing valuation) | [Backend] |
+| [x] | `query_chain` types: `cross_chain_quote`, `cross_chain_status`, `cross_chain_connections` | `backend/src/services/agent/query-chain.tool.ts` |
+| [x] | `execute_transaction` actions: `cross_chain_swap`, `lifi_approve` (if separate) | `backend/src/services/agent/execute-transaction.tool.ts` |
+| [x] | Prompt module `protocol:lifi:env` | `backend/src/services/agent/prompts/protocols/lifi/env.ts` |
+| [x] | Prompt module `protocol:lifi:swap` | `backend/src/services/agent/prompts/protocols/lifi/swap.ts` |
+| [x] | Prompt module `protocol:lifi:bridge` | `backend/src/services/agent/prompts/protocols/lifi/bridge.ts` |
+| [x] | Triggers in `module-triggers.ts` — keywords: bridge, cross-chain, Li-Fi, jumper; chains: `ethereum` | `backend/src/services/agent/prompts/module-triggers.ts` |
+| [x] | Register modules in `registry.ts` | `backend/src/services/agent/prompts/registry.ts` |
+| [x] | Extend `transaction-approval.service.ts` for cross-chain notional (USD estimate via existing valuation) | [Backend] |
 
 **Prompt content (lifi/swap.ts) must include**
 
@@ -605,10 +614,10 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `tests/unit/defi/lifi/lifi-quote.service.test.ts` |
-| [ ] | `tests/unit/defi/lifi/lifi.errors.test.ts` |
-| [ ] | `tests/unit/defi/lifi/lifi-rate-limit.test.ts` |
-| [ ] | Integration test (mocked Li-Fi): quote → normalized output |
+| [x] | `tests/unit/defi/lifi/lifi-quote.service.test.ts` |
+| [x] | `tests/unit/defi/lifi/lifi.errors.test.ts` |
+| [x] | `tests/unit/defi/lifi/lifi-rate-limit.test.ts` |
+| [x] | Integration test (mocked Li-Fi): quote → normalized output |
 
 **Exit criteria:** Agent can quote ETH→Base USDC, bridge Base↔Arbitrum, and execute on staging; status tracked; errors are user-friendly; only `ENABLED_EVM_CHAIN_IDS` chains accepted.
 
@@ -1151,7 +1160,7 @@ Add to [backend/docs/TODO.md](../backend/docs/TODO.md):
 | Status | Task | Owner |
 | ------ | ---- | ----- |
 | [ ] | Phase 0 — Allowlist + Stellar adapter + defi registry | [Backend] |
-| [ ] | Phase 1 — Li-Fi (ETH ↔ Arbitrum ↔ Base) | [Backend] |
+| [x] | Phase 1 — Li-Fi (ETH ↔ Arbitrum ↔ Base) | [Backend] |
 | [ ] | Phase 2 — Soroswap (Stellar) | [Backend] |
 | [ ] | Phase 3 — SushiSwap (EVM same-chain) | [Backend] |
 | [ ] | Phase 4 — Simple provider router | [Backend] |
