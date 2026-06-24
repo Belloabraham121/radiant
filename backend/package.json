@@ -38,6 +38,7 @@
     "@prisma/client": "^6.5.0",
     "@privy-io/node": "^0.7.0",
     "@solana/web3.js": "^1.98.4",
+    "@stellar/stellar-sdk": "^13.3.0",
     "bullmq": "^5.78.0",
     "cheerio": "^1.2.0",
     "cookie-parser": "^1.4.7",

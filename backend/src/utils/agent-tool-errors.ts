@@ -122,6 +122,10 @@ function guidanceForErrorCode(code: string): string {
       return "Explain Stellar RPC (Horizon or Soroban) was temporarily busy or unreachable. Suggest waiting a few seconds and retrying.";
     case "STELLAR_CHAIN_NOT_CONFIGURED":
       return "Explain Stellar is not configured on this deployment. Suggest contacting the operator or using an enabled chain.";
+    case "CROSS_ECOSYSTEM_NOT_SUPPORTED":
+      return "Explain cross-ecosystem bridging (e.g. Stellar to EVM) is not supported in v1. Suggest same-chain swaps or enabled EVM bridges only.";
+    case "DEFI_ROUTE_NOT_FOUND":
+      return "Explain no DeFi provider is configured for the requested chain and capability. Suggest an enabled chain or same-chain swap.";
     case "CHAIN_NOT_ENABLED":
       return "Explain the requested chain or EVM network is not enabled on this deployment. List enabled chains if known from context.";
     case "CHAIN_NOT_SUPPORTED":
@@ -132,6 +136,7 @@ function guidanceForErrorCode(code: string): string {
     case "INVALID_PUBLIC_KEY":
     case "WALLET_METADATA_MISSING":
     case "SIGNING_FAILED":
+    case "STELLAR_SIGNING_FAILED":
       return "Explain there was a wallet signing issue and suggest reconnecting or re-registering the agent wallet.";
     case "VALIDATION_ERROR":
       return "Explain which param was wrong in plain language. For generate_app: name must be a string, files must be an array of { path, content } objects (include app/page.tsx). For deepbook_flash_loan / flash_loan_quote: pool_key is the borrow pool; asset must be base or quote; swap_chain_repay steps are optional (auto-routed when omitted). Fix params and retry the tool — do not ask the user to confirm in chat when details are already in the thread.";

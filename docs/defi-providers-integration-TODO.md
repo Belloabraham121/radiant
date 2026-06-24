@@ -288,61 +288,61 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `backend/src/infrastructure/stellar/client.ts` — Horizon + Soroban RPC clients | [Backend] |
-| [ ] | `backend/src/services/chains/adapters/stellar.ts` — `getBalance`, `executeTransaction` | [Backend] |
-| [ ] | `backend/src/services/wallet/stellar-signing.service.ts` — Privy `rawSign` + attach signature to XDR | [Backend] |
-| [ ] | `backend/src/services/wallet/stellar-transaction.service.ts` — simulate, hash, broadcast | [Backend] |
-| [ ] | Register in `backend/src/services/chains/registry.ts` | [Backend] |
-| [ ] | `tests/unit/chains/stellar.adapter.test.ts` | [Backend] |
+| [x] | `backend/src/infrastructure/stellar/client.ts` — Horizon + Soroban RPC clients | [Backend] |
+| [x] | `backend/src/services/chains/adapters/stellar.ts` — `getBalance`, `executeTransaction` | [Backend] |
+| [x] | `backend/src/services/wallet/stellar-signing.service.ts` — Privy `rawSign` + attach signature to XDR | [Backend] |
+| [x] | `backend/src/services/wallet/stellar-transaction.service.ts` — simulate, hash, broadcast | [Backend] |
+| [x] | Register in `backend/src/services/chains/registry.ts` | [Backend] |
+| [x] | `tests/unit/chains/stellar.adapter.test.ts` | [Backend] |
 
 **Error handling**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `stellar.errors.ts` — map Soroban simulation failures (`tx_failed`, `op_no_trust`, insufficient XLM for fees) |
-| [ ] | `INSUFFICIENT_BALANCE` — trustline missing → user message suggests opening trustline or gasless flow |
-| [ ] | `STELLAR_SIGNING_FAILED` — Privy rawSign errors |
-| [ ] | `TRANSACTION_FAILED` — Horizon `failed` / `error_result` with excerpt in `details` |
+| [x] | `stellar.errors.ts` — map Soroban simulation failures (`tx_failed`, `op_no_trust`, insufficient XLM for fees) |
+| [x] | `INSUFFICIENT_BALANCE` — trustline missing → user message suggests opening trustline or gasless flow |
+| [x] | `STELLAR_SIGNING_FAILED` — Privy rawSign errors |
+| [x] | `TRANSACTION_FAILED` — Horizon `failed` / `error_result` with excerpt in `details` |
 
 **Rate limiting**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | Wrap Soroban RPC simulate/submit in `withStellarRpcRetry` (mirror `infrastructure/sui/rpc-retry.ts`) |
-| [ ] | Per-user bucket on `execute_transaction` when `chain_id=stellar` (e.g. 10/min) via existing `token-bucket` |
+| [x] | Wrap Soroban RPC simulate/submit in `withStellarRpcRetry` (mirror `infrastructure/sui/rpc-retry.ts`) |
+| [x] | Per-user bucket on `execute_transaction` when `chain_id=stellar` (e.g. 10/min) via existing `token-bucket` |
 
 ### 0.3 Shared DeFi types and registry
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | Extend `DeFiProviderId` in `backend/src/services/defi/deepbook/types.ts` → move to `backend/src/services/defi/types.ts` | [Backend] |
-| [ ] | Add ids: `evm-lifi`, `evm-sushiswap`, `stellar-soroswap` (keep `sui-deepbook`) | [Backend] |
-| [ ] | Extend `backend/src/services/defi/swap-registry.ts` — `getProviderForSwap({ chain_id, cross_chain })` router | [Backend] |
-| [ ] | `RouteQuote` type for cross-chain (steps, bridges, estimated duration) | [Backend] |
-| [ ] | `tests/unit/defi/swap-registry.test.ts` — routing rules | [Backend] |
+| [x] | Extend `DeFiProviderId` in `backend/src/services/defi/deepbook/types.ts` → move to `backend/src/services/defi/types.ts` | [Backend] |
+| [x] | Add ids: `evm-lifi`, `evm-sushiswap`, `stellar-soroswap` (keep `sui-deepbook`) | [Backend] |
+| [x] | Extend `backend/src/services/defi/swap-registry.ts` — `getProviderForSwap({ chain_id, cross_chain })` router | [Backend] |
+| [x] | `RouteQuote` type for cross-chain (steps, bridges, estimated duration) | [Backend] |
+| [x] | `tests/unit/defi/swap-registry.test.ts` — routing rules | [Backend] |
 
 **Error handling**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `DEFI_PROVIDER_NOT_FOUND` — unknown provider id (existing) |
-| [ ] | `DEFI_ROUTE_NOT_FOUND` — no provider for chain/capability combo |
-| [ ] | `CROSS_ECOSYSTEM_NOT_SUPPORTED` — stellar ↔ evm until Phase 8 |
+| [x] | `DEFI_PROVIDER_NOT_FOUND` — unknown provider id (existing) |
+| [x] | `DEFI_ROUTE_NOT_FOUND` — no provider for chain/capability combo |
+| [x] | `CROSS_ECOSYSTEM_NOT_SUPPORTED` — stellar ↔ evm until Phase 8 |
 
 **Rate limiting**
 
 | Status | Task |
 | ------ | ---- |
-| [ ] | `backend/src/services/defi/rate-limit.ts` — shared helper `consumeDefiProviderQuota(userId, providerId, cost)` wrapping `tryConsumeTokenBucket` |
+| [x] | `backend/src/services/defi/rate-limit.ts` — shared helper `consumeDefiProviderQuota(userId, providerId, cost)` wrapping `tryConsumeTokenBucket` |
 
 ### 0.4 Provider config files
 
 | Status | Task | Owner |
 | ------ | ---- | ----- |
-| [ ] | `backend/src/config/lifi.ts` — `LIFI_API_BASE_URL`, `LIFI_API_KEY`, `LIFI_DEFAULT_SLIPPAGE`, rate limit env | [Backend] |
-| [ ] | `backend/src/config/soroswap.ts` — `SOROSWAP_API_BASE_URL`, `SOROSWAP_API_KEY`, `SOROSWAP_NETWORK`, rate limit env | [Backend] |
-| [ ] | `backend/src/config/sushiswap.ts` — `SUSHI_API_BASE_URL`, `SUSHI_API_KEY`, rate limit env | [Backend] |
-| [ ] | Document all vars in `backend/.env.example` | [Backend] |
+| [x] | `backend/src/config/lifi.ts` — `LIFI_API_BASE_URL`, `LIFI_API_KEY`, `LIFI_DEFAULT_SLIPPAGE`, rate limit env | [Backend] |
+| [x] | `backend/src/config/soroswap.ts` — `SOROSWAP_API_BASE_URL`, `SOROSWAP_API_KEY`, `SOROSWAP_NETWORK`, rate limit env | [Backend] |
+| [x] | `backend/src/config/sushiswap.ts` — `SUSHI_API_BASE_URL`, `SUSHI_API_KEY`, rate limit env | [Backend] |
+| [x] | Document all vars in `backend/.env.example` | [Backend] |
 
 ### 0.5 Chain and token allowlists
 

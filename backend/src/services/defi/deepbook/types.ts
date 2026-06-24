@@ -1,22 +1,11 @@
-/** Registered onchain DeFi venue. */
-export type DeFiProviderId = "sui-deepbook";
-
-export type SwapSide = "buy" | "sell";
-
-/** Quote for a single-hop swap (Phase D). */
-export type SwapQuote = {
-  provider_id: DeFiProviderId;
-  pool_key: string;
-  input_coin: string;
-  output_coin: string;
-  input_amount_atomic: string;
-  output_amount_atomic: string;
-  input_amount_display: number;
-  output_amount_display: number;
-  price: number | null;
-  fee_deep: number | null;
-  expires_at: string | null;
-};
+export type {
+  DeFiProviderId,
+  SwapQuote,
+  SwapSide,
+  RouteQuote,
+  RouteStep,
+  RouteStepType,
+} from "../types.js";
 
 /** Pool metadata for agent/UI reads (Phase C). */
 export type PoolSummary = {

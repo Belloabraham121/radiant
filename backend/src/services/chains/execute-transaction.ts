@@ -1,5 +1,6 @@
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { getDefaultAgentChainId } from "../../config/chains.js";
+import { consumeStellarExecuteQuota } from "./stellar-execute-rate-limit.js";
 import { getAdapter } from "./registry.js";
 import type { ExecuteTransactionInput, ExecuteTransactionInputParsed, TxResult } from "./types.js";
 import { executeTransactionInputSchema } from "./types.js";
@@ -20,6 +21,9 @@ export async function executeTransactionForUser(
 ): Promise<TxResult> {
   try {
     const parsed = parseExecuteTransactionInput(input);
+    if (parsed.chain_id === "stellar") {
+      await consumeStellarExecuteQuota(privyUserId);
+    }
     const adapter = getAdapter(parsed.chain_id);
     return await adapter.executeTransaction(privyUserId, parsed.action, parsed.params);
   } catch (err) {
