@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/api-config";
+import { buildUpstreamProxyHeaders } from "@/lib/api";
 
 /** Agent turns may run many tool + LLM steps — avoid the default ~30s rewrite proxy limit. */
 export const maxDuration = 300;
@@ -7,7 +8,7 @@ const CHAT_UPSTREAM_TIMEOUT_MS = 5 * 60 * 1000;
 
 export async function POST(request: Request): Promise<Response> {
   const body = await request.text();
-  const cookie = request.headers.get("cookie");
+  const proxyHeaders = buildUpstreamProxyHeaders(request);
   const url = new URL(request.url);
   const stream = url.searchParams.get("stream") === "1";
   const accept = request.headers.get("accept") ?? "";
@@ -32,7 +33,7 @@ export async function POST(request: Request): Promise<Response> {
         ...(stream || accept.includes("text/event-stream")
           ? { Accept: "text/event-stream" }
           : {}),
-        ...(cookie ? { cookie } : {}),
+        ...proxyHeaders,
       },
       body,
       signal: upstreamController.signal,

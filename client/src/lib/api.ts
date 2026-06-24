@@ -86,6 +86,27 @@ export function withMutationSecurityHeaders(headersInit?: HeadersInit): Headers 
   return headers;
 }
 
+/**
+ * Forward browser auth/CSRF headers through Next.js route handlers that proxy to the backend.
+ * Rewrites pass these automatically; dedicated `app/api/.../route.ts` proxies must call this.
+ */
+export function buildUpstreamProxyHeaders(request: Request): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const cookie = request.headers.get("cookie");
+  if (cookie) {
+    headers.cookie = cookie;
+  }
+
+  for (const name of ["origin", "referer", CSRF_HEADER_NAME, RADIANT_CLIENT_HEADER]) {
+    const value = request.headers.get(name);
+    if (value) {
+      headers[name] = value;
+    }
+  }
+
+  return headers;
+}
+
 function isIdempotentMethod(method: string): boolean {
   const upper = method.toUpperCase();
   return upper === "GET" || upper === "HEAD";
