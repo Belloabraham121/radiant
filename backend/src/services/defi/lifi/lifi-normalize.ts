@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { LiFiStep, Route, StatusResponse } from "@lifi/types";
+import type { LifiChainRef } from "../../../config/lifi-chains.js";
+import { lifiChainRefLabel, radiantChainRefToLifiChainId } from "../../../config/lifi-chains.js";
 import type { RouteQuote, RouteStep } from "../types.js";
-import { lifiChainIdToEvmChainId } from "./lifi-chain-map.js";
+import { lifiToRadiantChainRef } from "./lifi-chain-map.js";
 import type {
   CrossChainQuote,
   CrossChainRouteOption,
@@ -46,16 +48,16 @@ function normalizeRouteSteps(route: Route | LiFiStep): RouteStep[] {
   const normalized: RouteStep[] = [];
 
   for (const step of steps) {
-    const fromChain = lifiChainIdToEvmChainId(step.action.fromChainId);
-    const toChain = lifiChainIdToEvmChainId(step.action.toChainId);
+    const fromRef = lifiToRadiantChainRef(step.action.fromChainId);
+    const toRef = lifiToRadiantChainRef(step.action.toChainId);
     const type: RouteStep["type"] =
       step.type === "lifi" ? "bridge" : step.type === "swap" ? "swap" : "bridge";
 
     normalized.push({
       type,
       provider: "evm-lifi",
-      from_chain: String(fromChain),
-      to_chain: String(toChain),
+      from_chain: lifiChainRefLabel(fromRef),
+      to_chain: lifiChainRefLabel(toRef),
       from_token: step.action.fromToken.symbol,
       to_token: step.action.toToken.symbol,
       tool: step.tool,
@@ -93,6 +95,17 @@ function quoteExpiresAt(route: Route | LiFiStep): string | null {
   return new Date(Date.now() + maxSeconds * 1000).toISOString();
 }
 
+function chainRefFields(from: LifiChainRef, to: LifiChainRef) {
+  return {
+    from_chain_id: from.chain_id,
+    to_chain_id: to.chain_id,
+    from_lifi_chain_id: radiantChainRefToLifiChainId(from),
+    to_lifi_chain_id: radiantChainRefToLifiChainId(to),
+    from_evm_chain_id: from.chain_id === "ethereum" ? from.evm_chain_id : undefined,
+    to_evm_chain_id: to.chain_id === "ethereum" ? to.evm_chain_id : undefined,
+  };
+}
+
 export function createRouteId(seed?: string): string {
   if (seed) {
     return createHash("sha256").update(seed).digest("hex").slice(0, 16);
@@ -102,20 +115,20 @@ export function createRouteId(seed?: string): string {
 
 export function normalizeLifiStepToCrossChainQuote(input: {
   step: LiFiStep;
-  fromEvmChainId: number;
-  toEvmChainId: number;
+  from: LifiChainRef;
+  to: LifiChainRef;
   fromTokenSymbol: string;
   toTokenSymbol: string;
   routeId?: string;
 }): CrossChainQuote {
   const route = normalizeLifiStepToRouteQuote(input);
   const routeId = input.routeId ?? createRouteId(JSON.stringify(input.step));
+  const chainFields = chainRefFields(input.from, input.to);
 
   return {
     ...route,
     route_id: routeId,
-    from_evm_chain_id: input.fromEvmChainId,
-    to_evm_chain_id: input.toEvmChainId,
+    ...chainFields,
     from_token_symbol: input.fromTokenSymbol,
     to_token_symbol: input.toTokenSymbol,
     gas_cost_usd: sumUsd(input.step.estimate?.gasCosts),
@@ -128,20 +141,20 @@ export function normalizeLifiStepToCrossChainQuote(input: {
 
 export function normalizeLifiRouteToCrossChainQuote(input: {
   route: Route;
-  fromEvmChainId: number;
-  toEvmChainId: number;
+  from: LifiChainRef;
+  to: LifiChainRef;
   fromTokenSymbol: string;
   toTokenSymbol: string;
   routeId?: string;
 }): CrossChainQuote {
   const base = normalizeLifiRouteToRouteQuote(input);
   const routeId = input.routeId ?? input.route.id ?? createRouteId(JSON.stringify(input.route));
+  const chainFields = chainRefFields(input.from, input.to);
 
   return {
     ...base,
     route_id: routeId,
-    from_evm_chain_id: input.fromEvmChainId,
-    to_evm_chain_id: input.toEvmChainId,
+    ...chainFields,
     from_token_symbol: input.fromTokenSymbol,
     to_token_symbol: input.toTokenSymbol,
     gas_cost_usd: sumUsd(input.route.steps[0]?.estimate?.gasCosts),
@@ -156,15 +169,15 @@ export function normalizeLifiRouteToCrossChainQuote(input: {
 
 export function normalizeLifiStepToRouteQuote(input: {
   step: LiFiStep;
-  fromEvmChainId: number;
-  toEvmChainId: number;
+  from: LifiChainRef;
+  to: LifiChainRef;
   fromTokenSymbol: string;
   toTokenSymbol: string;
 }): RouteQuote {
   return {
     provider_id: "evm-lifi",
-    from_chain_id: "ethereum",
-    to_chain_id: "ethereum",
+    from_chain_id: input.from.chain_id,
+    to_chain_id: input.to.chain_id,
     from_token: input.fromTokenSymbol,
     to_token: input.toTokenSymbol,
     from_amount_atomic: input.step.estimate.fromAmount,
@@ -178,34 +191,35 @@ export function normalizeLifiStepToRouteQuote(input: {
 
 export function normalizeLifiRouteToRouteQuote(input: {
   route: Route;
-  fromEvmChainId: number;
-  toEvmChainId: number;
+  from: LifiChainRef;
+  to: LifiChainRef;
   fromTokenSymbol: string;
   toTokenSymbol: string;
 }): RouteQuote {
   const first = input.route.steps[0];
   return {
     provider_id: "evm-lifi",
-    from_chain_id: "ethereum",
-    to_chain_id: "ethereum",
+    from_chain_id: input.from.chain_id,
+    to_chain_id: input.to.chain_id,
     from_token: input.fromTokenSymbol,
     to_token: input.toTokenSymbol,
     from_amount_atomic: first?.estimate.fromAmount ?? input.route.fromAmount,
     to_amount_atomic: first?.estimate.toAmount ?? input.route.toAmount,
     steps: normalizeRouteSteps(input.route),
     bridges: extractBridges(input.route),
-    estimated_duration_seconds: input.route.steps.reduce(
-      (max, step) => Math.max(max, step.estimate.executionDuration ?? 0),
-      0,
-    ) || null,
+    estimated_duration_seconds:
+      input.route.steps.reduce(
+        (max, step) => Math.max(max, step.estimate.executionDuration ?? 0),
+        0,
+      ) || null,
     expires_at: quoteExpiresAt(input.route),
   };
 }
 
 export function normalizeLifiRouteOption(input: {
   route: Route;
-  fromEvmChainId: number;
-  toEvmChainId: number;
+  from: LifiChainRef;
+  to: LifiChainRef;
   fromTokenSymbol: string;
   toTokenSymbol: string;
 }): CrossChainRouteOption {
@@ -218,12 +232,12 @@ export function normalizeLifiRouteOption(input: {
       }
     }
   }
+  const chainFields = chainRefFields(input.from, input.to);
 
   return {
     route_id: routeId,
     provider_id: "evm-lifi",
-    from_evm_chain_id: input.fromEvmChainId,
-    to_evm_chain_id: input.toEvmChainId,
+    ...chainFields,
     from_token_symbol: input.fromTokenSymbol,
     to_token_symbol: input.toTokenSymbol,
     from_amount_atomic: input.route.fromAmount,
@@ -231,8 +245,10 @@ export function normalizeLifiRouteOption(input: {
     bridges: extractBridges(input.route),
     exchanges: [...exchanges],
     estimated_duration_seconds:
-      input.route.steps.reduce((max, step) => Math.max(max, step.estimate.executionDuration ?? 0), 0) ||
-      null,
+      input.route.steps.reduce(
+        (max, step) => Math.max(max, step.estimate.executionDuration ?? 0),
+        0,
+      ) || null,
     gas_cost_usd: sumUsd(input.route.steps[0]?.estimate?.gasCosts),
     fee_cost_usd: sumUsd(input.route.steps[0]?.estimate?.feeCosts),
     tags: input.route.tags ?? [],
@@ -243,8 +259,8 @@ export function normalizeLifiRouteOption(input: {
 export function normalizeLifiStatus(input: {
   status: StatusResponse;
   txHash: string;
-  fromEvmChainId: number;
-  toEvmChainId: number;
+  from: LifiChainRef;
+  to: LifiChainRef;
 }): CrossChainStatusResult {
   const receivingTxHash =
     "receiving" in input.status &&
@@ -253,13 +269,14 @@ export function normalizeLifiStatus(input: {
       ? input.status.receiving.txHash
       : null;
 
+  const chainFields = chainRefFields(input.from, input.to);
+
   return {
     status: input.status.status,
     substatus: input.status.substatus ?? null,
     substatus_message: input.status.substatusMessage ?? null,
     tx_hash: input.txHash,
-    from_evm_chain_id: input.fromEvmChainId,
-    to_evm_chain_id: input.toEvmChainId,
+    ...chainFields,
     receiving_tx_hash: receivingTxHash,
     tool: "tool" in input.status ? input.status.tool : null,
     raw: input.status,

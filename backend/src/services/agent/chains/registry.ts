@@ -21,6 +21,15 @@ import {
   lifiPreflightHooks,
 } from "./evm/index.js";
 import {
+  LIFI_QUERY_HANDLERS,
+  LIFI_QUERY_SCHEMA,
+  LIFI_QUERY_TYPES,
+} from "./evm/lifi/query-handlers.js";
+import {
+  LIFI_EXECUTE_ACTIONS,
+  LIFI_EXECUTE_SCHEMA,
+} from "./evm/lifi/execute-actions.js";
+import {
   getStellarQueryHandler,
   STELLAR_EXECUTE_SCHEMA,
   STELLAR_SOROSWAP_EXECUTE_ACTIONS,
@@ -108,12 +117,32 @@ const ALL_PLUGINS: Record<ChainFolderKey, () => ChainPlugin> = {
   solana: () => ({
     folderKey: "solana",
     chainIds: ["solana"],
-    queries: [],
+    queries: [
+      {
+        chainIds: ["solana"],
+        queryTypes: LIFI_QUERY_TYPES,
+        handler: async (ctx) => {
+          const handler = LIFI_QUERY_HANDLERS[ctx.query];
+          if (!handler) {
+            throw new Error(`Missing Li-Fi query handler: ${ctx.query}`);
+          }
+          return handler(ctx);
+        },
+        schema: {
+          queryTypes: LIFI_QUERY_TYPES,
+          description: LIFI_QUERY_SCHEMA.description,
+          paramsDescription: LIFI_QUERY_SCHEMA.paramsDescription,
+        },
+      },
+    ],
     execute: {
       chainIds: ["solana"],
-      actions: ["transfer_native", "transfer_sol"],
-      actionDescription: "transfer_native, transfer_sol.",
-      paramsDescription: "transfer_native: { recipient, amount_atomic }.",
+      actions: ["transfer_native", "transfer_sol", ...LIFI_EXECUTE_ACTIONS],
+      actionDescription:
+        "transfer_native, transfer_sol. " + LIFI_EXECUTE_SCHEMA.actionDescription,
+      paramsDescription:
+        "transfer_native: { recipient, amount_atomic }. " + LIFI_EXECUTE_SCHEMA.paramsDescription,
+      preflightHooks: lifiPreflightHooks,
     },
   }),
 };

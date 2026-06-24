@@ -29,14 +29,21 @@ export function resetLifiClientForTests(): void {
   fetchImpl = (...args) => fetch(...args);
 }
 
-function buildSdkClient(): SDKClient {
+export function buildLifiSdkClientOptions() {
   const config = getLifiConfig();
-  return createClient({
+  return {
     integrator: config.integrator,
     apiUrl: config.apiBaseUrl,
     ...(config.apiKey ? { apiKey: config.apiKey } : {}),
+    ...(config.integratorFee > 0
+      ? { routeOptions: { fee: config.integratorFee } }
+      : {}),
     debug: false,
-  });
+  };
+}
+
+function buildSdkClient(): SDKClient {
+  return createClient(buildLifiSdkClientOptions());
 }
 
 /** Shared Li-Fi SDK client (SDK-first for quotes, routes, steps, status). */

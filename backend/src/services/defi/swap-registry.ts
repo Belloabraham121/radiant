@@ -1,3 +1,4 @@
+import { isLifiCrossEcosystemPair } from "../../config/lifi-chains.js";
 import { AppError } from "../../errors/app-error.js";
 import type { ChainId } from "../chains/types.js";
 import type { DeFiProviderId } from "./types.js";
@@ -52,14 +53,26 @@ function assertCrossEcosystemSupported(input: GetProviderForSwapInput): void {
   }
 
   if (chainEcosystem(from) !== chainEcosystem(to)) {
+    if (isLifiCrossEcosystemPair(from, to)) {
+      return;
+    }
     throw new AppError(
       400,
       "CROSS_ECOSYSTEM_NOT_SUPPORTED",
       `Cross-ecosystem routing from ${from} to ${to} is not supported in v1. ` +
-        "Use same-ecosystem swaps or EVM-only bridges between enabled networks.",
+        "Use same-ecosystem swaps or Li-Fi bridges between enabled networks.",
       { from_chain_id: from, to_chain_id: to },
     );
   }
+}
+
+function isLifiCrossChainInput(input: GetProviderForSwapInput): boolean {
+  const from = input.from_chain_id ?? input.chain_id;
+  const to = input.to_chain_id;
+  if (!to || from === to) {
+    return false;
+  }
+  return isLifiCrossEcosystemPair(from, to);
 }
 
 export function listSwapProviders(): SwapProvider[] {
@@ -91,8 +104,16 @@ export function getDefaultSwapProvider(chainId: ChainId = "sui"): SwapProvider |
 export function getProviderForSwap(input: GetProviderForSwapInput): SwapProvider {
   assertCrossEcosystemSupported(input);
 
-  if (input.cross_chain) {
-    if (input.chain_id === "ethereum" || input.from_chain_id === "ethereum") {
+  if (input.cross_chain || isLifiCrossChainInput(input)) {
+    if (isLifiCrossChainInput(input) || input.chain_id === "ethereum" || input.from_chain_id === "ethereum") {
+      return getSwapProvider("evm-lifi");
+    }
+    if (
+      input.from_chain_id === "sui" ||
+      input.from_chain_id === "solana" ||
+      input.chain_id === "sui" ||
+      input.chain_id === "solana"
+    ) {
       return getSwapProvider("evm-lifi");
     }
     throw new AppError(

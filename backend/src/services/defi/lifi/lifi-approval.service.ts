@@ -2,7 +2,6 @@ import type { Hex } from "viem";
 import { maxUint256 } from "viem";
 import { getLifiSdkClient } from "./lifi.client.js";
 import { getTokenAllowance, setTokenAllowance } from "@lifi/sdk-provider-ethereum";
-import { EthereumProvider } from "@lifi/sdk-provider-ethereum";
 import type { Route } from "@lifi/types";
 import { AppError } from "../../../errors/app-error.js";
 import { createEvmWalletClient, getEvmPublicClient } from "../../../infrastructure/evm/client.js";
@@ -137,16 +136,4 @@ function firstStepToken(route: Route) {
 }
 
 /** Configure Li-Fi Ethereum provider with Privy wallet client for executeRoute. */
-export function createLifiEthereumProvider(privyWalletId: string, address: string) {
-  return EthereumProvider({
-    getWalletClient: async () => {
-      const account = createPrivyViemAccount({ privyWalletId, address });
-      const chainId = 1;
-      return createEvmWalletClient(chainId, account);
-    },
-    switchChain: async (chainId) => {
-      const account = createPrivyViemAccount({ privyWalletId, address });
-      return createEvmWalletClient(chainId, account);
-    },
-  });
-}
+export { createLifiEthereumProvider as createLifiEthereumProvider } from "./lifi-providers.service.js";

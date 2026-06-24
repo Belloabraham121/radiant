@@ -11,6 +11,10 @@ import {
   sendSolanaTransfer,
   type SolanaTxResult,
 } from "../../wallet/solana-transaction.service.js";
+import {
+  executeLifiAction,
+  isLifiExecuteAction,
+} from "../../agent/chains/evm/lifi/execute-actions.js";
 import type { ChainAdapter, TxResult } from "../types.js";
 import { toSolanaBalanceResult } from "./solana-balance.js";
 
@@ -87,6 +91,26 @@ export async function executeSolanaTransaction(
         amountLamports: parseAmountLamports(params),
       });
     default:
+      if (isLifiExecuteAction(action)) {
+        const result = await executeLifiAction(privyUserId, action, {
+          ...params,
+          from_chain_id: "solana",
+        });
+        const txHash =
+          "tx_hashes" in result && Array.isArray(result.tx_hashes) && result.tx_hashes[0]
+            ? result.tx_hashes[0]
+            : "unknown";
+        return {
+          hash: txHash,
+          solana_address: agentWallet.address,
+          effects_status:
+            "effects_status" in result && result.effects_status === "success"
+              ? "success"
+              : "effects_status" in result && result.effects_status === "failure"
+                ? "failure"
+                : "unknown",
+        };
+      }
       throw new AppError(400, "UNSUPPORTED_ACTION", `Unsupported Solana action: ${action}`);
   }
 }

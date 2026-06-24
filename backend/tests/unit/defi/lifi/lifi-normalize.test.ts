@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterEach, describe, it } from "node:test";
+import { describe, it } from "node:test";
 import type { LiFiStep, Route } from "@lifi/types";
 import { resetChainConfigCacheForTests } from "../../../../src/config/chains.js";
 import { resetEvmConfigCacheForTests } from "../../../../src/config/evm.js";
@@ -53,8 +53,8 @@ describe("lifi-normalize", () => {
     enableEthereumChains();
     const quote = normalizeLifiStepToCrossChainQuote({
       step: mockStep,
-      fromEvmChainId: 1,
-      toEvmChainId: 8453,
+      from: { chain_id: "ethereum", evm_chain_id: 1 },
+      to: { chain_id: "ethereum", evm_chain_id: 8453 },
       fromTokenSymbol: "USDC",
       toTokenSymbol: "USDC",
       routeId: "route123",
@@ -63,6 +63,8 @@ describe("lifi-normalize", () => {
     assert.equal(quote.provider_id, "evm-lifi");
     assert.equal(quote.from_amount_atomic, "1000000");
     assert.equal(quote.route_id, "route123");
+    assert.equal(quote.from_chain_id, "ethereum");
+    assert.equal(quote.to_chain_id, "ethereum");
     assert.deepEqual(quote.bridges, ["stargate"]);
     assert.equal(quote.transaction_request?.chain_id, 1);
   });
@@ -81,8 +83,8 @@ describe("lifi-normalize", () => {
 
     const option = normalizeLifiRouteOption({
       route,
-      fromEvmChainId: 1,
-      toEvmChainId: 42161,
+      from: { chain_id: "ethereum", evm_chain_id: 1 },
+      to: { chain_id: "ethereum", evm_chain_id: 42161 },
       fromTokenSymbol: "USDC",
       toTokenSymbol: "USDC",
     });

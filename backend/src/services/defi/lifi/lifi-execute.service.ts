@@ -3,32 +3,72 @@ import type { Route } from "@lifi/types";
 import { getLifiSdkClient } from "./lifi.client.js";
 import { AppError } from "../../../errors/app-error.js";
 import { isLifiEnabled } from "../../../config/lifi.js";
-import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
+import {
+  listAgentWalletsForPrivyUser,
+  resolveAgentWalletByPrivyUserId,
+} from "../../wallet/agent-wallet.service.js";
 import {
   buildQuoteRefreshParams,
   getLifiQuote,
   resolveLifiRouteForExecute,
+  resolveSourceChainFromExecuteInput,
 } from "./lifi-quote.service.js";
 import { lifiSdk } from "./lifi.client.js";
 import { consumeLifiExecuteQuota } from "./lifi-rate-limit.js";
 import {
   checkLifiApprovalRequired,
-  createLifiEthereumProvider,
   executeLifiApproval,
 } from "./lifi-approval.service.js";
 import { storeLifiRoute } from "./lifi-cache.js";
 import { createRouteId } from "./lifi-normalize.js";
+import { buildLifiSdkProvidersForRoute } from "./lifi-providers.service.js";
 import type { LifiExecuteInput, LifiExecuteResult } from "./lifi.types.js";
+import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
+import type { ChainId } from "../../chains/types.js";
 
-async function resolveAgentWallet(privyUserId: string) {
-  const agentWallet = await resolveAgentWalletByPrivyUserId(privyUserId, "ethereum");
+async function resolveAgentWallet(privyUserId: string, chainId: ChainId) {
+  const agentWallet = await resolveAgentWalletByPrivyUserId(privyUserId, chainId);
   if (!agentWallet) {
-    throw new AppError(404, "WALLET_NOT_FOUND", "EVM agent wallet not registered.");
+    throw new AppError(
+      404,
+      "WALLET_NOT_FOUND",
+      `Agent wallet not registered for chain ${chainId}.`,
+    );
   }
   if (!agentWallet.signer_added) {
     throw new AppError(403, "WALLET_SIGNER_NOT_CONFIGURED", "Session signer not configured.");
   }
   return agentWallet;
+}
+
+async function resolveAgentWalletMap(
+  privyUserId: string,
+): Promise<Partial<Record<"sui" | "solana" | "ethereum", ResolvedAgentWallet>>> {
+  const wallets = await listAgentWalletsForPrivyUser(privyUserId);
+  const map: Partial<Record<"sui" | "solana" | "ethereum", ResolvedAgentWallet>> = {};
+
+  for (const wallet of wallets) {
+    const chainType = wallet.chain_type as ChainId;
+    if (chainType === "sui" || chainType === "solana" || chainType === "ethereum") {
+      map[chainType] = {
+        chain_type: chainType,
+        address: wallet.address,
+        privy_wallet_id: wallet.privy_wallet_id,
+        signer_added: wallet.signer_added,
+      };
+    }
+  }
+
+  return map;
+}
+
+function collectRouteChainIds(route: Route): number[] {
+  const ids = new Set<number>();
+  for (const step of route.steps) {
+    ids.add(step.action.fromChainId);
+    ids.add(step.action.toChainId);
+  }
+  return [...ids];
 }
 
 async function refreshRouteAtExecute(route: Route, fromAddress: string): Promise<Route> {
@@ -78,18 +118,25 @@ export async function executeLifiCrossChainSwap(
 
   await consumeLifiExecuteQuota(privyUserId);
 
-  const agentWallet = await resolveAgentWallet(privyUserId);
   const storedRoute = await resolveLifiRouteForExecute({
     routeId: input.route_id,
     route: input.route,
   });
 
-  const refreshedRoute = await refreshRouteAtExecute(storedRoute, agentWallet.address);
-  const routeId = refreshedRoute.id ?? input.route_id ?? createRouteId(JSON.stringify(refreshedRoute));
+  const sourceChain = resolveSourceChainFromExecuteInput({
+    from_chain_id: input.from_chain_id,
+    from_evm_chain_id: input.from_evm_chain_id,
+    route: storedRoute,
+  });
+
+  const sourceWallet = await resolveAgentWallet(privyUserId, sourceChain.chain_id);
+  const refreshedRoute = await refreshRouteAtExecute(storedRoute, sourceWallet.address);
+  const routeId =
+    refreshedRoute.id ?? input.route_id ?? createRouteId(JSON.stringify(refreshedRoute));
   await storeLifiRoute(routeId, refreshedRoute);
 
   let approvalTxHash: string | null = null;
-  if (!input.skip_approval) {
+  if (!input.skip_approval && sourceChain.chain_id === "ethereum") {
     const approvalInfo = await checkLifiApprovalRequired(refreshedRoute);
     if (approvalInfo.required && approvalInfo.chainId) {
       const approval = await executeLifiApproval(privyUserId, {
@@ -104,8 +151,13 @@ export async function executeLifiCrossChainSwap(
   }
 
   const client = getLifiSdkClient();
-  const provider = createLifiEthereumProvider(agentWallet.privy_wallet_id, agentWallet.address);
-  client.setProviders([provider]);
+  const agentWallets = await resolveAgentWalletMap(privyUserId);
+  const providers = await buildLifiSdkProvidersForRoute({
+    sourceChainId: sourceChain.chain_id,
+    routeChainIds: collectRouteChainIds(refreshedRoute),
+    agentWallets,
+  });
+  client.setProviders(providers);
 
   let executedRoute: RouteExtended;
   try {

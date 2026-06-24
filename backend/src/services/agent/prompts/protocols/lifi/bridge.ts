@@ -4,6 +4,6 @@ export function buildLifiBridgeLines(): string[] {
     "cross_chain_swap params: route_id from the quote, or the serialized route object. One approval can cover the full route when required.",
     "After broadcast, poll cross_chain_status until status is DONE, FAILED, or REFUNDED. Explain PENDING vs DONE vs FAILED in plain language.",
     "If execute returns pending_step, the destination chain may need another agent turn — do not claim the bridge finished.",
-    "Use cross_chain_connections when the user asks which chains or tokens can be bridged (filtered to Radiant allowlist).",
+    "Use cross_chain_connections when the user asks which chains or tokens can be bridged (filtered to Radiant allowlist: Sui, Solana, Ethereum/Arbitrum/Base).",
   ];
 }

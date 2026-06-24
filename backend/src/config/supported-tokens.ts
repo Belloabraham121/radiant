@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import { getDeepBookEnv } from "./deepbook.js";
 import { getEnabledChainConfigs } from "./chains.js";
 import { getEnabledEvmChainIds, getEvmNetwork } from "./evm.js";
+import { isLifiCrossEcosystemPair } from "./lifi-chains.js";
 import { optional } from "./optional-env.js";
 import { AppError } from "../errors/app-error.js";
 import type { ChainId } from "../services/chains/types.js";
 import type { DeFiProviderId } from "../services/defi/types.js";
 
-export type TokenKind = "native" | "erc20" | "sui_coin" | "stellar_classic" | "soroban";
+export type TokenKind = "native" | "erc20" | "sui_coin" | "stellar_classic" | "soroban" | "spl";
 
 export type SupportedToken = {
   symbol: string;
@@ -75,10 +76,16 @@ const EVM_TOKEN_DEFAULTS: Record<number, Record<string, { address: string; decim
 const STELLAR_USDC_ISSUER_DEFAULT = "GA5ZSEJY2YZN5OMRE3KK6QANRT6WK463FHAI3BYT5PBSHH5BYKHARY";
 const STELLAR_USDC_SOROBAN_DEFAULT = "CBBMHZEZ65PQJIHKUQITQYFVOH7PIK6MLG2WBWRD2DWZXJKFSV7TFK";
 
+/** Solana mainnet SPL mints — override via `SOLANA_TOKEN_{SYMBOL}`. */
+const SOLANA_TOKEN_DEFAULTS: Record<string, { address: string; decimals: number }> = {
+  SOL: { address: "11111111111111111111111111111111", decimals: 9 },
+  USDC: { address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
+};
+
 const V1_ALLOWED_SYMBOLS: Record<ChainId, readonly string[]> = {
   sui: ["SUI", "USDC", "DEEP", "WAL"],
   ethereum: ["ETH", "WETH", "USDC", "ARB"],
-  solana: [],
+  solana: ["SOL", "USDC"],
   stellar: ["XLM", "USDC"],
 };
 
@@ -170,6 +177,32 @@ function buildEvmToken(symbol: string, evmChainId: number): SupportedToken | nul
   };
 }
 
+function buildSolanaToken(symbol: string): SupportedToken | null {
+  const meta = SOLANA_TOKEN_DEFAULTS[symbol];
+  if (!meta) {
+    return null;
+  }
+
+  const address =
+    optional(`SOLANA_TOKEN_${symbol}`, "").trim() || meta.address;
+
+  if (symbol === "SOL") {
+    return {
+      symbol: "SOL",
+      kind: "native",
+      decimals: meta.decimals,
+      address,
+    };
+  }
+
+  return {
+    symbol,
+    kind: "spl",
+    decimals: meta.decimals,
+    address,
+  };
+}
+
 function buildStellarToken(symbol: string): SupportedToken | null {
   if (symbol === "XLM") {
     return {
@@ -238,6 +271,9 @@ function resolveTokenOnChain(
   }
   if (chainId === "stellar") {
     return buildStellarToken(symbol);
+  }
+  if (chainId === "solana") {
+    return buildSolanaToken(symbol);
   }
   return null;
 }
@@ -320,6 +356,9 @@ export function assertCrossEcosystemSupported(
   }
 
   if (chainEcosystem(fromChainId) !== chainEcosystem(toChainId)) {
+    if (isLifiCrossEcosystemPair(fromChainId, toChainId)) {
+      return;
+    }
     throw new AppError(
       400,
       "CROSS_ECOSYSTEM_NOT_SUPPORTED",
@@ -363,8 +402,20 @@ function buildSupportedChains(): SupportedChainEntry[] {
         name: "Sui",
         native_symbol: "SUI",
         swap_provider: "sui-deepbook",
-        bridge_provider: null,
+        bridge_provider: "evm-lifi",
         allowed_symbols: allowedSymbolsForChain("sui"),
+      });
+      continue;
+    }
+
+    if (config.id === "solana") {
+      entries.push({
+        chain_id: "solana",
+        name: "Solana",
+        native_symbol: "SOL",
+        swap_provider: null,
+        bridge_provider: "evm-lifi",
+        allowed_symbols: allowedSymbolsForChain("solana"),
       });
       continue;
     }

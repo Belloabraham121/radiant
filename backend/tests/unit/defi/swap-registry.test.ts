@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { beforeEach, describe, it } from "node:test";
 import { AppError } from "../../../src/errors/app-error.js";
+import { resetChainConfigCacheForTests } from "../../../src/config/chains.js";
+import { resetEvmConfigCacheForTests } from "../../../src/config/evm.js";
 import {
   getDefaultSwapProvider,
   getProviderForSwap,
@@ -9,6 +11,14 @@ import {
 import { toStellarBalanceResult } from "../../../src/services/chains/adapters/stellar-balance.js";
 
 describe("swap-registry", () => {
+  beforeEach(() => {
+    delete process.env.LIFI_ENABLED_CHAIN_IDS;
+    process.env.ENABLED_CHAINS = "sui,solana,ethereum,stellar";
+    process.env.ENABLED_EVM_CHAIN_IDS = "42161,8453";
+    process.env.EVM_CHAIN_IDS = "42161,8453";
+    resetChainConfigCacheForTests();
+    resetEvmConfigCacheForTests();
+  });
   it("registers sui-deepbook as default Sui provider", () => {
     const provider = getSwapProvider("sui-deepbook");
     assert.equal(provider.chain_id, "sui");
@@ -32,6 +42,16 @@ describe("swap-registry", () => {
   it("routes Stellar swaps to Soroswap", () => {
     const provider = getProviderForSwap({ chain_id: "stellar" });
     assert.equal(provider.id, "stellar-soroswap");
+  });
+
+  it("routes cross-chain Sui to EVM bridges to Li-Fi", () => {
+    const provider = getProviderForSwap({
+      chain_id: "sui",
+      from_chain_id: "sui",
+      to_chain_id: "ethereum",
+      cross_chain: true,
+    });
+    assert.equal(provider.id, "evm-lifi");
   });
 
   it("rejects cross-ecosystem stellar to ethereum", () => {

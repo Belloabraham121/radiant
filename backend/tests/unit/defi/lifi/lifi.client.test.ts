@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import {
+  buildLifiSdkClientOptions,
   lifiRestFetch,
   resetLifiClientForTests,
   setLifiFetchImplForTests,
@@ -9,6 +10,20 @@ import {
 describe("lifi.client", () => {
   afterEach(() => {
     resetLifiClientForTests();
+    delete process.env.LIFI_INTEGRATOR_FEE;
+  });
+
+  it("buildLifiSdkClientOptions includes routeOptions.fee when configured", () => {
+    process.env.LIFI_INTEGRATOR_FEE = "0.001";
+    const options = buildLifiSdkClientOptions();
+    assert.equal(options.integrator, "radiant");
+    assert.deepEqual(options.routeOptions, { fee: 0.001 });
+  });
+
+  it("buildLifiSdkClientOptions omits routeOptions when fee is zero", () => {
+    process.env.LIFI_INTEGRATOR_FEE = "0";
+    const options = buildLifiSdkClientOptions();
+    assert.equal(options.routeOptions, undefined);
   });
 
   it("lifiRestFetch attaches API key and parses JSON", async () => {

@@ -27,18 +27,20 @@ Provider APIs expose dozens of chains; **Radiant v1 only enables the list below*
 
 | Radiant chain | `chain_id` | `evm_chain_id` (if EVM) | Swap provider | Bridge provider |
 | ------------- | ---------- | ----------------------- | ------------- | --------------- |
-| **Sui** | `sui` | — | DeepBook | — |
+| **Sui** | `sui` | — | DeepBook | Li-Fi |
+| **Solana** | `solana` | — | — | Li-Fi |
 | **Ethereum** | `ethereum` | `1` | SushiSwap | Li-Fi |
 | **Arbitrum** | `ethereum` | `42161` | SushiSwap | Li-Fi |
 | **Base** | `ethereum` | `8453` | SushiSwap | Li-Fi |
-| **Stellar** | `stellar` | — | Soroswap | — (cross-ecosystem deferred) |
+| **Stellar** | `stellar` | — | Soroswap | — (not Li-Fi; Soroswap only) |
 
 **Env contract**
 
 | Variable | v1 value | Purpose |
 | -------- | -------- | ------- |
-| `ENABLED_CHAINS` | `sui,ethereum,stellar` | Chain adapters |
+| `ENABLED_CHAINS` | `sui,solana,ethereum,stellar` | Chain adapters |
 | `ENABLED_EVM_CHAIN_IDS` | `1,42161,8453` | Ethereum, Arbitrum, Base only |
+| `LIFI_ENABLED_CHAIN_IDS` | _(optional)_ | Override Li-Fi numeric ids; default derived from enabled chains |
 | `DEFAULT_AGENT_CHAIN` | `sui` (or user preference) | Session default when chain unspecified |
 
 **Per-chain token allowlist (v1)** — extend via config; provider discovery must be filtered through this list.
@@ -49,9 +51,12 @@ Provider APIs expose dozens of chains; **Radiant v1 only enables the list below*
 | Ethereum | ETH, WETH, USDC | ERC-20 addresses in `supported-tokens.ts` |
 | Arbitrum | ETH, WETH, USDC, ARB | ↑ |
 | Base | ETH, WETH, USDC | ↑ |
+| Solana | SOL, USDC | SPL mints in `supported-tokens.ts` |
 | Stellar | XLM, USDC | Soroswap asset codes / contract addresses |
 
-**Bridging in v1:** Li-Fi between **enabled EVM chains only** (Ethereum ↔ Arbitrum ↔ Base). No Stellar ↔ EVM in v1 — see Phase 8 (final).
+**Li-Fi chain ids (Radiant v1):** Sui `9270000000000000`, Solana `1151111081099710`, EVM ids match `ENABLED_EVM_CHAIN_IDS`.
+
+**Bridging in v1:** Li-Fi between **Sui, Solana, and enabled EVM chains** (Ethereum, Arbitrum, Base). Stellar remains Soroswap-only — no Li-Fi routing.
 
 ---
 
@@ -61,7 +66,8 @@ Provider APIs expose dozens of chains; **Radiant v1 only enables the list below*
 | -------- | ----------------- |
 | User asks “swap 100 USDC to ETH on Base” | `token_resolve` → `evm_swap_quote` (Sushi, `evm_chain_id: 8453`) → `execute_transaction` `evm_swap` → approval → Privy EVM sign |
 | User asks “bridge USDC from Ethereum to Arbitrum” | `token_resolve` → `cross_chain_quote` (Li-Fi) → approval → source-chain tx → poll `cross_chain_status` |
-| User asks “bridge USDC from Base to Ethereum” | Same Li-Fi path; both chains must be in `ENABLED_EVM_CHAIN_IDS` |
+| User asks “bridge USDC from Sui to Base” | `token_resolve` → `cross_chain_quote` with `chain_id: sui`, `to_chain_id: ethereum`, `to_evm_chain_id: 8453` → `cross_chain_swap` on source chain |
+| User asks “bridge SOL from Solana to Arbitrum” | Same Li-Fi path with `chain_id: solana` and `to_evm_chain_id: 42161` |
 | User asks “swap 50 XLM to USDC on Stellar” | `token_resolve` → `stellar_swap_quote` (Soroswap) → `execute_transaction` `stellar_swap` → Privy `rawSign` |
 | User asks “swap 50 XLM to USDC on Base” | Backend returns `CROSS_ECOSYSTEM_NOT_SUPPORTED` — explain Stellar-only swap vs EVM bridge options; **no** Soroswap or Li-Fi call |
 | User writes “swap 50 shot to eth” | `token_resolve("shot")` → no match → clarification (“Did you mean USDC?”) — **never** silent regex typo mapping |
@@ -144,7 +150,7 @@ Li-Fi docs describe three agent-facing surfaces. **“Resolve” is not a separa
 
 ### Recommendation: **SDK-first + REST fallback** (not MCP, not Intents for v1)
 
-Radiant Phase 1 uses **`@lifi/sdk`** + **`@lifi/sdk-provider-ethereum`** for quotes, multi-route comparison, step transactions, status, and `executeRoute`. **`lifiRestFetch`** in `lifi.client.ts` calls `https://li.quest/v1` when the SDK lacks a parameter or for `/advanced/*` edge cases. **Signing is always via Privy** (`createPrivyViemAccount` + `EthereumProvider({ getWalletClient })`) — no private keys on the server.
+Radiant Phase 1 uses **`@lifi/sdk`** with **`@lifi/sdk-provider-ethereum`**, **`@lifi/sdk-provider-sui`**, and **`@lifi/sdk-provider-solana`** for quotes, multi-route comparison, step transactions, status, and `executeRoute`. **`lifiRestFetch`** in `lifi.client.ts` calls `https://li.quest/v1` when the SDK lacks a parameter or for `/advanced/*` edge cases. **Signing is always via Privy** (viem for EVM, Mysten Signer for Sui, wallet-standard adapter for Solana) — no private keys on the server.
 
 | Layer | Surface | Radiant usage |
 | ----- | ------- | ------------- |
@@ -351,6 +357,7 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 | Status | Task | Owner |
 | ------ | ---- | ----- |
 | [x] | `backend/src/config/lifi.ts` — `LIFI_API_BASE_URL`, `LIFI_API_KEY`, `LIFI_DEFAULT_SLIPPAGE`, rate limit env | [Backend] |
+| [x] | `LIFI_INTEGRATOR_FEE` — default `0.001` (0.1%); passed to Li-Fi SDK quote/route calls | `backend/src/config/lifi.ts` |
 | [x] | `backend/src/config/soroswap.ts` — `SOROSWAP_API_BASE_URL`, `SOROSWAP_API_KEY`, `SOROSWAP_NETWORK`, rate limit env | [Backend] |
 | [x] | `backend/src/config/sushiswap.ts` — `SUSHI_API_BASE_URL`, `SUSHI_API_KEY`, rate limit env | [Backend] |
 | [x] | Document all vars in `backend/.env.example` | [Backend] |
@@ -524,6 +531,7 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 | [x] | Env: `LIFI_RATE_LIMIT_CAPACITY`, `LIFI_RATE_LIMIT_REFILL_MS` | `backend/src/config/lifi.ts` |
 | [x] | On 429 from Li-Fi: exponential backoff (max 3) before surfacing `LIFI_RATE_LIMITED` | `lifi.client.ts` |
 | [x] | Status polling: max 1 req / 10 s per `txHash` per user (separate bucket) | `lifi-rate-limit.ts` |
+| [x] | `LIFI_INTEGRATOR_FEE` — default 0.1%; pass `fee` to SDK `createClient` + quote/route calls | `backend/src/config/lifi.ts`, `lifi.client.ts`, quote/routes services |
 
 ### 1.2 Read services
 
@@ -546,7 +554,9 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 | [x] | `getLifiAdvancedRoutes(input)` — multi-option routes | `backend/src/services/defi/lifi/lifi-routes.service.ts` |
 | [x] | `getLifiStepTransaction(step)` — for multi-step routes | ↑ |
 | [x] | Normalize to shared `RouteQuote` / `CrossChainQuote` | `backend/src/services/defi/lifi/lifi-normalize.ts` |
-| [x] | Map `evm_chain_id` ↔ Li-Fi chain id | `backend/src/services/defi/lifi/lifi-chain-map.ts` |
+| [x] | Map Radiant `chain_id` ↔ Li-Fi chain id (Sui, Solana, EVM) | `backend/src/config/lifi-chains.ts`, `lifi-chain-map.ts` |
+| [x] | Privy providers for Sui + Solana execute (`lifi-providers.service.ts`) | `backend/src/services/defi/lifi/lifi-providers.service.ts` |
+| [x] | Agent `cross_chain_*` on `chain_id: sui` and `solana` | `backend/src/services/agent/chains/sui/index.ts`, `registry.ts` |
 
 **Error handling**
 
@@ -1102,6 +1112,7 @@ Token allowlists (Phase 0.5) are separate — env above only controls **which ch
 | `LIFI_RATE_LIMIT_CAPACITY` | Li-Fi | Outbound bucket |
 | `LIFI_RATE_LIMIT_REFILL_MS` | Li-Fi | Bucket refill |
 | `LIFI_DEFAULT_SLIPPAGE` | Li-Fi | e.g. `0.005` |
+| `LIFI_INTEGRATOR_FEE` | Li-Fi | Integrator fee fraction (default `0.001` = 0.1%) |
 | `LIFI_INTENTS_ENABLED` | Li-Fi | Phase L flag |
 | `SOROSWAP_API_BASE_URL` | Soroswap | API base |
 | `SOROSWAP_API_KEY` | Soroswap | Bearer token |
@@ -1160,7 +1171,7 @@ Add to [backend/docs/TODO.md](../backend/docs/TODO.md):
 | Status | Task | Owner |
 | ------ | ---- | ----- |
 | [ ] | Phase 0 — Allowlist + Stellar adapter + defi registry | [Backend] |
-| [x] | Phase 1 — Li-Fi (ETH ↔ Arbitrum ↔ Base) | [Backend] |
+| [x] | Phase 1 — Li-Fi (Sui/Solana ↔ EVM + EVM ↔ EVM) | [Backend] |
 | [ ] | Phase 2 — Soroswap (Stellar) | [Backend] |
 | [ ] | Phase 3 — SushiSwap (EVM same-chain) | [Backend] |
 | [ ] | Phase 4 — Simple provider router | [Backend] |

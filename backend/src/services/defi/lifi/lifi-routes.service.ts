@@ -1,7 +1,7 @@
-import { getLifiConfig, isLifiEnabled } from "../../../config/lifi.js";
+import { getLifiConfig, isLifiEnabled, lifiIntegratorSdkFields } from "../../../config/lifi.js";
 import { AppError } from "../../../errors/app-error.js";
 import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
-import { evmChainIdToLifiChainId, toLifiTokenAddress } from "./lifi-chain-map.js";
+import { radiantToLifiChainId, toLifiTokenAddress } from "./lifi-chain-map.js";
 import { lifiSdk } from "./lifi.client.js";
 import { defiCachedFetch } from "../cache.js";
 import { getDefiCacheConfig } from "../../../config/defi-cache.js";
@@ -11,10 +11,17 @@ import { consumeLifiQuoteQuota } from "./lifi-rate-limit.js";
 import { createRouteId, normalizeLifiRouteOption } from "./lifi-normalize.js";
 import type { CrossChainRoutesResult, LifiRoutesInput } from "./lifi.types.js";
 
-async function resolveWalletAddress(privyUserId: string): Promise<string> {
-  const agentWallet = await resolveAgentWalletByPrivyUserId(privyUserId, "ethereum");
+async function resolveWalletAddress(
+  privyUserId: string,
+  chainId: "sui" | "solana" | "ethereum",
+): Promise<string> {
+  const agentWallet = await resolveAgentWalletByPrivyUserId(privyUserId, chainId);
   if (!agentWallet) {
-    throw new AppError(404, "WALLET_NOT_FOUND", "EVM agent wallet not registered.");
+    throw new AppError(
+      404,
+      "WALLET_NOT_FOUND",
+      `Agent wallet not registered for chain ${chainId}.`,
+    );
   }
   return agentWallet.address;
 }
@@ -31,17 +38,22 @@ export async function getLifiAdvancedRoutes(
   await consumeLifiQuoteQuota(privyUserId);
 
   const config = getLifiConfig();
-  const fromAddress = await resolveWalletAddress(privyUserId);
   const tokens = resolveLifiTokens({
-    fromEvmChainId: input.from_evm_chain_id,
-    toEvmChainId: input.to_evm_chain_id,
+    from_chain_id: input.from_chain_id,
+    to_chain_id: input.to_chain_id,
+    from_evm_chain_id: input.from_evm_chain_id,
+    to_evm_chain_id: input.to_evm_chain_id,
     fromToken: input.from_token,
     toToken: input.to_token,
   });
+  const fromAddress = await resolveWalletAddress(privyUserId, tokens.from.chain_id);
 
   const cacheParams = {
-    from_evm_chain_id: input.from_evm_chain_id,
-    to_evm_chain_id: input.to_evm_chain_id,
+    from_chain_id: tokens.from.chain_id,
+    to_chain_id: tokens.to.chain_id,
+    from_evm_chain_id:
+      tokens.from.chain_id === "ethereum" ? tokens.from.evm_chain_id : undefined,
+    to_evm_chain_id: tokens.to.chain_id === "ethereum" ? tokens.to.evm_chain_id : undefined,
     from_token: tokens.fromSymbol,
     to_token: tokens.toSymbol,
     amount_atomic: input.amount_atomic,
@@ -55,15 +67,15 @@ export async function getLifiAdvancedRoutes(
     getDefiCacheConfig().quoteDedupeTtlSeconds,
     async () => {
       const response = await lifiSdk.getRoutes({
-        fromChainId: evmChainIdToLifiChainId(input.from_evm_chain_id),
-        toChainId: evmChainIdToLifiChainId(input.to_evm_chain_id),
-        fromTokenAddress: toLifiTokenAddress(tokens.fromToken),
-        toTokenAddress: toLifiTokenAddress(tokens.toToken),
+        fromChainId: radiantToLifiChainId(tokens.from),
+        toChainId: radiantToLifiChainId(tokens.to),
+        fromTokenAddress: toLifiTokenAddress(tokens.fromToken, tokens.from),
+        toTokenAddress: toLifiTokenAddress(tokens.toToken, tokens.to),
         fromAddress,
         fromAmount: input.amount_atomic,
         options: {
           slippage: input.slippage ?? config.defaultSlippage,
-          integrator: input.integrator ?? config.integrator,
+          ...lifiIntegratorSdkFields(config, input.integrator),
           order: "RECOMMENDED",
         },
       });
@@ -74,8 +86,8 @@ export async function getLifiAdvancedRoutes(
           const routeId = route.id ?? createRouteId(JSON.stringify(route));
           const normalized = normalizeLifiRouteOption({
             route: { ...route, id: routeId },
-            fromEvmChainId: input.from_evm_chain_id,
-            toEvmChainId: input.to_evm_chain_id,
+            from: tokens.from,
+            to: tokens.to,
             fromTokenSymbol: tokens.fromSymbol,
             toTokenSymbol: tokens.toSymbol,
           });

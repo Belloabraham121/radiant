@@ -35,6 +35,8 @@
     "@libsql/client": "^0.17.4",
     "@lifi/sdk": "^4.0.1",
     "@lifi/sdk-provider-ethereum": "^4.0.2",
+    "@lifi/sdk-provider-solana": "^4.0.1",
+    "@lifi/sdk-provider-sui": "^4.1.0",
     "@mysten/deepbook-v3": "^1.4.1",
     "@mysten/sui": "^2.17.0",
     "@prisma/client": "^6.5.0",
