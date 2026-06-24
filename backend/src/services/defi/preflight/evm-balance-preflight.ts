@@ -5,6 +5,10 @@ import { getEvmPublicClient } from "../../../infrastructure/evm/client.js";
 import { weiToEth } from "../../../utils/evm-amount.js";
 import type { ChainId } from "../../chains/types.js";
 import {
+  formatUsd,
+  resolveSymbolUsdPrices,
+} from "../../market/valuation.service.js";
+import {
   LIFI_NATIVE_TOKEN_ADDRESS,
   formatAtomicAmount,
 } from "../lifi/lifi-chain-map.js";
@@ -80,11 +84,98 @@ function isNativeSpendSymbol(symbol: string): boolean {
 }
 
 function formatWeiDisplay(wei: bigint): string {
+  if (wei === 0n) {
+    return "0";
+  }
+
   const eth = weiToEth(wei);
   if (eth >= 0.0001) {
     return eth.toFixed(4).replace(/\.?0+$/, "");
   }
-  return eth.toExponential(2);
+
+  const decimals = Math.min(18, Math.max(6, Math.ceil(-Math.log10(eth)) + 2));
+  return eth.toFixed(decimals).replace(/\.?0+$/, "");
+}
+
+function formatEthAmount(wei: bigint, priceMap?: Map<string, { usdPrice: number | null }>): string {
+  const amountDisplay = weiToEth(wei);
+  const usdSuffix = formatUsdSuffix("ETH", amountDisplay, priceMap);
+  return `${formatWeiDisplay(wei)} ETH${usdSuffix}`;
+}
+
+function formatUsdSuffix(
+  symbol: string,
+  amountDisplay: number,
+  priceMap?: Map<string, { usdPrice: number | null }>,
+): string {
+  if (!priceMap || !Number.isFinite(amountDisplay)) {
+    return "";
+  }
+  const usdPrice = priceMap.get(symbol.toUpperCase())?.usdPrice;
+  if (usdPrice === null || usdPrice === undefined) {
+    return "";
+  }
+  const formatted = formatUsd(amountDisplay * usdPrice, { prefix: "~$" });
+  return formatted ? ` (${formatted})` : "";
+}
+
+function formatTokenBalanceDisplay(
+  balanceAtomic: bigint,
+  symbol: string,
+  decimals: number | undefined,
+  priceMap?: Map<string, { usdPrice: number | null }>,
+): string {
+  if (balanceAtomic === 0n) {
+    return `0 ${symbol}${formatUsdSuffix(symbol, 0, priceMap)}`;
+  }
+
+  let amountDisplay: number;
+  if (decimals !== undefined) {
+    try {
+      const display = formatAtomicAmount(balanceAtomic.toString(), decimals);
+      amountDisplay = Number(display);
+      return `${display} ${symbol}${formatUsdSuffix(symbol, amountDisplay, priceMap)}`;
+    } catch {
+      // Fall through to atomic display.
+    }
+  }
+
+  amountDisplay = Number(balanceAtomic);
+  return `${balanceAtomic.toString()} ${symbol}${formatUsdSuffix(symbol, amountDisplay, priceMap)}`;
+}
+
+function formatSpendAmountDisplay(
+  requirement: EvmSpendRequirement,
+  priceMap?: Map<string, { usdPrice: number | null }>,
+): string {
+  if (requirement.spend_amount_atomic === undefined || !requirement.spend_token_symbol) {
+    return "";
+  }
+
+  const base = formatSpendAmount(requirement);
+  if (requirement.spend_token_decimals !== undefined) {
+    try {
+      const display = formatAtomicAmount(
+        requirement.spend_amount_atomic.toString(),
+        requirement.spend_token_decimals,
+      );
+      const usdSuffix = formatUsdSuffix(
+        requirement.spend_token_symbol,
+        Number(display),
+        priceMap,
+      );
+      return `${display} ${requirement.spend_token_symbol}${usdSuffix}`;
+    } catch {
+      // Fall through to base formatting.
+    }
+  }
+
+  const usdSuffix = formatUsdSuffix(
+    requirement.spend_token_symbol,
+    Number(requirement.spend_amount_atomic),
+    priceMap,
+  );
+  return `${base}${usdSuffix}`;
 }
 
 function sumGasWeiFromRoute(route: Route, sourceChainId: number): bigint {
@@ -235,42 +326,53 @@ function formatSpendAmount(requirement: EvmSpendRequirement): string {
   return `${requirement.spend_amount_atomic.toString()} ${requirement.spend_token_symbol}`;
 }
 
-function buildInsufficientBalanceMessage(
+async function buildInsufficientBalanceMessage(
   requirement: EvmSpendRequirement,
   nativeWei: bigint,
   tokenBalanceWei: bigint | null,
-): string {
+): Promise<string> {
   const network = requirement.network_label;
-  const gasDisplay = formatWeiDisplay(requirement.gas_wei);
-  const nativeDisplay = formatWeiDisplay(nativeWei);
+  const symbols = ["ETH"];
+  if (requirement.spend_token_symbol) {
+    symbols.push(requirement.spend_token_symbol);
+  }
+  const priceMap = await resolveSymbolUsdPrices(symbols);
+
+  const gasDisplay = formatEthAmount(requirement.gas_wei, priceMap);
+  const nativeDisplay = formatEthAmount(nativeWei, priceMap);
 
   if (!requirement.spend_token_symbol || requirement.spend_amount_atomic === undefined) {
     return (
-      `Unable to complete this transaction — your agent wallet on ${network} has ${nativeDisplay} ETH, ` +
-      `but you need about ${gasDisplay} ETH for network gas. Add ETH on ${network} and try again.`
+      `Unable to complete this transaction — your agent wallet on ${network} has ${nativeDisplay}, ` +
+      `but you need about ${gasDisplay} for network gas. Add ETH on ${network} and try again.`
     );
   }
 
-  const spendDisplay = formatSpendAmount(requirement);
+  const spendDisplay = formatSpendAmountDisplay(requirement, priceMap);
 
   if (requirement.spend_is_native) {
     const totalNeeded = requirement.spend_amount_atomic + requirement.gas_wei;
     return (
-      `Unable to complete this bridge — your agent wallet on ${network} has ${nativeDisplay} ETH, ` +
-      `but you need about ${formatWeiDisplay(totalNeeded)} ETH (${spendDisplay} plus ~${gasDisplay} ETH for gas). ` +
+      `Unable to complete this bridge — your agent wallet on ${network} has ${nativeDisplay}, ` +
+      `but you need about ${formatEthAmount(totalNeeded, priceMap)} (${spendDisplay} plus ~${gasDisplay} for gas). ` +
       `Add ETH on ${network} and try again.`
     );
   }
 
   const tokenDisplay =
     tokenBalanceWei !== null && requirement.spend_token_symbol
-      ? `${tokenBalanceWei.toString()} ${requirement.spend_token_symbol}`
-      : "0";
+      ? formatTokenBalanceDisplay(
+          tokenBalanceWei,
+          requirement.spend_token_symbol,
+          requirement.spend_token_decimals,
+          priceMap,
+        )
+      : `0 ${requirement.spend_token_symbol ?? "token"}`;
 
   return (
     `Unable to complete this bridge — your agent wallet on ${network} does not have enough funds. ` +
-    `You need ${spendDisplay} and about ${gasDisplay} ETH for network gas ` +
-    `(you have ${tokenDisplay} and ${nativeDisplay} ETH on ${network}). ` +
+    `You need ${spendDisplay} and about ${gasDisplay} for gas ` +
+    `(you have ${tokenDisplay} and ${nativeDisplay} on ${network}). ` +
     `Add the source token and ETH on ${network} and try again.`
   );
 }
@@ -299,7 +401,7 @@ export async function assertEvmWalletFundedForSpend(
       throw new AppError(
         400,
         "INSUFFICIENT_BALANCE",
-        buildInsufficientBalanceMessage(requirement, nativeWei, null),
+        await buildInsufficientBalanceMessage(requirement, nativeWei, null),
         {
           evm_chain_id: requirement.evm_chain_id,
           network: requirement.network_label,
@@ -327,7 +429,7 @@ export async function assertEvmWalletFundedForSpend(
       throw new AppError(
         400,
         "INSUFFICIENT_BALANCE",
-        buildInsufficientBalanceMessage(requirement, nativeWei, tokenBalanceWei),
+        await buildInsufficientBalanceMessage(requirement, nativeWei, tokenBalanceWei),
         {
           evm_chain_id: requirement.evm_chain_id,
           network: requirement.network_label,
@@ -343,7 +445,7 @@ export async function assertEvmWalletFundedForSpend(
     throw new AppError(
       400,
       "INSUFFICIENT_BALANCE",
-      buildInsufficientBalanceMessage(requirement, nativeWei, tokenBalanceWei),
+      await buildInsufficientBalanceMessage(requirement, nativeWei, tokenBalanceWei),
       {
         evm_chain_id: requirement.evm_chain_id,
         network: requirement.network_label,

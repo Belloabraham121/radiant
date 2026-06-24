@@ -37,7 +37,7 @@ function computeLegUsd(
   return roundUsd(amount * usdPrice);
 }
 
-async function loadSymbolPrices(
+export async function resolveSymbolUsdPrices(
   symbols: string[],
 ): Promise<Map<string, { usdPrice: number | null; source: FiatPriceSource }>> {
   const unique = [...new Set(symbols.map((symbol) => symbol.toUpperCase()))];
@@ -142,7 +142,7 @@ export async function previewSwapFiat(input: SwapFiatInput): Promise<Transaction
   const symbols = [input.pay.symbol, input.receive.symbol];
   if (input.fee) symbols.push(input.fee.symbol);
 
-  const priceMap = await loadSymbolPrices(symbols);
+  const priceMap = await resolveSymbolUsdPrices(symbols);
   const poolContext = {
     pool_price: input.pool_price,
     base_symbol: input.base_symbol,

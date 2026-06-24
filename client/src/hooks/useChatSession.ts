@@ -55,6 +55,7 @@ import {
   previewExecuteResultToPending,
   subscribePreviewExecuteResult,
 } from "@/lib/preview-execute-result";
+import { clarificationAnswerDisplayText } from "@/lib/clarification-display";
 
 function initialChatSessionState(sessionId?: string) {
   if (!sessionId) {
@@ -859,16 +860,7 @@ export function useChatSession(sessionId?: string) {
     async (answer: ClarificationAnswer) => {
       if (!pendingClarification || respondingClarification) return;
 
-      const userText =
-        answer.confirm !== undefined
-          ? answer.confirm === "yes"
-            ? "Yes"
-            : "No"
-          : answer.value !== undefined
-            ? String(answer.value)
-            : (answer.selected_option_id ??
-              answer.selected_option_ids?.join(", ") ??
-              "Answered");
+      const userText = clarificationAnswerDisplayText(pendingClarification, answer);
 
       setRespondingClarification(true);
       setChatError(null);

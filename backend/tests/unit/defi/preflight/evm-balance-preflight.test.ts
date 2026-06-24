@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, before, describe, it } from "node:test";
 import type { LiFiStep, Route } from "@lifi/types";
 import { AppError } from "../../../../src/errors/app-error.js";
 import { resetChainConfigCacheForTests } from "../../../../src/config/chains.js";
 import { resetEvmConfigCacheForTests } from "../../../../src/config/evm.js";
+import {
+  resetCoingeckoClientForTests,
+  setCoingeckoFetchForTests,
+} from "../../../../src/services/market/coingecko.client.js";
+import { clearMemoryCacheForTests } from "../../../../src/infrastructure/redis/cache.js";
+import { clearTokenBucketsForTests } from "../../../../src/infrastructure/rate-limit/token-bucket.js";
 import {
   assertEvmWalletFundedForSpend,
   buildLifiSpendRequirement,
@@ -68,8 +74,15 @@ const mockRoute = {
 } as unknown as Route;
 
 describe("evm-balance-preflight", () => {
+  before(() => {
+    process.env.COINGECKO_API_KEY = "CG-test-key";
+  });
+
   afterEach(() => {
     resetEvmBalancePreflightForTests();
+    clearMemoryCacheForTests();
+    clearTokenBucketsForTests();
+    resetCoingeckoClientForTests();
   });
 
   it("buildLifiSpendRequirement maps EVM route to token spend + gas", () => {
@@ -119,6 +132,24 @@ describe("evm-balance-preflight", () => {
 
   it("assertEvmWalletFundedForSpend throws INSUFFICIENT_BALANCE for empty wallet", async () => {
     enableEthereumChains();
+    setCoingeckoFetchForTests(async (input) => {
+      const url = String(input);
+      if (url.includes("/coins/markets")) {
+        return new Response(
+          JSON.stringify([
+            {
+              id: "ethereum",
+              symbol: "eth",
+              name: "Ethereum",
+              image: "https://example.com/eth.png",
+              current_price: 3200,
+            },
+          ]),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response("[]", { status: 200 });
+    });
     setEvmBalancePreflightForTests({
       resolveWallet: async () => ({
         address: "0xabc",
@@ -154,9 +185,59 @@ describe("evm-balance-preflight", () => {
       (err: unknown) => {
         assert.ok(err instanceof AppError);
         assert.equal(err.code, "INSUFFICIENT_BALANCE");
-        assert.match(err.message, /USDC/i);
+        assert.match(err.message, /1 USDC \(~\$1\)/);
+        assert.match(err.message, /0\.003 ETH \(~\$/);
+        assert.match(err.message, /0 USDC/);
+        assert.match(err.message, /0 ETH/);
+        assert.doesNotMatch(err.message, /e-/i);
         assert.match(err.message, /Ethereum/i);
         assert.match(err.message, /gas/i);
+        return true;
+      },
+    );
+  });
+
+  it("assertEvmWalletFundedForSpend omits USD when CoinGecko is unavailable", async () => {
+    enableEthereumChains();
+    setCoingeckoFetchForTests(async () => new Response("[]", { status: 200 }));
+    setEvmBalancePreflightForTests({
+      resolveWallet: async () => ({
+        address: "0xabc",
+        privy_wallet_id: "wallet-1",
+      }),
+      fetchNativeBalance: async () => ({ balance_atomic: "0" }),
+      fetchTokenAssets: async () => ({
+        assets: [
+          {
+            symbol: "USDC",
+            name: "USD Coin",
+            coin_type: "privy:ethereum:usdc",
+            balance_atomic: "0",
+            balance_display: 0,
+            decimals: 6,
+            usd_value: null,
+            source: "privy",
+            popular: true,
+          },
+        ],
+      }),
+    });
+
+    const requirement = buildLifiSpendRequirement({
+      action: "cross_chain_swap",
+      params: {},
+      route: mockRoute,
+    });
+    assert.ok(requirement);
+
+    await assert.rejects(
+      () => assertEvmWalletFundedForSpend("user-1", requirement),
+      (err: unknown) => {
+        assert.ok(err instanceof AppError);
+        assert.match(err.message, /1 USDC \(~\$1\)/);
+        assert.match(err.message, /0\.003 ETH(?!\ \(~\$)/);
+        assert.match(err.message, /0 ETH(?!\ \(~\$)/);
+        assert.doesNotMatch(err.message, /e-/i);
         return true;
       },
     );
