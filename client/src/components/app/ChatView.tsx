@@ -161,7 +161,10 @@ function Bubble({
         {message.executionSteps && message.executionSteps.length > 0 ? (
           <ExecutionTimeline
             steps={message.executionSteps}
-            live={message.streaming === true}
+            live={
+              message.streaming === true ||
+              message.executionSteps.some((step) => step.status === "running")
+            }
             statusCategory={message.statusCategory}
           />
         ) : null}

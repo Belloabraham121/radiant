@@ -13,6 +13,8 @@ import {
   type EvmTxResult,
 } from "../../wallet/evm-transaction.service.js";
 import { executeLifiAction, isLifiExecuteAction } from "../../agent/chains/evm/lifi/execute-actions.js";
+import { txResultFromLifiExecute } from "../../defi/lifi/lifi-tracking.js";
+import type { LifiExecuteResult } from "../../defi/lifi/lifi.types.js";
 import type { BalanceContext, ChainAdapter, TxResult } from "../types.js";
 import { toEvmBalanceResult } from "./evm-balance.js";
 
@@ -112,7 +114,9 @@ export async function executeEvmTransaction(
               ? "success"
               : "effects_status" in result && result.effects_status === "failure"
                 ? "failure"
-                : "unknown",
+                : "effects_status" in result && result.effects_status === "pending"
+                  ? ("unknown" as const)
+                  : "unknown",
         };
       }
       throw new AppError(400, "UNSUPPORTED_ACTION", `Unsupported EVM action: ${action}`);
@@ -131,6 +135,24 @@ export const evmAdapter: ChainAdapter = {
     action: string,
     params: Record<string, unknown>,
   ): Promise<TxResult> {
+    if (isLifiExecuteAction(action) && action === "cross_chain_swap") {
+      const result = await executeLifiAction(privyUserId, action, params);
+      if ("tx_hashes" in result) {
+        const agentWallet = await resolveSigningWallet(privyUserId);
+        const evmChainId = parseEvmChainIdParam(params);
+        const lifiResult = result as LifiExecuteResult;
+        const txHash = lifiResult.tx_hashes[0] ?? "0x0";
+        return txResultFromLifiExecute({
+          chain_id: "ethereum",
+          address: agentWallet.address,
+          digest: txHash,
+          evm_chain_id: evmChainId ?? 1,
+          params,
+          executeResult: lifiResult,
+        });
+      }
+    }
+
     const result = await executeEvmTransaction(privyUserId, action, params);
     return toTxResult(result);
   },

@@ -15,6 +15,8 @@ import {
   executeLifiAction,
   isLifiExecuteAction,
 } from "../../agent/chains/evm/lifi/execute-actions.js";
+import { txResultFromLifiExecute } from "../../defi/lifi/lifi-tracking.js";
+import type { LifiExecuteResult } from "../../defi/lifi/lifi.types.js";
 import type { ChainAdapter, TxResult } from "../types.js";
 import { toSolanaBalanceResult } from "./solana-balance.js";
 
@@ -108,7 +110,9 @@ export async function executeSolanaTransaction(
               ? "success"
               : "effects_status" in result && result.effects_status === "failure"
                 ? "failure"
-                : "unknown",
+                : "effects_status" in result && result.effects_status === "pending"
+                  ? ("unknown" as const)
+                  : "unknown",
         };
       }
       throw new AppError(400, "UNSUPPORTED_ACTION", `Unsupported Solana action: ${action}`);
@@ -127,6 +131,26 @@ export const solanaAdapter: ChainAdapter = {
     action: string,
     params: Record<string, unknown>,
   ): Promise<TxResult> {
+    if (isLifiExecuteAction(action) && action === "cross_chain_swap") {
+      const agentWallet = await resolveAgentWalletByPrivyUserId(privyUserId, "solana");
+      if (!agentWallet) {
+        throw new AppError(404, "WALLET_NOT_FOUND", "Solana agent wallet not registered");
+      }
+      const lifiParams = { ...params, from_chain_id: "solana" };
+      const result = await executeLifiAction(privyUserId, action, lifiParams);
+      if ("tx_hashes" in result) {
+        const lifiResult = result as LifiExecuteResult;
+        const txHash = lifiResult.tx_hashes[0] ?? "unknown";
+        return txResultFromLifiExecute({
+          chain_id: "solana",
+          address: agentWallet.address,
+          digest: txHash,
+          params: lifiParams,
+          executeResult: lifiResult,
+        });
+      }
+    }
+
     const result = await executeSolanaTransaction(privyUserId, action, params);
     return toTxResult(result);
   },

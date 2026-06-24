@@ -4,6 +4,7 @@ export const AGENT_STREAM_EVENT_TYPES = [
   "agent_thinking",
   "agent_action",
   "agent_step",
+  "execution_step",
   "agent_done",
   "agent_error",
 ] as const;
@@ -19,6 +20,7 @@ export type AgentStreamEventPayload = {
   target?: string;
   value?: unknown;
   step?: string;
+  execution_step?: Record<string, unknown>;
   digest?: string;
   refresh?: boolean;
   message?: string;

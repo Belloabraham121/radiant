@@ -25,6 +25,11 @@ import {
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
 import { formatMarginManagerApprovalNote } from "./runtime/summarize-tool-result.js";
+import {
+  buildCrossChainRoutesToolResult,
+  formatLifiEtaLabel,
+  readLifiTrackingFromTxResult,
+} from "../defi/lifi/lifi-tracking.js";
 
 export async function handleChatMessage(
   privyUserId: string,
@@ -113,16 +118,44 @@ export async function handleChatMessage(
 
       const explorerUrl = buildExplorerTxUrl(outcome.result.chain_id, outcome.result.digest);
       const marginNote = formatMarginManagerApprovalNote(outcome.result);
-      const reply = explorerUrl
-        ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [View on Sui Explorer](${explorerUrl}) — Digest: ${outcome.result.digest}.${marginNote}`
-        : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}.${marginNote}`;
+      const lifiTracking = readLifiTrackingFromTxResult(outcome.result);
+      const isLifiPending =
+        lifiTracking != null &&
+        (outcome.result.effects_status === "pending" ||
+          outcome.result.effects_status === "unknown");
 
-      return persistApprovalTurn(privyUserId, request, reply, [
-        {
-          name: "execute_transaction",
-          result: { status: "executed", result: outcome.result },
+      let reply: string;
+      if (isLifiPending && lifiTracking) {
+        const eta = formatLifiEtaLabel(lifiTracking.estimated_duration_seconds);
+        const sourceTx = outcome.result.digest || lifiTracking.tx_hashes[0];
+        reply = sourceTx
+          ? `Approved. Source transaction submitted (${sourceTx.slice(0, 10)}…). ${eta} — I'll update this thread as the bridge completes.`
+          : `Approved. Bridge submitted. ${eta} — I'll update this thread as the bridge completes.`;
+      } else {
+        reply = explorerUrl
+          ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [View on Sui Explorer](${explorerUrl}) — Digest: ${outcome.result.digest}.${marginNote}`
+          : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}.${marginNote}`;
+      }
+
+      const toolCalls: ChatResponse["tool_calls"] = [];
+      if (isLifiPending && outcome.pending.params) {
+        toolCalls.push({
+          name: "query_chain",
+          query: "cross_chain_routes",
+          result: buildCrossChainRoutesToolResult(outcome.pending.params),
+        });
+      }
+      toolCalls.push({
+        name: EXECUTE_TRANSACTION_TOOL_NAME,
+        action: outcome.pending.action,
+        result: {
+          status: "executed",
+          agent_transaction_id: request.approve_transaction_id,
+          result: outcome.result,
         },
-      ]);
+      });
+
+      return persistApprovalTurn(privyUserId, request, reply, toolCalls);
     }
 
     const txContext = transactionContextFromPending(outcome.pending);

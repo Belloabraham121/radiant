@@ -1,3 +1,5 @@
+import type { LifiTrackJobInput } from "../services/defi/lifi/lifi-tracking.types.js";
+
 /** Deploy pipeline job queued from POST /api/v1/deploy. */
 export const DEPLOY_REQUESTED_EVENT = "radiant/deploy.requested" as const;
 
@@ -36,4 +38,12 @@ export type NotificationEmitEvent = {
     installationId?: string;
     channels?: Array<"in_app" | "web_push" | "email">;
   };
+};
+
+/** Durable Li-Fi bridge/swap status polling after approval. */
+export const LIFI_TRACK_CROSS_CHAIN_EVENT = "radiant/lifi.track.cross_chain" as const;
+
+export type LifiTrackCrossChainEvent = {
+  name: typeof LIFI_TRACK_CROSS_CHAIN_EVENT;
+  data: LifiTrackJobInput;
 };

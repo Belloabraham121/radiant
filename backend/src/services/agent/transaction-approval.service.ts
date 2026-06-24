@@ -55,6 +55,14 @@ import {
 } from "../agent-transaction/approval-preview/quote-expiry.js";
 import { previewExecuteTransactionFiat } from "../market/valuation.service.js";
 import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
+import { enqueueLifiTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
+import {
+  attachLifiMetaToTxResult,
+  readLifiTrackingFromTxResult,
+} from "../defi/lifi/lifi-tracking.js";
+import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
+import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
+import { runWithLifiExecuteContext } from "../defi/lifi/lifi-execute-context.js";
 import {
   claimPendingApprovalForUser,
   claimPendingRejectionForUser,
@@ -62,6 +70,7 @@ import {
   executeInputFromRecord,
   expireStalePendingApprovals,
   markCompleted,
+  markLifiSubmitted,
   pendingTransactionFromRecord,
   recordPendingApproval,
 } from "../agent-transaction/agent-transaction.service.js";
@@ -450,7 +459,47 @@ export async function approvePendingTransaction(
   }
 
   try {
-    const result = await runExecuteTransactionTool(privyUserId, executeInput);
+    const sessionId = claimed.session_id ?? undefined;
+    const result = await runWithLifiExecuteContext(
+      { sessionId, transactionId },
+      () => runExecuteTransactionTool(privyUserId, executeInput),
+    );
+
+    const tracking = readLifiTrackingFromTxResult(result);
+    const lifiPending =
+      isLifiExecuteAction(executeInput.action) &&
+      tracking != null &&
+      (result.effects_status === "pending" || result.effects_status === "unknown");
+
+    if (lifiPending && tracking) {
+      const enriched = attachLifiMetaToTxResult(result, tracking);
+      await markLifiSubmitted(transactionId, {
+        digest: enriched.digest || tracking.tx_hashes[0] || null,
+        effects_status: "pending",
+        result: enriched,
+      });
+
+      if (sessionId) {
+        for (const step of buildInitialLifiExecutionSteps({
+          tracking,
+          transactionId,
+          chainId: enriched.chain_id,
+          digest: enriched.digest || tracking.tx_hashes[0] || null,
+        })) {
+          emitAgentStreamExecutionStep(sessionId, step);
+        }
+      }
+
+      void enqueueLifiTrackingJob({
+        transactionId,
+        privyUserId,
+        sessionId: sessionId ?? null,
+        tracking,
+      }).catch(() => undefined);
+
+      return { ok: true, pending, result: enriched };
+    }
+
     await markCompleted(transactionId, { kind: "success", result });
     return { ok: true, pending, result };
   } catch (err) {

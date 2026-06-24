@@ -24,7 +24,16 @@ import { runExecutePreflightHooks } from "./chains/registry.js";
 import {
   recordAutoExecuted,
   markCompleted,
+  markLifiSubmitted,
 } from "../agent-transaction/agent-transaction.service.js";
+import { enqueueLifiTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
+import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
+import {
+  readLifiTrackingFromTxResult,
+} from "../defi/lifi/lifi-tracking.js";
+import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
+import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
+import { runWithLifiExecuteContext } from "../defi/lifi/lifi-execute-context.js";
 
 type ExecuteWithApprovalHandler = (
   privyUserId: string,
@@ -103,10 +112,44 @@ export async function runExecuteTransactionToolWithApproval(
     }
 
     try {
-      const result = await runExecuteTransactionTool(privyUserId, input);
-      if (transactionId) {
+      const result = await runWithLifiExecuteContext(
+        { sessionId: context.sessionId, transactionId },
+        () => runExecuteTransactionTool(privyUserId, input),
+      );
+      const tracking = readLifiTrackingFromTxResult(result);
+      const lifiPending =
+        isLifiExecuteAction(input.action) &&
+        tracking != null &&
+        (result.effects_status === "pending" || result.effects_status === "unknown");
+
+      if (transactionId && lifiPending && tracking) {
+        await markLifiSubmitted(transactionId, {
+          digest: result.digest || tracking.tx_hashes[0] || null,
+          effects_status: "pending",
+          result,
+        }).catch(() => undefined);
+
+        if (context.sessionId) {
+          for (const step of buildInitialLifiExecutionSteps({
+            tracking,
+            transactionId,
+            chainId: result.chain_id,
+            digest: result.digest || tracking.tx_hashes[0] || null,
+          })) {
+            emitAgentStreamExecutionStep(context.sessionId, step);
+          }
+        }
+
+        void enqueueLifiTrackingJob({
+          transactionId,
+          privyUserId,
+          sessionId: context.sessionId ?? null,
+          tracking,
+        }).catch(() => undefined);
+      } else if (transactionId) {
         await markCompleted(transactionId, { kind: "success", result }).catch(() => undefined);
       }
+
       const outcome = {
         status: "executed" as const,
         result,

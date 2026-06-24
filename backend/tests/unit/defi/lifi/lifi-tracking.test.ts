@@ -1,0 +1,78 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import type { LifiExecuteResult } from "../../../../src/services/defi/lifi/lifi.types.js";
+import {
+  buildLifiTrackingMeta,
+  isTerminalLifiStatus,
+  mergeLifiStatusIntoTracking,
+  readLifiTrackingFromTxResult,
+  txResultFromLifiExecute,
+} from "../../../../src/services/defi/lifi/lifi-tracking.js";
+
+describe("lifi-tracking", () => {
+  const executeResult: LifiExecuteResult = {
+    route_id: "route-1",
+    tx_hashes: ["0xabc"],
+    effects_status: "pending",
+    pending_step: null,
+    approval_tx_hash: null,
+  };
+
+  const params = {
+    from_chain_id: "ethereum",
+    to_chain_id: "ethereum",
+    from_evm_chain_id: 1,
+    to_evm_chain_id: 8453,
+    bridges: ["stargate"],
+    estimated_duration_seconds: 120,
+  };
+
+  it("builds tracking metadata with ETA and bridge tool", () => {
+    const tracking = buildLifiTrackingMeta(params, executeResult);
+    assert.equal(tracking.route_id, "route-1");
+    assert.equal(tracking.estimated_duration_seconds, 120);
+    assert.equal(tracking.bridge_tool, "stargate");
+    assert.equal(tracking.tracking_status, "PENDING");
+  });
+
+  it("maps pending execute result to submitted tx result", () => {
+    const tx = txResultFromLifiExecute({
+      chain_id: "ethereum",
+      address: "0xwallet",
+      digest: "0xabc",
+      evm_chain_id: 1,
+      params,
+      executeResult,
+    });
+
+    assert.equal(tx.effects_status, "pending");
+    assert.equal(readLifiTrackingFromTxResult(tx)?.route_id, "route-1");
+  });
+
+  it("detects terminal Li-Fi statuses", () => {
+    assert.equal(isTerminalLifiStatus("DONE"), true);
+    assert.equal(isTerminalLifiStatus("PENDING"), false);
+  });
+
+  it("merges polled status into tracking blob", () => {
+    const tracking = buildLifiTrackingMeta(params, executeResult);
+    const merged = mergeLifiStatusIntoTracking(tracking, {
+      status: "DONE",
+      substatus: "COMPLETED",
+      substatus_message: "Transfer complete",
+      tx_hash: "0xabc",
+      from_chain_id: "ethereum",
+      to_chain_id: "ethereum",
+      from_lifi_chain_id: 1,
+      to_lifi_chain_id: 8453,
+      from_evm_chain_id: 1,
+      to_evm_chain_id: 8453,
+      receiving_tx_hash: "0xdest",
+      tool: "stargate",
+      raw: {} as never,
+    });
+
+    assert.equal(merged.tracking_status, "DONE");
+    assert.equal(merged.receiving_tx_hash, "0xdest");
+  });
+});

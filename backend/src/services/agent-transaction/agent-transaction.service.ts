@@ -274,6 +274,68 @@ export async function markApprovedSubmitted(transactionId: string): Promise<void
   });
 }
 
+export async function markLifiSubmitted(
+  transactionId: string,
+  input: {
+    digest: string | null;
+    effects_status: string;
+    result: TxResult;
+  },
+): Promise<AgentTransactionListItem | null> {
+  const row = await updateAgentTransactionById(transactionId, {
+    status: "submitted",
+    digest: input.digest,
+    effects_status: input.effects_status,
+    result: trimTxResult(input.result),
+    error_code: null,
+    error_message: null,
+    submitted_at: new Date(),
+  });
+  return row ? toListItem(row) : null;
+}
+
+export async function updateLifiTrackingProgress(
+  transactionId: string,
+  input: {
+    digest?: string | null;
+    effects_status: string;
+    result: TxResult;
+  },
+): Promise<AgentTransactionListItem | null> {
+  const row = await updateAgentTransactionById(transactionId, {
+    status: "submitted",
+    ...(input.digest !== undefined ? { digest: input.digest } : {}),
+    effects_status: input.effects_status,
+    result: trimTxResult(input.result),
+  });
+  return row ? toListItem(row) : null;
+}
+
+export async function markLifiTerminal(
+  transactionId: string,
+  input: {
+    status: "success" | "failure";
+    digest: string | null;
+    effects_status: string;
+    result: TxResult;
+    error?: { code: string; message: string };
+  },
+): Promise<AgentTransactionListItem | null> {
+  const now = new Date();
+  const row = await updateAgentTransactionById(transactionId, {
+    status: input.status,
+    digest: input.digest,
+    effects_status: input.effects_status,
+    result: trimTxResult(input.result),
+    error_code: input.error?.code ?? null,
+    error_message: input.error?.message
+      ? sanitizeErrorMessageForUi(input.error.message)
+      : null,
+    completed_at: now,
+  });
+  return row ? toListItem(row) : null;
+}
+
 export async function markCompleted(
   transactionId: string,
   completion: TransactionCompletion,
@@ -286,14 +348,17 @@ export async function markCompleted(
       ? enrichDisplayFromResult(existing.amount_display, completion.result)
       : enrichDisplayFromResult("", completion.result);
 
+    const terminalStatus =
+      completion.result.effects_status === "pending" ? "submitted" : "success";
+
     const row = await updateAgentTransactionById(transactionId, {
-      status: "success",
+      status: terminalStatus,
       digest: completion.result.digest,
       effects_status: completion.result.effects_status,
       result: trimTxResult(completion.result),
       error_code: null,
       error_message: null,
-      completed_at: now,
+      ...(terminalStatus === "success" ? { completed_at: now } : {}),
       ...(amountDisplay ? { amount_display: amountDisplay } : {}),
     });
     return row ? toListItem(row) : null;

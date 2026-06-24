@@ -19,10 +19,23 @@ import {
 } from "@/lib/chat-messages";
 import {
   mapStreamStepToExecutionStep,
+  mergeExecutionSteps,
   sortExecutionSteps,
   upsertExecutionStep,
   executionStepFromPreviewResult,
+  type ExecutionStep,
 } from "@/lib/chat-execution-steps";
+import {
+  getAgentTransaction,
+  listSessionAgentTransactions,
+  type AgentTransactionDetail,
+} from "@/lib/agent-transactions-api";
+import {
+  executionStepsFromAgentTransaction,
+  isInFlightLifiTransaction,
+  mergeTransactionStepsIntoMessages,
+} from "@/lib/lifi-execution-tracking";
+import { agentStreamUrl } from "@/lib/agent-stream";
 import { ChatStreamAbortedError, postChatStream } from "@/lib/chat-stream";
 import {
   cacheChatSession,
@@ -257,6 +270,216 @@ export function useChatSession(sessionId?: string) {
       cancelled = true;
     };
   }, [boot.skipFetch, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || hydrating) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function hydrateInFlightLifiTransactions() {
+      try {
+        const { items } = await listSessionAgentTransactions(sessionId!);
+        const inFlight = items.filter(isInFlightLifiTransaction);
+        if (inFlight.length === 0) {
+          return;
+        }
+
+        const details = new Map<string, AgentTransactionDetail>();
+        await Promise.all(
+          inFlight.map(async (tx) => {
+            const detail = await getAgentTransaction(tx.id);
+            if (!cancelled) {
+              details.set(tx.id, detail);
+            }
+          }),
+        );
+
+        if (cancelled) return;
+
+        setMessages((current) =>
+          mergeTransactionStepsIntoMessages(current, inFlight, details),
+        );
+      } catch {
+        // Best-effort hydration — polling will retry.
+      }
+    }
+
+    void hydrateInFlightLifiTransactions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrating, sessionId]);
+
+  useEffect(() => {
+    if (!activeSessionId) {
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function pollInFlightTransactions() {
+      try {
+        const { items } = await listSessionAgentTransactions(activeSessionId!);
+        const inFlight = items.filter(isInFlightLifiTransaction);
+        if (inFlight.length === 0 || cancelled) {
+          return;
+        }
+
+        for (const tx of inFlight) {
+          const detail = await getAgentTransaction(tx.id);
+          if (cancelled) return;
+          const steps = executionStepsFromAgentTransaction(
+            detail,
+            detail.result as Record<string, unknown> | null,
+          );
+          if (!steps?.length || !detail.message_id) {
+            continue;
+          }
+
+          setMessages((current) =>
+            current.map((message) => {
+              if (message.id !== detail.message_id) {
+                return message;
+              }
+              return {
+                ...message,
+                executionSteps: sortExecutionSteps(
+                  mergeExecutionSteps(message.executionSteps ?? [], steps),
+                ),
+              };
+            }),
+          );
+        }
+      } catch {
+        // Ignore transient poll failures.
+      } finally {
+        if (!cancelled) {
+          timer = setTimeout(() => {
+            void pollInFlightTransactions();
+          }, 10_000);
+        }
+      }
+    }
+
+    void pollInFlightTransactions();
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!activeSessionId) {
+      return;
+    }
+
+    const source = new EventSource(agentStreamUrl(activeSessionId), {
+      withCredentials: true,
+    });
+
+    function handleExecutionStep(event: MessageEvent<string>) {
+      let payload: {
+        execution_step?: ExecutionStep & {
+          agent_transaction_id?: string;
+          chain_id?: string;
+        };
+      };
+      try {
+        payload = JSON.parse(event.data) as typeof payload;
+      } catch {
+        return;
+      }
+
+      const raw = payload.execution_step;
+      if (!raw?.id) {
+        return;
+      }
+
+      const incoming = mapStreamStepToExecutionStep({
+        id: raw.id,
+        status: raw.status,
+        label: raw.label,
+        detail: raw.detail,
+        agent_transaction_id: raw.agent_transaction_id,
+        digest: raw.digest,
+        chain_id: raw.chain_id,
+        status_category: raw.status_category,
+      });
+
+      setMessages((current) => {
+        const targetIndex = [...current]
+          .reverse()
+          .findIndex(
+            (message) =>
+              message.role === "agent" &&
+              message.executionSteps?.some(
+                (step) =>
+                  step.agentTransactionId === incoming.agentTransactionId ||
+                  step.id.startsWith("lifi-"),
+              ),
+          );
+        if (targetIndex === -1) {
+          const lastAgentIndex = [...current]
+            .reverse()
+            .findIndex((message) => message.role === "agent");
+          if (lastAgentIndex === -1) {
+            return current;
+          }
+          const index = current.length - 1 - lastAgentIndex;
+          const messageRow = current[index];
+          if (!messageRow) {
+            return current;
+          }
+          const executionSteps = sortExecutionSteps(
+            upsertExecutionStep(messageRow.executionSteps ?? [], incoming),
+          );
+          const digestReceipt = receiptFromExecutionStep(incoming);
+          return current.map((row, i) =>
+            i === index
+              ? {
+                  ...row,
+                  executionSteps,
+                  ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+                }
+              : row,
+          );
+        }
+
+        const index = current.length - 1 - targetIndex;
+        const messageRow = current[index];
+        if (!messageRow) {
+          return current;
+        }
+        const executionSteps = sortExecutionSteps(
+          upsertExecutionStep(messageRow.executionSteps ?? [], incoming),
+        );
+        const digestReceipt = receiptFromExecutionStep(incoming);
+        return current.map((row, i) =>
+          i === index
+            ? {
+                ...row,
+                executionSteps,
+                ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+              }
+            : row,
+        );
+      });
+    }
+
+    source.addEventListener("execution_step", handleExecutionStep);
+
+    return () => {
+      source.removeEventListener("execution_step", handleExecutionStep);
+      source.close();
+    };
+  }, [activeSessionId]);
 
   const sendMessage = useCallback(
     async (text: string, appScope?: ChatAppScope | null) => {
@@ -518,6 +741,18 @@ export function useChatSession(sessionId?: string) {
           role: "agent",
           text: data.reply,
           ...mapToolCallsToMessageExtras(data.tool_calls),
+          ...(data.tool_calls.some(
+            (call) =>
+              call.name === "execute_transaction" &&
+              typeof call.result === "object" &&
+              call.result !== null &&
+              "result" in call.result &&
+              (((call.result as { result?: { effects_status?: string } }).result
+                ?.effects_status === "pending") ||
+                (call.result as { result?: { lifi?: unknown } }).result?.lifi),
+          )
+            ? { statusCategory: "defi" as const }
+            : {}),
         },
       ]);
 

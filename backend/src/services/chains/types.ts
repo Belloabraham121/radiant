@@ -30,8 +30,22 @@ export type TxResult = {
   chain_id: ChainId;
   digest: string;
   address: string;
-  effects_status: "success" | "failure" | "unknown";
+  effects_status: "success" | "failure" | "unknown" | "pending";
   evm_chain_id?: number;
+  lifi?: {
+    route_id: string;
+    tx_hashes: string[];
+    from_chain_id: ChainId;
+    to_chain_id: ChainId;
+    from_evm_chain_id?: number;
+    to_evm_chain_id?: number;
+    bridge_tool: string | null;
+    estimated_duration_seconds: number | null;
+    tracking_status: string | null;
+    substatus: string | null;
+    substatus_message: string | null;
+    receiving_tx_hash: string | null;
+  };
   deepbook?: {
     coin_key?: string;
     amount_display?: number;

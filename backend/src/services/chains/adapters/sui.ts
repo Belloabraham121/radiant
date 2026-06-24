@@ -50,6 +50,8 @@ import {
   executeLifiAction,
   isLifiExecuteAction,
 } from "../../agent/chains/evm/lifi/execute-actions.js";
+import { txResultFromLifiExecute } from "../../defi/lifi/lifi-tracking.js";
+import type { LifiExecuteResult } from "../../defi/lifi/lifi.types.js";
 import {
   executeDeepBookSubmitProposal,
   executeDeepBookVote,
@@ -438,10 +440,19 @@ export const suiAdapter: ChainAdapter = {
       if (!agentWallet) {
         throw new AppError(404, "WALLET_NOT_FOUND", "Sui agent wallet not registered.");
       }
-      const result = await executeLifiAction(privyUserId, action, {
-        ...params,
-        from_chain_id: "sui",
-      });
+      const lifiParams = { ...params, from_chain_id: "sui" };
+      const result = await executeLifiAction(privyUserId, action, lifiParams);
+      if (action === "cross_chain_swap" && "tx_hashes" in result) {
+        const lifiResult = result as LifiExecuteResult;
+        const txHash = lifiResult.tx_hashes[0] ?? "unknown";
+        return txResultFromLifiExecute({
+          chain_id: "sui",
+          address: agentWallet.address,
+          digest: txHash,
+          params: lifiParams,
+          executeResult: lifiResult,
+        });
+      }
       const txHash =
         "tx_hashes" in result && Array.isArray(result.tx_hashes) && result.tx_hashes[0]
           ? result.tx_hashes[0]

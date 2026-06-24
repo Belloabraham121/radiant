@@ -25,6 +25,9 @@ import { createRouteId } from "./lifi-normalize.js";
 import { resolveLifiBridgeWalletAddresses } from "./lifi-wallet-addresses.js";
 import { isDeFiQuoteExpired } from "../../agent-transaction/approval-preview/quote-expiry.js";
 import { buildLifiSdkProvidersForRoute } from "./lifi-providers.service.js";
+import { getLifiExecuteContext } from "./lifi-execute-context.js";
+import { emitAgentStreamExecutionStep } from "../../agent/agent-stream-lifi.js";
+import { formatLifiEtaLabel } from "./lifi-tracking.js";
 import type { LifiExecuteInput, LifiExecuteResult } from "./lifi.types.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
 import type { ChainId } from "../../chains/types.js";
@@ -193,9 +196,42 @@ async function runLifiCrossChainSwap(
   client.setProviders(providers);
 
   let executedRoute: RouteExtended;
+  const streamCtx = getLifiExecuteContext();
   try {
     executedRoute = await executeRoute(client, refreshedRoute, {
-      updateRouteHook: () => undefined,
+      updateRouteHook: (updatedRoute) => {
+        if (!streamCtx?.sessionId) {
+          return;
+        }
+        const txHashes = collectTxHashes(updatedRoute);
+        const digest = txHashes[0];
+        emitAgentStreamExecutionStep(streamCtx.sessionId, {
+          id: "lifi-submit",
+          status: digest ? "ok" : "running",
+          label: "Submitting",
+          detail: digest ? `Source tx · ${digest.slice(0, 10)}…` : "Broadcasting source transaction",
+          ...(streamCtx.transactionId
+            ? { agent_transaction_id: streamCtx.transactionId }
+            : {}),
+          ...(digest ? { digest, chain_id: sourceChain.chain_id } : {}),
+          status_category: "defi",
+        });
+
+        const durationSeconds = refreshedRoute.steps.reduce(
+          (max, step) => Math.max(max, step.estimate.executionDuration ?? 0),
+          0,
+        );
+        emitAgentStreamExecutionStep(streamCtx.sessionId, {
+          id: "lifi-bridge",
+          status: "running",
+          label: formatLifiEtaLabel(durationSeconds || null),
+          detail: "Waiting for destination confirmation",
+          ...(streamCtx.transactionId
+            ? { agent_transaction_id: streamCtx.transactionId }
+            : {}),
+          status_category: "defi",
+        });
+      },
     });
   } catch (err) {
     throw new AppError(400, "TRANSACTION_FAILED", "Cross-chain route execution failed.", {

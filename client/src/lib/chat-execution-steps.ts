@@ -141,6 +141,10 @@ export const EXECUTION_STEP_ORDER = [
   "swap-2",
   "swap-3",
   "swap-quote",
+  "lifi-quote",
+  "lifi-submit",
+  "lifi-bridge",
+  "lifi-complete",
   "repay",
   "execute",
 ] as const;
@@ -420,6 +424,204 @@ function buildFlashLoanExecutionSteps(
   return steps;
 }
 
+function formatLifiEtaLabel(seconds: number | null | undefined): string {
+  if (seconds == null || seconds <= 0) {
+    return "Bridging";
+  }
+  if (seconds < 60) {
+    return `Bridging (~${Math.max(1, Math.round(seconds))}s)`;
+  }
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  return `Bridging (~${minutes}m)`;
+}
+
+type LifiRouteQuote = {
+  routes?: Array<{
+    from_token_symbol?: string;
+    to_token_symbol?: string;
+    from_amount_atomic?: string;
+    to_amount_atomic?: string;
+    bridges?: string[];
+    estimated_duration_seconds?: number | null;
+    tool?: string | null;
+  }>;
+};
+
+type LifiExecuteOutcome = {
+  status?: string;
+  agent_transaction_id?: string;
+  result?: {
+    chain_id?: AgentChainId;
+    digest?: string;
+    effects_status?: string;
+    lifi?: {
+      tx_hashes?: string[];
+      bridge_tool?: string | null;
+      estimated_duration_seconds?: number | null;
+      tracking_status?: string | null;
+      substatus_message?: string | null;
+      receiving_tx_hash?: string | null;
+      to_chain_id?: AgentChainId;
+    };
+  };
+};
+
+function findLifiRouteQuoteCall(toolCalls: ChatToolCall[]): ChatToolCall | undefined {
+  return toolCalls.find(
+    (call) =>
+      call.name === "query_chain" &&
+      (call.query === "cross_chain_routes" || call.query === "cross_chain_quote") &&
+      !isToolError(call.result),
+  );
+}
+
+function findLifiExecuteCall(toolCalls: ChatToolCall[]): ChatToolCall | undefined {
+  return toolCalls.find(
+    (call) =>
+      (call.name === "execute_transaction" || call.name === "call_app_action") &&
+      (call.action === "cross_chain_swap" ||
+        (typeof call.result === "object" &&
+          call.result !== null &&
+          "result" in call.result &&
+          typeof (call.result as LifiExecuteOutcome).result?.lifi === "object")),
+  );
+}
+
+export function buildLifiExecutionSteps(
+  toolCalls: ChatToolCall[],
+): ExecutionStep[] | undefined {
+  const executeCall = findLifiExecuteCall(toolCalls);
+  if (!executeCall || isToolError(executeCall.result)) {
+    return undefined;
+  }
+
+  const quoteCall = findLifiRouteQuoteCall(toolCalls);
+  const outcome = executeCall.result as LifiExecuteOutcome;
+  const lifi = outcome.result?.lifi;
+  if (!lifi && outcome.result?.effects_status !== "pending") {
+    return undefined;
+  }
+
+  const routeQuote =
+    quoteCall && !isToolError(quoteCall.result)
+      ? ((quoteCall.result as LifiRouteQuote).routes?.[0] ?? null)
+      : null;
+
+  const agentTransactionId = outcome.agent_transaction_id;
+  const chainId =
+    outcome.result?.chain_id ?? ("ethereum" as AgentChainId);
+  const digest = outcome.result?.digest ?? lifi?.tx_hashes?.[0];
+  const meta = {
+    ...(agentTransactionId ? { agentTransactionId } : {}),
+    chainId,
+    ...(digest ? { digest } : {}),
+  };
+
+  const steps: ExecutionStep[] = [];
+  const bridgeTool = lifi?.bridge_tool ?? routeQuote?.bridges?.[0] ?? null;
+  const estimatedDuration =
+    lifi?.estimated_duration_seconds ?? routeQuote?.estimated_duration_seconds ?? null;
+
+  if (routeQuote?.from_token_symbol && routeQuote?.to_token_symbol) {
+    steps.push({
+      id: "lifi-quote",
+      status: "ok",
+      label: "Route quoted",
+      detail: `${routeQuote.from_token_symbol} → ${routeQuote.to_token_symbol}${
+        bridgeTool ? ` via ${bridgeTool}` : ""
+      }`,
+      ...meta,
+    });
+  } else {
+    steps.push({
+      id: "lifi-quote",
+      status: "ok",
+      label: "Route quoted",
+      detail: bridgeTool ? `Via ${bridgeTool}` : "Cross-chain route ready",
+      ...meta,
+    });
+  }
+
+  steps.push({
+    id: "lifi-submit",
+    status: digest ? "ok" : outcome.status === "executed" ? "running" : "pending",
+    label: "Submitting",
+    detail: digest ? `Source tx · ${digest.slice(0, 10)}…` : "Broadcasting source transaction",
+    ...meta,
+  });
+
+  const trackingStatus = lifi?.tracking_status;
+  const eta = formatLifiEtaLabel(estimatedDuration);
+
+  if (trackingStatus === "DONE" || outcome.result?.effects_status === "success") {
+    const destDigest =
+      lifi?.receiving_tx_hash ?? lifi?.tx_hashes?.at(-1) ?? digest;
+    steps.push(
+      {
+        id: "lifi-bridge",
+        status: "ok",
+        label: eta,
+        detail: lifi?.substatus_message ?? "Bridge confirmed",
+        ...meta,
+      },
+      {
+        id: "lifi-complete",
+        status: "ok",
+        label: "Complete",
+        detail: destDigest ? `Destination tx · ${destDigest.slice(0, 10)}…` : "Bridge complete",
+        ...(destDigest
+          ? { digest: destDigest, chainId: lifi?.to_chain_id ?? chainId }
+          : {}),
+        ...(agentTransactionId ? { agentTransactionId } : {}),
+      },
+    );
+    return steps;
+  }
+
+  if (
+    trackingStatus === "FAILED" ||
+    trackingStatus === "REFUNDED" ||
+    outcome.result?.effects_status === "failure"
+  ) {
+    steps.push(
+      {
+        id: "lifi-bridge",
+        status: "failed",
+        label: eta,
+        detail: lifi?.substatus_message ?? "Bridge failed",
+        ...meta,
+      },
+      {
+        id: "lifi-complete",
+        status: "failed",
+        label: "Failed",
+        detail: lifi?.substatus_message ?? "Cross-chain transfer did not complete",
+        ...(agentTransactionId ? { agentTransactionId, chainId } : { chainId }),
+      },
+    );
+    return steps;
+  }
+
+  if (
+    outcome.status === "executed" &&
+    (outcome.result?.effects_status === "pending" ||
+      outcome.result?.effects_status === "unknown" ||
+      trackingStatus === "PENDING" ||
+      lifi)
+  ) {
+    steps.push({
+      id: "lifi-bridge",
+      status: "running",
+      label: eta,
+      detail: lifi?.substatus_message ?? "Waiting for destination confirmation",
+      ...meta,
+    });
+    return steps;
+  }
+
+  return steps.length > 0 ? steps : undefined;
+}
+
 function buildSwapExecutionSteps(
   toolCalls: ChatToolCall[],
 ): ExecutionStep[] | undefined {
@@ -600,6 +802,11 @@ export function mapToolCallsToExecutionSteps(
       return undefined;
     }
     return buildFlashLoanExecutionSteps(toolCalls, flashQuoteIndex, quote);
+  }
+
+  const lifiSteps = buildLifiExecutionSteps(toolCalls);
+  if (lifiSteps) {
+    return lifiSteps;
   }
 
   return buildSwapExecutionSteps(toolCalls);
