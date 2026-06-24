@@ -63,3 +63,18 @@ export function evmExplorerAccountUrl(chainId: number, address: string): string 
       return null;
   }
 }
+
+/** Block explorer transaction URL for a specific EVM chain id. */
+export function evmExplorerTxUrl(chainId: number, hash: string): string | null {
+  if (!hash) return null;
+  switch (chainId) {
+    case 1:
+      return `https://etherscan.io/tx/${hash}`;
+    case 8453:
+      return `https://basescan.org/tx/${hash}`;
+    case 42161:
+      return `https://arbiscan.io/tx/${hash}`;
+    default:
+      return null;
+  }
+}

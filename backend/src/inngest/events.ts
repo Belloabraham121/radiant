@@ -40,10 +40,18 @@ export type NotificationEmitEvent = {
   };
 };
 
-/** Durable Li-Fi bridge/swap status polling after approval. */
+/** Durable Li-Fi cross-chain bridge status polling after approval. */
 export const LIFI_TRACK_CROSS_CHAIN_EVENT = "radiant/lifi.track.cross_chain" as const;
 
 export type LifiTrackCrossChainEvent = {
   name: typeof LIFI_TRACK_CROSS_CHAIN_EVENT;
+  data: LifiTrackJobInput;
+};
+
+/** Durable Li-Fi same-chain swap status polling after approval. */
+export const LIFI_TRACK_SWAP_EVENT = "radiant/lifi.track.swap" as const;
+
+export type LifiTrackSwapEvent = {
+  name: typeof LIFI_TRACK_SWAP_EVENT;
   data: LifiTrackJobInput;
 };

@@ -29,9 +29,9 @@ describe("swap-registry", () => {
     assert.equal(defaultProvider?.id, "sui-deepbook");
   });
 
-  it("routes same-chain EVM swaps to SushiSwap", () => {
+  it("routes same-chain EVM swaps to Li-Fi", () => {
     const provider = getProviderForSwap({ chain_id: "ethereum", cross_chain: false });
-    assert.equal(provider.id, "evm-sushiswap");
+    assert.equal(provider.id, "evm-lifi");
   });
 
   it("routes cross-chain EVM bridges to Li-Fi", () => {

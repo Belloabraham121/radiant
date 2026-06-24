@@ -26,10 +26,12 @@ import {
   markCompleted,
   markLifiSubmitted,
 } from "../agent-transaction/agent-transaction.service.js";
-import { enqueueLifiTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
+import { enqueueLifiCrossChainTrackingJob, enqueueLifiSwapTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
 import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
 import {
   readLifiTrackingFromTxResult,
+  shouldEnqueueLifiCrossChainTracking,
+  shouldEnqueueLifiSwapTracking,
 } from "../defi/lifi/lifi-tracking.js";
 import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
 import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
@@ -117,12 +119,13 @@ export async function runExecuteTransactionToolWithApproval(
         () => runExecuteTransactionTool(privyUserId, input),
       );
       const tracking = readLifiTrackingFromTxResult(result);
-      const lifiPending =
-        isLifiExecuteAction(input.action) &&
-        tracking != null &&
-        (result.effects_status === "pending" || result.effects_status === "unknown");
+      const needsCrossChainTracking =
+        isLifiExecuteAction(input.action) && shouldEnqueueLifiCrossChainTracking(result, tracking);
+      const needsSwapTracking =
+        isLifiExecuteAction(input.action) && shouldEnqueueLifiSwapTracking(result, tracking);
+      const needsLifiTracking = needsCrossChainTracking || needsSwapTracking;
 
-      if (transactionId && lifiPending && tracking) {
+      if (transactionId && needsLifiTracking) {
         await markLifiSubmitted(transactionId, {
           digest: result.digest || tracking.tx_hashes[0] || null,
           effects_status: "pending",
@@ -135,12 +138,16 @@ export async function runExecuteTransactionToolWithApproval(
             transactionId,
             chainId: result.chain_id,
             digest: result.digest || tracking.tx_hashes[0] || null,
+            evmChainId: result.evm_chain_id ?? tracking.from_evm_chain_id,
           })) {
             emitAgentStreamExecutionStep(context.sessionId, step);
           }
         }
 
-        void enqueueLifiTrackingJob({
+        const enqueue = needsSwapTracking
+          ? enqueueLifiSwapTrackingJob
+          : enqueueLifiCrossChainTrackingJob;
+        void enqueue({
           transactionId,
           privyUserId,
           sessionId: context.sessionId ?? null,

@@ -25,6 +25,7 @@ function lifiExecutionSteps(input: {
   transactionId: string;
   chainId: ChainId;
   digest?: string | null;
+  evmChainId?: number;
   terminal?: CrossChainStatusResult | null;
 }): ExecutionProgressStep[] {
   const eta = formatLifiEtaLabel(input.tracking.estimated_duration_seconds);
@@ -32,6 +33,7 @@ function lifiExecutionSteps(input: {
     agent_transaction_id: input.transactionId,
     chain_id: input.chainId,
     ...(input.digest ? { digest: input.digest } : {}),
+    ...(input.evmChainId !== undefined ? { evm_chain_id: input.evmChainId } : {}),
     status_category: "defi" as const,
   };
 
@@ -145,6 +147,7 @@ export async function applyLifiStatusUpdate(input: {
     transactionId: input.transactionId,
     chainId: input.chainId,
     digest: input.digest,
+    evmChainId: input.tracking.from_evm_chain_id,
     terminal: input.status,
   });
   emitLifiSteps(input.sessionId, steps);
@@ -284,12 +287,14 @@ export function buildInitialLifiExecutionSteps(input: {
   transactionId: string;
   chainId: ChainId;
   digest?: string | null;
+  evmChainId?: number;
 }): ExecutionProgressStep[] {
   return lifiExecutionSteps({
     tracking: input.tracking,
     transactionId: input.transactionId,
     chainId: input.chainId,
     digest: input.digest,
+    evmChainId: input.evmChainId ?? input.tracking.from_evm_chain_id,
   });
 }
 

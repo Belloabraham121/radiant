@@ -18,6 +18,7 @@ export type ExecutionStep = {
   agentTransactionId?: string;
   digest?: string;
   chainId?: AgentChainId;
+  evmChainId?: number;
 };
 
 type FlashLoanStepQuote = {
@@ -75,6 +76,7 @@ export type StreamExecutionStepPayload = {
   agent_transaction_id?: string;
   digest?: string;
   chain_id?: string;
+  evm_chain_id?: number;
   status_category?: import("@/lib/agent-status-category").AgentStatusCategory;
 };
 
@@ -105,9 +107,7 @@ export function filterExecutionStepsForDisplay(
 export function mapStreamStepToExecutionStep(
   step: StreamExecutionStepPayload,
 ): ExecutionStep {
-  const chainId = (step.chain_id ?? (step.digest ? "sui" : undefined)) as
-    | AgentChainId
-    | undefined;
+  const chainId = step.chain_id as AgentChainId | undefined;
   return {
     id: step.id,
     status: step.status,
@@ -118,6 +118,7 @@ export function mapStreamStepToExecutionStep(
       : {}),
     ...(step.digest ? { digest: step.digest } : {}),
     ...(chainId ? { chainId } : {}),
+    ...(step.evm_chain_id !== undefined ? { evmChainId: step.evm_chain_id } : {}),
   };
 }
 
@@ -454,6 +455,7 @@ type LifiExecuteOutcome = {
     chain_id?: AgentChainId;
     digest?: string;
     effects_status?: string;
+    evm_chain_id?: number;
     lifi?: {
       tx_hashes?: string[];
       bridge_tool?: string | null;
@@ -462,6 +464,7 @@ type LifiExecuteOutcome = {
       substatus_message?: string | null;
       receiving_tx_hash?: string | null;
       to_chain_id?: AgentChainId;
+      from_evm_chain_id?: number;
     };
   };
 };
@@ -510,10 +513,15 @@ export function buildLifiExecutionSteps(
   const agentTransactionId = outcome.agent_transaction_id;
   const chainId =
     outcome.result?.chain_id ?? ("ethereum" as AgentChainId);
+  const evmChainId =
+    outcome.result?.evm_chain_id ??
+    lifi?.from_evm_chain_id ??
+    routeQuote?.from_evm_chain_id;
   const digest = outcome.result?.digest ?? lifi?.tx_hashes?.[0];
   const meta = {
     ...(agentTransactionId ? { agentTransactionId } : {}),
     chainId,
+    ...(evmChainId !== undefined ? { evmChainId } : {}),
     ...(digest ? { digest } : {}),
   };
 

@@ -8,6 +8,8 @@ type LifiTrackingMeta = {
   tx_hashes?: string[];
   from_chain_id?: AgentChainId;
   to_chain_id?: AgentChainId;
+  from_evm_chain_id?: number;
+  to_evm_chain_id?: number;
   bridge_tool?: string | null;
   estimated_duration_seconds?: number | null;
   tracking_status?: string | null;
@@ -44,10 +46,12 @@ export function executionStepsFromAgentTransaction(
   }
 
   const chainId = (tx.chain_id ?? tracking.from_chain_id ?? "ethereum") as AgentChainId;
+  const evmChainId = tracking.from_evm_chain_id;
   const digest = tx.digest ?? tracking.tx_hashes?.[0];
   const meta = {
     agentTransactionId: tx.id,
     chainId,
+    ...(evmChainId !== undefined ? { evmChainId } : {}),
     ...(digest ? { digest } : {}),
   };
 

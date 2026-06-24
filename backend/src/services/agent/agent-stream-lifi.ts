@@ -19,6 +19,7 @@ export function emitAgentStreamExecutionStep(
       ...(step.agent_transaction_id ? { agent_transaction_id: step.agent_transaction_id } : {}),
       ...(step.digest ? { digest: step.digest } : {}),
       ...(step.chain_id ? { chain_id: step.chain_id } : {}),
+      ...(step.evm_chain_id !== undefined ? { evm_chain_id: step.evm_chain_id } : {}),
       ...(step.status_category ? { status_category: step.status_category } : {}),
     },
   });

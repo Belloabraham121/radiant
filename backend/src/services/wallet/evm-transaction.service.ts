@@ -83,3 +83,18 @@ export function parseEvmChainIdParam(params: Record<string, unknown>): number | 
   }
   return parsed;
 }
+
+/** Read an optional EVM chain id from params without throwing (checks common Li-Fi keys). */
+export function readOptionalEvmChainIdParam(params: Record<string, unknown>): number | undefined {
+  for (const key of ["evm_chain_id", "from_evm_chain_id"] as const) {
+    const raw = params[key];
+    if (raw === undefined || raw === null) {
+      continue;
+    }
+    const parsed = typeof raw === "number" ? raw : Number.parseInt(String(raw), 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return undefined;
+}

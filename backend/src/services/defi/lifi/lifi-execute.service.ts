@@ -205,6 +205,8 @@ async function runLifiCrossChainSwap(
         }
         const txHashes = collectTxHashes(updatedRoute);
         const digest = txHashes[0];
+        const sourceEvmChainId =
+          sourceChain.chain_id === "ethereum" ? sourceChain.evm_chain_id : undefined;
         emitAgentStreamExecutionStep(streamCtx.sessionId, {
           id: "lifi-submit",
           status: digest ? "ok" : "running",
@@ -213,7 +215,13 @@ async function runLifiCrossChainSwap(
           ...(streamCtx.transactionId
             ? { agent_transaction_id: streamCtx.transactionId }
             : {}),
-          ...(digest ? { digest, chain_id: sourceChain.chain_id } : {}),
+          ...(digest
+            ? {
+                digest,
+                chain_id: sourceChain.chain_id,
+                ...(sourceEvmChainId !== undefined ? { evm_chain_id: sourceEvmChainId } : {}),
+              }
+            : {}),
           status_category: "defi",
         });
 

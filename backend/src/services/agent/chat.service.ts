@@ -8,7 +8,7 @@ import {
 import type { ChatStreamSender } from "./execution-progress.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { approvePendingTransaction, rejectPendingTransaction } from "./transaction-approval.service.js";
-import { buildExplorerTxUrl } from "../agent-transaction/explorer-url.js";
+import { buildExplorerTxUrl, explorerLabelForChain } from "../agent-transaction/explorer-url.js";
 import {
   buildTransactionErrorUserContext,
   transactionContextFromPending,
@@ -116,7 +116,13 @@ export async function handleChatMessage(
         }
       }
 
-      const explorerUrl = buildExplorerTxUrl(outcome.result.chain_id, outcome.result.digest);
+      const evmChainId = outcome.result.evm_chain_id;
+      const explorerUrl = buildExplorerTxUrl(
+        outcome.result.chain_id,
+        outcome.result.digest,
+        evmChainId,
+      );
+      const explorerLabel = explorerLabelForChain(outcome.result.chain_id, evmChainId);
       const marginNote = formatMarginManagerApprovalNote(outcome.result);
       const lifiTracking = readLifiTrackingFromTxResult(outcome.result);
       const isLifiPending =
@@ -133,7 +139,7 @@ export async function handleChatMessage(
           : `Approved. Bridge submitted. ${eta} — I'll update this thread as the bridge completes.`;
       } else {
         reply = explorerUrl
-          ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [View on Sui Explorer](${explorerUrl}) — Digest: ${outcome.result.digest}.${marginNote}`
+          ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [${explorerLabel}](${explorerUrl}) — Digest: ${outcome.result.digest}.${marginNote}`
           : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}.${marginNote}`;
       }
 

@@ -18,6 +18,7 @@ export type ExecutionProgressStep = {
   agent_transaction_id?: string;
   digest?: string;
   chain_id?: string;
+  evm_chain_id?: number;
   /** Drives playful status phrases on the client (thinking, defi, etc.). */
   status_category?: AgentStatusCategory;
 };

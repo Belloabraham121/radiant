@@ -274,7 +274,13 @@ export function AgentTransactionDetailDialog({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 rounded-full border-2 border-(--hero-ink) bg-white px-4 py-2 text-xs font-bold text-[var(--hero-ink)]"
                   >
-                    {explorerLinkLabelForActivityCategory(detail.category)}
+                    {explorerLinkLabelForActivityCategory(detail.category, {
+                      chainId: detail.chain_id,
+                      evmChainId:
+                        typeof detail.result?.evm_chain_id === "number"
+                          ? detail.result.evm_chain_id
+                          : undefined,
+                    })}
                     <ExternalLink className="size-3.5" />
                   </a>
                 ) : null}

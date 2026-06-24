@@ -27,6 +27,10 @@ import {
 } from "./swap-intent-parser.js";
 import type { PartialSwapIntent } from "./swap-intent.types.js";
 import { executeResolvedSwapIntent } from "./swap-execute.js";
+import {
+  executeResolvedLifiSameChainSwap,
+  isLifiSameChainSwapEligible,
+} from "./swap-lifi-execute.js";
 
 const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [] };
 
@@ -74,6 +78,27 @@ async function finishResolvedSwapIntent(
       reply: "I still need a bit more detail to run this swap. Try specifying both tokens and an amount.",
       tool_calls: [],
       pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
+  if (isLifiSameChainSwapEligible(resolved)) {
+    const outcome = await executeResolvedLifiSameChainSwap(privyUserId, resolved, sessionId);
+    if (!outcome) {
+      return {
+        reply: "I couldn't run that swap — check the tokens, network, and amount, then try again.",
+        tool_calls: [],
+        pending_transaction: null,
+        pending_clarification: null,
+        workflowCompleted: true,
+      };
+    }
+
+    return {
+      reply: outcome.reply,
+      tool_calls: outcome.tool_calls,
+      pending_transaction: outcome.pending_transaction,
       pending_clarification: null,
       workflowCompleted: true,
     };

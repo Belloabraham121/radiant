@@ -29,7 +29,8 @@ const CHAT_INPUT_MAX_HEIGHT_PX = 160;
 function ReceiptPill({ receipt }: { receipt: Receipt }) {
   const explorerUrl = explorerUrlForDigest(
     receipt.digest,
-    receipt.chainId ?? "sui",
+    receipt.chainId,
+    receipt.evmChainId,
   );
 
   return (
@@ -51,7 +52,7 @@ function ReceiptPill({ receipt }: { receipt: Receipt }) {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-0.5 font-bold text-[var(--hero-blue)] hover:underline"
         >
-          {explorerLinkLabelForReceipt(receipt.label)}
+          {explorerLinkLabelForReceipt(receipt.label, receipt.chainId, receipt.evmChainId)}
           <ExternalLink className="size-3" />
         </a>
       ) : null}

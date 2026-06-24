@@ -95,7 +95,7 @@ export function getDefaultSwapProvider(chainId: ChainId = "sui"): SwapProvider |
     return PROVIDERS["stellar-soroswap"];
   }
   if (chainId === "ethereum") {
-    return PROVIDERS["evm-sushiswap"];
+    return PROVIDERS["evm-lifi"];
   }
   return null;
 }
@@ -130,7 +130,7 @@ export function getProviderForSwap(input: GetProviderForSwapInput): SwapProvider
     case "stellar":
       return getSwapProvider("stellar-soroswap");
     case "ethereum":
-      return getSwapProvider("evm-sushiswap");
+      return getSwapProvider("evm-lifi");
     default:
       throw new AppError(
         404,

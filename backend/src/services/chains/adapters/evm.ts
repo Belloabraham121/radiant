@@ -8,6 +8,7 @@ import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.servi
 import {
   parseAmountWei,
   parseEvmChainIdParam,
+  readOptionalEvmChainIdParam,
   parseEvmRecipient,
   sendEvmTransfer,
   type EvmTxResult,
@@ -139,14 +140,14 @@ export const evmAdapter: ChainAdapter = {
       const result = await executeLifiAction(privyUserId, action, params);
       if ("tx_hashes" in result) {
         const agentWallet = await resolveSigningWallet(privyUserId);
-        const evmChainId = parseEvmChainIdParam(params);
+        const evmChainId = readOptionalEvmChainIdParam(params) ?? 1;
         const lifiResult = result as LifiExecuteResult;
         const txHash = lifiResult.tx_hashes[0] ?? "0x0";
         return txResultFromLifiExecute({
           chain_id: "ethereum",
           address: agentWallet.address,
           digest: txHash,
-          evm_chain_id: evmChainId ?? 1,
+          evm_chain_id: evmChainId,
           params,
           executeResult: lifiResult,
         });

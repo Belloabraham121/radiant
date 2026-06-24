@@ -3,9 +3,12 @@ import { describe, it } from "node:test";
 import type { LifiExecuteResult } from "../../../../src/services/defi/lifi/lifi.types.js";
 import {
   buildLifiTrackingMeta,
+  isSameChainLifiRoute,
   isTerminalLifiStatus,
   mergeLifiStatusIntoTracking,
   readLifiTrackingFromTxResult,
+  shouldEnqueueLifiCrossChainTracking,
+  shouldEnqueueLifiSwapTracking,
   txResultFromLifiExecute,
 } from "../../../../src/services/defi/lifi/lifi-tracking.js";
 
@@ -74,5 +77,80 @@ describe("lifi-tracking", () => {
 
     assert.equal(merged.tracking_status, "DONE");
     assert.equal(merged.receiving_tx_hash, "0xdest");
+  });
+
+  it("detects same-chain Li-Fi routes", () => {
+    const sameChain = buildLifiTrackingMeta(
+      {
+        from_chain_id: "ethereum",
+        to_chain_id: "ethereum",
+        from_evm_chain_id: 8453,
+        to_evm_chain_id: 8453,
+      },
+      executeResult,
+    );
+    assert.equal(isSameChainLifiRoute(sameChain), true);
+
+    const crossChain = buildLifiTrackingMeta(params, executeResult);
+    assert.equal(isSameChainLifiRoute(crossChain), false);
+  });
+
+  it("routes swap vs cross-chain enqueue explicitly", () => {
+    const sameChainParams = {
+      from_chain_id: "ethereum",
+      to_chain_id: "ethereum",
+      from_evm_chain_id: 8453,
+      to_evm_chain_id: 8453,
+    };
+    const tracking = buildLifiTrackingMeta(sameChainParams, executeResult);
+    const pendingTx = txResultFromLifiExecute({
+      chain_id: "ethereum",
+      address: "0xwallet",
+      digest: "0xabc",
+      evm_chain_id: 8453,
+      params: sameChainParams,
+      executeResult,
+    });
+
+    assert.equal(shouldEnqueueLifiSwapTracking(pendingTx, tracking), true);
+    assert.equal(shouldEnqueueLifiCrossChainTracking(pendingTx, tracking), false);
+
+    const successResult = txResultFromLifiExecute({
+      chain_id: "ethereum",
+      address: "0xwallet",
+      digest: "0xabc",
+      evm_chain_id: 8453,
+      params: sameChainParams,
+      executeResult: { ...executeResult, effects_status: "success" },
+    });
+    assert.equal(shouldEnqueueLifiSwapTracking(successResult, tracking), true);
+    assert.equal(shouldEnqueueLifiCrossChainTracking(successResult, tracking), false);
+
+    const crossChainTracking = buildLifiTrackingMeta(params, executeResult);
+    const crossChainPending = txResultFromLifiExecute({
+      chain_id: "ethereum",
+      address: "0xwallet",
+      digest: "0xabc",
+      evm_chain_id: 1,
+      params,
+      executeResult,
+    });
+    assert.equal(shouldEnqueueLifiCrossChainTracking(crossChainPending, crossChainTracking), true);
+    assert.equal(shouldEnqueueLifiSwapTracking(crossChainPending, crossChainTracking), false);
+
+    assert.equal(
+      shouldEnqueueLifiCrossChainTracking(
+        { ...successResult, effects_status: "success" },
+        crossChainTracking,
+      ),
+      false,
+    );
+    assert.equal(
+      shouldEnqueueLifiSwapTracking(
+        { ...successResult, effects_status: "success" },
+        crossChainTracking,
+      ),
+      false,
+    );
   });
 });

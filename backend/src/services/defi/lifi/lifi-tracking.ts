@@ -15,6 +15,59 @@ export function isLifiPendingEffectsStatus(
   return effectsStatus === "pending" || effectsStatus === "unknown";
 }
 
+/** Same-chain Li-Fi route (EVM network or Solana/Sui family). */
+export function isSameChainLifiRoute(tracking: LifiTrackingMeta): boolean {
+  if (tracking.from_chain_id !== tracking.to_chain_id) {
+    return false;
+  }
+  if (tracking.from_chain_id === "ethereum") {
+    return tracking.from_evm_chain_id === tracking.to_evm_chain_id;
+  }
+  return true;
+}
+
+/** Shared guard: tracking exists and execute did not hard-fail. */
+function isLifiTrackingCandidate(
+  result: TxResult,
+  tracking: LifiTrackingMeta | null,
+): tracking is LifiTrackingMeta {
+  if (!tracking) {
+    return false;
+  }
+  return result.effects_status !== "failure";
+}
+
+/** Cross-chain Li-Fi bridge routes with pending confirmation. */
+export function shouldEnqueueLifiCrossChainTracking(
+  result: TxResult,
+  tracking: LifiTrackingMeta | null,
+): tracking is LifiTrackingMeta {
+  if (!isLifiTrackingCandidate(result, tracking)) {
+    return false;
+  }
+  if (isSameChainLifiRoute(tracking)) {
+    return false;
+  }
+  return isLifiPendingEffectsStatus(result.effects_status);
+}
+
+/** Same-chain Li-Fi swap routes that still need status polling. */
+export function shouldEnqueueLifiSwapTracking(
+  result: TxResult,
+  tracking: LifiTrackingMeta | null,
+): tracking is LifiTrackingMeta {
+  if (!isLifiTrackingCandidate(result, tracking)) {
+    return false;
+  }
+  if (!isSameChainLifiRoute(tracking)) {
+    return false;
+  }
+  if (isLifiPendingEffectsStatus(result.effects_status)) {
+    return true;
+  }
+  return !isTerminalLifiStatus(tracking.tracking_status);
+}
+
 export function formatLifiEtaLabel(seconds: number | null | undefined): string {
   if (seconds == null || seconds <= 0) {
     return "Bridging";

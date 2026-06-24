@@ -64,8 +64,24 @@ async function resolveWalletAddress(privyUserId: string, chainId: ChainId): Prom
   return wallet.address;
 }
 
+function readEvmChainIdFromResult(result: TxResult | null | undefined): number | undefined {
+  if (typeof result?.evm_chain_id === "number" && Number.isInteger(result.evm_chain_id)) {
+    return result.evm_chain_id;
+  }
+  const lifi = result?.lifi;
+  if (lifi && typeof lifi === "object" && "from_evm_chain_id" in lifi) {
+    const fromEvm = (lifi as { from_evm_chain_id?: unknown }).from_evm_chain_id;
+    if (typeof fromEvm === "number" && Number.isInteger(fromEvm)) {
+      return fromEvm;
+    }
+  }
+  return undefined;
+}
+
 function toListItem(row: AgentTransactionRecord): AgentTransactionListItem {
   const chainId = parseChainId(row.chain_id);
+  const result = (row.result as TxResult | null) ?? null;
+  const evmChainId = readEvmChainIdFromResult(result);
   return {
     id: row.id,
     status: row.status,
@@ -74,7 +90,7 @@ function toListItem(row: AgentTransactionRecord): AgentTransactionListItem {
     title: row.title,
     amount_display: row.amount_display,
     digest: row.digest,
-    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest) : null,
+    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest, evmChainId) : null,
     effects_status: row.effects_status,
     session_id: row.session_id,
     message_id: row.message_id,
@@ -85,6 +101,8 @@ function toListItem(row: AgentTransactionRecord): AgentTransactionListItem {
 
 function toDetail(row: AgentTransactionRecord): AgentTransactionDetail {
   const chainId = parseChainId(row.chain_id);
+  const result = (row.result as TxResult | null) ?? null;
+  const evmChainId = readEvmChainIdFromResult(result);
   return {
     ...toListItem(row),
     action: row.action,
@@ -95,7 +113,7 @@ function toDetail(row: AgentTransactionRecord): AgentTransactionDetail {
     error_code: row.error_code,
     error_message: row.error_message,
     submitted_at: row.submitted_at?.toISOString() ?? null,
-    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest) : null,
+    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest, evmChainId) : null,
   };
 }
 

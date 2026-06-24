@@ -76,7 +76,8 @@ export function ExecutionTimeline({
         {steps.map((step, index) => {
           const explorerUrl = explorerUrlForDigest(
             step.digest,
-            step.chainId ?? "sui",
+            step.chainId,
+            step.evmChainId,
           );
           const isLast = index === steps.length - 1;
           const isActive = live && step.status === "running";

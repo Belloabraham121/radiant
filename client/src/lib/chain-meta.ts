@@ -1,5 +1,5 @@
 import type { AgentChainId } from "@/lib/agent-chains";
-import { evmExplorerAccountUrl } from "@/lib/evm-chains";
+import { evmExplorerAccountUrl, evmExplorerTxUrl } from "@/lib/evm-chains";
 
 export type DepositRail = "sui-dapp-kit" | "evm-injected" | "solana-injected" | "direct-only";
 
@@ -92,24 +92,53 @@ export function chainExplorerAccountUrl(
 }
 
 /** Block explorer URL for a submitted transaction digest/hash. */
-export function chainExplorerTxUrl(chainId: AgentChainId, digest: string): string | null {
+export function chainExplorerTxUrl(
+  chainId: AgentChainId,
+  digest: string,
+  evmChainId?: number,
+): string | null {
   if (!digest) return null;
   switch (chainId) {
     case "sui":
       return `https://suiscan.xyz/mainnet/tx/${digest}`;
-    case "ethereum": {
-      const chainIdNum = getEvmDefaultChainId();
-      if (chainIdNum === 8453) {
-        return `https://basescan.org/tx/${digest}`;
-      }
-      return `https://etherscan.io/tx/${digest}`;
-    }
+    case "ethereum":
+      return evmExplorerTxUrl(evmChainId ?? getEvmDefaultChainId(), digest);
     case "solana":
       return `https://solscan.io/tx/${digest}`;
     case "stellar":
       return `https://stellar.expert/explorer/public/tx/${digest}`;
     default:
       return null;
+  }
+}
+
+/** Human-readable explorer link label for a chain (and optional EVM network). */
+export function chainExplorerLabel(
+  chainId: AgentChainId,
+  evmChainId?: number,
+  options?: { flashLoan?: boolean; compact?: boolean },
+): string {
+  if (options?.compact) {
+    return "Explorer";
+  }
+  if (options?.flashLoan && chainId === "sui") {
+    return "View flash loan on Sui Explorer";
+  }
+  switch (chainId) {
+    case "sui":
+      return "View on Sui Explorer";
+    case "ethereum": {
+      const id = evmChainId ?? getEvmDefaultChainId();
+      if (id === 8453) return "View on BaseScan";
+      if (id === 42161) return "View on Arbiscan";
+      return "View on Etherscan";
+    }
+    case "solana":
+      return "View on Solscan";
+    case "stellar":
+      return "View on Stellar Expert";
+    default:
+      return "View on block explorer";
   }
 }
 
