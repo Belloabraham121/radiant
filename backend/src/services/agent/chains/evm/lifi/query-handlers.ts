@@ -13,6 +13,7 @@ import {
   lifiRoutesInputSchema,
   lifiStatusInputSchema,
 } from "../../../../defi/lifi/lifi.types.js";
+import { formatEnabledBridgeDestinationHint } from "../../../../defi/lifi/lifi-endpoint-params.js";
 
 const LIFI_AGENT_CHAINS = new Set<ChainId>(["ethereum", "sui", "solana"]);
 
@@ -32,28 +33,25 @@ function assertLifiReady(): void {
   }
 }
 
-function mergeQuoteParams(ctx: QueryHandlerContext) {
-  return lifiQuoteInputSchema.parse({
+function mergeCrossChainParams(ctx: QueryHandlerContext) {
+  return {
     ...ctx.params,
     from_chain_id: ctx.params.from_chain_id ?? ctx.chainId,
     from_address: ctx.params.from_address ?? ctx.walletAddress,
-  });
+  };
 }
 
 const crossChainQuoteHandler: ChainQueryHandler = async (ctx) => {
   assertLifiChain(ctx);
   assertLifiReady();
-  const params = mergeQuoteParams(ctx);
+  const params = lifiQuoteInputSchema.parse(mergeCrossChainParams(ctx));
   return getLifiQuote(ctx.privyUserId, params);
 };
 
 const crossChainRoutesHandler: ChainQueryHandler = async (ctx) => {
   assertLifiChain(ctx);
   assertLifiReady();
-  const params = lifiRoutesInputSchema.parse({
-    ...ctx.params,
-    from_chain_id: ctx.params.from_chain_id ?? ctx.chainId,
-  });
+  const params = lifiRoutesInputSchema.parse(mergeCrossChainParams(ctx));
   return getLifiAdvancedRoutes(ctx.privyUserId, params);
 };
 
@@ -93,8 +91,11 @@ export const LIFI_QUERY_SCHEMA = {
     "cross_chain_quote (Li-Fi best route), cross_chain_routes (multi-bridge comparison), " +
     "cross_chain_connections, cross_chain_status.",
   paramsDescription:
-    "cross_chain_quote: { from_chain_id?, to_chain_id?, from_evm_chain_id?, to_evm_chain_id?, from_token, to_token, amount_atomic, from_address? }. " +
-    "Defaults from_chain_id to query chain_id. EVM endpoints require matching evm_chain_id. " +
+    "cross_chain_quote: { from_chain_id?, to_chain_id?, from_evm_chain_id?, to_evm_chain_id?, destination_evm?, from_token, to_token, amount_atomic, from_address? }. " +
+    "Defaults from_chain_id to query chain_id. When to_chain_id is ethereum you MUST set to_evm_chain_id or destination_evm. " +
+    `Enabled bridge destinations: ${formatEnabledBridgeDestinationHint()}. ` +
+    "Required before quote: from_token, to_token, amount_atomic — ask the user if any are missing. " +
+    "For Sui→Base: from_chain_id sui, to_chain_id ethereum, to_evm_chain_id 8453 (or destination_evm base), from_token SUI, to_token USDC (ask if user did not specify destination token). " +
     "cross_chain_routes: same as cross_chain_quote plus optional max_routes. " +
     "cross_chain_connections: { from_chain_id?, to_chain_id?, from_evm_chain_id?, to_evm_chain_id? }. " +
     "cross_chain_status: { tx_hash, from_chain_id?, to_chain_id?, from_evm_chain_id?, to_evm_chain_id?, bridge? }.",

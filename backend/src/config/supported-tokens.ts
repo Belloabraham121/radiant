@@ -121,6 +121,41 @@ function normalizeSymbol(input: string): string {
   return input.trim().toUpperCase();
 }
 
+function isEvmAddressInput(input: string): boolean {
+  const trimmed = input.trim();
+  return trimmed.length === 42 && trimmed.slice(0, 2).toLowerCase() === "0x";
+}
+
+function normalizeEvmAddress(address: string): string {
+  return address.trim().toLowerCase();
+}
+
+/** Resolve a known allowlisted ERC-20 by contract address on an enabled EVM network. */
+export function resolveEvmTokenByAddress(
+  evmChainId: number,
+  address: string,
+): SupportedToken | null {
+  const normalized = normalizeEvmAddress(address);
+  const chainTokens = EVM_TOKEN_DEFAULTS[evmChainId];
+  if (!chainTokens) {
+    return null;
+  }
+
+  for (const [symbol, meta] of Object.entries(chainTokens)) {
+    if (meta.address === "native") {
+      continue;
+    }
+    const resolvedAddress = normalizeEvmAddress(
+      evmTokenAddress(symbol, evmChainId, meta.address),
+    );
+    if (resolvedAddress === normalized) {
+      return buildEvmToken(symbol, evmChainId);
+    }
+  }
+
+  return null;
+}
+
 function evmTokenAddress(symbol: string, chainId: number, defaultAddress: string): string {
   const override = optional(`EVM_TOKEN_${symbol}_${chainId}`, "").trim();
   return override.length > 0 ? override : defaultAddress;
@@ -547,6 +582,20 @@ export function resolveTokenSymbol(
 
   if (chainId === "ethereum" && evmChainId !== undefined) {
     assertEvmChainEnabled(evmChainId);
+  }
+
+  if (chainId === "ethereum" && evmChainId !== undefined && isEvmAddressInput(userInput)) {
+    const token = resolveEvmTokenByAddress(evmChainId, userInput);
+    if (token) {
+      return {
+        match: "exact",
+        symbol: token.symbol,
+        chain_id: chainId,
+        evm_chain_id: evmChainId,
+        token,
+      };
+    }
+    throw tokenNotAllowedError(chainId, userInput.trim(), evmChainId);
   }
 
   const exactToken = resolveTokenOnChain(chainId, input, evmChainId);

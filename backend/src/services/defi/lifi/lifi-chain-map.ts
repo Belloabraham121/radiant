@@ -98,7 +98,7 @@ export function toLifiTokenAddress(token: SupportedToken, chainRef: LifiChainRef
       { symbol: token.symbol },
     );
   }
-  return token.address;
+  return token.address.toLowerCase();
 }
 
 export function formatAtomicAmount(amountAtomic: string, decimals: number): string {

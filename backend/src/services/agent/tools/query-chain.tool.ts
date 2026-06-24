@@ -1,7 +1,9 @@
 import { AppError } from "../../../errors/app-error.js";
+import { getEnabledChainConfigs } from "../../../config/chains.js";
 import type { BalanceContext } from "../../chains/types.js";
 import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
-import { resolveQueryHandler } from "../chains/registry.js";
+import { getAgentPermissions } from "../agent-permissions.service.js";
+import { resolveQueryHandler, resolveQueryTypes } from "../chains/registry.js";
 import type { AgentToolOptions } from "../execute-transaction-context.js";
 import {
   queryChainInputSchema,
@@ -42,15 +44,28 @@ export async function runQueryChainTool(
       ? { evm_chain_id: parsed.params.evm_chain_id }
       : undefined;
 
+  const enabledChains = getEnabledChainConfigs().map((config) => config.id);
+  const permissions = await getAgentPermissions(privyUserId);
+  const allowedQueries = new Set(
+    resolveQueryTypes({ enabledChains, permissions }),
+  );
+
+  if (!allowedQueries.has(parsed.query)) {
+    throw new AppError(
+      400,
+      "UNSUPPORTED_QUERY",
+      "That query isn't available for your account.",
+    );
+  }
+
   const handler = resolveQueryHandler(parsed.chain_id, parsed.query);
   if (!handler) {
     throw new AppError(
       400,
       "UNSUPPORTED_QUERY",
-      `Unsupported query: ${parsed.query}`,
+      "That query isn't supported on this chain.",
     );
   }
-
   return handler({
     privyUserId,
     chainId: parsed.chain_id,

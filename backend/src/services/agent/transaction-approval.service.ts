@@ -394,7 +394,12 @@ export async function approvePendingTransaction(
   }
 
   const pending = pendingTransactionFromRecord(claimed);
-  const executeInput = executeInputFromRecord(claimed);
+  let executeInput = executeInputFromRecord(claimed);
+
+  if (isLifiExecuteAction(executeInput.action)) {
+    const enriched = await enrichExecuteInputForApproval(privyUserId, executeInput);
+    executeInput = enriched;
+  }
 
   if (
     (isDeepBookSwapAction(executeInput.action) || isLifiExecuteAction(executeInput.action)) &&

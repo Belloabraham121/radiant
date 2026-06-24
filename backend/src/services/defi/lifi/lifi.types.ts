@@ -2,10 +2,30 @@ import { z } from "zod";
 import type { Route, StatusResponse } from "@lifi/types";
 import { chainIdSchema, type ChainId } from "../../chains/types.js";
 import type { RouteQuote } from "../types.js";
+import {
+  formatEnabledBridgeDestinationHint,
+  isUnrecognizedDestinationLabel,
+  isUnrecognizedSourceLabel,
+  normalizeLifiCrossChainParams,
+} from "./lifi-endpoint-params.js";
 
 const evmChainIdSchema = z.coerce.number().int().positive();
-const tokenSymbolSchema = z.string().min(1).transform((value) => value.trim().toUpperCase());
-const amountAtomicSchema = z.string().regex(/^[1-9]\d*$/);
+function normalizeLifiTokenParam(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 42 && trimmed.slice(0, 2).toLowerCase() === "0x") {
+    return trimmed;
+  }
+  return trimmed.toUpperCase();
+}
+
+const optionalTokenSymbolSchema = z
+  .string()
+  .optional()
+  .transform((value) => normalizeLifiTokenParam(value));
+const optionalAmountAtomicSchema = z.string().optional();
 
 const lifiRadiantChainIdSchema = z.enum(["sui", "solana", "ethereum"]);
 
@@ -40,40 +60,66 @@ const lifiCrossChainBaseSchema = z
     to_chain_id: lifiRadiantChainIdSchema.optional(),
     from_evm_chain_id: evmChainIdSchema.optional(),
     to_evm_chain_id: evmChainIdSchema.optional(),
-    from_token: tokenSymbolSchema,
-    to_token: tokenSymbolSchema,
-    amount_atomic: amountAtomicSchema,
+    /** Human-readable EVM destination slug (e.g. base, arbitrum) — resolved to to_evm_chain_id. */
+    destination_evm: z.string().min(1).optional(),
+    to_network: z.string().min(1).optional(),
+    from_token: optionalTokenSymbolSchema,
+    to_token: optionalTokenSymbolSchema,
+    amount_atomic: optionalAmountAtomicSchema,
     from_address: z.string().min(1).optional(),
     slippage: z.number().min(0).max(1).optional(),
     integrator: z.string().optional(),
+    /** Set true only when the user explicitly asked to receive the same symbol on the destination chain. */
+    confirm_same_token: z.boolean().optional(),
   })
   .superRefine((input, ctx) => {
     const from = resolveEndpointChainId(input, "from");
     const to = resolveEndpointChainId(input, "to");
 
+    if (isUnrecognizedSourceLabel(input)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Source network is not recognized. ${formatEnabledBridgeDestinationHint()}`,
+        path: ["from_network"],
+      });
+    }
+    if (isUnrecognizedDestinationLabel(input)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Destination network is not recognized. ${formatEnabledBridgeDestinationHint()}`,
+        path: ["destination_evm"],
+      });
+    }
+
     if (from.chain_id === "ethereum" && from.evm_chain_id === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "from_evm_chain_id is required when from_chain_id is ethereum.",
+        message: `Source EVM network is required. ${formatEnabledBridgeDestinationHint()}`,
         path: ["from_evm_chain_id"],
       });
     }
     if (to.chain_id === "ethereum" && to.evm_chain_id === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "to_evm_chain_id is required when to_chain_id is ethereum.",
+        message: `Destination EVM network is required. ${formatEnabledBridgeDestinationHint()}`,
         path: ["to_evm_chain_id"],
       });
     }
   });
 
-export const lifiQuoteInputSchema = lifiCrossChainBaseSchema;
+export const lifiQuoteInputSchema = z.preprocess(
+  normalizeLifiCrossChainParams,
+  lifiCrossChainBaseSchema,
+);
 export type LifiQuoteInput = z.infer<typeof lifiQuoteInputSchema>;
 
-export const lifiRoutesInputSchema = lifiCrossChainBaseSchema.and(
-  z.object({
-    max_routes: z.coerce.number().int().min(1).max(10).optional(),
-  }),
+export const lifiRoutesInputSchema = z.preprocess(
+  normalizeLifiCrossChainParams,
+  lifiCrossChainBaseSchema.and(
+    z.object({
+      max_routes: z.coerce.number().int().min(1).max(10).optional(),
+    }),
+  ),
 );
 export type LifiRoutesInput = z.infer<typeof lifiRoutesInputSchema>;
 
@@ -98,6 +144,7 @@ export type LifiStatusInput = z.infer<typeof lifiStatusInputSchema>;
 export const lifiExecuteInputSchema = z.object({
   route_id: z.string().min(1).optional(),
   route: z.record(z.unknown()).optional(),
+  lifi_route: z.record(z.unknown()).optional(),
   from_chain_id: chainIdSchema.optional(),
   from_evm_chain_id: evmChainIdSchema.optional(),
   skip_approval: z.boolean().optional(),

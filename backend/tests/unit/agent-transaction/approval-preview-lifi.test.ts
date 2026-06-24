@@ -71,6 +71,7 @@ describe("approval preview — Li-Fi", () => {
   beforeEach(() => {
     enableEthereumChains();
   });
+
   it("always requires approval for cross_chain_swap even when auto-approve is enabled", () => {
     assert.equal(
       transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
@@ -159,6 +160,105 @@ describe("approval preview — Li-Fi", () => {
     assert.equal(preview!.receive?.amount_display, "0.999");
     assert.equal(preview!.route_summary, "via stargate");
     assert.equal(preview!.fee_cost_usd, 1.75);
+  });
+
+  it("enriches from cross_chain_quote snapshot when route cache is missing", async () => {
+    const enriched = await enrichLifiExecuteInputForApproval("did:privy:test", {
+      chain_id: "sui",
+      action: "cross_chain_swap",
+      params: {
+        route_id: "missing-route-id",
+        from_token_symbol: "SUI",
+        to_token_symbol: "SUI",
+        from_chain_id: "sui",
+        to_chain_id: "ethereum",
+        to_evm_chain_id: 8453,
+        from_amount_atomic: "2150000000",
+        to_amount_atomic: "2140000000",
+        from_token_decimals: 9,
+        to_token_decimals: 9,
+        bridges: ["mayan"],
+        fee_cost_usd: 0.42,
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+    });
+
+    assert.equal(enriched.params.from_amount_display, "2.15");
+    assert.equal(enriched.params.to_amount_display, "2.14");
+    assert.equal(enriched.params.from_chain_id, "sui");
+    assert.equal(enriched.params.to_evm_chain_id, 8453);
+  });
+
+  it("enriches from cross_chain_quote field names (from_token, to_token)", async () => {
+    const enriched = await enrichLifiExecuteInputForApproval("did:privy:test", {
+      chain_id: "sui",
+      action: "cross_chain_swap",
+      params: {
+        route_id: "missing-route-id",
+        from_token: "SUI",
+        to_token: "USDC",
+        from_chain_id: "sui",
+        to_chain_id: "ethereum",
+        to_evm_chain_id: 8453,
+        from_amount_atomic: "2150000000",
+        to_amount_atomic: "8500000",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+    });
+
+    assert.equal(enriched.params.from_token_symbol, "SUI");
+    assert.equal(enriched.params.to_token_symbol, "USDC");
+    assert.equal(enriched.params.from_amount_display, "2.15");
+    assert.equal(enriched.params.to_amount_display, "8.5");
+  });
+
+  it("enriches snapshot when to_token is Base USDC contract address", async () => {
+    const enriched = await enrichLifiExecuteInputForApproval("did:privy:test", {
+      chain_id: "sui",
+      action: "cross_chain_swap",
+      params: {
+        route_id: "missing-route-id",
+        from_token: "SUI",
+        to_token: "0x833589fCD6eDb6E08f4c7C32D4f597b90BeA844E",
+        from_chain_id: "sui",
+        to_chain_id: "ethereum",
+        to_evm_chain_id: 8453,
+        from_amount_atomic: "2150000000",
+        to_amount_atomic: "8500000",
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+      },
+    });
+
+    assert.equal(enriched.params.to_token_symbol, "USDC");
+    assert.equal(enriched.params.to_amount_display, "8.5");
+  });
+
+  it("embedded route sets ~60s quote_expires_at for approval countdown", async () => {
+    const before = Date.now();
+    const enriched = await enrichLifiExecuteInputForApproval("did:privy:test", {
+      chain_id: "ethereum",
+      action: "cross_chain_swap",
+      params: { route: mockRoute },
+    });
+    const expiresMs = Date.parse(String(enriched.params.quote_expires_at));
+    assert.ok(expiresMs > before);
+    assert.ok(expiresMs <= before + 65_000);
+  });
+
+  it("re-enriches when quote expiry is fresh but display fields are incomplete", async () => {
+    const enriched = await enrichLifiExecuteInputForApproval("did:privy:test", {
+      chain_id: "sui",
+      action: "cross_chain_swap",
+      params: {
+        route: mockRoute,
+        expires_at: new Date(Date.now() + 60_000).toISOString(),
+        to_amount_display: "0.999",
+      },
+    });
+
+    assert.equal(enriched.params.from_token_symbol, "USDC");
+    assert.equal(enriched.params.from_amount_display, "1");
+    assert.equal(enriched.params.to_amount_display, "0.999");
   });
 
   it("buildPendingTransactionPreview includes defi_preview for cross_chain_swap", async () => {

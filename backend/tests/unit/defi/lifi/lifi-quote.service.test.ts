@@ -46,6 +46,7 @@ describe("lifi-quote.service", () => {
       to_evm_chain_id: 1,
       fromToken: "USDC",
       toToken: "USDC",
+      amountAtomic: "1000000",
     });
 
     assert.equal(tokens.fromSymbol, "USDC");
@@ -68,6 +69,7 @@ describe("lifi-quote.service", () => {
       to_evm_chain_id: 42161,
       fromToken: "USDC",
       toToken: "USDC",
+      amountAtomic: "1000000",
     });
 
     assert.equal(tokens.from.chain_id, "sui");

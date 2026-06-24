@@ -64,7 +64,7 @@ export async function lifiCachedStatusFetch<T>(
   return defiCachedFetch(key, getDefiCacheConfig().statusCacheTtlSeconds, fetcher);
 }
 
-const ROUTE_STORE_TTL_SECONDS = 600;
+const ROUTE_STORE_TTL_SECONDS = 15 * 60;
 
 /** Store a Li-Fi route snapshot for execute-by-route_id (read path only). */
 export async function storeLifiRoute(routeId: string, route: Route): Promise<void> {

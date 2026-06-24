@@ -164,25 +164,30 @@ export async function buildTransactionDisplay(
         ? input.params.from_evm_chain_id
         : undefined,
     );
-    const toChainLabel = formatRadiantChainLabel(
-      (typeof input.params.to_chain_id === "string"
-        ? input.params.to_chain_id
-        : input.chain_id) as ChainId,
-      typeof input.params.to_evm_chain_id === "number"
-        ? input.params.to_evm_chain_id
-        : undefined,
-    );
+    const toChainLabel =
+      typeof input.params.to_chain_id === "string"
+        ? formatRadiantChainLabel(
+            input.params.to_chain_id as ChainId,
+            typeof input.params.to_evm_chain_id === "number"
+              ? input.params.to_evm_chain_id
+              : undefined,
+          )
+        : null;
     const bridges = Array.isArray(input.params.bridges)
       ? input.params.bridges.filter((entry): entry is string => typeof entry === "string")
       : [];
     amount_display =
-      fromAmount && toAmount
+      fromAmount && toAmount && toChainLabel
         ? `${fromAmount} ${fromSymbol} (${fromChainLabel}) → ~${toAmount} ${toSymbol} (${toChainLabel})`
-        : `Bridge ${fromSymbol} → ${toSymbol}`;
+        : fromAmount && toAmount
+          ? `${fromAmount} ${fromSymbol} → ~${toAmount} ${toSymbol}`
+          : `Bridge ${fromSymbol}${toChainLabel ? ` → ${toChainLabel}` : ""}`;
     title =
-      bridges.length > 0
-        ? `Bridge ${fromSymbol} ${fromChainLabel} → ${toChainLabel} via ${bridges.join(" → ")}`
-        : `Bridge ${fromSymbol} ${fromChainLabel} → ${toChainLabel}`;
+      fromChainLabel && toChainLabel
+        ? bridges.length > 0
+          ? `Bridge ${fromSymbol} ${fromChainLabel} → ${toChainLabel} via ${bridges.join(" → ")}`
+          : `Bridge ${fromSymbol} ${fromChainLabel} → ${toChainLabel}`
+        : `Bridge ${fromSymbol} → ${toSymbol}`;
   } else if (input.action === "lifi_approve") {
     title = "Approve ERC-20 for Li-Fi bridge";
     amount_display = "Token allowance approval";

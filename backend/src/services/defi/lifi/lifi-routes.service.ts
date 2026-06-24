@@ -43,9 +43,15 @@ export async function getLifiAdvancedRoutes(
     to_chain_id: input.to_chain_id,
     from_evm_chain_id: input.from_evm_chain_id,
     to_evm_chain_id: input.to_evm_chain_id,
-    fromToken: input.from_token,
-    toToken: input.to_token,
+    fromToken: input.from_token ?? "",
+    toToken: input.to_token ?? "",
+    amountAtomic: input.amount_atomic,
+    confirmSameToken: input.confirm_same_token,
   });
+  const amountAtomic = input.amount_atomic;
+  if (!amountAtomic) {
+    throw new AppError(400, "AMOUNT_REQUIRED", "How much should they bridge? Ask for the amount before quoting.");
+  }
   const fromAddress = await resolveWalletAddress(privyUserId, tokens.from.chain_id);
 
   const cacheParams = {
@@ -72,7 +78,7 @@ export async function getLifiAdvancedRoutes(
         fromTokenAddress: toLifiTokenAddress(tokens.fromToken, tokens.from),
         toTokenAddress: toLifiTokenAddress(tokens.toToken, tokens.to),
         fromAddress,
-        fromAmount: input.amount_atomic,
+        fromAmount: amountAtomic,
         options: {
           slippage: input.slippage ?? config.defaultSlippage,
           ...lifiIntegratorSdkFields(config, input.integrator),

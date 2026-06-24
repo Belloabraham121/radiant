@@ -121,6 +121,7 @@ export async function executeLifiCrossChainSwap(
   const storedRoute = await resolveLifiRouteForExecute({
     routeId: input.route_id,
     route: input.route,
+    lifiRoute: input.lifi_route,
   });
 
   const sourceChain = resolveSourceChainFromExecuteInput({

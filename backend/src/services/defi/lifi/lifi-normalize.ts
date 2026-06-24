@@ -11,6 +11,9 @@ import type {
   LifiTransactionRequest,
 } from "./lifi.types.js";
 
+/** Li-Fi quotes are short-lived — align approval countdown with DeepBook (~60s). */
+export const LIFI_QUOTE_TTL_MS = 60_000;
+
 function sumUsd(costs: Array<{ amountUSD?: string }> | undefined): number | null {
   if (!costs || costs.length === 0) {
     return null;
@@ -83,16 +86,8 @@ function toTransactionRequest(step: LiFiStep): LifiTransactionRequest | null {
   };
 }
 
-function quoteExpiresAt(route: Route | LiFiStep): string | null {
-  const steps = "steps" in route ? route.steps : [route];
-  const timestamps = steps
-    .map((step) => step.estimate?.executionDuration)
-    .filter((value): value is number => typeof value === "number");
-  if (timestamps.length === 0) {
-    return null;
-  }
-  const maxSeconds = Math.max(...timestamps);
-  return new Date(Date.now() + maxSeconds * 1000).toISOString();
+function quoteExpiresAt(_route?: Route | LiFiStep): string {
+  return new Date(Date.now() + LIFI_QUOTE_TTL_MS).toISOString();
 }
 
 function chainRefFields(from: LifiChainRef, to: LifiChainRef) {
@@ -120,6 +115,7 @@ export function normalizeLifiStepToCrossChainQuote(input: {
   fromTokenSymbol: string;
   toTokenSymbol: string;
   routeId?: string;
+  route?: Route | null;
 }): CrossChainQuote {
   const route = normalizeLifiStepToRouteQuote(input);
   const routeId = input.routeId ?? createRouteId(JSON.stringify(input.step));
@@ -135,7 +131,7 @@ export function normalizeLifiStepToCrossChainQuote(input: {
     fee_cost_usd: sumUsd(input.step.estimate?.feeCosts),
     tool: input.step.tool ?? null,
     transaction_request: toTransactionRequest(input.step),
-    lifi_route: null,
+    lifi_route: input.route ?? null,
   };
 }
 

@@ -27,4 +27,15 @@ describe("lifi.errors", () => {
     const err = mapLifiError(httpErr);
     assert.equal(err.code, "LIFI_VALIDATION_ERROR");
   });
+
+  it("sanitizes could not find token Li-Fi messages", () => {
+    const err = mapLifiError({
+      status: 404,
+      message:
+        "Could not find token '0x833589fCD6eDb6E08f4c7C32D4f597b90BeA844E' on chain '8453'",
+    });
+    assert.equal(err.code, "LIFI_NO_ROUTE");
+    assert.match(err.message, /not available for this bridge route/i);
+    assert.ok(!err.message.includes("0x833589"));
+  });
 });

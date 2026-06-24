@@ -64,6 +64,23 @@ describe("supported-tokens", () => {
     }
   });
 
+  it("resolveTokenSymbol resolves Base USDC by contract address", () => {
+    process.env.ENABLED_CHAINS = "ethereum";
+    process.env.EVM_CHAIN_IDS = "1,42161,8453";
+    resetChainConfigCacheForTests();
+    resetEvmConfigCacheForTests();
+
+    const result = resolveTokenSymbol(
+      "ethereum",
+      "0x833589fCD6eDb6E08f4c7C32D4f597b90BeA844E",
+      8453,
+    );
+    assert.equal(result.match, "exact");
+    if (result.match === "exact") {
+      assert.equal(result.symbol, "USDC");
+    }
+  });
+
   it("resolveTokenSymbol fuzzy suggests USDC for shot", () => {
     process.env.ENABLED_CHAINS = "ethereum";
     process.env.EVM_CHAIN_IDS = "1,42161,8453";

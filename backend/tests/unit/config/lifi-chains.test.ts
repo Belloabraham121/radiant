@@ -104,6 +104,7 @@ describe("lifi-input cross-ecosystem", () => {
       to_evm_chain_id: 8453,
       fromToken: "USDC",
       toToken: "USDC",
+      amountAtomic: "1000000",
     });
 
     assert.equal(tokens.fromSymbol, "USDC");
@@ -121,6 +122,7 @@ describe("lifi-input cross-ecosystem", () => {
           to_evm_chain_id: 8453,
           fromToken: "USDC",
           toToken: "USDC",
+          amountAtomic: "1000000",
         }),
       (err: unknown) =>
         err instanceof AppError && err.code === "CHAIN_NOT_ENABLED",
@@ -134,6 +136,7 @@ describe("lifi-input cross-ecosystem", () => {
       to_evm_chain_id: 8453,
       fromToken: "SUI",
       toToken: "USDC",
+      amountAtomic: "2150000000",
     });
 
     const lifiAddress = toLifiTokenAddress(tokens.fromToken, tokens.from);

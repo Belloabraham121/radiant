@@ -68,9 +68,16 @@ export async function getLifiQuote(
     to_chain_id: input.to_chain_id,
     from_evm_chain_id: input.from_evm_chain_id,
     to_evm_chain_id: input.to_evm_chain_id,
-    fromToken: input.from_token,
-    toToken: input.to_token,
+    fromToken: input.from_token ?? "",
+    toToken: input.to_token ?? "",
+    amountAtomic: input.amount_atomic,
+    confirmSameToken: input.confirm_same_token,
   });
+
+  const amountAtomic = input.amount_atomic;
+  if (!amountAtomic) {
+    throw new AppError(400, "AMOUNT_REQUIRED", "How much should they bridge? Ask for the amount before quoting.");
+  }
 
   const fromAddress = await resolveWalletAddress(privyUserId, tokens.from, input.from_address);
   const fromLifiChainId = radiantToLifiChainId(tokens.from);
@@ -96,14 +103,14 @@ export async function getLifiQuote(
       fromToken: toLifiTokenAddress(tokens.fromToken, tokens.from),
       toToken: toLifiTokenAddress(tokens.toToken, tokens.to),
       fromAddress,
-      fromAmount: input.amount_atomic,
+      fromAmount: amountAtomic,
       slippage: input.slippage ?? config.defaultSlippage,
       ...lifiIntegratorSdkFields(config, input.integrator),
     });
 
     const routeId = createRouteId(JSON.stringify(cacheParams));
-    const route = convertQuoteToRoute(step);
-    await storeLifiRoute(routeId, { ...route, id: routeId });
+    const route = { ...convertQuoteToRoute(step), id: routeId };
+    await storeLifiRoute(routeId, route);
 
     return normalizeLifiStepToCrossChainQuote({
       step,
@@ -112,6 +119,7 @@ export async function getLifiQuote(
       fromTokenSymbol: tokens.fromSymbol,
       toTokenSymbol: tokens.toSymbol,
       routeId,
+      route,
     });
   });
 }
@@ -119,9 +127,11 @@ export async function getLifiQuote(
 export async function resolveLifiRouteForExecute(input: {
   routeId?: string;
   route?: Record<string, unknown>;
+  lifiRoute?: Record<string, unknown>;
 }): Promise<Route> {
-  if (input.route) {
-    return input.route as unknown as Route;
+  const embedded = input.lifiRoute ?? input.route;
+  if (embedded) {
+    return embedded as unknown as Route;
   }
 
   if (input.routeId) {
@@ -129,10 +139,66 @@ export async function resolveLifiRouteForExecute(input: {
     if (stored) {
       return stored;
     }
-    throw new AppError(404, "LIFI_NO_ROUTE", "Route expired or not found. Fetch a fresh quote.");
+    throw new AppError(404, "LIFI_NO_ROUTE", "Bridge route expired. Fetch a fresh quote and try again.");
   }
 
   throw new AppError(400, "VALIDATION_ERROR", "Provide route_id or route from a prior quote.");
+}
+
+function readSnapshotString(params: Record<string, unknown>, key: string): string | null {
+  const value = params[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readSnapshotChainId(
+  params: Record<string, unknown>,
+  key: string,
+): "sui" | "solana" | "ethereum" | undefined {
+  const value = params[key];
+  if (value === "sui" || value === "solana" || value === "ethereum") {
+    return value;
+  }
+  return undefined;
+}
+
+/** Re-fetch a Li-Fi quote from execute/approval snapshot fields when route cache expired. */
+export async function requoteLifiFromSnapshot(
+  privyUserId: string,
+  params: Record<string, unknown>,
+): Promise<CrossChainQuote | null> {
+  const fromToken =
+    readSnapshotString(params, "from_token_symbol") ??
+    readSnapshotString(params, "from_token");
+  const toToken =
+    readSnapshotString(params, "to_token_symbol") ?? readSnapshotString(params, "to_token");
+  const amountAtomic = readSnapshotString(params, "from_amount_atomic");
+  const fromChainId = readSnapshotChainId(params, "from_chain_id");
+  const toChainId = readSnapshotChainId(params, "to_chain_id");
+
+  if (!fromToken || !toToken || !amountAtomic || !fromChainId || !toChainId) {
+    return null;
+  }
+
+  const fromEvmChainId =
+    typeof params.from_evm_chain_id === "number" ? params.from_evm_chain_id : undefined;
+  const toEvmChainId =
+    typeof params.to_evm_chain_id === "number" ? params.to_evm_chain_id : undefined;
+
+  try {
+    return await getLifiQuote(privyUserId, {
+      from_chain_id: fromChainId,
+      to_chain_id: toChainId,
+      from_evm_chain_id: fromEvmChainId,
+      to_evm_chain_id: toEvmChainId,
+      from_token: fromToken,
+      to_token: toToken,
+      amount_atomic: amountAtomic,
+      confirm_same_token:
+        typeof params.confirm_same_token === "boolean" ? params.confirm_same_token : undefined,
+    });
+  } catch {
+    return null;
+  }
 }
 
 export function buildQuoteRefreshParams(route: Route, fromAddress: string) {
