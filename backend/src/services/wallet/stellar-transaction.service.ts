@@ -78,17 +78,15 @@ export async function broadcastSignedStellarTransaction(input: {
     const response = await withStellarRpcRetry(() => soroban.sendTransaction(input.transaction));
 
     if (response.status === "ERROR") {
-      throw mapStellarSubmitError({ status: response.status });
+      throw mapStellarSubmitError(response);
     }
 
     const hash = response.hash ?? input.transaction.hash().toString("hex");
-    const effectsStatus: StellarTxResult["effects_status"] =
-      response.status === "PENDING" || response.status === "DUPLICATE" ? "unknown" : "success";
 
     return {
       hash,
       stellar_address: input.stellarAddress,
-      effects_status: effectsStatus,
+      effects_status: "unknown",
     };
   } catch (err) {
     if (err instanceof AppError) {

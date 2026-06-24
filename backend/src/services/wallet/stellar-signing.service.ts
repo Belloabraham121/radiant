@@ -1,4 +1,4 @@
-import { Keypair, type Transaction } from "@stellar/stellar-sdk";
+import { Keypair, xdr, type Transaction } from "@stellar/stellar-sdk";
 import { getPrivyClient } from "../../infrastructure/privy/client.js";
 import { AppError } from "../../errors/app-error.js";
 import { buildSignerAuthorizationContext } from "../../utils/privy-authorization.js";
@@ -29,10 +29,11 @@ export async function signStellarTransaction(input: {
 
     const signatureBytes = parsePrivyEd25519Signature(signature);
     const keypair = Keypair.fromPublicKey(input.stellarAddress);
-    input.transaction.addSignature(
-      keypair.publicKey(),
-      Buffer.from(signatureBytes).toString("base64"),
-    );
+    const decorated = new xdr.DecoratedSignature({
+      hint: keypair.signatureHint(),
+      signature: Buffer.from(signatureBytes),
+    });
+    input.transaction.addDecoratedSignature(decorated);
   } catch (err) {
     if (err instanceof AppError) {
       throw err;

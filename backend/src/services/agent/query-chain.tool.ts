@@ -92,7 +92,7 @@ export const queryChainToolDefinition = {
     properties: {
       chain_id: {
         type: "string",
-        enum: ["sui", "ethereum", "solana"],
+        enum: ["sui", "ethereum", "solana", "stellar"],
         description: "Target chain (must be enabled for this app).",
       },
       query: {

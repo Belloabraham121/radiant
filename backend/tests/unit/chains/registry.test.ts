@@ -23,6 +23,9 @@ describe("chains/registry", () => {
   });
 
   it("getAdapter throws for disabled chain", () => {
+    process.env.ENABLED_CHAINS = "sui";
+    resetChainConfigCacheForTests();
+
     assert.throws(
       () => getAdapter("ethereum"),
       (err: unknown) =>
@@ -30,6 +33,9 @@ describe("chains/registry", () => {
         err.code === "CHAIN_NOT_ENABLED" &&
         err.statusCode === 400,
     );
+
+    delete process.env.ENABLED_CHAINS;
+    resetChainConfigCacheForTests();
   });
 
   it("getAdapter throws when adapter is not registered", () => {

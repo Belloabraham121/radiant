@@ -20,13 +20,14 @@ export const executeTransactionToolDefinition = {
     properties: {
       chain_id: {
         type: "string",
-        enum: ["sui", "ethereum", "solana"],
+        enum: ["sui", "ethereum", "solana", "stellar"],
         description: "Target chain (must be enabled for this app).",
       },
       action: {
         type: "string",
         description:
           "Chain-specific action name. Sui: transfer_native, transfer_sui, execute_bytes, " +
+          "Stellar: transfer_native, transfer_xlm, submit_xdr (unsigned XDR from a quote provider). " +
           "deepbook_provision_manager, deepbook_deposit, deepbook_withdraw, swap (alias deepbook_swap), " +
           "deepbook_place_limit_order, deepbook_place_market_order, deepbook_cancel_order, " +
           "deepbook_cancel_orders, deepbook_cancel_all_orders, deepbook_modify_order, " +
@@ -54,6 +55,8 @@ export const executeTransactionToolDefinition = {
         type: "object",
         description:
           "Action parameters. transfer_native: { recipient, amount_atomic }. " +
+          "Stellar transfer_native / transfer_xlm: { recipient, amount_stroops } or { recipient, amount_xlm }. " +
+          "Stellar submit_xdr: { transaction_xdr, simulate?: false }. " +
           "deepbook_provision_manager: {} — create on-chain balance manager (gas only, no token deposit). " +
           "deepbook_deposit/withdraw: { coin_key, amount_display } or { coin_key, withdraw_all: true } for full balance. " +
           "swap/deepbook_swap: { pool_key?, amount, side: buy|sell, pay_with_deep?, slippage_bps?, estimated_out_display? }. " +

@@ -7,16 +7,7 @@ function extractResultCode(errorResult: rpc.Api.SendTransactionResponse["errorRe
   }
 
   try {
-    const results = errorResult.result().results();
-    const first = results[0];
-    const tr = first?.tr();
-    if (!tr) {
-      return undefined;
-    }
-    if (tr.switch().name === "txFailed") {
-      return tr.txFailed().at(0)?.value()?.name;
-    }
-    return tr.value()?.name;
+    return errorResult.result().switch().name;
   } catch {
     return undefined;
   }
