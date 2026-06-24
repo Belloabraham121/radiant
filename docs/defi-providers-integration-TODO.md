@@ -13,6 +13,8 @@ Composable cross-chain and multi-venue DeFi for Radiant's AI agent. One doc for 
 
 **MVP principle:** Agent tools stay **chain-agnostic** (`query_chain`, `execute_transaction`). Provider specifics live in `services/defi/<provider>/` and are invoked by chain adapters — not new top-level agent tools per venue.
 
+**Agent chain plugins (shipped):** Chain/provider logic for tool schemas and handlers lives under `backend/src/services/agent/chains/` — top-level folders `sui/`, `evm/`, `stellar/` (plus `core/` for chain-agnostic queries). Provider submodules: `sui/deepbook/`, `stellar/soroswap/`, future `evm/lifi/` and `evm/sushiswap/`. `tools/build-tool-definitions.ts` merges `ENABLED_CHAINS` + agent permissions into dynamic `query_chain` / `execute_transaction` schemas; thin routers in `tools/query-chain.tool.ts` and `execute-transaction-with-approval.ts` dispatch via `chains/registry.ts`.
+
 **Network:** `mainnet` first; testnets via env (`LIFI_ENV`, `SOROSWAP_NETWORK`, `SUSHI_API_ENV`).
 
 **Agent design principle:** New EVM and Stellar DeFi flows are **tool-first** — the LLM reasons with `query_chain` / `execute_transaction` and existing clarification gaps. **Do not** extend `execution-intent.ts`, `workflow-parser.ts`, or `heuristic-planner.ts` regex fast paths for Li-Fi, Soroswap, or SushiSwap. Legacy Sui regex fast paths may remain until removed separately.
