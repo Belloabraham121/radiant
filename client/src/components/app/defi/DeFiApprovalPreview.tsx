@@ -97,7 +97,7 @@ export function DeFiApprovalPreviewCard({
       ) : null}
       {preview.slippage != null ? (
         <p className="mt-1 text-[10px] font-medium text-[var(--hero-ink)]/45">
-          Slippage: {formatDisplayNumber(preview.slippage * 100, 2)}%
+          Slippage: {formatDisplayNumber(preview.slippage * 100, { maxFractionDigits: 2 })}%
         </p>
       ) : null}
       {fiat ? <FiatPreviewLines fiat={fiat} /> : null}

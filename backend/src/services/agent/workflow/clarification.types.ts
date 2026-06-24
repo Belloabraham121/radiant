@@ -1,4 +1,8 @@
+import type { PartialBridgeIntent } from "../bridge/bridge-intent.types.js";
+import type { PartialSwapIntent } from "../swap/swap-intent.types.js";
 import type { WorkflowPlan } from "./workflow.types.js";
+
+export type ClarificationContext = "workflow" | "swap_intent" | "bridge_intent";
 
 export type ClarificationKind = "intent" | "amount_ref" | "constraint_skip";
 
@@ -63,5 +67,8 @@ export type SessionClarificationState = {
   sessionId: string;
   gap: ClarificationGap;
   plan: WorkflowPlan;
+  context?: ClarificationContext;
+  swapIntent?: PartialSwapIntent;
+  bridgeIntent?: PartialBridgeIntent;
   createdAt: number;
 };

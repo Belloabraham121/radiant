@@ -25,6 +25,8 @@ import {
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
+import { tryHandleSwapIntentFromMessage } from "./swap/swap-clarification.flow.js";
+import { tryHandleBridgeIntentFromMessage } from "./bridge/bridge-clarification.flow.js";
 import {
   applyScheduledReminderFallback,
   tryCreateScheduledReminderFromMessage,
@@ -108,6 +110,46 @@ export async function runChatTurn(
       });
 
       return persistWorkflowChatResponse(privyUserId, request, workflowOutcome);
+    }
+
+    const swapIntentOutcome = await tryHandleSwapIntentFromMessage(
+      privyUserId,
+      request.message,
+      session.id,
+    );
+
+    if (swapIntentOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, swapIntentOutcome);
+    }
+
+    const bridgeIntentOutcome = await tryHandleBridgeIntentFromMessage(
+      privyUserId,
+      request.message,
+      session.id,
+    );
+
+    if (bridgeIntentOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, bridgeIntentOutcome);
     }
 
     const singleSwapOutcome = await tryExecuteSingleSwapFromMessage(
