@@ -126,6 +126,7 @@ infrastructure/
 4. **No provider SDK in routes** — HTTP clients in `services/defi/<provider>/` only.
 5. **Prompt modules** are scoped per provider (`protocol:lifi:*`, `protocol:soroswap:*`, `protocol:sushiswap:*`).
 6. **Tool-first for new providers** — no regex swap parsers for EVM/Stellar; use `token_resolve` + clarification.
+7. **Cache read paths, not execute** — catalogs and quotes are cached per Phase 0.6; execution always re-validates.
 
 ---
 
@@ -224,7 +225,7 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 
 | Phase | Scope | Depends on |
 | ----- | ----- | ---------- |
-| **0** | Chain allowlist, token allowlist, Stellar adapter, defi registry | — |
+| **0** | Chain allowlist, token allowlist, Stellar adapter, defi registry, **caching layer** | — |
 | **1** | Li-Fi (EVM cross-chain: ETH ↔ Arbitrum ↔ Base) | 0 |
 | **2** | Soroswap (Stellar same-chain swaps) | 0 |
 | **3** | SushiSwap (EVM same-chain: ETH, Arbitrum, Base) | 0 |
@@ -370,6 +371,114 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 | [ ] | `token_resolve` query: 60 / min per user (lightweight, cache 30 s per input) |
 
 **Exit criteria:** `stellar` adapter passes balance read on testnet; swap-registry routes by chain; configs validate at boot; requests for Polygon/Base-outside-allowlist/Base-in-allowlist behave correctly.
+
+### 0.6 Caching strategy
+
+> Reuse `backend/src/infrastructure/redis/cache.ts` (`cacheGet`, `cacheSet`, `cachedFetch`) — Redis when available, in-memory fallback. Mirror patterns from CoinGecko (`services/market/coingecko.client.ts`) and DeepBook indexer (`cachedFetch`).
+
+**Principles**
+
+| Rule | Detail |
+| ---- | ------ |
+| Catalogs | Long TTL, global/shared keys |
+| Prices & RPC balances | Medium TTL, global or per-address |
+| Swap / bridge quotes | Short TTL, read-only; **never** execute from stale cache |
+| Execution payloads | **Never** cache (unsigned tx, XDR, calldata) |
+| Errors | Do not cache error responses |
+| Invalidation | Logout (client), post-tx success, manual Refresh, process restart on env change |
+
+**TTL cheat sheet**
+
+| Data | TTL | Scope |
+| ---- | --- | ----- |
+| Chain / token catalogs, bridge tools | 5–30 min | Global |
+| Token metadata (address → decimals) | 1–24 h | Global |
+| `token_resolve` (exact match) | 30 s – 5 min | Per input hash |
+| Provider spot prices | 30–60 s | Global |
+| Native RPC balances | 15–30 s | Per `chain + address` |
+| Swap / bridge quotes | 5–15 s | Dedupe; include provider `expiresAt` |
+| Cross-chain status | 10–30 s | Per `txHash` |
+
+#### 0.6.1 Shared cache module
+
+| Status | Task | Path |
+| ------ | ---- | ---- |
+| [ ] | `backend/src/services/defi/cache.ts` — namespaced keys `defi:{provider}:{resource}:…` | [Backend] |
+| [ ] | `defiCachedFetch(key, ttlSeconds, fetcher)` — thin wrapper over `cachedFetch` | ↑ |
+| [ ] | `hashQuoteParams(params)` — stable cache key for quote dedupe | ↑ |
+| [ ] | Env TTLs in `backend/src/config/defi-cache.ts` (or per-provider config) | [Backend] |
+| [ ] | Document vars in `backend/.env.example` | [Backend] |
+| [ ] | `tests/unit/defi/defi-cache.test.ts` | [Backend] |
+
+**Env (suggested defaults)**
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `DEFI_CATALOG_CACHE_TTL_SECONDS` | `600` | Chains, tokens, tools, connections |
+| `DEFI_TOKEN_META_CACHE_TTL_SECONDS` | `3600` | Per-address metadata |
+| `DEFI_QUOTE_CACHE_TTL_SECONDS` | `10` | Read-only swap/bridge quotes |
+| `DEFI_QUOTE_DEDUPE_TTL_SECONDS` | `5` | Identical quote params |
+| `DEFI_PRICE_CACHE_TTL_SECONDS` | `45` | Provider price endpoints |
+| `DEFI_BALANCE_CACHE_TTL_SECONDS` | `20` | RPC native balance reads |
+| `DEFI_STATUS_CACHE_TTL_SECONDS` | `15` | Li-Fi cross-chain status polls |
+| `DEFI_TOKEN_RESOLVE_CACHE_TTL_SECONDS` | `30` | `token_resolve` exact matches |
+
+#### 0.6.2 Backend caches by provider
+
+| Status | Task | TTL | Owner |
+| ------ | ---- | --- | ----- |
+| [ ] | Li-Fi chains (filtered to `ENABLED_EVM_CHAIN_IDS`) | 5–15 min | [Backend] |
+| [ ] | Li-Fi tokens per chain set | 10–30 min | [Backend] |
+| [ ] | Li-Fi `connections` + `tools` (bridges/DEX list) | 10–30 min | [Backend] |
+| [ ] | Li-Fi quotes — read dedupe only; re-validate before execute | 5–15 s | [Backend] |
+| [ ] | Li-Fi status per `txHash` | 10–30 s | [Backend] |
+| [ ] | Soroswap `/api/tokens` + asset lists | 10 min | [Backend] |
+| [ ] | Soroswap `/health` + protocols | 2–5 min | [Backend] |
+| [ ] | Soroswap quotes — read dedupe | 5 s | [Backend] |
+| [ ] | Sushi supported chain IDs | 24 h / boot | [Backend] |
+| [ ] | Sushi token metadata per `(chainId, address)` | 1–24 h | [Backend] |
+| [ ] | Sushi `/price/v1` batches | 30–60 s | [Backend] |
+| [ ] | Sushi quotes — read dedupe | 5–15 s | [Backend] |
+| [ ] | Radiant `getSupportedChains()` / allowlist | process lifetime | [Backend] |
+| [ ] | `token_resolve` (exact); fuzzy always live | 30 s | [Backend] |
+| [ ] | RPC balances (`/auth/me` funded check, `wallets/balances`) | 15–30 s | [Backend] |
+
+**Quote vs execute policy (all providers)**
+
+| Status | Task |
+| ------ | ---- |
+| [ ] | Document: cached quotes OK for `query_chain` only |
+| [ ] | `execute_transaction` must re-quote or verify `expiresAt` at approval (mirror DeepBook `quote_expires_at`) |
+| [ ] | Never cache execution payloads across users or requests |
+
+**Valuation de-dupe**
+
+| Status | Task |
+| ------ | ---- |
+| [ ] | CoinGecko for portfolio USD (`valuation.service`) — provider APIs for swap-specific pricing only |
+| [ ] | Avoid fetching same symbol from CoinGecko + Sushi + Li-Fi in one agent turn |
+
+#### 0.6.3 Client caches (extend existing)
+
+| Status | Task | Path |
+| ------ | ---- | ---- |
+| [ ] | Wallet assets per `(chainId, evmChainId)` — **existing** `wallet-session-cache.ts` | [Client] |
+| [ ] | Token logos — **existing** `token-metadata-cache.ts` | [Client] |
+| [ ] | Optional: cache `GET /api/v1/defi/chains` / `supported_chains` response | 5–10 min | [Client] |
+| [ ] | Clear all DeFi client caches on logout — extend `clearWalletSessionCache()` | [Client] |
+| [ ] | Invalidate wallet assets after swap/bridge/deposit success — **existing** `invalidateWalletAssetsForChain` | [Client] |
+
+#### 0.6.4 Invalidation triggers
+
+| Status | Task |
+| ------ | ---- |
+| [ ] | User logout → `clearWalletSessionCache()` + clear token metadata |
+| [ ] | Successful `execute_transaction` → invalidate balances + assets for affected chain(s) |
+| [ ] | Settings “Refresh balances” → `invalidateAllWalletCaches()` — **existing** |
+| [ ] | `ENABLED_EVM_CHAIN_IDS` / `SOROSWAP_NETWORK` change → process restart (document) |
+| [ ] | Phase 8 `route_quote` → short TTL only; invalidate after any leg executes |
+
+**Exit criteria:** Catalog reads hit cache on second request; identical quotes within 5 s do not fan out to providers; `/auth/me` does not hammer RPC when called repeatedly; execute path never uses stale quote without expiry check.
 
 ---
 
@@ -997,13 +1106,18 @@ Token allowlists (Phase 0.5) are separate — env above only controls **which ch
 | `ENABLED_EVM_CHAIN_IDS` | Radiant | `1,42161,8453` — Ethereum, Arbitrum, Base |
 | `CROSS_ECOSYSTEM_ROUTING_ENABLED` | Route planner | Phase 8 feature flag (default `false`) |
 | `SUSHI_FALLBACK_TO_LIFI` | Provider router | Phase 4 — same-chain fallback |
+| `DEFI_CATALOG_CACHE_TTL_SECONDS` | DeFi cache | Phase 0.6 — default 600 |
+| `DEFI_QUOTE_CACHE_TTL_SECONDS` | DeFi cache | Phase 0.6 — default 10 |
+| `DEFI_QUOTE_DEDUPE_TTL_SECONDS` | DeFi cache | Phase 0.6 — default 5 |
+| `DEFI_BALANCE_CACHE_TTL_SECONDS` | DeFi cache | Phase 0.6 — RPC balance reads |
+| `DEFI_TOKEN_RESOLVE_CACHE_TTL_SECONDS` | DeFi cache | Phase 0.6 — default 30 |
 
 ---
 
 ## Dependency graph
 
 ```text
-Phase 0 (allowlist + stellar adapter + defi registry)
+Phase 0 (allowlist + stellar adapter + defi registry + cache layer)
     ├── Phase 2 (Soroswap)
     ├── Phase 3 (SushiSwap) ──┐
     └── Phase 1 (Li-Fi) ──────┼── Phase 4 (simple provider router)
@@ -1069,6 +1183,7 @@ backend/src/
       capability-graph.ts         # Phase 8
       route-planner.ts            # Phase 8
       rate-limit.ts
+      cache.ts                    # Phase 0.6 — namespaced cachedFetch
       lifi/
         lifi.client.ts
         lifi.types.ts

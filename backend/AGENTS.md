@@ -16,3 +16,4 @@ Key rules:
 - **Prisma**: `migrate dev` / `migrate deploy` only — never edit applied migrations
 - Agent wallets are **Privy-generated** — verify in `services/auth`, resolve in `services/wallet`
 - API responses use the standard envelope (`success`, `data`, `meta`, `error`)
+- Before finishing: run checks in `.cursor/rules/verify-before-complete.mdc` (backend `tsc` / `npm test`; client `lint` / `build` if you touched `client/`)

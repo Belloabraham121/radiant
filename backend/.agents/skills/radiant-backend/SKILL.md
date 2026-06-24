@@ -211,6 +211,14 @@ npm test                  # unit; integration if schema/routes touched
 npx prisma migrate diff   # no drift vs schema (when migrations changed)
 ```
 
+If you also changed `client/`, run before finishing:
+
+```bash
+cd client && npm run lint && npm run build
+```
+
+See `.cursor/rules/verify-before-complete.mdc` — do not stop until checks pass for every package you touched.
+
 Before finishing:
 
 - [ ] No `any`, `as any`, or unjustified `@ts-ignore`

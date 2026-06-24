@@ -193,24 +193,35 @@ export function AgentWalletProvider({ children }: { children: React.ReactNode })
       if (!authenticated || !user) return [];
 
       const provisioned: ChainWalletState[] = [];
+      const failures: string[] = [];
 
       for (const chainId of enabledChains) {
-        const registered = await ensureAgentChainWallet({
-          user,
-          me,
-          chainId,
-          creators: walletCreators,
-          addSigners,
-        });
-        provisioned.push(fromRegistered(chainId, registered));
+        try {
+          const registered = await ensureAgentChainWallet({
+            user,
+            me,
+            chainId,
+            creators: walletCreators,
+            addSigners,
+          });
+          provisioned.push(fromRegistered(chainId, registered));
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          failures.push(`${chainId}: ${message}`);
+          provisioned.push(emptyChainWallet(chainId));
+        }
       }
 
-      if (provisioned.length === 0) {
-        throw new Error("No agent wallets were provisioned.");
+      if (provisioned.every((wallet) => !wallet.address) && failures.length > 0) {
+        throw new Error(failures.join(" · "));
+      }
+
+      if (failures.length > 0) {
+        console.warn("[AgentWallet] Partial wallet provisioning:", failures.join(" · "));
       }
 
       setWallets(provisioned);
-      return provisioned;
+      return provisioned.filter((wallet) => Boolean(wallet.address));
     },
     [addSigners, authenticated, enabledChains, user, walletCreators],
   );

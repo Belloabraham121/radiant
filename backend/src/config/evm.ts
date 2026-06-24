@@ -8,7 +8,7 @@ function optional(name: string): string | undefined {
 
 /** Well-known EVM networks — RPC can be overridden per chain via env. */
 const EVM_CHAIN_DEFAULTS: Record<number, { name: string; rpcUrl: string }> = {
-  1: { name: "Ethereum", rpcUrl: "https://eth.llamarpc.com" },
+  1: { name: "Ethereum", rpcUrl: "https://ethereum-rpc.publicnode.com" },
   8453: { name: "Base", rpcUrl: "https://mainnet.base.org" },
   137: { name: "Polygon", rpcUrl: "https://polygon-rpc.com" },
   42161: { name: "Arbitrum One", rpcUrl: "https://arb1.arbitrum.io/rpc" },

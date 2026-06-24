@@ -508,6 +508,7 @@ Phase 0 (infra + dashboard)
 | ------ | ---- | ----- |
 | [x] | Phase 0.1 — Chain catalog + EVM allowlist + client wallet UI | [Backend] |
 | [ ] | Phase 0.2 — Stellar adapter + shared defi registry | [Backend] |
+| [ ] | Phase 0.6 — DeFi caching layer (catalogs, quotes, RPC balances) | [Backend] |
 | [ ] | Phase 1 — Li-Fi cross-chain (ETH ↔ Arbitrum ↔ Base) | [Backend] |
 | [ ] | Phase 2 — Soroswap (Stellar / Soroban) | [Backend] |
 | [ ] | Phase 3 — SushiSwap (EVM same-chain aggregator) | [Backend] |

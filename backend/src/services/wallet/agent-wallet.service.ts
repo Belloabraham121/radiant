@@ -1,6 +1,7 @@
 import type { AgentWallet } from "@prisma/client";
 import { getDefaultAgentChainId } from "../../config/chains.js";
 import { AppError } from "../../errors/app-error.js";
+import { logger } from "../../shared/logger.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import type { BalanceContext, ChainId } from "../chains/types.js";
 import {
@@ -69,7 +70,12 @@ export async function isWalletFunded(
     ) {
       return false;
     }
-    throw err;
+    logger.warn("Wallet funded check failed; treating as unfunded", {
+      chainId,
+      address,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
   }
 }
 

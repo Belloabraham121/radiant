@@ -5,3 +5,5 @@ For Radiant deploy jobs, also read `backend/.agents/skills/inngest-radiant/SKILL
 When adding or changing Inngest functions, follow `inngest-setup`, `inngest-durable-functions`, and `inngest-events` skills. Official docs: https://www.inngest.com/llms.txt
 
 For auth, proxy, outbound fetch, or data-export changes, read `.cursor/rules/security-api-guards.mdc` and `backend/.agents/skills/radiant-backend/SKILL.md` § Security guards.
+
+Before finishing implementation work, read `.cursor/rules/verify-before-complete.mdc` — run backend and/or client checks for every package you changed; fix errors before stopping.
