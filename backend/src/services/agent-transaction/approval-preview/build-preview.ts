@@ -103,8 +103,8 @@ function buildLifiBridgePreview(
   fiat_preview: TransactionFiatPreview | null,
 ): DeFiApprovalPreview {
   const params = input.params;
-  const paySymbol = readStringParam(params, "from_token_symbol") ?? "token";
-  const receiveSymbol = readStringParam(params, "to_token_symbol") ?? "token";
+  const paySymbol = readStringParam(params, "from_token_symbol") ?? readStringParam(params, "from_token") ?? "token";
+  const receiveSymbol = readStringParam(params, "to_token_symbol") ?? readStringParam(params, "to_token") ?? "token";
   const payAmount = readStringParam(params, "from_amount_display") ?? "";
   const receiveAmount = readStringParam(params, "to_amount_display") ?? "";
   const fromChainLabel = resolveChainLabel(

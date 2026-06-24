@@ -101,6 +101,27 @@ function chainRefFields(from: LifiChainRef, to: LifiChainRef) {
   };
 }
 
+/**
+ * True when a value is a usable Li-Fi {@link Route}: an object carrying a
+ * non-empty `steps` array whose entries each have an `action`. Agent-supplied
+ * `lifi_route`/`route` params are untrusted JSON — an LLM may hand back a
+ * truncated or summarized object missing `steps`, which would otherwise crash
+ * downstream `route.steps[0]` access with "Cannot read properties of undefined".
+ */
+export function isExecutableLifiRoute(value: unknown): value is Route {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const steps = (value as { steps?: unknown }).steps;
+  return (
+    Array.isArray(steps) &&
+    steps.length > 0 &&
+    steps.every(
+      (step) => Boolean(step) && typeof step === "object" && "action" in (step as object),
+    )
+  );
+}
+
 export function createRouteId(seed?: string): string {
   if (seed) {
     return createHash("sha256").update(seed).digest("hex").slice(0, 16);
@@ -248,6 +269,7 @@ export function normalizeLifiRouteOption(input: {
     gas_cost_usd: sumUsd(input.route.steps[0]?.estimate?.gasCosts),
     fee_cost_usd: sumUsd(input.route.steps[0]?.estimate?.feeCosts),
     tags: input.route.tags ?? [],
+    expires_at: quoteExpiresAt(input.route),
     lifi_route: input.route,
   };
 }

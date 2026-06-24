@@ -2,6 +2,7 @@ import type { ExecuteTransactionInput } from "../../../chains/types.js";
 import {
   isLifiExecuteAction,
 } from "../../../agent/chains/evm/lifi/execute-actions.js";
+import { AppError } from "../../../../errors/app-error.js";
 import { isDeFiQuoteFresh } from "../quote-expiry.js";
 import {
   isLifiApprovalDisplayComplete,
@@ -12,19 +13,48 @@ export function matchLifiExecuteInput(input: ExecuteTransactionInput): boolean {
   return isLifiExecuteAction(input.action);
 }
 
+function hasNoRouteReference(params: Record<string, unknown>): boolean {
+  return (
+    !params.route_id &&
+    !params.route &&
+    !params.lifi_route
+  );
+}
+
+function hasNoTokenInfo(params: Record<string, unknown>): boolean {
+  return (
+    !params.from_token_symbol &&
+    !params.from_token &&
+    !params.from_chain_id &&
+    !params.to_chain_id
+  );
+}
+
 /** Attach cross-chain quote display fields before showing the approval dialog. */
 export async function enrichLifiExecuteInputForApproval(
-  _privyUserId: string,
+  privyUserId: string,
   input: ExecuteTransactionInput,
+  options?: { requoteOnCacheMiss?: boolean },
 ): Promise<ExecuteTransactionInput> {
   if (!matchLifiExecuteInput(input)) {
     return input;
+  }
+
+  if (input.action === "cross_chain_swap" && hasNoRouteReference(input.params) && hasNoTokenInfo(input.params)) {
+    throw new AppError(
+      400,
+      "LIFI_NO_ROUTE",
+      "No bridge route found. Run cross_chain_quote first to get a route, then pass the route_id and snapshot fields to cross_chain_swap.",
+    );
   }
 
   if (isDeFiQuoteFresh(input.params) && isLifiApprovalDisplayComplete(input.params)) {
     return input;
   }
 
-  const params = await resolveLifiApprovalParams(input.params, { privyUserId: _privyUserId });
+  const params = await resolveLifiApprovalParams(input.params, {
+    privyUserId,
+    requoteOnCacheMiss: options?.requoteOnCacheMiss,
+  });
   return { ...input, params };
 }

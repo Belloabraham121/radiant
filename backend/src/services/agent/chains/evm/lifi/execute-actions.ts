@@ -8,10 +8,10 @@ import type { ExecuteTransactionInput } from "../../../../chains/types.js";
 export const LIFI_EXECUTE_ACTIONS = ["cross_chain_swap", "lifi_approve"] as const;
 
 export const LIFI_EXECUTE_SCHEMA = {
-  actionDescription: "cross_chain_swap, lifi_approve (Li-Fi cross-chain).",
+  actionDescription: "cross_chain_swap, lifi_approve (Li-Fi cross-chain). IMPORTANT: cross_chain_swap does NOT broadcast immediately — it queues an approval dialog for the user to review and confirm. Always call it after a successful route quote.",
   paramsDescription:
-    "cross_chain_swap: { route_id } or { route } from cross_chain_quote / cross_chain_routes; re-validates quote at execute. " +
-    "lifi_approve: { route_id | route } — optional separate ERC-20 approval before cross_chain_swap.",
+    "cross_chain_swap: { route_id, from_token, to_token, from_token_symbol, to_token_symbol, from_amount_atomic, to_amount_atomic, from_chain_id, to_chain_id, to_evm_chain_id, bridges, fee_cost_usd, expires_at } — route_id is the ONLY required field; the server already has the full route stored under that id. Pass the lightweight snapshot fields so the approval dialog shows pay/receive amounts and countdown timer. Do NOT try to echo back the large lifi_route/route object — just send route_id. " +
+    "lifi_approve: { route_id } — optional separate ERC-20 approval before cross_chain_swap.",
 };
 
 export async function executeLifiAction(

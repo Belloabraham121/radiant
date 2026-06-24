@@ -138,6 +138,29 @@ export async function loadPendingApprovalForUser(
   return row;
 }
 
+/**
+ * Diagnose why a pending-approval claim would fail: the row may not exist for
+ * this user, may be older than the TTL, or may already have moved out of
+ * `pending_approval` (e.g. a prior approve click already submitted/failed it).
+ */
+export async function describePendingApprovalState(
+  privyUserId: string,
+  transactionId: string,
+): Promise<"claimable" | "missing" | "expired" | `consumed:${string}`> {
+  const userId = await requireUserId(privyUserId);
+  const row = await findAgentTransactionByIdForUser(transactionId, userId);
+  if (!row) {
+    return "missing";
+  }
+  if (row.status !== "pending_approval") {
+    return `consumed:${row.status}`;
+  }
+  if (row.created_at < new Date(Date.now() - PENDING_APPROVAL_TTL_MS)) {
+    return "expired";
+  }
+  return "claimable";
+}
+
 export async function claimPendingApprovalForUser(
   privyUserId: string,
   transactionId: string,

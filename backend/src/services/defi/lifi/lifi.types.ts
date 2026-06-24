@@ -15,6 +15,14 @@ function normalizeLifiTokenParam(value: string | undefined): string | undefined 
     return undefined;
   }
   const trimmed = value.trim();
+  // Li-Fi composite token id e.g. "8453-0x833589..."
+  const compositeDash = trimmed.indexOf("-0x");
+  if (compositeDash > 0) {
+    const addressPart = trimmed.slice(compositeDash + 1);
+    if (addressPart.length === 42 && addressPart.slice(0, 2).toLowerCase() === "0x") {
+      return addressPart;
+    }
+  }
   if (trimmed.length === 42 && trimmed.slice(0, 2).toLowerCase() === "0x") {
     return trimmed;
   }
@@ -199,6 +207,7 @@ export type CrossChainRouteOption = {
   gas_cost_usd: number | null;
   fee_cost_usd: number | null;
   tags: string[];
+  expires_at: string;
   lifi_route: Route;
 };
 

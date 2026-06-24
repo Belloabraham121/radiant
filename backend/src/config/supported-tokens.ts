@@ -68,7 +68,7 @@ const EVM_TOKEN_DEFAULTS: Record<number, Record<string, { address: string; decim
   8453: {
     ETH: { address: "native", decimals: 18 },
     WETH: { address: "0x4200000000000000000000000000000000000006", decimals: 18 },
-    USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f597b90BeA844E", decimals: 6 },
+    USDC: { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 },
   },
 };
 

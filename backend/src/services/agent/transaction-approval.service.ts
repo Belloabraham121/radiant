@@ -45,6 +45,7 @@ import {
 import { buildTransactionDisplay } from "../agent-transaction/deepbook/build-display.js";
 import { buildDeFiApprovalPreview } from "../agent-transaction/approval-preview/build-preview.js";
 import { enrichExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/registry.js";
+import { enrichLifiExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/lifi.js";
 import {
   isDeFiQuoteExpired,
   readDeFiQuoteExpiresAt,
@@ -55,6 +56,7 @@ import {
   claimPendingApprovalForUser,
   claimPendingRejectionForUser,
   clearPendingApprovalsForTests,
+  describePendingApprovalState,
   executeInputFromRecord,
   expireStalePendingApprovals,
   markCompleted,
@@ -390,6 +392,23 @@ export async function approvePendingTransaction(
 
   const claimed = await claimPendingApprovalForUser(privyUserId, transactionId);
   if (!claimed) {
+    // #region agent log
+    const state = await describePendingApprovalState(privyUserId, transactionId).catch(
+      () => "unknown",
+    );
+    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
+      body: JSON.stringify({
+        sessionId: "90234e",
+        hypothesisId: "H",
+        location: "transaction-approval.service.ts:approvePendingTransaction",
+        message: "claim failed",
+        data: { transactionId, state },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return null;
   }
 
@@ -397,8 +416,11 @@ export async function approvePendingTransaction(
   let executeInput = executeInputFromRecord(claimed);
 
   if (isLifiExecuteAction(executeInput.action)) {
-    const enriched = await enrichExecuteInputForApproval(privyUserId, executeInput);
-    executeInput = enriched;
+    executeInput = await enrichLifiExecuteInputForApproval(privyUserId, executeInput, {
+      requoteOnCacheMiss: true,
+    });
+  } else if (isDeepBookSwapAction(executeInput.action)) {
+    executeInput = await enrichExecuteInputForApproval(privyUserId, executeInput);
   }
 
   if (

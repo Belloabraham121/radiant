@@ -83,7 +83,9 @@ export function buildExecuteTransactionToolDefinition(
   return {
     name: EXECUTE_TRANSACTION_TOOL_NAME,
     description:
-      "Sign and broadcast a transaction on the user's agent wallet for the given chain. " +
+      "Submit a transaction for the user's agent wallet. " +
+      "Bridge actions (cross_chain_swap) queue an approval dialog — they do NOT broadcast immediately. " +
+      "Always call this after a successful quote or route; do not wait for the user to trigger it manually. " +
       "The wallet is resolved from the authenticated session — never pass wallet addresses.",
     input_schema: {
       type: "object" as const,

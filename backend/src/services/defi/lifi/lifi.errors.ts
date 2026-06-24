@@ -19,6 +19,9 @@ function userFacingLifiMessage(message: string): string {
   if (lower.includes("could not find token")) {
     return "That token is not available for this bridge route. Check the destination token and network, then try again.";
   }
+  if (lower.includes("deny list")) {
+    return "That destination token is not available for this bridge route. Try cross_chain_routes to find an alternative, or ask the user to choose a different destination token (e.g. ETH instead of USDC).";
+  }
   if (lower.includes("no route") || lower.includes("unavailable routes")) {
     return message;
   }

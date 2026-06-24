@@ -19,12 +19,31 @@ import {
   checkLifiApprovalRequired,
   executeLifiApproval,
 } from "./lifi-approval.service.js";
+import { lifiToRadiantChainRef } from "./lifi-chain-map.js";
 import { storeLifiRoute } from "./lifi-cache.js";
 import { createRouteId } from "./lifi-normalize.js";
+import { resolveLifiBridgeWalletAddresses } from "./lifi-wallet-addresses.js";
 import { buildLifiSdkProvidersForRoute } from "./lifi-providers.service.js";
 import type { LifiExecuteInput, LifiExecuteResult } from "./lifi.types.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
 import type { ChainId } from "../../chains/types.js";
+
+// #region agent log
+function logExecuteDebug(message: string, data: Record<string, unknown>): void {
+  fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
+    body: JSON.stringify({
+      sessionId: "90234e",
+      hypothesisId: "G",
+      location: "lifi-execute.service.ts:executeLifiCrossChainSwap",
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+}
+// #endregion
 
 async function resolveAgentWallet(privyUserId: string, chainId: ChainId) {
   const agentWallet = await resolveAgentWalletByPrivyUserId(privyUserId, chainId);
@@ -71,8 +90,12 @@ function collectRouteChainIds(route: Route): number[] {
   return [...ids];
 }
 
-async function refreshRouteAtExecute(route: Route, fromAddress: string): Promise<Route> {
-  const refreshParams = buildQuoteRefreshParams(route, fromAddress);
+async function refreshRouteAtExecute(
+  route: Route,
+  fromAddress: string,
+  toAddress: string,
+): Promise<Route> {
+  const refreshParams = buildQuoteRefreshParams(route, fromAddress, toAddress);
   const freshStep = await lifiSdk.getQuote(refreshParams);
   const routeId = route.id ?? createRouteId(JSON.stringify(refreshParams));
   const refreshed = convertQuoteToRoute(freshStep);
@@ -118,11 +141,50 @@ export async function executeLifiCrossChainSwap(
 
   await consumeLifiExecuteQuota(privyUserId);
 
+  // #region agent log
+  logExecuteDebug("execute entry", {
+    hasRouteId: Boolean(input.route_id),
+    hasLifiRoute: Boolean(input.lifi_route),
+    hasRoute: Boolean(input.route),
+    fromChainId: input.from_chain_id,
+    fromEvmChainId: input.from_evm_chain_id,
+  });
+  // #endregion
+
+  try {
+    return await runLifiCrossChainSwap(privyUserId, input);
+  } catch (err) {
+    // #region agent log
+    logExecuteDebug("execute failed", {
+      name: err instanceof Error ? err.name : typeof err,
+      message: err instanceof Error ? err.message : String(err),
+      code:
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code: unknown }).code)
+          : null,
+      stack: err instanceof Error ? err.stack?.slice(0, 600) : null,
+    });
+    // #endregion
+    throw err;
+  }
+}
+
+async function runLifiCrossChainSwap(
+  privyUserId: string,
+  input: LifiExecuteInput,
+): Promise<LifiExecuteResult> {
   const storedRoute = await resolveLifiRouteForExecute({
     routeId: input.route_id,
     route: input.route,
     lifiRoute: input.lifi_route,
   });
+  // #region agent log
+  logExecuteDebug("route resolved", {
+    stepCount: Array.isArray(storedRoute.steps) ? storedRoute.steps.length : null,
+    fromChainId: storedRoute.fromChainId,
+    toChainId: storedRoute.toChainId,
+  });
+  // #endregion
 
   const sourceChain = resolveSourceChainFromExecuteInput({
     from_chain_id: input.from_chain_id,
@@ -130,11 +192,33 @@ export async function executeLifiCrossChainSwap(
     route: storedRoute,
   });
 
-  const sourceWallet = await resolveAgentWallet(privyUserId, sourceChain.chain_id);
-  const refreshedRoute = await refreshRouteAtExecute(storedRoute, sourceWallet.address);
+  const lastStep = storedRoute.steps.at(-1);
+  const destChain = lastStep
+    ? lifiToRadiantChainRef(lastStep.action.toChainId)
+    : sourceChain;
+
+  const { fromAddress, toAddress } = await resolveLifiBridgeWalletAddresses(
+    privyUserId,
+    sourceChain,
+    destChain,
+  );
+
+  await resolveAgentWallet(privyUserId, sourceChain.chain_id);
+
+  const refreshedRoute = await refreshRouteAtExecute(
+    storedRoute,
+    fromAddress,
+    toAddress,
+  );
   const routeId =
     refreshedRoute.id ?? input.route_id ?? createRouteId(JSON.stringify(refreshedRoute));
   await storeLifiRoute(routeId, refreshedRoute);
+  // #region agent log
+  logExecuteDebug("route refreshed", {
+    sourceChain: sourceChain.chain_id,
+    stepCount: Array.isArray(refreshedRoute.steps) ? refreshedRoute.steps.length : null,
+  });
+  // #endregion
 
   let approvalTxHash: string | null = null;
   if (!input.skip_approval && sourceChain.chain_id === "ethereum") {
@@ -159,6 +243,12 @@ export async function executeLifiCrossChainSwap(
     agentWallets,
   });
   client.setProviders(providers);
+  // #region agent log
+  logExecuteDebug("providers configured", {
+    providerCount: providers.length,
+    routeChainIds: collectRouteChainIds(refreshedRoute),
+  });
+  // #endregion
 
   let executedRoute: RouteExtended;
   try {
@@ -166,6 +256,13 @@ export async function executeLifiCrossChainSwap(
       updateRouteHook: () => undefined,
     });
   } catch (err) {
+    // #region agent log
+    logExecuteDebug("executeRoute threw", {
+      name: err instanceof Error ? err.name : typeof err,
+      message: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.slice(0, 600) : null,
+    });
+    // #endregion
     throw new AppError(400, "TRANSACTION_FAILED", "Cross-chain route execution failed.", {
       cause: err instanceof Error ? err.message : String(err),
     });

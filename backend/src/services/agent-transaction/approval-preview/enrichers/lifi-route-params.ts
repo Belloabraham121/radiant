@@ -2,7 +2,10 @@ import type { Route } from "@lifi/types";
 import { resolveTokenSymbol, resolveEvmTokenByAddress } from "../../../../config/supported-tokens.js";
 import type { ChainId } from "../../../chains/types.js";
 import { formatAtomicAmount, lifiToRadiantChainRef } from "../../../defi/lifi/lifi-chain-map.js";
-import { normalizeLifiRouteToRouteQuote } from "../../../defi/lifi/lifi-normalize.js";
+import {
+  isExecutableLifiRoute,
+  normalizeLifiRouteToRouteQuote,
+} from "../../../defi/lifi/lifi-normalize.js";
 import { requoteLifiFromSnapshot, resolveLifiRouteForExecute } from "../../../defi/lifi/lifi-quote.service.js";
 
 function sumUsd(costs: Array<{ amountUSD?: string }> | undefined): number | null {
@@ -36,10 +39,10 @@ function resolveRouteFeeUsd(route: Route): number | null {
 
 function readRouteFromParams(params: Record<string, unknown>): Route | null {
   const embedded = params.lifi_route ?? params.route;
-  if (embedded && typeof embedded === "object") {
-    return embedded as Route;
-  }
-  return null;
+  // Only trust an embedded route that carries executable steps; a malformed
+  // agent-supplied object falls through to route_id lookup / requote instead
+  // of crashing on `route.steps[0]`.
+  return isExecutableLifiRoute(embedded) ? embedded : null;
 }
 
 function readString(params: Record<string, unknown>, key: string): string | null {
@@ -169,7 +172,15 @@ function enrichFromQuoteSnapshot(params: Record<string, unknown>): Record<string
     );
 
   if (!fromAmountDisplay || !toAmountDisplay) {
-    return null;
+    return {
+      ...params,
+      from_token_symbol: displayFromSymbol,
+      to_token_symbol: displayToSymbol,
+      from_chain_id: fromChainId,
+      to_chain_id: toChainId,
+      from_evm_chain_id: fromEvmChainId ?? undefined,
+      to_evm_chain_id: toEvmChainId ?? undefined,
+    };
   }
 
   const bridges = Array.isArray(params.bridges)
@@ -200,8 +211,9 @@ export function applyLifiRouteToExecuteParams(
   params: Record<string, unknown>,
   route: Route,
 ): Record<string, unknown> {
-  const firstStep = route.steps[0];
-  const lastStep = route.steps.at(-1);
+  const steps = Array.isArray(route.steps) ? route.steps : [];
+  const firstStep = steps[0];
+  const lastStep = steps.at(-1);
   if (!firstStep || !lastStep) {
     return params;
   }
@@ -248,7 +260,7 @@ export function applyLifiRouteToExecuteParams(
 /** Resolve Li-Fi route + display fields for approval UI. */
 export async function resolveLifiApprovalParams(
   params: Record<string, unknown>,
-  options?: { privyUserId?: string },
+  options?: { privyUserId?: string; requoteOnCacheMiss?: boolean },
 ): Promise<Record<string, unknown>> {
   const embedded = readRouteFromParams(params);
   if (embedded) {
@@ -268,7 +280,7 @@ export async function resolveLifiApprovalParams(
       });
       return applyLifiRouteToExecuteParams(params, route);
     } catch {
-      if (options?.privyUserId) {
+      if (options?.requoteOnCacheMiss && options.privyUserId) {
         const requoted = await requoteLifiFromSnapshot(options.privyUserId, params);
         const refreshedRoute = requoted?.lifi_route;
         if (requoted && refreshedRoute) {

@@ -1,15 +1,9 @@
-import type { ExecuteTransactionInput } from "../../../../chains/types.js";
 import type { ExecutePreflightRegistration } from "../../types.js";
-import { readDeFiQuoteExpiresAt } from "../../../../agent-transaction/approval-preview/quote-expiry.js";
-import { preflightLifiQuoteNotExpired } from "../../../../defi/lifi/lifi-execute.service.js";
-import { isLifiExecuteAction } from "./execute-actions.js";
 
-export const lifiPreflightHooks: readonly ExecutePreflightRegistration[] = [
-  {
-    match: isLifiExecuteAction,
-    run: async (_privyUserId, input: ExecuteTransactionInput) => {
-      const expiresAt = readDeFiQuoteExpiresAt(input.params) ?? undefined;
-      await preflightLifiQuoteNotExpired(expiresAt);
-    },
-  },
-];
+// No preflight expiry check for Li-Fi bridge actions — the raw agent params carry the
+// expires_at from when cross_chain_routes was called (60 s window), which can be stale
+// by the time the agent submits execute_transaction. The enrichers in
+// buildPendingTransactionPreview and approvePendingTransaction set a fresh expires_at
+// from the stored route, and the expiry check in approvePendingTransaction runs on that
+// enriched value. Checking raw params here produces false-positive "Quote expired" errors.
+export const lifiPreflightHooks: readonly ExecutePreflightRegistration[] = [];

@@ -141,13 +141,13 @@ export async function buildTransactionDisplay(
     }
   } else if (input.action === "cross_chain_swap") {
     const fromSymbol =
-      typeof input.params.from_token_symbol === "string"
-        ? input.params.from_token_symbol
-        : "token";
+      (typeof input.params.from_token_symbol === "string" && input.params.from_token_symbol) ||
+      (typeof input.params.from_token === "string" && input.params.from_token) ||
+      "token";
     const toSymbol =
-      typeof input.params.to_token_symbol === "string"
-        ? input.params.to_token_symbol
-        : "token";
+      (typeof input.params.to_token_symbol === "string" && input.params.to_token_symbol) ||
+      (typeof input.params.to_token === "string" && input.params.to_token) ||
+      "token";
     const fromAmount =
       typeof input.params.from_amount_display === "string"
         ? input.params.from_amount_display

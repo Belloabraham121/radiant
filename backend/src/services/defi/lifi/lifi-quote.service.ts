@@ -1,7 +1,7 @@
 import { getLifiConfig, isLifiEnabled, lifiIntegratorSdkFields } from "../../../config/lifi.js";
 import { resolveLifiChainRef } from "../../../config/lifi-chains.js";
 import { AppError } from "../../../errors/app-error.js";
-import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
+import { resolveLifiBridgeWalletAddresses } from "./lifi-wallet-addresses.js";
 import { convertQuoteToRoute } from "@lifi/sdk";
 import type { Route } from "@lifi/types";
 import type { ChainId } from "../../chains/types.js";
@@ -16,41 +16,12 @@ import { lifiSdk } from "./lifi.client.js";
 import { getStoredLifiRoute, lifiCachedQuoteFetch, storeLifiRoute } from "./lifi-cache.js";
 import { resolveLifiTokens } from "./lifi-input.js";
 import { consumeLifiQuoteQuota } from "./lifi-rate-limit.js";
-import { createRouteId, normalizeLifiStepToCrossChainQuote } from "./lifi-normalize.js";
+import {
+  createRouteId,
+  isExecutableLifiRoute,
+  normalizeLifiStepToCrossChainQuote,
+} from "./lifi-normalize.js";
 import type { CrossChainQuote, LifiQuoteInput } from "./lifi.types.js";
-
-function addressesMatch(chainId: ChainId, expected: string, received: string): boolean {
-  if (chainId === "ethereum") {
-    return expected.toLowerCase() === received.toLowerCase();
-  }
-  return expected === received;
-}
-
-async function resolveWalletAddress(
-  privyUserId: string,
-  chainRef: LifiChainRef,
-  fromAddress?: string,
-): Promise<string> {
-  const agentWallet = await resolveAgentWalletByPrivyUserId(privyUserId, chainRef.chain_id);
-  if (!agentWallet) {
-    throw new AppError(
-      404,
-      "WALLET_NOT_FOUND",
-      `Agent wallet not registered for chain ${chainRef.chain_id}.`,
-    );
-  }
-
-  if (fromAddress && !addressesMatch(chainRef.chain_id, agentWallet.address, fromAddress)) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      "from_address must match the user's agent wallet.",
-      { expected: agentWallet.address, received: fromAddress },
-    );
-  }
-
-  return agentWallet.address;
-}
 
 export async function getLifiQuote(
   privyUserId: string,
@@ -79,7 +50,12 @@ export async function getLifiQuote(
     throw new AppError(400, "AMOUNT_REQUIRED", "How much should they bridge? Ask for the amount before quoting.");
   }
 
-  const fromAddress = await resolveWalletAddress(privyUserId, tokens.from, input.from_address);
+  const { fromAddress, toAddress } = await resolveLifiBridgeWalletAddresses(
+    privyUserId,
+    tokens.from,
+    tokens.to,
+    { fromAddress: input.from_address },
+  );
   const fromLifiChainId = radiantToLifiChainId(tokens.from);
   const toLifiChainId = radiantToLifiChainId(tokens.to);
 
@@ -93,16 +69,43 @@ export async function getLifiQuote(
     to_token: tokens.toSymbol,
     amount_atomic: input.amount_atomic,
     from_address: fromAddress,
+    to_address: toAddress,
     slippage: input.slippage ?? config.defaultSlippage,
   };
 
   return lifiCachedQuoteFetch(cacheParams, async () => {
+    const fromTokenAddr = toLifiTokenAddress(tokens.fromToken, tokens.from);
+    const toTokenAddr = toLifiTokenAddress(tokens.toToken, tokens.to);
+    // #region agent log
+    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
+      body: JSON.stringify({
+        sessionId: "90234e",
+        hypothesisId: "C-D",
+        location: "lifi-quote.service.ts:getLifiQuote",
+        message: "Li-Fi getQuote params",
+        data: {
+          fromChain: fromLifiChainId,
+          toChain: toLifiChainId,
+          fromToken: tokens.fromSymbol,
+          toToken: tokens.toSymbol,
+          fromTokenAddrLen: fromTokenAddr.length,
+          toTokenAddrLen: toTokenAddr.length,
+          fromAddressLen: fromAddress.length,
+          toAddressLen: toAddress.length,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     const step = await lifiSdk.getQuote({
       fromChain: fromLifiChainId,
       toChain: toLifiChainId,
-      fromToken: toLifiTokenAddress(tokens.fromToken, tokens.from),
-      toToken: toLifiTokenAddress(tokens.toToken, tokens.to),
+      fromToken: fromTokenAddr,
+      toToken: toTokenAddr,
       fromAddress,
+      toAddress,
       fromAmount: amountAtomic,
       slippage: input.slippage ?? config.defaultSlippage,
       ...lifiIntegratorSdkFields(config, input.integrator),
@@ -111,6 +114,24 @@ export async function getLifiQuote(
     const routeId = createRouteId(JSON.stringify(cacheParams));
     const route = { ...convertQuoteToRoute(step), id: routeId };
     await storeLifiRoute(routeId, route);
+    // #region agent log
+    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
+      body: JSON.stringify({
+        sessionId: "90234e",
+        hypothesisId: "C-D",
+        location: "lifi-quote.service.ts:getLifiQuote",
+        message: "Li-Fi getQuote succeeded",
+        data: {
+          routeId,
+          toAmount: step.estimate?.toAmount ?? null,
+          runId: "post-fix",
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     return normalizeLifiStepToCrossChainQuote({
       step,
@@ -130,19 +151,23 @@ export async function resolveLifiRouteForExecute(input: {
   lifiRoute?: Record<string, unknown>;
 }): Promise<Route> {
   const embedded = input.lifiRoute ?? input.route;
-  if (embedded) {
-    return embedded as unknown as Route;
+  if (isExecutableLifiRoute(embedded)) {
+    return embedded;
   }
 
   if (input.routeId) {
     const stored = await getStoredLifiRoute(input.routeId);
-    if (stored) {
+    if (isExecutableLifiRoute(stored)) {
       return stored;
     }
     throw new AppError(404, "LIFI_NO_ROUTE", "Bridge route expired. Fetch a fresh quote and try again.");
   }
 
-  throw new AppError(400, "VALIDATION_ERROR", "Provide route_id or route from a prior quote.");
+  throw new AppError(
+    400,
+    "LIFI_NO_ROUTE",
+    "Bridge route data was incomplete. Fetch a fresh cross_chain_quote and pass its route_id before executing.",
+  );
 }
 
 function readSnapshotString(params: Record<string, unknown>, key: string): string | null {
@@ -201,19 +226,29 @@ export async function requoteLifiFromSnapshot(
   }
 }
 
-export function buildQuoteRefreshParams(route: Route, fromAddress: string) {
-  const firstStep = route.steps[0];
-  if (!firstStep) {
+export function buildQuoteRefreshParams(
+  route: Route,
+  fromAddress: string,
+  toAddress?: string,
+) {
+  const firstStep = Array.isArray(route.steps) ? route.steps[0] : undefined;
+  const lastStep = Array.isArray(route.steps) ? route.steps.at(-1) : undefined;
+  if (!firstStep || !lastStep) {
     throw new AppError(400, "LIFI_NO_ROUTE", "Route has no steps.");
   }
 
   const config = getLifiConfig();
+  const resolvedToAddress = toAddress ?? route.toAddress ?? lastStep.action.toAddress;
+  // Use the route's overall endpoints (top-level fields are authoritative for
+  // multi-step routes from cross_chain_routes); fall back to the first/last
+  // step when a hand-built route omits them.
   return {
-    fromChain: firstStep.action.fromChainId,
-    toChain: firstStep.action.toChainId,
-    fromToken: firstStep.action.fromToken.address,
-    toToken: firstStep.action.toToken.address,
+    fromChain: route.fromChainId ?? firstStep.action.fromChainId,
+    toChain: route.toChainId ?? lastStep.action.toChainId,
+    fromToken: route.fromToken?.address ?? firstStep.action.fromToken.address,
+    toToken: route.toToken?.address ?? lastStep.action.toToken.address,
     fromAddress,
+    ...(resolvedToAddress ? { toAddress: resolvedToAddress } : {}),
     fromAmount: route.fromAmount,
     slippage: config.defaultSlippage,
     ...lifiIntegratorSdkFields(config),
@@ -232,7 +267,7 @@ export function resolveSourceChainFromExecuteInput(input: {
     });
   }
 
-  const firstStep = input.route?.steps[0];
+  const firstStep = Array.isArray(input.route?.steps) ? input.route.steps[0] : undefined;
   if (firstStep) {
     return lifiToRadiantChainRef(firstStep.action.fromChainId);
   }
