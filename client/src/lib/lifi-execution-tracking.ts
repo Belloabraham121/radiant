@@ -1,8 +1,13 @@
 import type { AgentTransactionDetail, AgentTransactionListItem } from "@/lib/agent-transactions-api";
 import type { AgentChainId } from "@/lib/agent-chains";
 import type { PendingTransaction } from "@/lib/chat-api";
+import { mergeReceiptsFromExecutionStep } from "@/lib/chat-messages";
 import type { ExecutionStep } from "@/lib/chat-execution-steps";
 import { mergeExecutionSteps, sortExecutionSteps } from "@/lib/chat-execution-steps";
+import {
+  explorerLinkLabel,
+  explorerUrlForDigest,
+} from "@/lib/explorer-tx-link";
 import {
   lifiBridgeStepLabel,
   lifiCountdownKind,
@@ -70,7 +75,7 @@ export function executionStepsForPendingApproval(
       {
         id: "lifi-quote",
         status: "ok",
-        label: "Routequoted",
+        label: "Route quoted",
         detail: bridgeTool ? `${routeDetail} via ${bridgeTool}` : routeDetail,
         ...meta,
       },
@@ -482,6 +487,153 @@ export function applyLifiTransactionStepsToMessages<
       ),
     };
   });
+}
+
+const STALE_APPROVAL_TEXT_RE =
+  /needs your approval|confirm in the dialog|Review the route/i;
+
+const LIFI_SUBMITTING_REPLY = "Submitting transaction…";
+
+function messageNeedsLiveLifiText(text: string | undefined): boolean {
+  if (!text) {
+    return true;
+  }
+  return STALE_APPROVAL_TEXT_RE.test(text) || text === LIFI_SUBMITTING_REPLY;
+}
+
+function readEvmChainIdFromDetail(
+  detail: Pick<AgentTransactionDetail, "result" | "params"> | null | undefined,
+): number | undefined {
+  const result = detail?.result;
+  if (result && typeof result.evm_chain_id === "number") {
+    return result.evm_chain_id;
+  }
+  if (typeof detail?.params.from_evm_chain_id === "number") {
+    return detail.params.from_evm_chain_id;
+  }
+  return undefined;
+}
+
+/** Client-side reply while approve HTTP is in flight or poll/SSE catches up. */
+export function lifiLiveReplyFromSteps(
+  steps: ExecutionStep[],
+  detail?: Pick<AgentTransactionDetail, "chain_id" | "digest" | "result" | "params"> | null,
+): string | null {
+  const normalized = normalizeLifiExecutionSteps(steps);
+  const complete = normalized.find((step) => step.id === "lifi-complete");
+  const submit = normalized.find((step) => step.id === "lifi-submit");
+
+  if (complete?.status === "ok") {
+    const destDigest = complete.digest ?? submit?.digest ?? detail?.digest;
+    const chainId = (complete.chainId ?? submit?.chainId ?? detail?.chain_id ?? "sui") as AgentChainId;
+    const evmChainId = complete.evmChainId ?? submit?.evmChainId ?? readEvmChainIdFromDetail(detail ?? null);
+    if (destDigest) {
+      const label = explorerLinkLabel({ id: "lifi-complete", label: "Complete", chainId, evmChainId });
+      const url = explorerUrlForDigest(destDigest, chainId, evmChainId);
+      if (url) {
+        return `Bridge complete. [View on ${label}](${url}) — Destination tx: ${destDigest}.`;
+      }
+      return `Bridge complete. Destination tx: ${destDigest}.`;
+    }
+    return "Bridge complete.";
+  }
+
+  if (submit?.status === "ok" && submit.digest) {
+    const chainId = (submit.chainId ?? detail?.chain_id ?? "ethereum") as AgentChainId;
+    const evmChainId = submit.evmChainId ?? readEvmChainIdFromDetail(detail ?? null);
+    const label = explorerLinkLabel(submit);
+    const url = explorerUrlForDigest(submit.digest, chainId, evmChainId);
+    if (url) {
+      return `Approved. Transaction submitted on ${chainId}. [View on ${label}](${url}) — Digest: ${submit.digest}.`;
+    }
+    return `Approved. Transaction submitted on ${chainId}. Digest: ${submit.digest}.`;
+  }
+
+  if (
+    normalized.some(
+      (step) =>
+        (step.id === "lifi-submit" || step.id === "lifi-bridge") &&
+        (step.status === "running" || step.status === "pending"),
+    )
+  ) {
+    return LIFI_SUBMITTING_REPLY;
+  }
+
+  return null;
+}
+
+/** Merge Li-Fi steps and refresh bubble text/receipts without waiting for approve HTTP. */
+export function applyLifiLiveUpdateToMessages<
+  T extends {
+    id: string;
+    role: string;
+    text?: string;
+    executionSteps?: ExecutionStep[];
+    receipts?: Array<{ label: string; detail?: string; href?: string; digest?: string; chainId?: AgentChainId; evmChainId?: number }>;
+    statusCategory?: string;
+    streaming?: boolean;
+  },
+>(
+  messages: T[],
+  transactionId: string,
+  steps: ExecutionStep[],
+  options?: { primaryMessageId?: string | null; detail?: AgentTransactionDetail | null },
+): T[] {
+  const withSteps = applyLifiTransactionStepsToMessages(messages, transactionId, steps, options);
+  const index = findAgentMessageIndexForLifiTransaction(withSteps, transactionId);
+  if (index < 0) {
+    return withSteps;
+  }
+
+  const target = withSteps[index];
+  const mergedSteps = target.executionSteps ?? [];
+  const inFlight = mergedSteps.some(
+    (step) =>
+      (step.id === "lifi-submit" || step.id === "lifi-bridge") &&
+      (step.status === "running" || step.status === "pending"),
+  );
+  const terminal = mergedSteps.find((step) => step.id === "lifi-complete");
+  const isTerminal = terminal?.status === "ok" || terminal?.status === "failed";
+  const liveReply = lifiLiveReplyFromSteps(mergedSteps, options?.detail ?? null);
+  const shouldUpdateText =
+    Boolean(liveReply) && (messageNeedsLiveLifiText(target.text) || isTerminal);
+
+  let receipts = target.receipts;
+  for (const step of mergedSteps) {
+    const merged = mergeReceiptsFromExecutionStep(receipts, step);
+    if (merged) {
+      receipts = merged;
+    }
+  }
+
+  return withSteps.map((message, messageIndex) => {
+    if (messageIndex !== index) {
+      return message;
+    }
+    return {
+      ...message,
+      ...(shouldUpdateText && liveReply ? { text: liveReply } : {}),
+      streaming: inFlight && !isTerminal,
+      statusCategory: "defi" as const,
+      ...(receipts ? { receipts } : {}),
+    };
+  });
+}
+
+/** Immediate execution timeline when the user clicks Approve. */
+export function applyOptimisticLifiApprovalToMessages<
+  T extends {
+    id: string;
+    role: string;
+    text?: string;
+    executionSteps?: ExecutionStep[];
+    receipts?: Array<{ label: string; detail?: string; href?: string }>;
+    statusCategory?: string;
+    streaming?: boolean;
+  },
+>(messages: T[], pending: PendingTransaction): T[] {
+  const steps = executionStepsForPendingApproval(pending);
+  return applyLifiLiveUpdateToMessages(messages, pending.id, steps);
 }
 
 /** Fold approve outcome into the existing swap/bridge agent bubble (single timeline). */

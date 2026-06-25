@@ -36,7 +36,9 @@ import {
   loadClaimableLifiContinuationPending,
 } from "@/lib/lifi-continuation-pending";
 import {
+  applyLifiLiveUpdateToMessages,
   applyLifiTransactionStepsToMessages,
+  applyOptimisticLifiApprovalToMessages,
   collectTrackedLifiTransactionIds,
   executionStepsFromAgentTransaction,
   foldApproveOutcomeIntoLifiMessage,
@@ -143,6 +145,7 @@ export function useChatSession(sessionId?: string) {
   const streamAbortRef = useRef<AbortController | null>(null);
   const pendingTxRef = useRef<PendingTransaction | null>(boot.pending_transaction);
   const approvingRef = useRef(false);
+  const approvingTransactionIdRef = useRef<string | null>(null);
   const messagesRef = useRef<ChatMessage[]>(boot.messages);
 
   useEffect(() => {
@@ -417,6 +420,9 @@ export function useChatSession(sessionId?: string) {
           ...new Set([
             ...inFlight.map((tx) => tx.id),
             ...trackedIds,
+            ...(approvingTransactionIdRef.current
+              ? [approvingTransactionIdRef.current]
+              : []),
           ]),
         ];
 
@@ -442,8 +448,9 @@ export function useChatSession(sessionId?: string) {
           }
 
           setMessages((current) =>
-            applyLifiTransactionStepsToMessages(current, txId, steps, {
+            applyLifiLiveUpdateToMessages(current, txId, steps, {
               primaryMessageId: detail.message_id,
+              detail,
             }),
           );
         }
@@ -451,9 +458,13 @@ export function useChatSession(sessionId?: string) {
         // Ignore transient poll failures.
       } finally {
         if (!cancelled) {
+          const fastPoll =
+            approvingRef.current ||
+            approvingTransactionIdRef.current !== null ||
+            collectTrackedLifiTransactionIds(messagesRef.current).length > 0;
           timer = setTimeout(() => {
             void pollInFlightTransactions();
-          }, 10_000);
+          }, fastPoll ? 2_000 : 10_000);
         }
       }
     }
@@ -496,7 +507,7 @@ export function useChatSession(sessionId?: string) {
 
       setMessages((current) => {
         if (incoming.agentTransactionId) {
-          return applyLifiTransactionStepsToMessages(
+          return applyLifiLiveUpdateToMessages(
             current,
             incoming.agentTransactionId,
             [incoming],
@@ -826,9 +837,65 @@ export function useChatSession(sessionId?: string) {
 
     setApproving(true);
     setChatError(null);
+    approvingTransactionIdRef.current = snapshot.id;
     applyPendingTransaction(null, undefined, {
       debugSource: "approvePending:dismiss",
     });
+
+    const isLifiPending =
+      snapshot.action === "cross_chain_swap" ||
+      snapshot.defi_preview?.provider_id === "evm-lifi";
+    if (isLifiPending) {
+      setMessages((current) => {
+        const next = applyOptimisticLifiApprovalToMessages(current, snapshot);
+        debugSessionLog(
+          "useChatSession.ts:approvePending",
+          "approve_optimistic",
+          {
+            transactionId: snapshot.id,
+            stepIds:
+              next
+                .flatMap((message) => message.executionSteps ?? [])
+                .filter((step) => step.agentTransactionId === snapshot.id)
+                .map((step) => `${step.id}:${step.status}`) ?? [],
+            runId: "post-fix",
+          },
+          "H6",
+        );
+        return next;
+      });
+
+      void (async () => {
+        try {
+          const detail = await getAgentTransaction(snapshot.id);
+          const steps = executionStepsFromAgentTransaction(
+            detail,
+            detail.result as Record<string, unknown> | null,
+          );
+          if (!steps?.length) {
+            return;
+          }
+          debugSessionLog(
+            "useChatSession.ts:approvePending",
+            "approve_early_poll",
+            {
+              transactionId: snapshot.id,
+              stepIds: steps.map((step) => `${step.id}:${step.status}`),
+              runId: "post-fix",
+            },
+            "H6-H7",
+          );
+          setMessages((current) =>
+            applyLifiLiveUpdateToMessages(current, snapshot.id, steps, {
+              primaryMessageId: detail.message_id,
+              detail,
+            }),
+          );
+        } catch {
+          // Execute may not be persisted yet; SSE and background poll will retry.
+        }
+      })();
+    }
 
     try {
       const data = await postChat({
@@ -959,8 +1026,9 @@ export function useChatSession(sessionId?: string) {
               "H1-H3",
             );
             setMessages((current) =>
-              applyLifiTransactionStepsToMessages(current, snapshot.id, steps, {
+              applyLifiLiveUpdateToMessages(current, snapshot.id, steps, {
                 primaryMessageId: detail.message_id,
+                detail,
               }),
             );
           } catch {
@@ -990,6 +1058,7 @@ export function useChatSession(sessionId?: string) {
         debugSource: "approvePending:error_restore",
       });
     } finally {
+      approvingTransactionIdRef.current = null;
       setApproving(false);
     }
   }, [
