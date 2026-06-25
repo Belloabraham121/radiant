@@ -10,7 +10,7 @@ import type { TransactionFiatPreview } from "../../market/valuation.types.js";
 import { fmtDisplayNumber } from "../../../utils/format-display-number.js";
 import { formatRadiantChainLabel } from "./chain-labels.js";
 import type { DeFiApprovalPreview } from "./approval-preview.types.js";
-import { readDeFiQuoteExpiresAt } from "./quote-expiry.js";
+import { readDeFiQuoteExpiresAt, isLifiContinuationApproval } from "./quote-expiry.js";
 import type { ChainId } from "../../chains/types.js";
 
 function readStringParam(params: Record<string, unknown>, key: string): string | null {
@@ -154,6 +154,40 @@ function buildLifiBridgePreview(
   };
 }
 
+function buildLifiContinuationPreview(
+  display: TransactionDisplay,
+  input: ExecuteTransactionInput,
+  fiat_preview: TransactionFiatPreview | null,
+): DeFiApprovalPreview {
+  const params = input.params;
+  const receiveSymbol =
+    readStringParam(params, "to_token_symbol") ?? readStringParam(params, "to_token") ?? "token";
+  const receiveAmount = readStringParam(params, "to_amount_display") ?? "";
+  const toChainLabel = resolveChainLabel(
+    readStringParam(params, "to_chain_id") ?? undefined,
+    readNumberParam(params, "to_evm_chain_id") ?? undefined,
+  );
+
+  return {
+    kind: "lifi_continue",
+    provider_id: "evm-lifi",
+    title: toChainLabel
+      ? `Sign destination transaction on ${toChainLabel}`
+      : "Sign destination transaction",
+    amount_display: display.amount_display || `Complete ${receiveSymbol} transfer`,
+    receive: receiveAmount
+      ? {
+          symbol: receiveSymbol,
+          amount_display: receiveAmount,
+          chain_label: toChainLabel,
+        }
+      : undefined,
+    route_summary: "Continue in-flight cross-chain route — no new quote required",
+    quote_expires_at: null,
+    fiat_preview,
+  };
+}
+
 function buildLifiApprovalPreview(
   display: TransactionDisplay,
   input: ExecuteTransactionInput,
@@ -180,6 +214,9 @@ export function buildDeFiApprovalPreview(
   }
 
   if (input.action === "cross_chain_swap") {
+    if (isLifiContinuationApproval(input.params)) {
+      return buildLifiContinuationPreview(display, input, fiat_preview);
+    }
     return buildLifiBridgePreview(display, input, fiat_preview);
   }
 

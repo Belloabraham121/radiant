@@ -129,5 +129,41 @@ describe("bridge-clarification-gaps", () => {
     assert.ok(gap);
     assert.equal(gap!.field, "amount");
     assert.equal(gap!.interaction_type, "input");
+    assert.equal(gap!.input_kind, "text");
+  });
+
+  it("applies USD amount answer", () => {
+    const gap = {
+      gap_id: "bridge.amount",
+      interaction_type: "input" as const,
+      question: "How much?",
+      step_index: 0,
+      field: "amount" as const,
+      action: "bridge" as const,
+      kind: "intent" as const,
+      input_kind: "text" as const,
+    };
+    const applied = applyBridgeClarificationAnswer(
+      {
+        originalMessage: "bridge sui to base",
+        fromChainId: "sui",
+        toChainId: "ethereum",
+        toEvmChainId: 8453,
+        fromToken: "SUI",
+        toToken: "USDC",
+      },
+      gap,
+      { value: "$10" },
+    );
+    assert.ok(applied);
+    assert.equal(applied!.amount, 10);
+    assert.equal(applied!.amountUnit, "usd");
+  });
+
+  it("parses $10 in bridge message", () => {
+    const intent = parsePartialBridgeIntent("bridge $10 eth from base to sui");
+    assert.ok(intent);
+    assert.equal(intent!.amount, 10);
+    assert.equal(intent!.amountUnit, "usd");
   });
 });

@@ -16,12 +16,14 @@ import {
 export function TransactionApprovalBar({
   pending,
   busy,
+  statusMessage,
   onApprove,
   onCancel,
   className = "",
 }: {
   pending: PendingTransaction;
   busy?: boolean;
+  statusMessage?: string | null;
   onApprove: () => void;
   onCancel: () => void;
   className?: string;
@@ -63,7 +65,11 @@ export function TransactionApprovalBar({
   const legacyQuoteCountdown = useSwapQuoteCountdown(legacyQuoteExpiresAt);
   const legacyQuoteExpired = isLegacySwap && legacyQuoteCountdown.status === "expired";
   const quoteExpired = defiState.quoteExpired || legacyQuoteExpired;
-  const approveDisabled = busy || quoteExpired;
+  const isLifiContinuation =
+    pending.params.lifi_continuation === true ||
+    pending.params.approval_kind === "lifi_continue" ||
+    defiState.preview?.kind === "lifi_continue";
+  const approveDisabled = busy || (quoteExpired && !isLifiContinuation);
 
   const title = defiState.preview
     ? defiState.title
@@ -129,6 +135,22 @@ export function TransactionApprovalBar({
                                   ? "Review the amount, then approve to sign and send."
                                   : defiState.subtitle;
 
+  const isLifi =
+    pending.action === "cross_chain_swap" ||
+    pending.defi_preview?.provider_id === "evm-lifi" ||
+    defiState.preview?.kind === "bridge" ||
+    defiState.preview?.kind === "lifi_continue";
+
+  const displayTitle = busy
+    ? isLifi
+      ? "Submitting transaction"
+      : "Signing & sending"
+    : title;
+
+  const displaySubtitle = busy
+    ? "Signing and broadcasting on chain. This may take a moment."
+    : subtitle;
+
   return (
     <div
       role="region"
@@ -144,18 +166,26 @@ export function TransactionApprovalBar({
             id="tx-approval-title"
             className="font-heading text-lg font-extrabold tracking-tight text-[var(--hero-ink)]"
           >
-            {title}
+            {displayTitle}
           </p>
-          <p className="mt-0.5 text-xs font-medium text-[var(--hero-ink)]/50">{subtitle}</p>
+          <p className="mt-0.5 text-xs font-medium text-[var(--hero-ink)]/50">{displaySubtitle}</p>
         </div>
         <span
           className={`shrink-0 rounded-full border-2 border-[var(--hero-ink)] px-2.5 py-0.5 text-[10px] font-bold uppercase ${
             quoteExpired
               ? "bg-[var(--hero-coral)]/15 text-[var(--hero-coral)]"
-              : "bg-[var(--hero-amber)]/15 text-[var(--hero-amber)]"
+              : busy
+                ? "bg-[var(--hero-blue)]/15 text-[var(--hero-blue)]"
+                : "bg-[var(--hero-amber)]/15 text-[var(--hero-amber)]"
           }`}
         >
-          {quoteExpired ? "Quote expired" : "Pending"}
+          {busy
+            ? "Executing"
+            : quoteExpired && !isLifiContinuation
+            ? "Quote expired"
+            : isLifiContinuation
+              ? "Action required"
+              : "Pending"}
         </span>
       </div>
 
@@ -244,6 +274,15 @@ export function TransactionApprovalBar({
         ) : null}
       </div>
 
+      {statusMessage && !busy ? (
+        <p
+          role="alert"
+          className="mt-4 rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3 text-xs font-semibold text-[var(--hero-coral)]"
+        >
+          {statusMessage}
+        </p>
+      ) : null}
+
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
@@ -252,7 +291,13 @@ export function TransactionApprovalBar({
           className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2.5 text-sm font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-          {quoteExpired ? "Quote expired" : "Approve & send"}
+          {busy
+            ? "Submitting…"
+            : quoteExpired && !isLifiContinuation
+            ? "Quote expired"
+            : isLifiContinuation
+              ? "Sign & send"
+              : "Approve & send"}
         </button>
         <button
           type="button"

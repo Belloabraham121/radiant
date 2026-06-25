@@ -51,8 +51,14 @@ import { isExecutableLifiRoute } from "../defi/lifi/lifi-normalize.js";
 import {
   coalesceDeFiQuoteExpiresAt,
   isDeFiQuoteExpired,
+  isLifiContinuationApproval,
   readDeFiQuoteExpiresAt,
 } from "../agent-transaction/approval-preview/quote-expiry.js";
+import {
+  findExistingLifiContinuationPending,
+  prepareLifiContinuationExecuteInput,
+  type MaybeCreateLifiContinuationInput,
+} from "../defi/lifi/lifi-continuation-pending.js";
 import { previewExecuteTransactionFiat } from "../market/valuation.service.js";
 import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
 import { preflightLifiExecuteBalance } from "./chains/evm/lifi/approval-preflight.js";
@@ -76,6 +82,7 @@ import {
   markLifiSubmitted,
   pendingTransactionFromRecord,
   recordPendingApproval,
+  revertPendingApprovalToClaimable,
 } from "../agent-transaction/agent-transaction.service.js";
 import type { ExecuteTransactionContext } from "./execute-transaction-context.js";
 
@@ -142,12 +149,22 @@ export async function buildPendingTransactionPreview(
 ): Promise<PendingTransaction> {
   const enriched = await enrichExecuteInputForApproval(privyUserId, input);
   if (isLifiExecuteAction(enriched.action)) {
-    const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(enriched.params));
-    enriched.params = {
-      ...enriched.params,
-      expires_at: coalescedExpiry,
-      quote_expires_at: coalescedExpiry,
-    };
+    if (isLifiContinuationApproval(enriched.params)) {
+      enriched.params = {
+        ...enriched.params,
+        lifi_continuation: true,
+        approval_kind: "lifi_continue",
+      };
+      delete enriched.params.expires_at;
+      delete enriched.params.quote_expires_at;
+    } else {
+      const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(enriched.params));
+      enriched.params = {
+        ...enriched.params,
+        expires_at: coalescedExpiry,
+        quote_expires_at: coalescedExpiry,
+      };
+    }
   }
   validateExecuteTransactionInput(enriched);
   const { title, amount_display: amountDisplay } = await buildTransactionDisplay(
@@ -169,7 +186,9 @@ export async function buildPendingTransactionPreview(
     params: enriched.params,
     amount_display: defi_preview?.amount_display ?? amountDisplay,
     summary: defi_preview?.title ?? title,
-    quote_expires_at: readDeFiQuoteExpiresAt(enriched.params),
+    quote_expires_at: isLifiContinuationApproval(enriched.params)
+      ? null
+      : readDeFiQuoteExpiresAt(enriched.params),
     fiat_preview,
     defi_preview,
   };
@@ -403,8 +422,26 @@ export async function createPendingTransaction(
 }
 
 export type ApprovalResult =
-  | { ok: true; pending: PendingTransaction; result: TxResult }
-  | { ok: false; pending: PendingTransaction; error: AppError };
+  | { ok: true; pending: PendingTransaction; result: TxResult; continuation_pending?: PendingTransaction }
+  | { ok: false; pending: PendingTransaction; error: AppError; retryable?: boolean };
+
+export async function maybeCreateLifiContinuationFromTracking(
+  input: MaybeCreateLifiContinuationInput,
+): Promise<PendingTransaction | null> {
+  const existing = await findExistingLifiContinuationPending(input);
+  if (existing) {
+    return existing;
+  }
+
+  const continuationInput = await prepareLifiContinuationExecuteInput(input);
+  if (!continuationInput) {
+    return null;
+  }
+
+  return createPendingTransaction(input.privyUserId, continuationInput, {
+    sessionId: input.sessionId ?? undefined,
+  });
+}
 
 export async function approvePendingTransaction(
   privyUserId: string,
@@ -427,24 +464,39 @@ export async function approvePendingTransaction(
     const displayComplete = isLifiApprovalDisplayComplete(executeInput.params);
     if (!hasStoredRoute || !displayComplete) {
       executeInput = await enrichLifiExecuteInputForApproval(privyUserId, executeInput, {
-        requoteOnCacheMiss: true,
+        requoteOnCacheMiss: !isLifiContinuationApproval(executeInput.params),
       });
     }
-    const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(executeInput.params));
-    executeInput = {
-      ...executeInput,
-      params: {
-        ...executeInput.params,
-        expires_at: coalescedExpiry,
-        quote_expires_at: coalescedExpiry,
-      },
-    };
+    if (isLifiContinuationApproval(executeInput.params)) {
+      executeInput = {
+        ...executeInput,
+        params: {
+          ...executeInput.params,
+          lifi_continuation: true,
+          approval_kind: "lifi_continue",
+        },
+      };
+      delete executeInput.params.expires_at;
+      delete executeInput.params.quote_expires_at;
+    } else {
+      const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(executeInput.params));
+      executeInput = {
+        ...executeInput,
+        params: {
+          ...executeInput.params,
+          expires_at: coalescedExpiry,
+          quote_expires_at: coalescedExpiry,
+        },
+      };
+    }
   } else if (isDeepBookSwapAction(executeInput.action)) {
     executeInput = await enrichExecuteInputForApproval(privyUserId, executeInput);
   }
 
   if (
-    (isDeepBookSwapAction(executeInput.action) || isLifiExecuteAction(executeInput.action)) &&
+    (isDeepBookSwapAction(executeInput.action) ||
+      (isLifiExecuteAction(executeInput.action) &&
+        !isLifiContinuationApproval(executeInput.params))) &&
     isDeFiQuoteExpired(executeInput.params)
   ) {
     const error = new AppError(
@@ -458,6 +510,20 @@ export async function approvePendingTransaction(
       kind: "failure",
       error: { code: error.code, message: error.message },
     });
+    // #region agent log
+    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
+      body: JSON.stringify({
+        sessionId: "90234e",
+        location: "transaction-approval.service.ts:quote_expired",
+        message: "quote_expired_block",
+        data: { transactionId, action: executeInput.action },
+        hypothesisId: "H4",
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return { ok: false, pending, error };
   }
 
@@ -467,6 +533,11 @@ export async function approvePendingTransaction(
     }
 
     const sessionId = claimed.session_id ?? undefined;
+    const continuationContext: ExecuteTransactionContext = {
+      sessionId,
+      messageId: claimed.message_id ?? undefined,
+      workflowStepIndex: claimed.workflow_step_index ?? undefined,
+    };
     const result = await runWithLifiExecuteContext(
       { sessionId, transactionId },
       () => runExecuteTransactionTool(privyUserId, executeInput),
@@ -510,19 +581,89 @@ export async function approvePendingTransaction(
         tracking,
       }).catch(() => undefined);
 
-      return { ok: true, pending, result: enriched };
+      // Destination-chain continuation approvals are created by the Li-Fi status
+      // poll when ACTION_REQUIRED is detected — not here. Returning one in the
+      // approve HTTP response kept the source approval bar mounted.
+
+      // #region agent log
+      fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
+        body: JSON.stringify({
+          sessionId: "90234e",
+          location: "transaction-approval.service.ts:approve",
+          message: "lifi_tracking_complete",
+          data: {
+            transactionId,
+            continuationId: null,
+            effectsStatus: enriched.effects_status,
+          },
+          hypothesisId: "H2",
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+
+      return {
+        ok: true,
+        pending,
+        result: enriched,
+      };
     }
 
     await markCompleted(transactionId, { kind: "success", result });
-    return { ok: true, pending, result };
+    return {
+      ok: true,
+      pending,
+      result,
+    };
   } catch (err) {
     const error = mapAgentToolError(err);
-    await markCompleted(transactionId, {
-      kind: "failure",
-      error: { code: error.code, message: error.message },
-    });
-    return { ok: false, pending, error };
+    if (isRetryablePreBroadcastError(error.code)) {
+      // Nothing was broadcast on chain (rate limit / balance / quote preflight),
+      // so keep the approval claimable instead of consuming it — otherwise every
+      // retry hits "approval expired or was not found" and the modal flickers.
+      await revertPendingApprovalToClaimable(transactionId, claimed.user_id);
+    } else {
+      await markCompleted(transactionId, {
+        kind: "failure",
+        error: { code: error.code, message: error.message },
+      });
+    }
+    return {
+      ok: false,
+      pending,
+      error,
+      retryable: isRetryablePreBroadcastError(error.code),
+    };
   }
+}
+
+/**
+ * Error codes raised *before* any on-chain broadcast/signing during approval
+ * execution. A failure with one of these leaves the wallet untouched, so the
+ * pending approval can safely be reverted to `pending_approval` for retry.
+ * Codes that may have broadcast (TRANSACTION_FAILED, APPROVAL_FAILED) are
+ * deliberately excluded and consume the approval.
+ */
+const RETRYABLE_PRE_BROADCAST_ERROR_CODES = new Set([
+  "RATE_LIMITED",
+  "LIFI_RATE_LIMITED",
+  "LIFI_UNAVAILABLE",
+  "LIFI_VALIDATION_ERROR",
+  "LIFI_NO_ROUTE",
+  "INSUFFICIENT_BALANCE",
+  "WALLET_NOT_FOUND",
+  "WALLET_SIGNER_NOT_CONFIGURED",
+  "WALLET_ADDRESS_MISMATCH",
+  "PRICE_UNAVAILABLE",
+  "AMOUNT_TOO_SMALL",
+  "AMOUNT_REQUIRED",
+  "VALIDATION_ERROR",
+]);
+
+export function isRetryablePreBroadcastError(code: string): boolean {
+  return RETRYABLE_PRE_BROADCAST_ERROR_CODES.has(code);
 }
 
 export async function rejectPendingTransaction(

@@ -233,11 +233,26 @@ export async function claimAgentTransactionStatus(
   return findAgentTransactionById(id);
 }
 
-export async function expirePendingApprovalsOlderThan(cutoff: Date): Promise<number> {
+export async function expirePendingApprovalsOlderThan(
+  cutoff: Date,
+  options?: { excludeLifiContinuation?: boolean },
+): Promise<number> {
+  const excludeContinuation = options?.excludeLifiContinuation ?? false;
   const result = await prisma.agentTransaction.updateMany({
     where: {
       status: "pending_approval",
       created_at: { lt: cutoff },
+      ...(excludeContinuation
+        ? {
+            NOT: {
+              OR: [
+                { params: { path: ["lifi_continuation"], equals: true } },
+                { params: { path: ["approval_kind"], equals: "lifi_continue" } },
+                { params: { path: ["approval_kind"], equals: "lifi_continuation" } },
+              ],
+            },
+          }
+        : {}),
     },
     data: {
       status: "expired",

@@ -3,6 +3,7 @@ import { isLifiRadiantChain } from "../../../config/lifi-chains.js";
 import { resolveTokenSymbol } from "../../../config/supported-tokens.js";
 import { getLifiAdvancedRoutes } from "../../defi/lifi/lifi-routes.service.js";
 import type { CrossChainRouteOption } from "../../defi/lifi/lifi.types.js";
+import { resolveSwapIntentAmount } from "../resolve-intent-amounts.js";
 import { AppError } from "../../../errors/app-error.js";
 import { mapAgentToolError } from "../../../utils/agent-tool-errors.js";
 import type { ExecuteToolOutcome, ToolCallRecord } from "../agent.types.js";
@@ -164,7 +165,19 @@ export async function executeResolvedLifiSameChainSwap(
     };
   }
 
-  const routeParams = buildSameChainLifiRouteParams(intent);
+  let resolvedIntent: PartialSwapIntent;
+  try {
+    resolvedIntent = await resolveSwapIntentAmount(intent);
+  } catch (err) {
+    const mapped = mapAgentToolError(err);
+    return {
+      reply: mapped instanceof AppError ? mapped.message : "Could not resolve the swap amount.",
+      tool_calls: [],
+      pending_transaction: null,
+    };
+  }
+
+  const routeParams = buildSameChainLifiRouteParams(resolvedIntent);
   if (!routeParams) {
     return null;
   }
@@ -261,11 +274,11 @@ export async function executeResolvedLifiSameChainSwap(
     };
   }
 
-  const amount = intent.amount ?? 0;
+  const amount = resolvedIntent.amount ?? 0;
   const via = route.exchanges.join(", ") || route.bridges.join(", ") || "Li-Fi";
 
   return {
-    reply: `Swap submitted: ${amount} ${intent.inputCoin} → ${intent.outputCoin} via ${via}.`,
+    reply: `Swap submitted: ${amount} ${resolvedIntent.inputCoin} → ${resolvedIntent.outputCoin} via ${via}.`,
     tool_calls,
     pending_transaction: null,
   };

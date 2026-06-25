@@ -9,9 +9,10 @@ import {
   resolveEvmChainIdFromLabel,
   resolveNonEvmChainIdFromLabel,
 } from "../../defi/lifi/lifi-endpoint-params.js";
-import type { PartialBridgeIntent } from "./bridge-intent.types.js";
+import type { AmountUnit, PartialBridgeIntent } from "./bridge-intent.types.js";
 import { BRIDGE_KNOWN_TOKENS } from "./bridge-intent.types.js";
-import { parsePositiveNumber, tokenizeMessage } from "../swap/text-tokenize.js";
+import { parseAmountFromTokens } from "../../market/resolve-user-amount.js";
+import { tokenizeMessage } from "../swap/text-tokenize.js";
 
 const BRIDGE_VERBS = new Set(["bridge", "cross-chain", "crosschain"]);
 const MOVE_VERBS = new Set(["transfer", "move", "send"]);
@@ -148,22 +149,33 @@ function parseChainSegment(
 
 function parseAmountAndToken(tokens: readonly string[]): {
   amount?: number;
+  amountUnit?: AmountUnit;
+  amountUnitConfirmed?: boolean;
   token?: string;
 } {
   let amount: number | undefined;
+  let amountUnit: AmountUnit | undefined;
   let token: string | undefined;
 
-  for (const value of tokens) {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const value = tokens[index];
     const coin = findCoinSymbol(value);
-    const num = parsePositiveNumber(value);
+    const parsed = parseAmountFromTokens(tokens, index);
     if (coin && !token) {
       token = coin;
-    } else if (num !== undefined && amount === undefined) {
-      amount = num;
+    } else if (parsed && amount === undefined) {
+      amount = parsed.parsed.value;
+      amountUnit = parsed.parsed.unit;
+      index += parsed.consumed - 1;
     }
   }
 
-  return { amount, token };
+  return {
+    amount,
+    amountUnit,
+    amountUnitConfirmed: amountUnit === "usd" ? true : undefined,
+    token,
+  };
 }
 
 function parseBridgeSegments(tokens: readonly string[]): {
@@ -278,6 +290,8 @@ export function parsePartialBridgeIntent(message: string): PartialBridgeIntent |
   const intent: PartialBridgeIntent = {
     originalMessage: message.trim(),
     amount: beforeParsed.amount,
+    amountUnit: beforeParsed.amountUnit,
+    amountUnitConfirmed: beforeParsed.amountUnitConfirmed,
     fromToken,
     toToken,
     fromChainId: fromChainParsed.chainId,

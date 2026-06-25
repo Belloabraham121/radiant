@@ -247,6 +247,10 @@ export type LifiExecuteResult = {
     message: string;
   } | null;
   approval_tx_hash: string | null;
+  /** Stable anchor for bridge countdown — set once when source tx is broadcast. */
+  bridge_started_at?: string | null;
+  /** Li-Fi route ETA in seconds from the executed/refreshed route. */
+  estimated_duration_seconds?: number | null;
 };
 
 export type LifiApprovalResult = {

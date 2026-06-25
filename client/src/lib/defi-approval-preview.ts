@@ -1,4 +1,4 @@
-export type DeFiApprovalPreviewKind = "swap" | "bridge" | "transfer" | "generic";
+export type DeFiApprovalPreviewKind = "swap" | "bridge" | "transfer" | "generic" | "lifi_continue";
 
 export type DeFiApprovalAssetLine = {
   symbol: string;

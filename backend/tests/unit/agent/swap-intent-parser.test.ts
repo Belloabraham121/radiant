@@ -91,7 +91,7 @@ describe("swap-clarification-gaps", () => {
       field: "amount",
       action: "swap",
       kind: "intent",
-      input_kind: "number",
+      input_kind: "text",
     };
     const applied = applySwapClarificationAnswer(
       { originalMessage: "swap sui to usdc", inputCoin: "SUI", outputCoin: "USDC" },
@@ -100,6 +100,38 @@ describe("swap-clarification-gaps", () => {
     );
     assert.ok(applied);
     assert.equal(applied!.amount, 3);
+    assert.equal(applied!.amountUnit, "token");
     assert.equal(applied!.amountSide, "pay");
+  });
+
+  it("applies USD amount answer", () => {
+    const gap: ClarificationGap = {
+      gap_id: "swap.amount",
+      interaction_type: "input",
+      question: "How much?",
+      step_index: 0,
+      field: "amount",
+      action: "swap",
+      kind: "intent",
+      input_kind: "text",
+    };
+    const applied = applySwapClarificationAnswer(
+      { originalMessage: "swap sui to usdc", inputCoin: "SUI", outputCoin: "USDC" },
+      gap,
+      { value: "$0.6" },
+    );
+    assert.ok(applied);
+    assert.equal(applied!.amount, 0.6);
+    assert.equal(applied!.amountUnit, "usd");
+    assert.equal(applied!.amountUnitConfirmed, true);
+  });
+
+  it("parses $10 in initial swap message", () => {
+    const intent = parsePartialSwapIntent("swap $10 eth to sui");
+    assert.ok(intent);
+    assert.equal(intent!.amount, 10);
+    assert.equal(intent!.amountUnit, "usd");
+    assert.equal(intent!.inputCoin, "ETH");
+    assert.equal(intent!.outputCoin, "SUI");
   });
 });

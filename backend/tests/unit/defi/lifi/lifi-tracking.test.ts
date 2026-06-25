@@ -36,6 +36,15 @@ describe("lifi-tracking", () => {
     assert.equal(tracking.estimated_duration_seconds, 120);
     assert.equal(tracking.bridge_tool, "stargate");
     assert.equal(tracking.tracking_status, "PENDING");
+    assert.ok(tracking.bridge_started_at);
+  });
+
+  it("sets bridge_started_at null when execute is not pending", () => {
+    const tracking = buildLifiTrackingMeta(params, {
+      ...executeResult,
+      effects_status: "success",
+    });
+    assert.equal(tracking.bridge_started_at, null);
   });
 
   it("maps pending execute result to submitted tx result", () => {
@@ -57,7 +66,26 @@ describe("lifi-tracking", () => {
     assert.equal(isTerminalLifiStatus("PENDING"), false);
   });
 
-  it("merges polled status into tracking blob", () => {
+  it("reads bridge_started_at from persisted tx result", () => {
+    const tx = txResultFromLifiExecute({
+      chain_id: "ethereum",
+      address: "0xwallet",
+      digest: "0xabc",
+      evm_chain_id: 1,
+      params,
+      executeResult,
+    });
+    const tracking = readLifiTrackingFromTxResult(tx);
+    assert.ok(tracking?.bridge_started_at);
+
+    const roundTrip = readLifiTrackingFromTxResult({
+      ...tx,
+      lifi: { ...tracking!, bridge_started_at: "2026-01-01T00:00:00.000Z" },
+    });
+    assert.equal(roundTrip?.bridge_started_at, "2026-01-01T00:00:00.000Z");
+  });
+
+  it("preserves bridge_started_at when merging polled status", () => {
     const tracking = buildLifiTrackingMeta(params, executeResult);
     const merged = mergeLifiStatusIntoTracking(tracking, {
       status: "DONE",
@@ -77,6 +105,7 @@ describe("lifi-tracking", () => {
 
     assert.equal(merged.tracking_status, "DONE");
     assert.equal(merged.receiving_tx_hash, "0xdest");
+    assert.equal(merged.bridge_started_at, tracking.bridge_started_at);
   });
 
   it("detects same-chain Li-Fi routes", () => {

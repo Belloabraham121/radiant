@@ -21,6 +21,11 @@ export function emitAgentStreamExecutionStep(
       ...(step.chain_id ? { chain_id: step.chain_id } : {}),
       ...(step.evm_chain_id !== undefined ? { evm_chain_id: step.evm_chain_id } : {}),
       ...(step.status_category ? { status_category: step.status_category } : {}),
+      ...(step.estimated_duration_seconds != null
+        ? { estimated_duration_seconds: step.estimated_duration_seconds }
+        : {}),
+      ...(step.bridge_started_at ? { bridge_started_at: step.bridge_started_at } : {}),
+      ...(step.countdown_kind ? { countdown_kind: step.countdown_kind } : {}),
     },
   });
 }

@@ -545,7 +545,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
         </div>
       ) : null}
 
-      {chatError ? (
+      {chatError && !pendingTx ? (
         <p
           role="alert"
           className={`${chatColumnClass} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
@@ -569,6 +569,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
             className={`${chatColumnClass} mb-3`}
             pending={pendingTx}
             busy={approving || rejecting}
+            statusMessage={chatError}
             onApprove={() => void approvePending()}
             onCancel={() => void rejectPending()}
           />

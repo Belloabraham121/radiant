@@ -1,10 +1,14 @@
 import { getEnabledEvmChainIds } from "../../../config/evm.js";
 import { getEnabledChainConfigs } from "../../../config/chains.js";
 import { getEvmNetwork } from "../../../config/evm.js";
+import {
+  formatAmbiguousAmountQuestion,
+  isAmountUnitAmbiguous,
+  parseUserAmount,
+} from "../../market/resolve-user-amount.js";
 import type { ClarificationAnswer, ClarificationGap } from "../workflow/clarification.types.js";
 import type { PartialSwapIntent, SwapIntentField } from "./swap-intent.types.js";
 import { SWAP_KNOWN_COINS } from "./swap-intent.types.js";
-import { parsePositiveNumber } from "./text-tokenize.js";
 import { isSwapIntentComplete, withDefaultChain } from "./swap-intent-parser.js";
 import {
   detectCrossChainSwapIntent,
@@ -66,7 +70,9 @@ function formatIntentPreview(intent: PartialSwapIntent): string {
   }
   if (intent.amount !== undefined) {
     const side = intent.amountSide === "receive" ? "receive" : "pay";
-    parts.push(`  Amount (${side}): ${intent.amount}`);
+    const unit = intent.amountUnit ?? "token";
+    const unitLabel = unit === "usd" ? "USD" : side === "receive" ? intent.outputCoin : intent.inputCoin;
+    parts.push(`  Amount (${side}, ${unit}): ${intent.amount}${unitLabel ? ` ${unitLabel}` : ""}`);
   }
   if (intent.chainId) {
     if (intent.chainId === "ethereum" && intent.evmChainId !== undefined) {
@@ -129,27 +135,63 @@ export function collectSwapClarificationGap(intent: PartialSwapIntent): Clarific
       gap_id: "swap.amount",
       interaction_type: "input",
       question: `How much ${filled.inputCoin} should I swap for ${filled.outputCoin}?`,
+      hint: `Enter amount in ${filled.inputCoin} or USD (e.g. 0.01 ${filled.inputCoin} or $10).`,
       step_index: 0,
       field: "amount",
       action: "swap",
       kind: "intent",
-      input_kind: "number",
-      placeholder: "e.g. 2",
+      input_kind: "text",
+      placeholder: `e.g. 0.01 ${filled.inputCoin} or $10`,
+    };
+  }
+
+  const amountUnit = filled.amountUnit ?? "token";
+  if (
+    !filled.amountUnitConfirmed &&
+    isAmountUnitAmbiguous(filled.amount, amountUnit, filled.inputCoin)
+  ) {
+    return {
+      gap_id: "swap.amount_unit",
+      interaction_type: "single_choice",
+      question: formatAmbiguousAmountQuestion(filled.amount, filled.inputCoin!),
+      step_index: 0,
+      field: "amount_unit",
+      action: "swap",
+      kind: "intent",
+      options: [
+        {
+          id: "usd",
+          label: `$${filled.amount.toFixed(2)} worth of ${filled.inputCoin}`,
+        },
+        {
+          id: "token",
+          label: `${filled.amount} ${filled.inputCoin}`,
+        },
+      ],
     };
   }
 
   if (!filled.amountSide) {
+    const unit = filled.amountUnit ?? "token";
+    const payLabel =
+      unit === "usd"
+        ? `Pay $${filled.amount}`
+        : `Pay ${filled.amount} ${filled.inputCoin}`;
+    const receiveLabel =
+      unit === "usd"
+        ? `Receive $${filled.amount} worth of ${filled.outputCoin}`
+        : `Receive ${filled.amount} ${filled.outputCoin}`;
     return {
       gap_id: "swap.amount_side",
       interaction_type: "single_choice",
-      question: `Does ${filled.amount} refer to the amount you pay or the amount you receive?`,
+      question: `Does ${filled.amount}${unit === "usd" ? " USD" : ""} refer to the amount you pay or the amount you receive?`,
       step_index: 0,
       field: "amount_side",
       action: "swap",
       kind: "intent",
       options: [
-        { id: "pay", label: `Pay ${filled.amount} ${filled.inputCoin}` },
-        { id: "receive", label: `Receive ${filled.amount} ${filled.outputCoin}` },
+        { id: "pay", label: payLabel },
+        { id: "receive", label: receiveLabel },
       ],
     };
   }
@@ -163,7 +205,7 @@ export function collectSwapClarificationGap(intent: PartialSwapIntent): Clarific
       gap_id: "swap.chain_id",
       interaction_type: "single_choice",
       question: "Which network should I use for this swap?",
-      hint: "Pick the chain where your wallet holds the tokens you want to swap.",
+      hint: "Pick where you want to receive the output token, or where your input token is held for a same-chain swap.",
       step_index: 0,
       field: "chain_id",
       action: "swap",
@@ -223,6 +265,15 @@ export function applySwapClarificationAnswer(
       return null;
     }
 
+    if (field === "amount_unit") {
+      if (selected === "usd" || selected === "token") {
+        next.amountUnit = selected;
+        next.amountUnitConfirmed = true;
+        return next;
+      }
+      return null;
+    }
+
     if (field === "chain_id") {
       if (selected.startsWith("evm:")) {
         const parsed = Number.parseInt(selected.slice(4), 10);
@@ -246,16 +297,18 @@ export function applySwapClarificationAnswer(
 
   if (gap.interaction_type === "input" && field === "amount") {
     const raw = answer.value;
-    const num =
-      typeof raw === "number"
-        ? raw
-        : typeof raw === "string"
-          ? parsePositiveNumber(raw.trim())
-          : undefined;
-    if (num === undefined) {
+    const text =
+      typeof raw === "number" ? String(raw) : typeof raw === "string" ? raw.trim() : undefined;
+    if (!text) {
       return null;
     }
-    next.amount = num;
+    const parsed = parseUserAmount(text);
+    if (!parsed) {
+      return null;
+    }
+    next.amount = parsed.value;
+    next.amountUnit = parsed.unit;
+    next.amountUnitConfirmed = parsed.unit === "usd";
     if (!next.amountSide) {
       next.amountSide = "pay";
     }

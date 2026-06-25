@@ -5,7 +5,7 @@ import { deriveSessionTitle, resolveOrCreateSession } from "../conversation/conv
 import { appendMessage, listRecentMessagesBySessionId } from "../conversation/message.repository.js";
 import { touchSession } from "../conversation/session.repository.js";
 import { formatMemoryBlock, loadAgentMemory } from "../memory/agent-memory.service.js";
-import type { ChatRequest, ChatResponse } from "./agent.types.js";
+import type { ChatRequest, ChatResponse, PendingTransaction } from "./agent.types.js";
 import { buildAgentContextMessages } from "./context-window.js";
 import { runWithExecutionProgress } from "./execution-progress-context.js";
 import type { ChatStreamSender } from "./execution-progress.types.js";
@@ -24,6 +24,7 @@ import {
   isApprovalContinuationMessage,
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
+import { persistSessionStateSnapshot } from "./workflow/agent-session-state.store.js";
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
 import { tryHandleSwapIntentFromMessage } from "./swap/swap-clarification.flow.js";
 import { tryHandleBridgeIntentFromMessage } from "./bridge/bridge-clarification.flow.js";
@@ -317,6 +318,9 @@ export async function persistToolFailureTurn(
     userContext: string;
     transactionContext?: TransactionErrorContext;
   },
+  options?: {
+    pending_transaction?: PendingTransaction | null;
+  },
 ): Promise<ChatResponse> {
   const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
 
@@ -362,13 +366,14 @@ export async function persistToolFailureTurn(
   await linkToolCallTransactionsToMessage(toolCalls, assistantMessage.id);
 
   await touchSession(session.id, { updated_at: new Date() });
+  await persistSessionStateSnapshot(session.id);
 
   return {
     reply,
     session_id: session.id,
     mode: getAgentProvider(),
     tool_calls: toolCalls,
-    pending_transaction: null,
+    pending_transaction: options?.pending_transaction ?? null,
     pending_clarification: null,
     message_id: assistantMessage.id,
     artifact: extractArtifactFromToolCalls(toolCalls),
@@ -381,6 +386,7 @@ export async function persistApprovalTurn(
   request: ChatRequest,
   reply: string,
   toolCalls: ChatResponse["tool_calls"],
+  pendingTransaction: ChatResponse["pending_transaction"] = null,
 ): Promise<ChatResponse> {
   const { session } = await resolveOrCreateSession(privyUserId, request.session_id);
 
@@ -401,13 +407,14 @@ export async function persistApprovalTurn(
   await linkToolCallTransactionsToMessage(toolCalls, assistantMessage.id);
 
   await touchSession(session.id, { updated_at: new Date() });
+  await persistSessionStateSnapshot(session.id);
 
   return {
     reply: boundedReply,
     session_id: session.id,
     mode: getAgentProvider(),
     tool_calls: toolCalls,
-    pending_transaction: null,
+    pending_transaction: pendingTransaction,
     pending_clarification: null,
     message_id: assistantMessage.id,
     artifact: extractArtifactFromToolCalls(toolCalls),

@@ -2,6 +2,9 @@ import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { parseChainId } from "../chains/registry.js";
 import { readDeFiQuoteExpiresAt } from "../agent-transaction/approval-preview/quote-expiry.js";
+import {
+  isPendingApprovalExpired,
+} from "../defi/lifi/lifi-continuation-pending.js";
 import type { ChainId, ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "../agent/agent.types.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
@@ -147,8 +150,8 @@ export async function loadPendingApprovalForUser(
     return null;
   }
 
-  const cutoff = new Date(Date.now() - PENDING_APPROVAL_TTL_MS);
-  if (row.created_at < cutoff) {
+  const params = row.params as Record<string, unknown>;
+  if (isPendingApprovalExpired(params, row.created_at)) {
     await markExpired(transactionId);
     return null;
   }
@@ -173,7 +176,8 @@ export async function describePendingApprovalState(
   if (row.status !== "pending_approval") {
     return `consumed:${row.status}`;
   }
-  if (row.created_at < new Date(Date.now() - PENDING_APPROVAL_TTL_MS)) {
+  const params = row.params as Record<string, unknown>;
+  if (isPendingApprovalExpired(params, row.created_at)) {
     return "expired";
   }
   return "claimable";
@@ -194,6 +198,22 @@ export async function claimPendingApprovalForUser(
   });
 }
 
+/**
+ * Return a claimed (submitted) approval back to `pending_approval` so the user
+ * can retry. Use only when execution failed *before* broadcasting anything on
+ * chain (rate limit, balance/quote preflight) — otherwise the approval must be
+ * consumed via {@link markCompleted}.
+ */
+export async function revertPendingApprovalToClaimable(
+  transactionId: string,
+  userId: bigint,
+): Promise<void> {
+  await claimAgentTransactionStatus(transactionId, userId, "submitted", {
+    status: "pending_approval",
+    submitted_at: null,
+  });
+}
+
 export async function claimPendingRejectionForUser(
   privyUserId: string,
   transactionId: string,
@@ -210,8 +230,40 @@ export async function claimPendingRejectionForUser(
 }
 
 export async function expireStalePendingApprovals(): Promise<number> {
-  const cutoff = new Date(Date.now() - PENDING_APPROVAL_TTL_MS);
-  return expirePendingApprovalsOlderThan(cutoff);
+  const nowMs = Date.now();
+  const standardCutoff = new Date(nowMs - PENDING_APPROVAL_TTL_MS);
+
+  const standardExpired = await expirePendingApprovalsOlderThan(standardCutoff, {
+    excludeLifiContinuation: true,
+  });
+
+  const continuationExpired = await expireLifiContinuationPendingApprovals(nowMs);
+  return standardExpired + continuationExpired;
+}
+
+async function expireLifiContinuationPendingApprovals(nowMs: number): Promise<number> {
+  const { prisma } = await import("../../infrastructure/postgres/client.js");
+  const rows = await prisma.agentTransaction.findMany({
+    where: {
+      status: "pending_approval",
+      OR: [
+        { params: { path: ["lifi_continuation"], equals: true } },
+        { params: { path: ["approval_kind"], equals: "lifi_continue" } },
+        { params: { path: ["approval_kind"], equals: "lifi_continuation" } },
+      ],
+    },
+    select: { id: true, params: true, created_at: true },
+  });
+
+  let expired = 0;
+  for (const row of rows) {
+    const params = row.params as Record<string, unknown>;
+    if (isPendingApprovalExpired(params, row.created_at, nowMs)) {
+      await markExpired(row.id);
+      expired += 1;
+    }
+  }
+  return expired;
 }
 
 export async function clearPendingApprovalsForTests(): Promise<void> {

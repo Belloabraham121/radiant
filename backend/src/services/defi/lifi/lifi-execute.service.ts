@@ -23,11 +23,15 @@ import { lifiToRadiantChainRef } from "./lifi-chain-map.js";
 import { storeLifiRoute } from "./lifi-cache.js";
 import { createRouteId } from "./lifi-normalize.js";
 import { resolveLifiBridgeWalletAddresses } from "./lifi-wallet-addresses.js";
-import { isDeFiQuoteExpired } from "../../agent-transaction/approval-preview/quote-expiry.js";
+import { isDeFiQuoteExpired, isLifiContinuationApproval } from "../../agent-transaction/approval-preview/quote-expiry.js";
 import { buildLifiSdkProvidersForRoute } from "./lifi-providers.service.js";
 import { getLifiExecuteContext } from "./lifi-execute-context.js";
 import { emitAgentStreamExecutionStep } from "../../agent/agent-stream-lifi.js";
-import { formatLifiEtaLabel } from "./lifi-tracking.js";
+import {
+  lifiBridgeStepLabel,
+  lifiCountdownStepFields,
+} from "./lifi-countdown.js";
+import type { LifiTrackingMeta } from "./lifi-tracking.types.js";
 import { mapAgentToolError } from "../../../utils/agent-tool-errors.js";
 import type { LifiExecuteInput, LifiExecuteResult } from "./lifi.types.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
@@ -163,7 +167,9 @@ async function runLifiCrossChainSwap(
 
   await resolveAgentWallet(privyUserId, sourceChain.chain_id);
 
-  const quoteStillFresh = !isDeFiQuoteExpired(input as unknown as Record<string, unknown>);
+  const continuation = isLifiContinuationApproval(input as unknown as Record<string, unknown>);
+  const quoteStillFresh =
+    continuation || !isDeFiQuoteExpired(input as unknown as Record<string, unknown>);
   let refreshedRoute = storedRoute;
   if (!quoteStillFresh) {
     refreshedRoute = await refreshRouteAtExecute(storedRoute, fromAddress, toAddress);
@@ -198,6 +204,8 @@ async function runLifiCrossChainSwap(
 
   let executedRoute: RouteExtended;
   const streamCtx = getLifiExecuteContext();
+  let bridgeCountdownStartedAt: string | null = null;
+  let bridgeDurationSeconds: number | null = null;
   try {
     executedRoute = await executeRoute(client, refreshedRoute, {
       updateRouteHook: (updatedRoute) => {
@@ -226,19 +234,50 @@ async function runLifiCrossChainSwap(
           status_category: "defi",
         });
 
+        if (!digest) {
+          return;
+        }
+
         const durationSeconds = refreshedRoute.steps.reduce(
           (max, step) => Math.max(max, step.estimate.executionDuration ?? 0),
           0,
         );
+        if (durationSeconds > 0 && bridgeDurationSeconds == null) {
+          bridgeDurationSeconds = durationSeconds;
+        }
+        if (!bridgeCountdownStartedAt) {
+          bridgeCountdownStartedAt = new Date().toISOString();
+        }
+
+        const tracking: LifiTrackingMeta = {
+          route_id: routeId,
+          tx_hashes: txHashes,
+          from_chain_id: sourceChain.chain_id,
+          to_chain_id: destChain.chain_id,
+          ...(sourceChain.chain_id === "ethereum" && sourceChain.evm_chain_id !== undefined
+            ? { from_evm_chain_id: sourceChain.evm_chain_id }
+            : {}),
+          ...(destChain.chain_id === "ethereum" && destChain.evm_chain_id !== undefined
+            ? { to_evm_chain_id: destChain.evm_chain_id }
+            : {}),
+          bridge_tool: null,
+          estimated_duration_seconds: bridgeDurationSeconds,
+          bridge_started_at: bridgeCountdownStartedAt,
+          tracking_status: "PENDING",
+          substatus: null,
+          substatus_message: null,
+          receiving_tx_hash: null,
+        };
         emitAgentStreamExecutionStep(streamCtx.sessionId, {
           id: "lifi-bridge",
           status: "running",
-          label: formatLifiEtaLabel(durationSeconds || null),
+          label: lifiBridgeStepLabel(tracking, "running"),
           detail: "Waiting for destination confirmation",
           ...(streamCtx.transactionId
             ? { agent_transaction_id: streamCtx.transactionId }
             : {}),
           status_category: "defi",
+          ...lifiCountdownStepFields(tracking),
         });
       },
     });
@@ -265,6 +304,13 @@ async function runLifiCrossChainSwap(
     effects_status: effectsStatus,
     pending_step: pendingStep,
     approval_tx_hash: approvalTxHash,
+    bridge_started_at: bridgeCountdownStartedAt,
+    estimated_duration_seconds:
+      bridgeDurationSeconds ??
+      (refreshedRoute.steps.reduce(
+        (max, step) => Math.max(max, step.estimate.executionDuration ?? 0),
+        0,
+      ) || null),
   };
 }
 

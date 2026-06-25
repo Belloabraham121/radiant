@@ -3,8 +3,12 @@ import {
   isLifiExecuteAction,
 } from "../../../agent/chains/evm/lifi/execute-actions.js";
 import { AppError } from "../../../../errors/app-error.js";
-import { isDeFiQuoteFresh } from "../quote-expiry.js";
+import { isDeFiQuoteFresh, isLifiContinuationApproval } from "../quote-expiry.js";
 import { isExecutableLifiRoute } from "../../../defi/lifi/lifi-normalize.js";
+import {
+  isLifiRouteContinuation,
+  markLifiContinuationParams,
+} from "../../../defi/lifi/lifi-continuation.js";
 import {
   applyLifiRouteToExecuteParams,
   isLifiApprovalDisplayComplete,
@@ -52,6 +56,15 @@ export async function enrichLifiExecuteInputForApproval(
 
   const embeddedRoute = input.params.lifi_route ?? input.params.route;
   const hasStoredRoute = isExecutableLifiRoute(embeddedRoute);
+  if (hasStoredRoute && isLifiRouteContinuation(embeddedRoute)) {
+    return {
+      ...input,
+      params: applyLifiRouteToExecuteParams(
+        markLifiContinuationParams(input.params),
+        embeddedRoute,
+      ),
+    };
+  }
   if (
     hasStoredRoute &&
     isDeFiQuoteFresh(input.params) &&

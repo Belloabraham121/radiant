@@ -52,9 +52,66 @@ describe("token-chain-affinity", () => {
     const intent = withDefaultChain(parsePartialSwapIntent("swap 1 ETH to SUI on base")!);
     const mismatch = detectCrossChainSwapIntent(intent);
     assert.ok(mismatch);
+    assert.equal(mismatch!.kind, "output_not_on_source");
     assert.equal(mismatch!.outputToken, "SUI");
     assert.equal(mismatch!.destination.chainId, "sui");
     assert.match(mismatch!.sourceLabel, /Base/i);
+  });
+
+  it("detectCrossChainSwapIntent for SUI to USDC on Base", () => {
+    const intent = withDefaultChain({
+      inputCoin: "SUI",
+      outputCoin: "USDC",
+      amount: 2,
+      amountSide: "pay",
+      amountUnit: "usd",
+      amountUnitConfirmed: true,
+      chainId: "ethereum",
+      evmChainId: 8453,
+    });
+    const mismatch = detectCrossChainSwapIntent(intent);
+    assert.ok(mismatch);
+    assert.equal(mismatch!.kind, "input_not_on_selected");
+    assert.equal(mismatch!.inputToken, "SUI");
+    assert.equal(mismatch!.outputToken, "USDC");
+    assert.equal(mismatch!.inputSource?.chainId, "sui");
+    assert.equal(mismatch!.destination.evmChainId, 8453);
+  });
+
+  it("collectSwapClarificationGap returns bridge confirm for SUI to USDC on Base", () => {
+    const intent = withDefaultChain({
+      inputCoin: "SUI",
+      outputCoin: "USDC",
+      amount: 2,
+      amountSide: "pay",
+      amountUnit: "usd",
+      amountUnitConfirmed: true,
+      chainId: "ethereum",
+      evmChainId: 8453,
+    });
+    const gap = collectSwapClarificationGap(intent);
+    assert.ok(gap);
+    assert.equal(gap!.field, "bridge_confirm");
+    assert.match(gap!.question, /SUI isn't on/i);
+    assert.match(gap!.question, /Did you mean to bridge/i);
+    assert.match(gap!.question, /USDC on/i);
+  });
+
+  it("swapIntentToBridgeIntent maps SUI on Sui to USDC on Base", () => {
+    const intent = withDefaultChain({
+      inputCoin: "SUI",
+      outputCoin: "USDC",
+      amount: 2,
+      chainId: "ethereum",
+      evmChainId: 8453,
+    });
+    const mismatch = detectCrossChainSwapIntent(intent)!;
+    const bridge = swapIntentToBridgeIntent(intent, mismatch);
+    assert.equal(bridge.fromChainId, "sui");
+    assert.equal(bridge.toChainId, "ethereum");
+    assert.equal(bridge.toEvmChainId, 8453);
+    assert.equal(bridge.fromToken, "SUI");
+    assert.equal(bridge.toToken, "USDC");
   });
 
   it("collectSwapClarificationGap returns bridge confirm for ETH to SUI on Base", () => {

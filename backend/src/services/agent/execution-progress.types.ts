@@ -21,6 +21,10 @@ export type ExecutionProgressStep = {
   evm_chain_id?: number;
   /** Drives playful status phrases on the client (thinking, defi, etc.). */
   status_category?: AgentStatusCategory;
+  /** Li-Fi ETA countdown — client ticks locally from bridge_started_at. */
+  estimated_duration_seconds?: number | null;
+  bridge_started_at?: string | null;
+  countdown_kind?: "bridge" | "swap";
 };
 
 export type ExecutionProgressEvent = {

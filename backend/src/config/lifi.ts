@@ -55,11 +55,17 @@ export function getLifiConfig(): LifiConfig {
     rateLimitCapacity: Number.parseInt(optional("LIFI_RATE_LIMIT_CAPACITY", "30"), 10),
     rateLimitRefillIntervalMs: Number.parseInt(optional("LIFI_RATE_LIMIT_REFILL_MS", "2000"), 10),
     executeRateLimitCapacity: Number.parseInt(
-      optional("LIFI_EXECUTE_RATE_LIMIT_CAPACITY", "5"),
+      optional(
+        "LIFI_EXECUTE_RATE_LIMIT_CAPACITY",
+        process.env.NODE_ENV === "production" ? "5" : "50",
+      ),
       10,
     ),
     executeRateLimitRefillMs: Number.parseInt(
-      optional("LIFI_EXECUTE_RATE_LIMIT_REFILL_MS", "3600000"),
+      optional(
+        "LIFI_EXECUTE_RATE_LIMIT_REFILL_MS",
+        process.env.NODE_ENV === "production" ? "3600000" : "300000",
+      ),
       10,
     ),
     statusPollRefillMs: Number.parseInt(optional("LIFI_STATUS_POLL_REFILL_MS", "10000"), 10),

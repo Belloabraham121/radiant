@@ -34,6 +34,10 @@ describe("buildLifiExecutionSteps", () => {
               bridge_tool: "stargate",
               estimated_duration_seconds: 90,
               tracking_status: "PENDING",
+              from_chain_id: "ethereum",
+              to_chain_id: "ethereum",
+              from_evm_chain_id: 1,
+              to_evm_chain_id: 8453,
             },
           },
         },
@@ -42,7 +46,41 @@ describe("buildLifiExecutionSteps", () => {
 
     assert.ok(steps);
     assert.equal(steps?.some((step) => step.id === "lifi-bridge" && step.status === "running"), true);
-    assert.match(steps?.find((step) => step.id === "lifi-bridge")?.label ?? "", /Bridging \(~2m\)/);
+    const bridgeStep = steps?.find((step) => step.id === "lifi-bridge");
+    assert.equal(bridgeStep?.label, "Bridging (~2m)");
+    assert.equal(bridgeStep?.estimatedDurationSeconds, 90);
+  });
+
+  it("uses live countdown fields when bridge_started_at is present", () => {
+    const steps = buildLifiExecutionSteps([
+      {
+        name: "execute_transaction",
+        action: "cross_chain_swap",
+        result: {
+          status: "executed",
+          result: {
+            chain_id: "ethereum",
+            digest: "0xabc",
+            effects_status: "pending",
+            lifi: {
+              tx_hashes: ["0xabc"],
+              estimated_duration_seconds: 90,
+              bridge_started_at: "2026-01-01T00:00:00.000Z",
+              tracking_status: "PENDING",
+              from_chain_id: "ethereum",
+              to_chain_id: "ethereum",
+              from_evm_chain_id: 1,
+              to_evm_chain_id: 8453,
+            },
+          },
+        },
+      },
+    ]);
+
+    const bridgeStep = steps?.find((step) => step.id === "lifi-bridge");
+    assert.equal(bridgeStep?.label, "Bridging");
+    assert.equal(bridgeStep?.bridgeStartedAt, "2026-01-01T00:00:00.000Z");
+    assert.equal(bridgeStep?.countdownKind, "bridge");
   });
 
   it("builds complete steps when tracking status is DONE", () => {

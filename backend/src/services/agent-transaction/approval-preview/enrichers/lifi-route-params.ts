@@ -2,7 +2,11 @@ import type { Route } from "@lifi/types";
 import { resolveTokenSymbol, resolveEvmTokenByAddress } from "../../../../config/supported-tokens.js";
 import type { ChainId } from "../../../chains/types.js";
 import { formatAtomicAmount, lifiToRadiantChainRef } from "../../../defi/lifi/lifi-chain-map.js";
-import { coalesceDeFiQuoteExpiresAt } from "../quote-expiry.js";
+import { coalesceDeFiQuoteExpiresAt, isLifiContinuationApproval } from "../quote-expiry.js";
+import {
+  isLifiRouteContinuation,
+  markLifiContinuationParams,
+} from "../../../defi/lifi/lifi-continuation.js";
 import {
   isExecutableLifiRoute,
   normalizeLifiRouteToRouteQuote,
@@ -190,6 +194,23 @@ function enrichFromQuoteSnapshot(params: Record<string, unknown>): Record<string
       ? [readString(params, "tool")!]
       : [];
 
+  if (isLifiContinuationApproval(params)) {
+    return {
+      ...params,
+      from_token_symbol: displayFromSymbol,
+      to_token_symbol: displayToSymbol,
+      from_amount_display: fromAmountDisplay,
+      to_amount_display: toAmountDisplay,
+      from_chain_id: fromChainId,
+      to_chain_id: toChainId,
+      from_evm_chain_id: fromEvmChainId ?? undefined,
+      to_evm_chain_id: toEvmChainId ?? undefined,
+      bridges,
+      fee_cost_usd: resolveSnapshotFeeUsd(params),
+      slippage: readNumber(params, "slippage"),
+    };
+  }
+
   return {
     ...params,
     from_token_symbol: displayFromSymbol,
@@ -236,10 +257,14 @@ export function applyLifiRouteToExecuteParams(
     toTokenSymbol: toSymbol,
   });
 
-  const expiresAt = coalesceDeFiQuoteExpiresAt(normalized.expires_at);
+  const continuation = isLifiContinuationApproval(params) || isLifiRouteContinuation(route);
+  const baseParams = continuation ? markLifiContinuationParams(params) : params;
+  const expiresAt = continuation
+    ? null
+    : coalesceDeFiQuoteExpiresAt(normalized.expires_at);
 
   return {
-    ...params,
+    ...baseParams,
     route,
     lifi_route: route,
     from_token_symbol: fromSymbol,
@@ -258,8 +283,7 @@ export function applyLifiRouteToExecuteParams(
     to_evm_chain_id: toRef.chain_id === "ethereum" ? toRef.evm_chain_id : undefined,
     bridges: normalized.bridges,
     fee_cost_usd: resolveRouteFeeUsd(route),
-    expires_at: expiresAt,
-    quote_expires_at: expiresAt,
+    ...(expiresAt ? { expires_at: expiresAt, quote_expires_at: expiresAt } : {}),
     slippage: firstStep.action.slippage,
   };
 }

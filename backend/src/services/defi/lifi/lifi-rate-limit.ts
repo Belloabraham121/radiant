@@ -1,16 +1,21 @@
 import { tryConsumeTokenBucket } from "../../../infrastructure/rate-limit/token-bucket.js";
-import { optional } from "../../../config/optional-env.js";
 import { getLifiConfig } from "../../../config/lifi.js";
 import { AppError } from "../../../errors/app-error.js";
 
-const STATUS_POLL_BUCKET = {
-  capacity: 1,
-  refillIntervalMs: Number.parseInt(optional("LIFI_STATUS_POLL_REFILL_MS", "10000"), 10),
+const STATUS_POLL_BUCKET = () => {
+  const cfg = getLifiConfig();
+  return {
+    capacity: 1,
+    refillIntervalMs: cfg.statusPollRefillMs,
+  };
 };
 
-const EXECUTE_BUCKET = {
-  capacity: Number.parseInt(optional("LIFI_EXECUTE_RATE_LIMIT_CAPACITY", "5"), 10),
-  refillIntervalMs: Number.parseInt(optional("LIFI_EXECUTE_RATE_LIMIT_REFILL_MS", "3600000"), 10),
+const EXECUTE_BUCKET = () => {
+  const cfg = getLifiConfig();
+  return {
+    capacity: cfg.executeRateLimitCapacity,
+    refillIntervalMs: cfg.executeRateLimitRefillMs,
+  };
 };
 
 function outboundBucketConfig() {
@@ -43,7 +48,7 @@ export async function consumeLifiQuoteQuota(userId: string): Promise<void> {
 /** Status polling — max 1 request / 10s per txHash per user. */
 export async function consumeLifiStatusQuota(userId: string, txHash: string): Promise<void> {
   const key = `lifi:status:${userId}:${txHash.toLowerCase()}`;
-  const allowed = await tryConsumeTokenBucket(key, STATUS_POLL_BUCKET);
+  const allowed = await tryConsumeTokenBucket(key, STATUS_POLL_BUCKET());
   if (!allowed) {
     throw new AppError(
       429,
@@ -54,9 +59,18 @@ export async function consumeLifiStatusQuota(userId: string, txHash: string): Pr
   }
 }
 
-/** Cross-chain execute — default 5 per user per hour. */
+/** Cross-chain execute — default 5/hour in production; relaxed in local dev. */
 export async function consumeLifiExecuteQuota(userId: string): Promise<void> {
-  const allowed = await tryConsumeTokenBucket(`lifi:execute:${userId}`, EXECUTE_BUCKET);
+  const strict =
+    process.env.LIFI_EXECUTE_RATE_LIMIT_STRICT?.trim() === "true" ||
+    process.env.NODE_ENV === "production";
+  if (!strict) {
+    return;
+  }
+
+  const bucket = EXECUTE_BUCKET();
+  const key = `lifi:execute:${userId}:c${bucket.capacity}:r${bucket.refillIntervalMs}`;
+  const allowed = await tryConsumeTokenBucket(key, bucket);
   if (!allowed) {
     throw new AppError(
       429,

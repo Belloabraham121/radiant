@@ -27,6 +27,8 @@ function approvalTitle(preview: DeFiApprovalPreview): string {
       return "Approve swap";
     case "bridge":
       return "Approve bridge";
+    case "lifi_continue":
+      return preview.title.startsWith("Sign") ? preview.title : "Sign destination transaction";
     case "transfer":
       return "Approve transfer";
     default:
@@ -40,6 +42,8 @@ function approvalSubtitle(preview: DeFiApprovalPreview): string {
       return "Review the quote, then approve to execute on chain.";
     case "bridge":
       return "Review the bridge route and quote, then approve to start the cross-chain transfer.";
+    case "lifi_continue":
+      return "Your bridge is in progress — approve to sign the destination-chain transaction and finish.";
     default:
       return "Review the details, then approve to sign and send.";
   }
@@ -64,7 +68,9 @@ export function DeFiApprovalPreviewCard({
   quoteExpired: boolean;
 }) {
   const fiat = preview.fiat_preview ?? pending.fiat_preview ?? null;
-  const showQuoteUi = preview.kind === "swap" || preview.kind === "bridge";
+  const showQuoteUi =
+    preview.kind === "swap" || preview.kind === "bridge";
+  const showContinuationHint = preview.kind === "lifi_continue";
 
   return (
     <>
@@ -111,6 +117,10 @@ export function DeFiApprovalPreviewCard({
           This quote expired. Cancel and ask again to get a fresh rate — approval is blocked until
           you refresh.
         </p>
+      ) : showContinuationHint ? (
+        <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
+          This step completes an in-flight route — no new quote countdown applies.
+        </p>
       ) : showQuoteUi ? (
         <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
           {quoteRefreshHint(preview)}
@@ -130,12 +140,17 @@ export function useDeFiApprovalState(pending: PendingTransaction): {
   const preview = resolveDeFiPreview(pending);
   const isBridge =
     pending.action === "cross_chain_swap" || pending.action === "lifi_approve";
+  const isLifiContinuation =
+    pending.params.lifi_continuation === true ||
+    pending.params.approval_kind === "lifi_continue" ||
+    preview?.kind === "lifi_continue";
   const isLegacySwap = pending.action === "swap" || pending.action === "deepbook_swap";
   const quoteDriven =
-    preview?.kind === "swap" ||
-    preview?.kind === "bridge" ||
-    isLegacySwap ||
-    isBridge;
+    !isLifiContinuation &&
+    (preview?.kind === "swap" ||
+      preview?.kind === "bridge" ||
+      isLegacySwap ||
+      isBridge);
 
   const quoteExpiresAt = preview?.quote_expires_at ?? resolveQuoteExpiresAt(pending);
   const quoteCountdown = useSwapQuoteCountdown(quoteDriven ? quoteExpiresAt : null);
@@ -147,6 +162,10 @@ export function useDeFiApprovalState(pending: PendingTransaction): {
   if (preview) {
     title = approvalTitle(preview);
     subtitle = approvalSubtitle(preview);
+  } else if (isLifiContinuation) {
+    title = "Sign destination transaction";
+    subtitle =
+      "Your bridge is in progress — approve to sign the destination-chain transaction and finish.";
   } else if (isBridge) {
     title = pending.action === "lifi_approve" ? "Approve token allowance" : "Approve bridge";
     subtitle =

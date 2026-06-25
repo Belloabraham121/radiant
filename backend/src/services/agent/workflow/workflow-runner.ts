@@ -20,6 +20,7 @@ import { runAgentTool, type AgentToolErrorResult } from "../tools.js";
 import { linkToolCallTransactionsToMessage } from "../../agent-transaction/link-transactions.js";
 import { extractArtifactFromToolCalls } from "../../projects/extract-artifact.js";
 import { startSessionClarification } from "./clarification.store.js";
+import { persistSessionStateSnapshot } from "./agent-session-state.store.js";
 import type { ClarificationAnswer, ClarificationGap, PendingClarification } from "./clarification.types.js";
 import {
   applyClarificationAnswerWithSnapping,
@@ -978,6 +979,10 @@ export async function persistWorkflowChatResponse(
   await linkToolCallTransactionsToMessage(outcome.tool_calls, assistantMessage.id);
 
   await touchSession(session.id, { updated_at: new Date() });
+
+  // Snapshot any pending clarification / paused workflow so a continuation
+  // request can recover it after a restart or on another instance.
+  await persistSessionStateSnapshot(session.id);
 
   return {
     reply: outcome.reply,

@@ -89,6 +89,33 @@ export function receiptFromExecutionStep(step: ExecutionStep): Receipt | null {
   };
 }
 
+/** Avoid receipt flicker on Li-Fi bridge poll updates with unchanged digests. */
+export function mergeReceiptsFromExecutionStep(
+  existing: Receipt[] | undefined,
+  step: ExecutionStep,
+): Receipt[] | undefined {
+  if (step.id === "lifi-bridge" && step.status === "running") {
+    return existing;
+  }
+
+  const receipt = receiptFromExecutionStep(step);
+  if (!receipt) {
+    return existing;
+  }
+
+  const prior = existing ?? [];
+  const duplicate = prior.some(
+    (item) =>
+      item.digest === receipt.digest &&
+      item.agentTransactionId === receipt.agentTransactionId,
+  );
+  if (duplicate) {
+    return prior;
+  }
+
+  return [...prior, receipt];
+}
+
 function resolveTransactionReceipts(
   toolCalls: ChatToolCall[],
   executionSteps?: ExecutionStep[],

@@ -1,6 +1,7 @@
 import type { ChainId, TxResult } from "../../chains/types.js";
 import { parseChainId } from "../../chains/registry.js";
-import type { LifiTrackingMeta } from "./lifi-tracking.types.js";
+import { formatLifiStaticEtaLabel } from "./lifi-countdown.js";
+import type { LifiPendingStepMeta, LifiTrackingMeta } from "./lifi-tracking.types.js";
 import type { CrossChainStatusResult, LifiExecuteResult } from "./lifi.types.js";
 
 const TERMINAL_LIFI_STATUSES = new Set(["DONE", "FAILED", "REFUNDED"]);
@@ -68,15 +69,9 @@ export function shouldEnqueueLifiSwapTracking(
   return !isTerminalLifiStatus(tracking.tracking_status);
 }
 
+/** @deprecated Prefer lifiBridgeStepLabel / formatLifiStaticEtaLabel for new code. */
 export function formatLifiEtaLabel(seconds: number | null | undefined): string {
-  if (seconds == null || seconds <= 0) {
-    return "Bridging";
-  }
-  if (seconds < 60) {
-    return `Bridging (~${Math.max(1, Math.round(seconds))}s)`;
-  }
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  return `Bridging (~${minutes}m)`;
+  return formatLifiStaticEtaLabel(seconds, "bridge");
 }
 
 function readChainId(value: unknown): ChainId | undefined {
@@ -140,11 +135,21 @@ export function buildLifiTrackingMeta(
       ? { to_evm_chain_id: readNumber(params.to_evm_chain_id) }
       : {}),
     bridge_tool: readBridges(params),
-    estimated_duration_seconds: readNumber(params.estimated_duration_seconds) ?? null,
+    estimated_duration_seconds:
+      readNumber(executeResult.estimated_duration_seconds) ??
+      readNumber(params.estimated_duration_seconds) ??
+      null,
+    bridge_started_at:
+      typeof executeResult.bridge_started_at === "string"
+        ? executeResult.bridge_started_at
+        : executeResult.effects_status === "pending"
+          ? new Date().toISOString()
+          : null,
     tracking_status: executeResult.effects_status === "pending" ? "PENDING" : null,
     substatus: null,
     substatus_message: null,
     receiving_tx_hash: null,
+    ...(executeResult.pending_step ? { pending_step: executeResult.pending_step } : {}),
   };
 }
 
@@ -215,13 +220,48 @@ export function readLifiTrackingFromTxResult(result: TxResult | null | undefined
     bridge_tool: typeof lifi.bridge_tool === "string" ? lifi.bridge_tool : null,
     estimated_duration_seconds:
       readNumber(lifi.estimated_duration_seconds) ?? null,
+    bridge_started_at:
+      typeof lifi.bridge_started_at === "string" ? lifi.bridge_started_at : null,
     tracking_status: typeof lifi.tracking_status === "string" ? lifi.tracking_status : null,
     substatus: typeof lifi.substatus === "string" ? lifi.substatus : null,
     substatus_message:
       typeof lifi.substatus_message === "string" ? lifi.substatus_message : null,
     receiving_tx_hash:
       typeof lifi.receiving_tx_hash === "string" ? lifi.receiving_tx_hash : null,
+    ...(readLifiPendingStep(lifi.pending_step)
+      ? { pending_step: readLifiPendingStep(lifi.pending_step) }
+      : {}),
   };
+}
+
+function readLifiPendingStep(value: unknown): LifiPendingStepMeta | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const step = value as Partial<LifiPendingStepMeta>;
+  if (
+    typeof step.step_index !== "number" ||
+    typeof step.chain_id !== "number" ||
+    typeof step.action !== "string"
+  ) {
+    return null;
+  }
+  return {
+    step_index: step.step_index,
+    chain_id: step.chain_id,
+    action: step.action,
+    message:
+      typeof step.message === "string"
+        ? step.message
+        : "Additional on-chain step required on destination chain.",
+  };
+}
+
+export function readLifiPendingStepFromTxResult(
+  result: TxResult | null | undefined,
+): LifiPendingStepMeta | null {
+  const tracking = readLifiTrackingFromTxResult(result);
+  return tracking?.pending_step ?? null;
 }
 
 export function mergeLifiStatusIntoTracking(

@@ -1,4 +1,7 @@
 import { LIFI_QUOTE_TTL_MS } from "../../defi/lifi/lifi-normalize.js";
+import { isLifiContinuationApproval } from "../../defi/lifi/lifi-continuation.js";
+
+export { isLifiContinuationApproval };
 
 /** Max remaining time we accept for a DeFi quote countdown (60s TTL + small slack). */
 export const DEFI_QUOTE_MAX_REMAINING_MS = LIFI_QUOTE_TTL_MS + 30_000;
@@ -37,6 +40,9 @@ export function readDeFiQuoteExpiresAt(params: Record<string, unknown>): string 
 }
 
 export function isDeFiQuoteExpired(params: Record<string, unknown>, nowMs = Date.now()): boolean {
+  if (isLifiContinuationApproval(params)) {
+    return false;
+  }
   const expiresAt = readDeFiQuoteExpiresAt(params);
   if (!expiresAt) {
     return false;

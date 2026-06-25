@@ -1,7 +1,7 @@
 import type { DeFiProviderId } from "../../defi/types.js";
 import type { TransactionFiatPreview } from "../../market/valuation.types.js";
 
-export type DeFiApprovalPreviewKind = "swap" | "bridge" | "transfer" | "generic";
+export type DeFiApprovalPreviewKind = "swap" | "bridge" | "transfer" | "generic" | "lifi_continue";
 
 export type DeFiApprovalAssetLine = {
   symbol: string;

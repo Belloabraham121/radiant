@@ -1,6 +1,11 @@
 import type { ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
 import { sanitizeToolErrorMessage } from "@/lib/sanitize-tool-error";
+import {
+  lifiBridgeStepLabel,
+  lifiCountdownKind,
+  type LifiCountdownKind,
+} from "@/lib/lifi-countdown";
 
 export type ExecutionStepStatus =
   | "pending"
@@ -19,6 +24,10 @@ export type ExecutionStep = {
   digest?: string;
   chainId?: AgentChainId;
   evmChainId?: number;
+  /** Li-Fi ETA countdown — client ticks locally from bridgeStartedAt. */
+  estimatedDurationSeconds?: number | null;
+  bridgeStartedAt?: string | null;
+  countdownKind?: "bridge" | "swap";
 };
 
 type FlashLoanStepQuote = {
@@ -78,6 +87,9 @@ export type StreamExecutionStepPayload = {
   chain_id?: string;
   evm_chain_id?: number;
   status_category?: import("@/lib/agent-status-category").AgentStatusCategory;
+  estimated_duration_seconds?: number | null;
+  bridge_started_at?: string | null;
+  countdown_kind?: "bridge" | "swap";
 };
 
 const EXECUTION_TIMELINE_TOOL_NAMES = new Set([
@@ -119,6 +131,11 @@ export function mapStreamStepToExecutionStep(
     ...(step.digest ? { digest: step.digest } : {}),
     ...(chainId ? { chainId } : {}),
     ...(step.evm_chain_id !== undefined ? { evmChainId: step.evm_chain_id } : {}),
+    ...(step.estimated_duration_seconds != null
+      ? { estimatedDurationSeconds: step.estimated_duration_seconds }
+      : {}),
+    ...(step.bridge_started_at ? { bridgeStartedAt: step.bridge_started_at } : {}),
+    ...(step.countdown_kind ? { countdownKind: step.countdown_kind } : {}),
   };
 }
 
@@ -130,8 +147,49 @@ export function upsertExecutionStep(
   if (index === -1) {
     return [...steps, incoming];
   }
+  const existing = steps[index];
+  const merged = { ...existing, ...incoming };
+
+  if (incoming.id === "lifi-bridge") {
+    const existingStart = existing.bridgeStartedAt;
+    const incomingStart = incoming.bridgeStartedAt;
+    if (existingStart && incomingStart && existingStart !== incomingStart) {
+      const keepEarliest =
+        Date.parse(existingStart) <= Date.parse(incomingStart)
+          ? existingStart
+          : incomingStart;
+      merged.bridgeStartedAt = keepEarliest;
+      // #region agent log
+      fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Debug-Session-Id": "90234e",
+        },
+        body: JSON.stringify({
+          sessionId: "90234e",
+          location: "chat-execution-steps.ts:upsertExecutionStep",
+          message: "countdown_anchor_preserved",
+          data: { existingStart, incomingStart, kept: keepEarliest },
+          timestamp: Date.now(),
+          runId: "post-fix",
+          hypothesisId: "H2",
+        }),
+      }).catch(() => {});
+      // #endregion
+    } else if (existingStart && !incomingStart) {
+      merged.bridgeStartedAt = existingStart;
+    }
+    if (
+      incoming.estimatedDurationSeconds == null &&
+      existing.estimatedDurationSeconds != null
+    ) {
+      merged.estimatedDurationSeconds = existing.estimatedDurationSeconds;
+    }
+  }
+
   const next = [...steps];
-  next[index] = { ...next[index], ...incoming };
+  next[index] = merged;
   return next;
 }
 
@@ -425,15 +483,36 @@ function buildFlashLoanExecutionSteps(
   return steps;
 }
 
-function formatLifiEtaLabel(seconds: number | null | undefined): string {
-  if (seconds == null || seconds <= 0) {
-    return "Bridging";
-  }
-  if (seconds < 60) {
-    return `Bridging (~${Math.max(1, Math.round(seconds))}s)`;
-  }
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  return `Bridging (~${minutes}m)`;
+function lifiCountdownFields(input: {
+  fromChainId?: AgentChainId;
+  toChainId?: AgentChainId;
+  fromEvmChainId?: number;
+  toEvmChainId?: number;
+  estimatedDurationSeconds?: number | null;
+  bridgeStartedAt?: string | null;
+}): Pick<ExecutionStep, "estimatedDurationSeconds" | "bridgeStartedAt" | "countdownKind"> {
+  const kind = lifiCountdownKind({
+    fromChainId: input.fromChainId,
+    toChainId: input.toChainId,
+    fromEvmChainId: input.fromEvmChainId,
+    toEvmChainId: input.toEvmChainId,
+  });
+  return {
+    ...(input.estimatedDurationSeconds != null
+      ? { estimatedDurationSeconds: input.estimatedDurationSeconds }
+      : {}),
+    ...(input.bridgeStartedAt ? { bridgeStartedAt: input.bridgeStartedAt } : {}),
+    countdownKind: kind,
+  };
+}
+
+function lifiBridgeLabel(input: {
+  kind: LifiCountdownKind;
+  phase: "running" | "done" | "failed";
+  estimatedDurationSeconds?: number | null;
+  bridgeStartedAt?: string | null;
+}): string {
+  return lifiBridgeStepLabel(input);
 }
 
 type LifiRouteQuote = {
@@ -444,6 +523,8 @@ type LifiRouteQuote = {
     to_amount_atomic?: string;
     bridges?: string[];
     estimated_duration_seconds?: number | null;
+    from_evm_chain_id?: number;
+    to_evm_chain_id?: number;
     tool?: string | null;
   }>;
 };
@@ -460,11 +541,14 @@ type LifiExecuteOutcome = {
       tx_hashes?: string[];
       bridge_tool?: string | null;
       estimated_duration_seconds?: number | null;
+      bridge_started_at?: string | null;
       tracking_status?: string | null;
       substatus_message?: string | null;
       receiving_tx_hash?: string | null;
+      from_chain_id?: AgentChainId;
       to_chain_id?: AgentChainId;
       from_evm_chain_id?: number;
+      to_evm_chain_id?: number;
     };
   };
 };
@@ -529,6 +613,18 @@ export function buildLifiExecutionSteps(
   const bridgeTool = lifi?.bridge_tool ?? routeQuote?.bridges?.[0] ?? null;
   const estimatedDuration =
     lifi?.estimated_duration_seconds ?? routeQuote?.estimated_duration_seconds ?? null;
+  const fromChainId = lifi?.from_chain_id ?? chainId;
+  const toChainId = lifi?.to_chain_id ?? chainId;
+  const toEvmChainId = lifi?.to_evm_chain_id ?? routeQuote?.to_evm_chain_id;
+  const countdownMeta = lifiCountdownFields({
+    fromChainId,
+    toChainId,
+    fromEvmChainId: evmChainId,
+    toEvmChainId,
+    estimatedDurationSeconds: estimatedDuration,
+    bridgeStartedAt: lifi?.bridge_started_at,
+  });
+  const countdownKind = countdownMeta.countdownKind ?? "bridge";
 
   if (routeQuote?.from_token_symbol && routeQuote?.to_token_symbol) {
     steps.push({
@@ -559,7 +655,6 @@ export function buildLifiExecutionSteps(
   });
 
   const trackingStatus = lifi?.tracking_status;
-  const eta = formatLifiEtaLabel(estimatedDuration);
 
   if (trackingStatus === "DONE" || outcome.result?.effects_status === "success") {
     const destDigest =
@@ -568,9 +663,15 @@ export function buildLifiExecutionSteps(
       {
         id: "lifi-bridge",
         status: "ok",
-        label: eta,
+        label: lifiBridgeLabel({
+          kind: countdownKind,
+          phase: "done",
+          estimatedDurationSeconds: estimatedDuration,
+          bridgeStartedAt: lifi?.bridge_started_at,
+        }),
         detail: lifi?.substatus_message ?? "Bridge confirmed",
         ...meta,
+        ...countdownMeta,
       },
       {
         id: "lifi-complete",
@@ -595,9 +696,15 @@ export function buildLifiExecutionSteps(
       {
         id: "lifi-bridge",
         status: "failed",
-        label: eta,
+        label: lifiBridgeLabel({
+          kind: countdownKind,
+          phase: "failed",
+          estimatedDurationSeconds: estimatedDuration,
+          bridgeStartedAt: lifi?.bridge_started_at,
+        }),
         detail: lifi?.substatus_message ?? "Bridge failed",
         ...meta,
+        ...countdownMeta,
       },
       {
         id: "lifi-complete",
@@ -620,9 +727,15 @@ export function buildLifiExecutionSteps(
     steps.push({
       id: "lifi-bridge",
       status: "running",
-      label: eta,
+      label: lifiBridgeLabel({
+        kind: countdownKind,
+        phase: "running",
+        estimatedDurationSeconds: estimatedDuration,
+        bridgeStartedAt: lifi?.bridge_started_at,
+      }),
       detail: lifi?.substatus_message ?? "Waiting for destination confirmation",
       ...meta,
+      ...countdownMeta,
     });
     return steps;
   }

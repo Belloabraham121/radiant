@@ -3,10 +3,14 @@ import { getEnabledChainConfigs } from "../../../config/chains.js";
 import { getEvmNetwork } from "../../../config/evm.js";
 import { isLifiRadiantChain } from "../../../config/lifi-chains.js";
 import type { ChainId } from "../../chains/types.js";
+import {
+  formatAmbiguousAmountQuestion,
+  isAmountUnitAmbiguous,
+  parseUserAmount,
+} from "../../market/resolve-user-amount.js";
 import type { ClarificationAnswer, ClarificationGap } from "../workflow/clarification.types.js";
 import type { BridgeIntentField, PartialBridgeIntent } from "./bridge-intent.types.js";
 import { BRIDGE_KNOWN_TOKENS } from "./bridge-intent.types.js";
-import { parsePositiveNumber } from "../swap/text-tokenize.js";
 import {
   isBridgeIntentComplete,
   needsSameTokenConfirmation,
@@ -82,7 +86,10 @@ function formatIntentPreview(intent: PartialBridgeIntent): string {
     parts.push(`  Receive token: ${filled.toToken}`);
   }
   if (filled.amount !== undefined) {
-    parts.push(`  Amount: ${filled.amount}${filled.fromToken ? ` ${filled.fromToken}` : ""}`);
+    const unit = filled.amountUnit ?? "token";
+    const suffix =
+      unit === "usd" ? " USD" : filled.fromToken ? ` ${filled.fromToken}` : "";
+    parts.push(`  Amount: ${filled.amount}${suffix}`);
   }
   return parts.join("\n");
 }
@@ -212,12 +219,39 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
       gap_id: "bridge.amount",
       interaction_type: "input",
       question: `How much ${filled.fromToken} should I bridge to ${formatChainLabel(filled.toChainId, filled.toEvmChainId)}?`,
+      hint: `Enter amount in ${filled.fromToken} or USD (e.g. 0.5 ${filled.fromToken} or $10).`,
       step_index: 0,
       field: "amount",
       action: "bridge",
       kind: "intent",
-      input_kind: "number",
-      placeholder: "e.g. 2",
+      input_kind: "text",
+      placeholder: `e.g. 0.5 ${filled.fromToken} or $10`,
+    };
+  }
+
+  const amountUnit = filled.amountUnit ?? "token";
+  if (
+    !filled.amountUnitConfirmed &&
+    isAmountUnitAmbiguous(filled.amount, amountUnit, filled.fromToken)
+  ) {
+    return {
+      gap_id: "bridge.amount_unit",
+      interaction_type: "single_choice",
+      question: formatAmbiguousAmountQuestion(filled.amount, filled.fromToken!),
+      step_index: 0,
+      field: "amount_unit",
+      action: "bridge",
+      kind: "intent",
+      options: [
+        {
+          id: "usd",
+          label: `$${filled.amount.toFixed(2)} worth of ${filled.fromToken}`,
+        },
+        {
+          id: "token",
+          label: `${filled.amount} ${filled.fromToken}`,
+        },
+      ],
     };
   }
 
@@ -262,20 +296,31 @@ export function applyBridgeClarificationAnswer(
       }
       return next;
     }
+
+    if (field === "amount_unit") {
+      if (selected === "usd" || selected === "token") {
+        next.amountUnit = selected;
+        next.amountUnitConfirmed = true;
+        return next;
+      }
+      return null;
+    }
   }
 
   if (gap.interaction_type === "input" && field === "amount") {
     const raw = answer.value;
-    const num =
-      typeof raw === "number"
-        ? raw
-        : typeof raw === "string"
-          ? parsePositiveNumber(raw.trim())
-          : undefined;
-    if (num === undefined) {
+    const text =
+      typeof raw === "number" ? String(raw) : typeof raw === "string" ? raw.trim() : undefined;
+    if (!text) {
       return null;
     }
-    next.amount = num;
+    const parsed = parseUserAmount(text);
+    if (!parsed) {
+      return null;
+    }
+    next.amount = parsed.value;
+    next.amountUnit = parsed.unit;
+    next.amountUnitConfirmed = parsed.unit === "usd";
     return next;
   }
 

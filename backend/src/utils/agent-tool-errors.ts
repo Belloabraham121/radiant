@@ -132,6 +132,8 @@ function guidanceForErrorCode(code: string): string {
       return "Explain no DeFi provider is configured for the requested chain and capability. Suggest an enabled chain or same-chain swap.";
     case "LIFI_RATE_LIMITED":
       return "Explain Li-Fi is temporarily rate limiting. Suggest waiting a few seconds before retrying cross_chain_quote or cross_chain_status.";
+    case "RATE_LIMITED":
+      return "Explain cross-chain execution is temporarily rate limited. Suggest waiting before retrying Approve on the same pending transaction.";
     case "LIFI_NO_ROUTE":
       return "Explain no bridge route exists for this token pair or amount. Suggest a different amount, token, or enabled EVM chain pair.";
     case "LIFI_VALIDATION_ERROR":

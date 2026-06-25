@@ -1,4 +1,5 @@
 import { getDeepBookSwapQuote } from "../../defi/deepbook/deepbook-swap.service.js";
+import { resolveSwapIntentAmount } from "../resolve-intent-amounts.js";
 import { AppError } from "../../../errors/app-error.js";
 import { mapAgentToolError } from "../../../utils/agent-tool-errors.js";
 import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "../agent.types.js";
@@ -22,7 +23,19 @@ export async function executeResolvedSwapIntent(
   intent: PartialSwapIntent,
   sessionId?: string,
 ): Promise<ResolvedSwapOutcome | null> {
-  const executeInput = buildSwapExecuteInput(intent);
+  let resolvedIntent: PartialSwapIntent;
+  try {
+    resolvedIntent = await resolveSwapIntentAmount(intent);
+  } catch (err) {
+    const mapped = mapAgentToolError(err);
+    return {
+      reply: mapped instanceof AppError ? mapped.message : "Could not resolve the swap amount.",
+      tool_calls: [],
+      pending_transaction: null,
+    };
+  }
+
+  const executeInput = buildSwapExecuteInput(resolvedIntent);
   if (!executeInput) {
     return null;
   }
@@ -113,7 +126,7 @@ export async function executeResolvedSwapIntent(
     };
   }
 
-  const amount = intent.amount ?? 0;
+  const amount = resolvedIntent.amount ?? 0;
   const digest =
     executeOutcome.status === "executed" && executeOutcome.result?.digest
       ? ` Digest: ${executeOutcome.result.digest}.`
@@ -121,7 +134,7 @@ export async function executeResolvedSwapIntent(
 
   return {
     reply:
-      `Swap submitted: ${amount} ${intent.inputCoin} → ~${quote.output_amount_display} ${intent.outputCoin} on ${params.pool_key}.${digest}`,
+      `Swap submitted: ${amount} ${resolvedIntent.inputCoin} → ~${quote.output_amount_display} ${resolvedIntent.outputCoin} on ${params.pool_key}.${digest}`,
     tool_calls,
     pending_transaction: null,
   };

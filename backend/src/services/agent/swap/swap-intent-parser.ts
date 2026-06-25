@@ -1,9 +1,12 @@
 import type { ChainId } from "../../chains/types.js";
 import { getEnabledEvmChainIds } from "../../../config/evm.js";
 import { getEnabledChainConfigs } from "../../../config/chains.js";
-import type { PartialSwapIntent } from "./swap-intent.types.js";
+import type { AmountUnit, PartialSwapIntent } from "./swap-intent.types.js";
 import { SWAP_KNOWN_COINS } from "./swap-intent.types.js";
-import { parsePositiveNumber, tokenizeMessage } from "./text-tokenize.js";
+import {
+  parseAmountFromTokens,
+} from "../../market/resolve-user-amount.js";
+import { tokenizeMessage } from "./text-tokenize.js";
 
 const SWAP_VERBS = new Set(["swap", "convert", "trade", "exchange"]);
 const DIRECTION_WORDS = new Set(["to", "for", "into"]);
@@ -119,6 +122,21 @@ function extractChainHint(tokens: readonly string[]): {
   return { chainId, evmChainId, remaining };
 }
 
+function tryParseAmountToken(
+  tokens: readonly string[],
+  index: number,
+): { value: number; unit: AmountUnit; nextIndex: number } | null {
+  const fromPair = parseAmountFromTokens(tokens, index);
+  if (fromPair) {
+    return {
+      value: fromPair.parsed.value,
+      unit: fromPair.parsed.unit,
+      nextIndex: index + fromPair.consumed,
+    };
+  }
+  return null;
+}
+
 function parseDirectionSwap(rest: readonly string[]): Partial<PartialSwapIntent> {
   const directionIndex = findDirectionIndex(rest);
   if (directionIndex < 0) {
@@ -131,55 +149,81 @@ function parseDirectionSwap(rest: readonly string[]): Partial<PartialSwapIntent>
   let inputCoin: string | undefined;
   let outputCoin: string | undefined;
   let amount: number | undefined;
+  let amountUnit: AmountUnit | undefined;
   let amountSide: "pay" | "receive" | undefined;
 
-  for (const token of before) {
+  for (let index = 0; index < before.length; index += 1) {
+    const token = before[index];
     const coin = findCoinSymbol(token);
-    const num = parsePositiveNumber(token);
+    const parsed = tryParseAmountToken(before, index);
     if (coin && !inputCoin) {
       inputCoin = coin;
-    } else if (num !== undefined && amount === undefined) {
-      amount = num;
+    } else if (parsed && amount === undefined) {
+      amount = parsed.value;
+      amountUnit = parsed.unit;
       amountSide = "pay";
+      index = parsed.nextIndex - 1;
     }
   }
 
-  for (const token of after) {
+  for (let index = 0; index < after.length; index += 1) {
+    const token = after[index];
     const coin = findCoinSymbol(token);
-    const num = parsePositiveNumber(token);
+    const parsed = tryParseAmountToken(after, index);
     if (coin && !outputCoin) {
       outputCoin = coin;
-    } else if (num !== undefined && amount === undefined) {
-      amount = num;
+    } else if (parsed && amount === undefined) {
+      amount = parsed.value;
+      amountUnit = parsed.unit;
       amountSide = "receive";
+      index = parsed.nextIndex - 1;
     }
   }
 
-  return { inputCoin, outputCoin, amount, amountSide };
+  return {
+    inputCoin,
+    outputCoin,
+    amount,
+    amountUnit,
+    amountSide,
+    amountUnitConfirmed: amountUnit === "usd" ? true : undefined,
+  };
 }
 
 function parseUndirectedSwap(rest: readonly string[]): Partial<PartialSwapIntent> {
   const coins: string[] = [];
   let amount: number | undefined;
+  let amountUnit: AmountUnit | undefined;
 
-  for (const token of rest) {
+  for (let index = 0; index < rest.length; index += 1) {
+    const token = rest[index];
     const coin = findCoinSymbol(token);
-    const num = parsePositiveNumber(token);
+    const parsed = tryParseAmountToken(rest, index);
     if (coin) {
       coins.push(coin);
-    } else if (num !== undefined) {
-      amount = num;
+    } else if (parsed && amount === undefined) {
+      amount = parsed.value;
+      amountUnit = parsed.unit;
+      index = parsed.nextIndex - 1;
     }
   }
 
   if (coins.length === 1 && rest.includes("to")) {
-    return { outputCoin: coins[0], amount, amountSide: amount !== undefined ? "receive" : undefined };
+    return {
+      outputCoin: coins[0],
+      amount,
+      amountUnit,
+      amountUnitConfirmed: amountUnit === "usd" ? true : undefined,
+      amountSide: amount !== undefined ? "receive" : undefined,
+    };
   }
 
   return {
     inputCoin: coins[0],
     outputCoin: coins[1],
     amount,
+    amountUnit,
+    amountUnitConfirmed: amountUnit === "usd" ? true : undefined,
     amountSide: amount !== undefined ? "pay" : undefined,
   };
 }

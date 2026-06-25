@@ -1,9 +1,16 @@
 import type { ChainId } from "../../chains/types.js";
+import type { AmountUnit } from "../swap/swap-intent.types.js";
+
+export type { AmountUnit };
 
 /** Parsed bridge slots from a user message (may be incomplete). */
 export type PartialBridgeIntent = {
   originalMessage: string;
   amount?: number;
+  /** Whether `amount` is in token units or USD. Defaults to "token". */
+  amountUnit?: AmountUnit;
+  /** User confirmed ambiguous sub-1 token vs USD interpretation. */
+  amountUnitConfirmed?: boolean;
   fromToken?: string;
   toToken?: string;
   fromChainId?: ChainId;
@@ -20,6 +27,7 @@ export type BridgeIntentField =
   | "from_token"
   | "to_token"
   | "amount"
+  | "amount_unit"
   | "confirm_same_token";
 
 /** Tokens commonly bridged via Li-Fi on this product. */

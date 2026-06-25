@@ -2,6 +2,7 @@ import { isLifiEnabled } from "../../../config/lifi.js";
 import { resolveTokenSymbol } from "../../../config/supported-tokens.js";
 import { getLifiAdvancedRoutes } from "../../defi/lifi/lifi-routes.service.js";
 import type { CrossChainRouteOption } from "../../defi/lifi/lifi.types.js";
+import { resolveBridgeIntentAmount } from "../resolve-intent-amounts.js";
 import { AppError } from "../../../errors/app-error.js";
 import { mapAgentToolError } from "../../../utils/agent-tool-errors.js";
 import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "../agent.types.js";
@@ -129,7 +130,19 @@ export async function executeResolvedBridgeIntent(
     };
   }
 
-  const routeParams = buildBridgeRouteParams(intent);
+  let resolvedIntent: PartialBridgeIntent;
+  try {
+    resolvedIntent = await resolveBridgeIntentAmount(intent);
+  } catch (err) {
+    const mapped = mapAgentToolError(err);
+    return {
+      reply: mapped instanceof AppError ? mapped.message : "Could not resolve the bridge amount.",
+      tool_calls: [],
+      pending_transaction: null,
+    };
+  }
+
+  const routeParams = buildBridgeRouteParams(resolvedIntent);
   if (!routeParams) {
     return null;
   }
@@ -227,7 +240,7 @@ export async function executeResolvedBridgeIntent(
   }
 
   return {
-    reply: `Bridge submitted: ${intent.fromToken} → ${intent.toToken} via ${route.bridges.join(", ") || "Li-Fi"}.`,
+    reply: `Bridge submitted: ${resolvedIntent.fromToken} → ${resolvedIntent.toToken} via ${route.bridges.join(", ") || "Li-Fi"}.`,
     tool_calls,
     pending_transaction: null,
   };

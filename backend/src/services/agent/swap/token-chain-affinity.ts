@@ -14,10 +14,15 @@ export type TokenChainRef = {
 };
 
 export type CrossChainSwapMismatch = {
+  kind: "output_not_on_source" | "input_not_on_selected" | "neither_on_selected";
   sourceLabel: string;
+  inputToken: string;
   outputToken: string;
   destination: TokenChainRef;
   outputDestinations: TokenChainRef[];
+  /** Present when the input token is not on the network the user selected. */
+  inputSource?: TokenChainRef;
+  inputSources?: TokenChainRef[];
 };
 
 function formatChainLabel(chainId: ChainId, evmChainId?: number): string {
@@ -86,8 +91,8 @@ export function isTokenOnChain(
 }
 
 /**
- * When the user picked a source network but the output token is not on that chain,
- * and Li-Fi can bridge to a chain that has the output token.
+ * When the user picked a network but input/output tokens are not both available there,
+ * and Li-Fi can bridge across ecosystems.
  */
 export function detectCrossChainSwapIntent(
   intent: PartialSwapIntent,
@@ -104,40 +109,119 @@ export function detectCrossChainSwapIntent(
     return null;
   }
 
-  if (isTokenOnChain(filled.outputCoin, filled.chainId, filled.evmChainId)) {
-    return null;
-  }
-
-  if (!isTokenOnChain(filled.inputCoin, filled.chainId, filled.evmChainId)) {
-    return null;
-  }
-
-  const outputDestinations = getChainsForToken(filled.outputCoin);
-  if (outputDestinations.length === 0) {
-    return null;
-  }
-
   const source = { chainId: filled.chainId, evmChainId: filled.evmChainId };
-  const bridgeDestinations = outputDestinations.filter(
-    (dest) =>
-      !sameChainRef(source, dest) &&
-      isLifiCrossEcosystemPair(source.chainId, dest.chainId),
+  const sourceLabel = formatChainLabel(filled.chainId, filled.evmChainId);
+  const inputOnSelected = isTokenOnChain(
+    filled.inputCoin,
+    filled.chainId,
+    filled.evmChainId,
+  );
+  const outputOnSelected = isTokenOnChain(
+    filled.outputCoin,
+    filled.chainId,
+    filled.evmChainId,
   );
 
-  if (bridgeDestinations.length === 0) {
+  if (inputOnSelected && outputOnSelected) {
     return null;
   }
 
-  return {
-    sourceLabel: formatChainLabel(filled.chainId, filled.evmChainId),
-    outputToken: filled.outputCoin,
-    destination: bridgeDestinations[0],
-    outputDestinations: bridgeDestinations,
-  };
+  if (inputOnSelected && !outputOnSelected) {
+    const outputDestinations = getChainsForToken(filled.outputCoin);
+    const bridgeDestinations = outputDestinations.filter(
+      (dest) =>
+        !sameChainRef(source, dest) &&
+        isLifiCrossEcosystemPair(source.chainId, dest.chainId),
+    );
+
+    if (bridgeDestinations.length === 0) {
+      return null;
+    }
+
+    return {
+      kind: "output_not_on_source",
+      sourceLabel,
+      inputToken: filled.inputCoin,
+      outputToken: filled.outputCoin,
+      destination: bridgeDestinations[0],
+      outputDestinations: bridgeDestinations,
+    };
+  }
+
+  if (!inputOnSelected && outputOnSelected) {
+    const inputSources = getChainsForToken(filled.inputCoin).filter(
+      (inputChain) =>
+        !sameChainRef(source, inputChain) &&
+        isLifiCrossEcosystemPair(inputChain.chainId, source.chainId),
+    );
+
+    if (inputSources.length === 0) {
+      return null;
+    }
+
+    return {
+      kind: "input_not_on_selected",
+      sourceLabel,
+      inputToken: filled.inputCoin,
+      outputToken: filled.outputCoin,
+      inputSource: inputSources[0],
+      inputSources,
+      destination: {
+        chainId: filled.chainId,
+        evmChainId: filled.evmChainId,
+        label: sourceLabel,
+      },
+      outputDestinations: [],
+    };
+  }
+
+  const inputSources = getChainsForToken(filled.inputCoin);
+  const outputDestinations = getChainsForToken(filled.outputCoin);
+  for (const inputChain of inputSources) {
+    for (const outputChain of outputDestinations) {
+      if (sameChainRef(inputChain, outputChain)) {
+        continue;
+      }
+      if (!isLifiCrossEcosystemPair(inputChain.chainId, outputChain.chainId)) {
+        continue;
+      }
+      if (sameChainRef(source, inputChain) || sameChainRef(source, outputChain)) {
+        continue;
+      }
+      return {
+        kind: "neither_on_selected",
+        sourceLabel,
+        inputToken: filled.inputCoin,
+        outputToken: filled.outputCoin,
+        inputSource: inputChain,
+        inputSources,
+        destination: outputChain,
+        outputDestinations,
+      };
+    }
+  }
+
+  return null;
 }
 
 export function formatCrossChainBridgeConfirmQuestion(mismatch: CrossChainSwapMismatch): string {
-  const { sourceLabel, outputToken, outputDestinations } = mismatch;
+  const { sourceLabel, inputToken, outputToken } = mismatch;
+
+  if (mismatch.kind === "input_not_on_selected" && mismatch.inputSource) {
+    return (
+      `${inputToken} isn't on ${sourceLabel} — it's on ${mismatch.inputSource.label}. ` +
+      `Did you mean to bridge ${inputToken} to ${outputToken} on ${sourceLabel}?`
+    );
+  }
+
+  if (mismatch.kind === "neither_on_selected" && mismatch.inputSource) {
+    return (
+      `${inputToken} and ${outputToken} aren't both available on ${sourceLabel}. ` +
+      `Did you mean to bridge from ${mismatch.inputSource.label} to ${mismatch.destination.label}?`
+    );
+  }
+
+  const { outputDestinations } = mismatch;
   if (outputDestinations.length === 1) {
     return (
       `This swap isn't supported on ${sourceLabel} — ${outputToken} is only on ${outputDestinations[0].label}. Did you mean to bridge?`
@@ -153,10 +237,27 @@ export function swapIntentToBridgeIntent(
   mismatch: CrossChainSwapMismatch,
 ): PartialBridgeIntent {
   const filled = withDefaultChain(intent);
+
+  if (mismatch.kind === "input_not_on_selected" && mismatch.inputSource) {
+    return {
+      originalMessage: filled.originalMessage,
+      fromChainId: mismatch.inputSource.chainId,
+      fromEvmChainId: mismatch.inputSource.evmChainId,
+      toChainId: filled.chainId,
+      toEvmChainId: filled.evmChainId,
+      fromToken: filled.inputCoin,
+      toToken: filled.outputCoin,
+      amount: filled.amount,
+    };
+  }
+
+  const fromChainId = mismatch.inputSource?.chainId ?? filled.chainId;
+  const fromEvmChainId = mismatch.inputSource?.evmChainId ?? filled.evmChainId;
+
   return {
     originalMessage: filled.originalMessage,
-    fromChainId: filled.chainId,
-    fromEvmChainId: filled.evmChainId,
+    fromChainId,
+    fromEvmChainId,
     toChainId: mismatch.destination.chainId,
     toEvmChainId: mismatch.destination.evmChainId,
     fromToken: filled.inputCoin,

@@ -24,6 +24,7 @@ import {
   continueWorkflowAfterApproval,
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
+import { hydrateSessionState } from "./workflow/agent-session-state.store.js";
 import { formatMarginManagerApprovalNote } from "./runtime/summarize-tool-result.js";
 import {
   buildCrossChainRoutesToolResult,
@@ -48,6 +49,10 @@ export async function handleChatMessage(
       throw new AppError(400, "CLARIFICATION_ANSWER_REQUIRED", "A clarification answer is required.");
     }
 
+    // Recover clarification / workflow state if this process lost it (restart or
+    // a different instance handled the original turn).
+    await hydrateSessionState(request.session_id);
+
     const continued = await continueWorkflowAfterClarification(
       privyUserId,
       request.session_id,
@@ -68,6 +73,9 @@ export async function handleChatMessage(
   }
 
   if (request.reject_transaction_id) {
+    if (request.session_id) {
+      await hydrateSessionState(request.session_id);
+    }
     const rejected = await rejectPendingTransaction(
       privyUserId,
       request.reject_transaction_id,
@@ -85,6 +93,11 @@ export async function handleChatMessage(
   }
 
   if (request.approve_transaction_id) {
+    // Recover the paused workflow so continueWorkflowAfterApproval can resume it
+    // after a restart / on another instance.
+    if (request.session_id) {
+      await hydrateSessionState(request.session_id);
+    }
     const outcome = await approvePendingTransaction(
       privyUserId,
       request.approve_transaction_id,
@@ -101,6 +114,49 @@ export async function handleChatMessage(
     if (outcome.ok) {
       const memoryBlock = formatMemoryBlock(await loadAgentMemory(privyUserId));
       const agentPermissions = await getAgentPermissions(privyUserId);
+
+      if (outcome.continuation_pending) {
+        // #region agent log
+        fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
+          body: JSON.stringify({
+            sessionId: "90234e",
+            location: "chat.service.ts:approve",
+            message: "continuation_pending_returned",
+            data: {
+              approvedId: request.approve_transaction_id,
+              continuationId: outcome.continuation_pending.id,
+              action: outcome.continuation_pending.action,
+            },
+            hypothesisId: "H2",
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
+        const destLabel =
+          outcome.continuation_pending.defi_preview?.receive?.chain_label ??
+          outcome.continuation_pending.chain_id;
+        const reply = `Source step submitted. Sign the destination transaction on ${destLabel} to complete the transfer.`;
+        const toolCalls: ChatResponse["tool_calls"] = [
+          {
+            name: EXECUTE_TRANSACTION_TOOL_NAME,
+            action: outcome.pending.action,
+            result: {
+              status: "executed",
+              agent_transaction_id: request.approve_transaction_id,
+              result: outcome.result,
+            },
+          },
+        ];
+        return persistApprovalTurn(
+          privyUserId,
+          request,
+          reply,
+          toolCalls,
+          outcome.continuation_pending,
+        );
+      }
 
       if (request.session_id) {
         const continued = await continueWorkflowAfterApproval(
@@ -166,21 +222,48 @@ export async function handleChatMessage(
 
     const txContext = transactionContextFromPending(outcome.pending);
 
-    return persistToolFailureTurn(privyUserId, request, {
-      toolName: EXECUTE_TRANSACTION_TOOL_NAME,
-      toolResult: {
-        error: {
-          code: outcome.error.code,
-          message: outcome.error.message,
-          ...(outcome.error.details !== undefined ? { details: outcome.error.details } : {}),
+    // #region agent log
+    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
+      body: JSON.stringify({
+        sessionId: "90234e",
+        location: "chat.service.ts:approve",
+        message: "approve_failed",
+        data: {
+          approvedId: request.approve_transaction_id,
+          errorCode: outcome.error.code,
+          errorMessage: outcome.error.message,
+          retryable: outcome.retryable ?? false,
         },
+        hypothesisId: "H4",
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
+    return persistToolFailureTurn(
+      privyUserId,
+      request,
+      {
+        toolName: EXECUTE_TRANSACTION_TOOL_NAME,
+        toolResult: {
+          error: {
+            code: outcome.error.code,
+            message: outcome.error.message,
+            ...(outcome.error.details !== undefined ? { details: outcome.error.details } : {}),
+          },
+        },
+        transactionContext: txContext,
+        userContext: buildTransactionErrorUserContext(
+          txContext,
+          "I clicked Approve on a pending transaction in the app.",
+        ),
       },
-      transactionContext: txContext,
-      userContext: buildTransactionErrorUserContext(
-        txContext,
-        "I clicked Approve on a pending transaction in the app.",
-      ),
-    });
+      {
+        pending_transaction: outcome.retryable ? outcome.pending : null,
+      },
+    );
   }
 
   return runChatTurnWithFallback(privyUserId, request);

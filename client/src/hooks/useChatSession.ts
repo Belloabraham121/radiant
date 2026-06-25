@@ -15,15 +15,17 @@ import {
   apiMessagesToChatMessages,
   mapToolCallsToMessageExtras,
   receiptFromExecutionStep,
+  mergeReceiptsFromExecutionStep,
   type ChatMessage,
 } from "@/lib/chat-messages";
 import {
   mapStreamStepToExecutionStep,
+  mapToolCallsToExecutionSteps,
   mergeExecutionSteps,
   sortExecutionSteps,
   upsertExecutionStep,
   executionStepFromPreviewResult,
-  type ExecutionStep,
+  type StreamExecutionStepPayload,
 } from "@/lib/chat-execution-steps";
 import {
   getAgentTransaction,
@@ -31,11 +33,15 @@ import {
   type AgentTransactionDetail,
 } from "@/lib/agent-transactions-api";
 import {
-  executionStepsForPendingApproval,
+  loadClaimableLifiContinuationPending,
+} from "@/lib/lifi-continuation-pending";
+import {
+  applyLifiTransactionStepsToMessages,
+  collectTrackedLifiTransactionIds,
   executionStepsFromAgentTransaction,
+  foldApproveOutcomeIntoLifiMessage,
   isInFlightLifiTransaction,
   mergeTransactionStepsIntoMessages,
-  optimisticApprovalMessageId,
 } from "@/lib/lifi-execution-tracking";
 import { agentStreamUrl } from "@/lib/agent-stream";
 import { ChatStreamAbortedError, postChatStream } from "@/lib/chat-stream";
@@ -56,6 +62,20 @@ import {
   subscribePreviewExecuteResult,
 } from "@/lib/preview-execute-result";
 import { clarificationAnswerDisplayText } from "@/lib/clarification-display";
+import { debugSessionLog } from "@/lib/debug-session-log";
+
+function isLifiDestinationContinuation(
+  pending: PendingTransaction | null | undefined,
+): boolean {
+  if (!pending) {
+    return false;
+  }
+  return (
+    pending.params?.lifi_continuation === true ||
+    pending.params?.approval_kind === "lifi_continue" ||
+    pending.defi_preview?.kind === "lifi_continue"
+  );
+}
 
 function initialChatSessionState(sessionId?: string) {
   if (!sessionId) {
@@ -121,13 +141,37 @@ export function useChatSession(sessionId?: string) {
   const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] =
     useState(false);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const pendingTxRef = useRef<PendingTransaction | null>(boot.pending_transaction);
+  const approvingRef = useRef(false);
+  const messagesRef = useRef<ChatMessage[]>(boot.messages);
+
+  useEffect(() => {
+    pendingTxRef.current = pendingTx;
+  }, [pendingTx]);
+
+  useEffect(() => {
+    approvingRef.current = approving;
+  }, [approving]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const applyPendingTransaction = useCallback(
     (
       pending: PendingTransaction | null,
       sessionKey?: string,
-      options?: { fromPreview?: boolean },
+      options?: { fromPreview?: boolean; debugSource?: string },
     ) => {
+      debugSessionLog("useChatSession.ts:applyPendingTransaction", "pending_tx_set", {
+        source: options?.debugSource ?? "unknown",
+        pendingId: pending?.id ?? null,
+        action: pending?.action ?? null,
+        isContinuation:
+          pending?.params?.lifi_continuation === true ||
+          pending?.params?.approval_kind === "lifi_continue",
+        approving: approvingRef.current,
+      }, "H1-H5");
       setPendingTx(pending);
       if (!pending) {
         setPendingTxRelayedToPreview(false);
@@ -145,6 +189,38 @@ export function useChatSession(sessionId?: string) {
       }
     },
     [],
+  );
+
+  const syncPendingContinuationFromSession = useCallback(
+    async (sessionKey: string, options?: { force?: boolean }) => {
+      if (!options?.force && pendingTxRef.current) {
+        return;
+      }
+
+      try {
+        const { items } = await listSessionAgentTransactions(sessionKey);
+        const pending = await loadClaimableLifiContinuationPending(items);
+        if (pending) {
+          debugSessionLog(
+            "useChatSession.ts:syncPendingContinuationFromSession",
+            "continuation_restored",
+            {
+              pendingId: pending.id,
+              action: pending.action,
+              force: options?.force ?? false,
+              approving: approvingRef.current,
+            },
+            "H1",
+          );
+          applyPendingTransaction(pending, sessionKey, {
+            debugSource: "syncPendingContinuationFromSession",
+          });
+        }
+      } catch {
+        // Best-effort — poll will retry.
+      }
+    },
+    [applyPendingTransaction],
   );
 
   useEffect(() => {
@@ -267,12 +343,16 @@ export function useChatSession(sessionId?: string) {
       }
     }
 
-    void loadSession();
+    void loadSession().then(() => {
+      if (!cancelled) {
+        void syncPendingContinuationFromSession(id);
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [boot.skipFetch, sessionId]);
+  }, [boot.skipFetch, sessionId, syncPendingContinuationFromSession]);
 
   useEffect(() => {
     if (!sessionId || hydrating) {
@@ -309,12 +389,16 @@ export function useChatSession(sessionId?: string) {
       }
     }
 
-    void hydrateInFlightLifiTransactions();
+    void hydrateInFlightLifiTransactions().then(() => {
+      if (!cancelled) {
+        void syncPendingContinuationFromSession(sessionId!, { force: true });
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [hydrating, sessionId]);
+  }, [hydrating, sessionId, syncPendingContinuationFromSession]);
 
   useEffect(() => {
     if (!activeSessionId) {
@@ -328,32 +412,38 @@ export function useChatSession(sessionId?: string) {
       try {
         const { items } = await listSessionAgentTransactions(activeSessionId!);
         const inFlight = items.filter(isInFlightLifiTransaction);
-        if (inFlight.length === 0 || cancelled) {
+        const trackedIds = collectTrackedLifiTransactionIds(messagesRef.current);
+        const pollIds = [
+          ...new Set([
+            ...inFlight.map((tx) => tx.id),
+            ...trackedIds,
+          ]),
+        ];
+
+        if (!pendingTxRef.current) {
+          await syncPendingContinuationFromSession(activeSessionId!, {
+            force: true,
+          });
+        }
+
+        if (pollIds.length === 0 || cancelled) {
           return;
         }
 
-        for (const tx of inFlight) {
-          const detail = await getAgentTransaction(tx.id);
+        for (const txId of pollIds) {
+          const detail = await getAgentTransaction(txId);
           if (cancelled) return;
           const steps = executionStepsFromAgentTransaction(
             detail,
             detail.result as Record<string, unknown> | null,
           );
-          if (!steps?.length || !detail.message_id) {
+          if (!steps?.length) {
             continue;
           }
 
           setMessages((current) =>
-            current.map((message) => {
-              if (message.id !== detail.message_id) {
-                return message;
-              }
-              return {
-                ...message,
-                executionSteps: sortExecutionSteps(
-                  mergeExecutionSteps(message.executionSteps ?? [], steps),
-                ),
-              };
+            applyLifiTransactionStepsToMessages(current, txId, steps, {
+              primaryMessageId: detail.message_id,
             }),
           );
         }
@@ -376,7 +466,7 @@ export function useChatSession(sessionId?: string) {
         clearTimeout(timer);
       }
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, syncPendingContinuationFromSession]);
 
   useEffect(() => {
     if (!activeSessionId) {
@@ -389,10 +479,7 @@ export function useChatSession(sessionId?: string) {
 
     function handleExecutionStep(event: MessageEvent<string>) {
       let payload: {
-        execution_step?: ExecutionStep & {
-          agent_transaction_id?: string;
-          chain_id?: string;
-        };
+        execution_step?: StreamExecutionStepPayload;
       };
       try {
         payload = JSON.parse(event.data) as typeof payload;
@@ -405,18 +492,17 @@ export function useChatSession(sessionId?: string) {
         return;
       }
 
-      const incoming = mapStreamStepToExecutionStep({
-        id: raw.id,
-        status: raw.status,
-        label: raw.label,
-        detail: raw.detail,
-        agent_transaction_id: raw.agent_transaction_id,
-        digest: raw.digest,
-        chain_id: raw.chain_id,
-        status_category: raw.status_category,
-      });
+      const incoming = mapStreamStepToExecutionStep(raw);
 
       setMessages((current) => {
+        if (incoming.agentTransactionId) {
+          return applyLifiTransactionStepsToMessages(
+            current,
+            incoming.agentTransactionId,
+            [incoming],
+          );
+        }
+
         const targetIndex = [...current]
           .reverse()
           .findIndex(
@@ -443,13 +529,16 @@ export function useChatSession(sessionId?: string) {
           const executionSteps = sortExecutionSteps(
             upsertExecutionStep(messageRow.executionSteps ?? [], incoming),
           );
-          const digestReceipt = receiptFromExecutionStep(incoming);
+          const receipts = mergeReceiptsFromExecutionStep(
+            messageRow.receipts,
+            incoming,
+          );
           return current.map((row, i) =>
             i === index
               ? {
                   ...row,
                   executionSteps,
-                  ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+                  ...(receipts ? { receipts } : {}),
                 }
               : row,
           );
@@ -463,13 +552,13 @@ export function useChatSession(sessionId?: string) {
         const executionSteps = sortExecutionSteps(
           upsertExecutionStep(messageRow.executionSteps ?? [], incoming),
         );
-        const digestReceipt = receiptFromExecutionStep(incoming);
+        const receipts = mergeReceiptsFromExecutionStep(messageRow.receipts, incoming);
         return current.map((row, i) =>
           i === index
             ? {
                 ...row,
                 executionSteps,
-                ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+                ...(receipts ? { receipts } : {}),
               }
             : row,
         );
@@ -548,12 +637,15 @@ export function useChatSession(sessionId?: string) {
                   const executionSteps = sortExecutionSteps(
                     upsertExecutionStep(message.executionSteps ?? [], nextStep),
                   );
-                  const digestReceipt = receiptFromExecutionStep(nextStep);
+                  const receipts = mergeReceiptsFromExecutionStep(
+                    message.receipts,
+                    nextStep,
+                  );
                   return {
                     ...message,
                     statusCategory: step.status_category ?? stepCategory,
                     executionSteps,
-                    ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
+                    ...(receipts ? { receipts } : {}),
                   };
                 }),
               );
@@ -722,21 +814,21 @@ export function useChatSession(sessionId?: string) {
     if (!pendingTx || approving) return;
 
     const snapshot = pendingTx;
-    const optimisticId = optimisticApprovalMessageId(snapshot.id);
+
+    debugSessionLog("useChatSession.ts:approvePending", "approve_start", {
+      pendingId: snapshot.id,
+      action: snapshot.action,
+      isContinuation:
+        snapshot.params?.lifi_continuation === true ||
+        snapshot.params?.approval_kind === "lifi_continue",
+      runId: "post-fix",
+    }, "H2-H4");
 
     setApproving(true);
     setChatError(null);
-    applyPendingTransaction(null);
-    setMessages((current) => [
-      ...current,
-      {
-        id: optimisticId,
-        role: "agent",
-        text: "",
-        executionSteps: executionStepsForPendingApproval(snapshot),
-        statusCategory: "defi",
-      },
-    ]);
+    applyPendingTransaction(null, undefined, {
+      debugSource: "approvePending:dismiss",
+    });
 
     try {
       const data = await postChat({
@@ -746,32 +838,136 @@ export function useChatSession(sessionId?: string) {
       });
 
       setActiveSessionId(data.session_id);
-      applyPendingTransaction(
-        data.pending_transaction ?? null,
-        data.session_id,
+      const isToolFailure = data.tool_calls.some(
+        (call) =>
+          call.name === "execute_transaction" &&
+          typeof call.result === "object" &&
+          call.result !== null &&
+          "error" in call.result,
       );
+      debugSessionLog("useChatSession.ts:approvePending", "approve_response", {
+        pendingId: data.pending_transaction?.id ?? null,
+        action: data.pending_transaction?.action ?? null,
+        replyPreview: data.reply?.slice(0, 120) ?? null,
+        isContinuation:
+          data.pending_transaction?.params?.lifi_continuation === true ||
+          data.pending_transaction?.params?.approval_kind === "lifi_continue",
+        sameAsSnapshot: data.pending_transaction?.id === snapshot.id,
+        isToolFailure,
+        clearedOnSuccess:
+          !isToolFailure && !isLifiDestinationContinuation(data.pending_transaction),
+        runId: "post-fix",
+      }, "H2-H3");
+      const nextPending = isToolFailure
+        ? (data.pending_transaction ?? null)
+        : isLifiDestinationContinuation(data.pending_transaction)
+          ? data.pending_transaction
+          : null;
+      applyPendingTransaction(nextPending, data.session_id, {
+        debugSource: "approvePending:response",
+      });
       setPendingClarification(data.pending_clarification ?? null);
-      setMessages((current) => [
-        ...current.filter((message) => message.id !== optimisticId),
-        {
-          id: data.message_id,
-          role: "agent",
-          text: data.reply,
-          ...mapToolCallsToMessageExtras(data.tool_calls),
-          ...(data.tool_calls.some(
-            (call) =>
-              call.name === "execute_transaction" &&
-              typeof call.result === "object" &&
-              call.result !== null &&
-              "result" in call.result &&
-              (((call.result as { result?: { effects_status?: string } }).result
-                ?.effects_status === "pending") ||
-                (call.result as { result?: { lifi?: unknown } }).result?.lifi),
-          )
-            ? { statusCategory: "defi" as const }
-            : {}),
-        },
-      ]);
+      if (isToolFailure && data.pending_transaction) {
+        setChatError(data.reply);
+      } else if (!isToolFailure) {
+        setChatError(null);
+      }
+
+      const approvedSteps = mapToolCallsToExecutionSteps(data.tool_calls);
+      const approveExtras = mapToolCallsToMessageExtras(data.tool_calls);
+      const { executionSteps: _omitSteps, ...approveMessageExtras } =
+        approveExtras;
+
+      setMessages((current) => {
+        if (isToolFailure) {
+          return [
+            ...current,
+            {
+              id: `u-approve-${Date.now()}`,
+              role: "user",
+              text: "Approve transaction",
+            },
+            {
+              id: data.message_id,
+              role: "agent",
+              text: data.reply,
+              ...approveExtras,
+            },
+          ];
+        }
+
+        const folded = foldApproveOutcomeIntoLifiMessage(current, snapshot.id, {
+          reply: data.reply,
+          steps: approvedSteps,
+          receipts: approveExtras.receipts,
+        });
+
+        debugSessionLog(
+          "useChatSession.ts:approvePending",
+          "approve_fold",
+          {
+            folded: folded.folded,
+            transactionId: snapshot.id,
+            stepIds: approvedSteps?.map((step) => `${step.id}:${step.status}`) ?? [],
+            runId: "post-fix",
+          },
+          "H2-H5",
+        );
+
+        if (folded.folded) {
+          return folded.messages;
+        }
+
+        return [
+          ...current,
+          {
+            id: `u-approve-${Date.now()}`,
+            role: "user",
+            text: "Approve transaction",
+          },
+          {
+            id: data.message_id,
+            role: "agent",
+            text: data.reply,
+            ...approveMessageExtras,
+          },
+        ];
+      });
+
+      if (!isToolFailure) {
+        void (async () => {
+          try {
+            const detail = await getAgentTransaction(snapshot.id);
+            const steps = executionStepsFromAgentTransaction(
+              detail,
+              detail.result as Record<string, unknown> | null,
+            );
+            if (!steps?.length) {
+              return;
+            }
+            debugSessionLog(
+              "useChatSession.ts:approvePending",
+              "approve_immediate_poll",
+              {
+                transactionId: snapshot.id,
+                trackingStatus: (
+                  detail.result as Record<string, unknown> | null
+                )?.tracking_status,
+                stepIds: steps.map((step) => `${step.id}:${step.status}`),
+                runId: "post-fix",
+              },
+              "H1-H3",
+            );
+            setMessages((current) =>
+              applyLifiTransactionStepsToMessages(current, snapshot.id, steps, {
+                primaryMessageId: detail.message_id,
+              }),
+            );
+          } catch {
+            // Ignore transient refresh failures; background poll will retry.
+          }
+        })();
+      }
 
       if (data.artifact) {
         const artifactSessionKey = activeSessionId ?? data.session_id;
@@ -785,10 +981,14 @@ export function useChatSession(sessionId?: string) {
           ? (messageForChatStreamError(err.code) ?? err.message)
           : "Approval failed. Try again.";
       setChatError(message);
-      applyPendingTransaction(snapshot);
-      setMessages((current) =>
-        current.filter((message) => message.id !== optimisticId),
-      );
+      debugSessionLog("useChatSession.ts:approvePending", "approve_error", {
+        pendingId: snapshot.id,
+        error: message,
+        runId: "post-fix",
+      }, "H4");
+      applyPendingTransaction(snapshot, undefined, {
+        debugSource: "approvePending:error_restore",
+      });
     } finally {
       setApproving(false);
     }

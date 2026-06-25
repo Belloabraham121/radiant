@@ -202,6 +202,11 @@ export async function synthesizeTurnReply(input: {
   return reply;
 }
 
+function fallbackErrorExplanationMessage(toolResult: AgentToolErrorResult): string {
+  const message = toolResult.error.message?.trim();
+  return message || "Something went wrong. Try again in a moment.";
+}
+
 export async function synthesizeErrorExplanationReply(input: {
   toolName: string;
   toolResult: AgentToolErrorResult;
@@ -215,7 +220,7 @@ export async function synthesizeErrorExplanationReply(input: {
 }): Promise<string> {
   const { apiKey, model } = getOpenAiConfig();
   if (!apiKey) {
-    throw new AppError(503, "OPENAI_NOT_CONFIGURED", "OPENAI_API_KEY is not set");
+    return fallbackErrorExplanationMessage(input.toolResult);
   }
 
   const client = new OpenAI({ apiKey });
@@ -253,10 +258,7 @@ export async function synthesizeErrorExplanationReply(input: {
       userContext: input.userContext,
       compoundRequest: input.compoundRequest,
     });
-  } catch (err) {
-    if (err instanceof AppError) {
-      throw err;
-    }
-    throw new AppError(502, "ERROR_EXPLANATION_FAILED", "Could not generate an error explanation.");
+  } catch {
+    return fallbackErrorExplanationMessage(input.toolResult);
   }
 }

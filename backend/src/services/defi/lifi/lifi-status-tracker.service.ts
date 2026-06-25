@@ -4,12 +4,16 @@ import {
   markLifiTerminal,
   updateLifiTrackingProgress,
 } from "../../agent-transaction/agent-transaction.service.js";
+import { maybeCreateLifiContinuationFromTracking } from "../../agent/transaction-approval.service.js";
 import { emitAgentStreamExecutionStep } from "../../agent/agent-stream-lifi.js";
 import type { ExecutionProgressStep } from "../../agent/execution-progress.types.js";
 import type { ChainId, TxResult } from "../../chains/types.js";
 import { getLifiCrossChainStatus } from "./lifi-status.service.js";
 import {
-  formatLifiEtaLabel,
+  lifiBridgeStepLabel,
+  lifiCountdownStepFields,
+} from "./lifi-countdown.js";
+import {
   isTerminalLifiStatus,
   lifiStatusInputFromTracking,
   mergeLifiStatusIntoTracking,
@@ -28,13 +32,14 @@ function lifiExecutionSteps(input: {
   evmChainId?: number;
   terminal?: CrossChainStatusResult | null;
 }): ExecutionProgressStep[] {
-  const eta = formatLifiEtaLabel(input.tracking.estimated_duration_seconds);
+  const countdownFields = lifiCountdownStepFields(input.tracking);
   const meta = {
     agent_transaction_id: input.transactionId,
     chain_id: input.chainId,
     ...(input.digest ? { digest: input.digest } : {}),
     ...(input.evmChainId !== undefined ? { evm_chain_id: input.evmChainId } : {}),
     status_category: "defi" as const,
+    ...countdownFields,
   };
 
   const steps: ExecutionProgressStep[] = [
@@ -68,7 +73,7 @@ function lifiExecutionSteps(input: {
       {
         id: "lifi-bridge",
         status: "ok",
-        label: eta,
+        label: lifiBridgeStepLabel(input.tracking, "done"),
         detail: input.tracking.substatus_message ?? "Bridge confirmed",
         ...meta,
       },
@@ -89,7 +94,7 @@ function lifiExecutionSteps(input: {
       {
         id: "lifi-bridge",
         status: "failed",
-        label: eta,
+        label: lifiBridgeStepLabel(input.tracking, "failed"),
         detail:
           input.tracking.substatus_message ??
           input.terminal?.substatus_message ??
@@ -110,7 +115,7 @@ function lifiExecutionSteps(input: {
   steps.push({
     id: "lifi-bridge",
     status: "running",
-    label: eta,
+    label: lifiBridgeStepLabel(input.tracking, "running"),
     detail:
       input.tracking.substatus_message ??
       input.terminal?.substatus_message ??
@@ -226,6 +231,22 @@ export async function runLifiTrackingPollCycle(input: LifiTrackJobInput): Promis
     tracking: input.tracking,
     status,
   });
+
+  if (!outcome.terminal) {
+    const updatedRow = await findAgentTransactionById(input.transactionId);
+    const mergedTracking =
+      readLifiTrackingFromTxResult((updatedRow?.result as TxResult | null) ?? null) ??
+      mergeLifiStatusIntoTracking(input.tracking, status);
+
+    await maybeCreateLifiContinuationFromTracking({
+      privyUserId: input.privyUserId,
+      sessionId: input.sessionId,
+      parentParams: (row.params as Record<string, unknown>) ?? {},
+      tracking: mergedTracking,
+      status,
+      result: (updatedRow?.result as TxResult | null) ?? null,
+    });
+  }
 
   return { terminal: outcome.terminal, status: status.status };
 }

@@ -240,6 +240,11 @@ async function finishResolvedSwapIntent(
     };
   }
 
+  const crossChainGap = collectSwapClarificationGap(resolved);
+  if (crossChainGap) {
+    return startSwapClarification(sessionId, resolved, crossChainGap);
+  }
+
   if (resolved.chainId !== "sui") {
     const networkLabel =
       resolved.chainId === "ethereum" && resolved.evmChainId !== undefined
