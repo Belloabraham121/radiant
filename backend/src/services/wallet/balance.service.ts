@@ -1,4 +1,6 @@
 import { getDefaultAgentChainId } from "../../config/chains.js";
+import { getDefiCacheConfig } from "../../config/defi-cache.js";
+import { defiBalanceCacheKey, defiCachedFetch } from "../defi/cache.js";
 import { getAdapter } from "../chains/registry.js";
 import type { BalanceContext, BalanceResult, ChainId } from "../chains/types.js";
 import type { WalletBalanceData } from "./wallet.types.js";
@@ -11,8 +13,13 @@ export async function getBalanceForAddress(
   address: string,
   context?: BalanceContext,
 ): Promise<BalanceResult> {
-  const adapter = getAdapter(chainId);
-  return adapter.getBalance(address, context);
+  const cacheKey = defiBalanceCacheKey(chainId, address, context?.evm_chain_id);
+  const ttl = getDefiCacheConfig().balanceCacheTtlSeconds;
+
+  return defiCachedFetch(cacheKey, ttl, async () => {
+    const adapter = getAdapter(chainId);
+    return adapter.getBalance(address, context);
+  });
 }
 
 export async function getBalanceForAddressOnDefaultChain(

@@ -97,8 +97,26 @@ model ChatSession {
   agent_transactions AgentTransaction[]
   projects           Project[]
   draft              ChatSessionDraft?
+  agent_state        AgentSessionState?
 
   @@index([user_id, updated_at(sort: Desc)])
+}
+
+/**
+ * Durable snapshot of in-flight agent session state (pending clarification +
+ * paused workflow run) so it survives server restarts/deploys and works across
+ * instances. One row per chat session; the runtime keeps a fast in-memory copy
+ * and rehydrates from here on a cache miss.
+ */
+model AgentSessionState {
+  session_id    String      @id @db.Uuid
+  session       ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  clarification Json?
+  workflow      Json?
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+
+  @@index([updated_at])
 }
 
 model ChatSessionDraft {

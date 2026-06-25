@@ -2,7 +2,9 @@
 
 import { Check, Circle, ExternalLink, Loader2, Minus, X } from "lucide-react";
 import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
+import { LifiCountdownLabel } from "@/components/app/LifiCountdownLabel";
 import type { ExecutionStep } from "@/lib/chat-execution-steps";
+import { executionStepHasLifiCountdown } from "@/lib/lifi-countdown";
 import { inferStatusCategoryFromExecutionSteps } from "@/lib/agent-status-category";
 import type { AgentStatusCategory } from "@/lib/agent-status-category";
 import { explorerLinkLabel, explorerUrlForDigest } from "@/lib/explorer-tx-link";
@@ -76,7 +78,8 @@ export function ExecutionTimeline({
         {steps.map((step, index) => {
           const explorerUrl = explorerUrlForDigest(
             step.digest,
-            step.chainId ?? "sui",
+            step.chainId,
+            step.evmChainId,
           );
           const isLast = index === steps.length - 1;
           const isActive = live && step.status === "running";
@@ -100,7 +103,16 @@ export function ExecutionTimeline({
                 <p
                   className={`text-xs font-bold ${isActive ? "text-[var(--hero-blue)]" : "text-[var(--hero-ink)]"}`}
                 >
-                  {step.label}
+                  {executionStepHasLifiCountdown(step) ? (
+                    <LifiCountdownLabel
+                      kind={step.countdownKind ?? "bridge"}
+                      startedAt={step.bridgeStartedAt!}
+                      durationSeconds={step.estimatedDurationSeconds!}
+                      fallbackLabel={step.label}
+                    />
+                  ) : (
+                    step.label
+                  )}
                 </p>
                 {step.detail ? (
                   <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-[var(--hero-ink)]/55">

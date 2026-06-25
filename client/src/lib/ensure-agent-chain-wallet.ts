@@ -18,6 +18,7 @@ export type ChainWalletCreators = {
   sui: () => Promise<CreatedWalletPayload>;
   ethereum: () => Promise<CreatedWalletPayload>;
   solana: () => Promise<CreatedWalletPayload>;
+  stellar: () => Promise<CreatedWalletPayload>;
 };
 
 function normalizeCreatedWallet(result: CreatedWalletPayload): PrivyEmbeddedWalletRef {
@@ -53,6 +54,8 @@ async function resolveOrCreateWallet(
       return normalizeCreatedWallet(await creators.ethereum());
     case "solana":
       return normalizeCreatedWallet(await creators.solana());
+    case "stellar":
+      return normalizeCreatedWallet(await creators.stellar());
     default: {
       const _exhaustive: never = chainId;
       throw new Error(`Unsupported chain: ${_exhaustive}`);

@@ -35,6 +35,15 @@ export function getClarificationById(id: string): SessionClarificationState | nu
   return clarificationsById.get(id) ?? null;
 }
 
+/**
+ * Re-insert a clarification loaded from durable storage (Redis/DB) without
+ * minting a new id — used to rehydrate the in-memory cache after a restart.
+ */
+export function restoreClarification(state: SessionClarificationState): void {
+  clarificationsById.set(state.id, state);
+  clarificationsBySession.set(state.sessionId, state);
+}
+
 export function getSessionClarification(sessionId: string): SessionClarificationState | null {
   pruneExpired();
   return clarificationsBySession.get(sessionId) ?? null;

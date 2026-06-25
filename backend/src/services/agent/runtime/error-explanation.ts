@@ -83,6 +83,14 @@ export function buildErrorExplanationInstructions(input: {
               "If the error mentions network gas, explain the wallet needs SUI for gas in addition to the swap amount — suggest a smaller swap or adding SUI.",
           );
           break;
+        case "cross_chain_swap":
+        case "lifi_approve":
+          parts.push(
+            "The failure is about an EVM cross-chain bridge or swap from the agent wallet. " +
+              "Explain the user needs enough of the source token on the specific EVM network (e.g. Base, Arbitrum, Ethereum) AND native ETH on that same network for gas. " +
+              "Suggest funding the agent wallet on that network or using a smaller amount.",
+          );
+          break;
         default:
           parts.push(
             "Explain which balance is too low (wallet vs DeepBook manager) based on what they were trying to do.",
@@ -194,6 +202,11 @@ export async function synthesizeTurnReply(input: {
   return reply;
 }
 
+function fallbackErrorExplanationMessage(toolResult: AgentToolErrorResult): string {
+  const message = toolResult.error.message?.trim();
+  return message || "Something went wrong. Try again in a moment.";
+}
+
 export async function synthesizeErrorExplanationReply(input: {
   toolName: string;
   toolResult: AgentToolErrorResult;
@@ -207,7 +220,7 @@ export async function synthesizeErrorExplanationReply(input: {
 }): Promise<string> {
   const { apiKey, model } = getOpenAiConfig();
   if (!apiKey) {
-    throw new AppError(503, "OPENAI_NOT_CONFIGURED", "OPENAI_API_KEY is not set");
+    return fallbackErrorExplanationMessage(input.toolResult);
   }
 
   const client = new OpenAI({ apiKey });
@@ -245,10 +258,7 @@ export async function synthesizeErrorExplanationReply(input: {
       userContext: input.userContext,
       compoundRequest: input.compoundRequest,
     });
-  } catch (err) {
-    if (err instanceof AppError) {
-      throw err;
-    }
-    throw new AppError(502, "ERROR_EXPLANATION_FAILED", "Could not generate an error explanation.");
+  } catch {
+    return fallbackErrorExplanationMessage(input.toolResult);
   }
 }

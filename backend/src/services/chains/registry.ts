@@ -3,6 +3,7 @@ import type { ChainConfig } from "../../config/chains.js";
 import { AppError } from "../../errors/app-error.js";
 import { evmAdapter } from "./adapters/evm.js";
 import { solanaAdapter } from "./adapters/solana.js";
+import { stellarAdapter } from "./adapters/stellar.js";
 import { suiAdapter } from "./adapters/sui.js";
 import type { ChainAdapter, ChainId } from "./types.js";
 import { chainIdSchema } from "./types.js";
@@ -11,6 +12,7 @@ const adapters: Record<ChainId, ChainAdapter | undefined> = {
   sui: suiAdapter,
   ethereum: evmAdapter,
   solana: solanaAdapter,
+  stellar: stellarAdapter,
 };
 
 export function parseChainId(value: string): ChainId {

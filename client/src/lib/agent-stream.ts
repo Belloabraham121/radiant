@@ -4,6 +4,7 @@ export const AGENT_STREAM_SSE_EVENT_TYPES = [
   "agent_thinking",
   "agent_action",
   "agent_step",
+  "execution_step",
   "agent_done",
   "agent_error",
 ] as const;

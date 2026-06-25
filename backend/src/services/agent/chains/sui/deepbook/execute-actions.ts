@@ -1,0 +1,160 @@
+export const DEEPBOOK_EXECUTE_ACTIONS = [
+  "deepbook_provision_manager",
+  "deepbook_deposit",
+  "deepbook_withdraw",
+  "swap",
+  "deepbook_swap",
+  "deepbook_place_limit_order",
+  "deepbook_place_market_order",
+  "deepbook_cancel_order",
+  "deepbook_cancel_orders",
+  "deepbook_cancel_all_orders",
+  "deepbook_modify_order",
+  "deepbook_withdraw_settled_amounts",
+  "deepbook_withdraw_settled_amounts_permissionless",
+  "deepbook_flash_loan",
+  "deepbook_stake",
+  "deepbook_unstake",
+  "deepbook_submit_proposal",
+  "deepbook_vote",
+  "deepbook_margin_deposit",
+  "deepbook_margin_withdraw",
+  "deepbook_margin_borrow",
+  "deepbook_margin_repay",
+  "deepbook_margin_place_limit_order",
+  "deepbook_margin_place_market_order",
+  "deepbook_margin_cancel_order",
+  "deepbook_margin_modify_order",
+  "deepbook_margin_place_reduce_only_limit_order",
+  "deepbook_margin_place_reduce_only_market_order",
+  "deepbook_margin_cancel_orders",
+  "deepbook_margin_cancel_all_orders",
+  "deepbook_margin_withdraw_settled",
+  "deepbook_margin_withdraw_settled_permissionless",
+  "deepbook_margin_update_price",
+  "deepbook_margin_stake",
+  "deepbook_margin_unstake",
+  "deepbook_margin_submit_proposal",
+  "deepbook_margin_vote",
+  "deepbook_margin_claim_rebate",
+  "deepbook_margin_liquidate",
+  "deepbook_margin_set_referral",
+  "deepbook_margin_unset_referral",
+  "deepbook_margin_supply_pool",
+  "deepbook_margin_withdraw_pool",
+  "deepbook_margin_mint_supply_referral",
+  "deepbook_margin_withdraw_referral_fees",
+  "deepbook_margin_maintainer_create_pool",
+  "deepbook_margin_maintainer_enable_pool_for_loan",
+  "deepbook_margin_maintainer_disable_pool_for_loan",
+  "deepbook_margin_maintainer_update_interest_params",
+  "deepbook_margin_maintainer_update_pool_config",
+  "deepbook_margin_maintainer_withdraw_maintainer_fees",
+  "deepbook_margin_maintainer_withdraw_protocol_fees",
+  "deepbook_margin_maintainer_admin_withdraw_default_referral_fees",
+  "deepbook_margin_tpsl_add",
+  "deepbook_margin_tpsl_cancel",
+  "deepbook_margin_tpsl_cancel_all",
+  "deepbook_margin_tpsl_execute",
+  "deepbook_provision_margin_manager",
+  "deepbook_predict_deposit",
+  "deepbook_predict_withdraw",
+  "deepbook_predict_mint",
+  "deepbook_predict_redeem",
+  "deepbook_predict_mint_range",
+  "deepbook_predict_redeem_range",
+  "deepbook_predict_supply",
+  "deepbook_predict_lp_withdraw",
+] as const;
+
+export const DEEPBOOK_EXECUTE_SCHEMA = {
+  actionDescription:
+    "Sui DeepBook: deepbook_provision_manager, deepbook_deposit, deepbook_withdraw, swap (alias deepbook_swap), " +
+    "deepbook_place_limit_order, deepbook_place_market_order, deepbook_cancel_order, deepbook_cancel_orders, " +
+    "deepbook_cancel_all_orders, deepbook_modify_order, deepbook_withdraw_settled_amounts, " +
+    "deepbook_withdraw_settled_amounts_permissionless, deepbook_flash_loan, deepbook_stake, deepbook_unstake, " +
+    "deepbook_submit_proposal, deepbook_vote, deepbook_margin_*, deepbook_predict_*, deepbook_provision_margin_manager.",
+  paramsDescription:
+    "deepbook_provision_manager: {} — create on-chain balance manager (gas only, no token deposit). " +
+    "deepbook_deposit/withdraw: { coin_key, amount_display } or { coin_key, withdraw_all: true } for full balance. " +
+    "swap/deepbook_swap: { pool_key?, amount, side: buy|sell, pay_with_deep?, slippage_bps?, estimated_out_display? }. " +
+    "deepbook_place_limit_order: { pool_key?, price, quantity, side: buy|sell, pay_with_deep?, client_order_id? }. " +
+    "deepbook_place_market_order: { pool_key?, quantity, side: buy|sell, pay_with_deep?, client_order_id? }. " +
+    "deepbook_cancel_order: { pool_key?, order_id }. " +
+    "deepbook_cancel_orders: { pool_key?, order_ids: string[] }. " +
+    "deepbook_cancel_all_orders: { pool_key? }. " +
+    "deepbook_modify_order: { pool_key?, order_id, quantity } — SDK modifies size only, not price. " +
+    "deepbook_withdraw_settled_amounts: { pool_key? }. " +
+    "deepbook_withdraw_settled_amounts_permissionless: { pool_key? }. " +
+    "deepbook_flash_loan: { pool_key?, borrow_amount, asset: base|quote or coin_key matching pool, strategy?: round_trip | swap_chain_repay, steps?: [{ pool_key, side: buy|sell, amount, min_out_display? }], slippage_bps?, repay_source?: swap_output } — " +
+    "pool_key is borrow pool; asset base|quote is borrowed side (USDC on SUI_USDC = quote). swap_chain_repay: quote first; steps optional (auto-routed if omitted). Requires allow_flash_loans in Settings. " +
+    "deepbook_stake: { pool_key?, amount_display } — stake DEEP from balance manager into pool for fee discounts. Deposit DEEP to manager first if needed. " +
+    "deepbook_unstake: { pool_key? } — unstake all active DEEP from the pool back to the balance manager. " +
+    "deepbook_submit_proposal: { pool_key?, taker_fee, maker_fee, stake_required } — propose next-epoch trade params; requires Allow governance in Settings and active stake. " +
+    "deepbook_vote: { pool_key?, proposal_id } — vote for a proposal by Sui object ID; requires Allow governance in Settings and active stake. " +
+    "deepbook_margin_deposit: { margin_manager_key, coin_type: base|quote|deep, amount }. " +
+    "deepbook_margin_withdraw: { margin_manager_key, coin_type, amount }. " +
+    "deepbook_margin_borrow: { margin_manager_key, asset: base|quote, amount }. " +
+    "deepbook_margin_repay: { margin_manager_key, asset, amount? }. " +
+    "deepbook_margin_place_limit_order: { pool_key, margin_manager_key, price, quantity, is_bid, pay_with_deep? }. " +
+    "deepbook_margin_place_market_order: { pool_key, margin_manager_key, quantity, is_bid }. " +
+    "deepbook_margin_cancel_order: { margin_manager_key, order_id }. " +
+    "deepbook_margin_modify_order: { margin_manager_key, order_id, new_quantity }. " +
+    "deepbook_margin_place_reduce_only_limit_order: { pool_key, margin_manager_key, price, quantity, is_bid, pay_with_deep? }. " +
+    "deepbook_margin_place_reduce_only_market_order: { pool_key, margin_manager_key, quantity, is_bid, pay_with_deep? }. " +
+    "deepbook_margin_cancel_orders: { margin_manager_key, order_ids: string[] }. " +
+    "deepbook_margin_cancel_all_orders: { margin_manager_key, pool_key? }. " +
+    "deepbook_margin_withdraw_settled: { margin_manager_key, pool_key? }. " +
+    "deepbook_margin_withdraw_settled_permissionless: { margin_manager_key, pool_key? }. " +
+    "deepbook_margin_update_price: { margin_manager_key, pool_key } — refresh Pyth oracle for margin pool. " +
+    "deepbook_margin_stake: { margin_manager_key, pool_key?, amount_display } — stake DEEP from margin manager (deposit DEEP first). " +
+    "deepbook_margin_unstake: { margin_manager_key, pool_key? }. " +
+    "deepbook_margin_submit_proposal: { margin_manager_key, pool_key?, taker_fee, maker_fee, stake_required } — requires Allow governance in Settings. " +
+    "deepbook_margin_vote: { margin_manager_key, pool_key?, proposal_id } — requires Allow governance in Settings. " +
+    "deepbook_margin_claim_rebate: { margin_manager_key, pool_key? }. " +
+    "deepbook_margin_liquidate: { margin_manager_address, pool_key?, repay_amount, debt_is_base? | asset? } — permissionless liquidation; provide repay coin from wallet. " +
+    "deepbook_margin_set_referral: { margin_manager_key, referral_id }. deepbook_margin_unset_referral: { margin_manager_key, pool_key? }. " +
+    "deepbook_provision_margin_manager: { pool_key, coin_type?, amount? } — optional atomic initial deposit during create. " +
+    "deepbook_margin_tpsl_add: { pool_key?, margin_manager_key?, tpsl_type: take_profit|stop_loss, trigger_price, order_kind?: limit|market, quantity, price? (limit), is_bid or side }. " +
+    "deepbook_margin_tpsl_cancel: { margin_manager_key?, conditional_order_id }. " +
+    "deepbook_margin_tpsl_cancel_all: { margin_manager_key?, pool_key? }. " +
+    "deepbook_margin_tpsl_execute: { pool_key?, max_orders? } — execute triggered conditional orders (permissionless keeper). " +
+    "deepbook_predict_deposit: { amount, quote_asset? }. " +
+    "deepbook_predict_withdraw: { amount, quote_asset? }. " +
+    "deepbook_predict_mint: { oracle_id, expiry, strike, is_up, quantity }. " +
+    "deepbook_predict_redeem: { oracle_id, expiry, strike, is_up, quantity }. " +
+    "deepbook_predict_mint_range: { oracle_id, expiry, lower_strike, higher_strike, quantity }. " +
+    "deepbook_predict_redeem_range: { oracle_id, expiry, lower_strike, higher_strike, quantity }. " +
+    "deepbook_predict_supply: { amount, quote_asset? }. deepbook_predict_lp_withdraw: { plp_amount, quote_asset? }. " +
+    "execute_bytes: { transaction_bytes } (base64).",
+};
+
+/** Query types gated by agent permissions. */
+export const DEEPBOOK_FLASH_LOAN_QUERIES = ["flash_loan_quote"] as const;
+export const DEEPBOOK_GOVERNANCE_QUERIES = [
+  "deepbook_stake_balance",
+  "deepbook_stake_required",
+  "deepbook_governance_state",
+] as const;
+export const DEEPBOOK_MARGIN_QUERIES = [
+  "margin_pool_info",
+  "margin_manager_info",
+  "margin_tpsl_info",
+  "margin_open_orders",
+  "margin_liquidations",
+  "margin_collateral_history",
+  "margin_loan_history",
+  "margin_at_risk_states",
+  "margin_managers_info",
+  "margin_manager_created",
+  "margin_supply_history",
+  "margin_indexer_supply",
+  "margin_manager_state",
+] as const;
+export const DEEPBOOK_PREDICT_QUERIES = [
+  "predict_markets",
+  "predict_trade_amounts",
+  "predict_range_amounts",
+  "predict_manager_info",
+  "predict_vault_summary",
+] as const;

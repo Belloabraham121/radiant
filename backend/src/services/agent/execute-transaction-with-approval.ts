@@ -8,7 +8,7 @@ import {
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 import type { ExecuteToolOutcome } from "./agent.types.js";
-import { runExecuteTransactionTool } from "./execute-transaction.tool.js";
+import { runExecuteTransactionTool } from "./tools/execute-transaction.tool.js";
 import {
   createPendingTransaction,
   transferRequiresApproval,
@@ -17,34 +17,25 @@ import {
   resolveExecuteTransactionOptions,
   type AgentToolOptions,
 } from "./execute-transaction-context.js";
-import { validateExecuteTransactionInput } from "./deepbook/validate-execute-transaction.js";
+import { validateExecuteTransactionInput } from "./chains/sui/deepbook/validate.js";
 import { validateExecuteTransactionToolPolicy } from "./tool-arg-policy.js";
+import { getEnabledChainConfigs } from "../../config/chains.js";
+import { runExecutePreflightHooks } from "./chains/registry.js";
 import {
   recordAutoExecuted,
   markCompleted,
+  markLifiSubmitted,
 } from "../agent-transaction/agent-transaction.service.js";
+import { enqueueLifiCrossChainTrackingJob, enqueueLifiSwapTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
+import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
 import {
-  isDeepBookSwapAction,
-  preflightDeepBookSwap,
-} from "../defi/deepbook/deepbook-swap.service.js";
-import {
-  preflightDeepBookPlaceLimitOrder,
-  preflightDeepBookPlaceMarketOrder,
-  preflightDeepBookModifyOrder,
-  preflightDeepBookWithdrawSettled,
-  preflightDeepBookWithdrawSettledPermissionless,
-} from "../defi/deepbook/deepbook-orders.service.js";
-import { preflightDeepBookWithdraw } from "../defi/deepbook/deepbook-balance-manager.service.js";
-import {
-  isDeepBookFlashLoanAction,
-  preflightDeepBookFlashLoan,
-} from "../defi/deepbook/deepbook-flash-loan.service.js";
-import { isDeepBookMarginAction } from "../defi/deepbook/deepbook-margin.service.js";
-import { preflightMarginAction } from "../defi/deepbook/deepbook-margin-execution.service.js";
-import {
-  isDeepBookMarginMaintainerAction,
-  preflightMarginMaintainerAction,
-} from "../defi/deepbook/deepbook-margin-maintainer.service.js";
+  readLifiTrackingFromTxResult,
+  shouldEnqueueLifiCrossChainTracking,
+  shouldEnqueueLifiSwapTracking,
+} from "../defi/lifi/lifi-tracking.js";
+import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
+import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
+import { runWithLifiExecuteContext } from "../defi/lifi/lifi-execute-context.js";
 
 type ExecuteWithApprovalHandler = (
   privyUserId: string,
@@ -95,36 +86,8 @@ export async function runExecuteTransactionToolWithApproval(
         source: opts.source,
       });
       if (needsApproval) {
-        if (isDeepBookSwapAction(input.action)) {
-          await preflightDeepBookSwap(privyUserId, input.params);
-        }
-        if (input.action === "deepbook_place_limit_order") {
-          await preflightDeepBookPlaceLimitOrder(privyUserId, input.params);
-        }
-        if (input.action === "deepbook_place_market_order") {
-          await preflightDeepBookPlaceMarketOrder(privyUserId, input.params);
-        }
-        if (input.action === "deepbook_modify_order") {
-          await preflightDeepBookModifyOrder(privyUserId, input.params);
-        }
-        if (input.action === "deepbook_withdraw_settled_amounts") {
-          await preflightDeepBookWithdrawSettled(privyUserId, input.params);
-        }
-        if (input.action === "deepbook_withdraw_settled_amounts_permissionless") {
-          await preflightDeepBookWithdrawSettledPermissionless(privyUserId, input.params);
-        }
-        if (input.action === "deepbook_withdraw") {
-          await preflightDeepBookWithdraw(privyUserId, input.params);
-        }
-        if (isDeepBookFlashLoanAction(input.action)) {
-          await preflightDeepBookFlashLoan(privyUserId, input.params);
-        }
-        if (isDeepBookMarginMaintainerAction(input.action)) {
-          await preflightMarginMaintainerAction(input.action, input.params);
-        }
-        if (isDeepBookMarginAction(input.action)) {
-          await preflightMarginAction(privyUserId, input.action, input.params);
-        }
+        const enabledChains = getEnabledChainConfigs().map((config) => config.id);
+        await runExecutePreflightHooks(privyUserId, input, enabledChains);
         const pending = await createPendingTransaction(privyUserId, input, context);
         const outcome = {
           status: "approval_required" as const,
@@ -151,10 +114,49 @@ export async function runExecuteTransactionToolWithApproval(
     }
 
     try {
-      const result = await runExecuteTransactionTool(privyUserId, input);
-      if (transactionId) {
+      const result = await runWithLifiExecuteContext(
+        { sessionId: context.sessionId, transactionId },
+        () => runExecuteTransactionTool(privyUserId, input),
+      );
+      const tracking = readLifiTrackingFromTxResult(result);
+      const needsCrossChainTracking =
+        isLifiExecuteAction(input.action) && shouldEnqueueLifiCrossChainTracking(result, tracking);
+      const needsSwapTracking =
+        isLifiExecuteAction(input.action) && shouldEnqueueLifiSwapTracking(result, tracking);
+      const needsLifiTracking = needsCrossChainTracking || needsSwapTracking;
+
+      if (transactionId && needsLifiTracking) {
+        await markLifiSubmitted(transactionId, {
+          digest: result.digest || tracking.tx_hashes[0] || null,
+          effects_status: "pending",
+          result,
+        }).catch(() => undefined);
+
+        if (context.sessionId) {
+          for (const step of buildInitialLifiExecutionSteps({
+            tracking,
+            transactionId,
+            chainId: result.chain_id,
+            digest: result.digest || tracking.tx_hashes[0] || null,
+            evmChainId: result.evm_chain_id ?? tracking.from_evm_chain_id,
+          })) {
+            emitAgentStreamExecutionStep(context.sessionId, step);
+          }
+        }
+
+        const enqueue = needsSwapTracking
+          ? enqueueLifiSwapTrackingJob
+          : enqueueLifiCrossChainTrackingJob;
+        void enqueue({
+          transactionId,
+          privyUserId,
+          sessionId: context.sessionId ?? null,
+          tracking,
+        }).catch(() => undefined);
+      } else if (transactionId) {
         await markCompleted(transactionId, { kind: "success", result }).catch(() => undefined);
       }
+
       const outcome = {
         status: "executed" as const,
         result,

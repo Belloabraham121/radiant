@@ -29,7 +29,8 @@ const CHAT_INPUT_MAX_HEIGHT_PX = 160;
 function ReceiptPill({ receipt }: { receipt: Receipt }) {
   const explorerUrl = explorerUrlForDigest(
     receipt.digest,
-    receipt.chainId ?? "sui",
+    receipt.chainId,
+    receipt.evmChainId,
   );
 
   return (
@@ -51,7 +52,7 @@ function ReceiptPill({ receipt }: { receipt: Receipt }) {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-0.5 font-bold text-[var(--hero-blue)] hover:underline"
         >
-          {explorerLinkLabelForReceipt(receipt.label)}
+          {explorerLinkLabelForReceipt(receipt.label, receipt.chainId, receipt.evmChainId)}
           <ExternalLink className="size-3" />
         </a>
       ) : null}
@@ -161,7 +162,10 @@ function Bubble({
         {message.executionSteps && message.executionSteps.length > 0 ? (
           <ExecutionTimeline
             steps={message.executionSteps}
-            live={message.streaming === true}
+            live={
+              message.streaming === true ||
+              message.executionSteps.some((step) => step.status === "running")
+            }
             statusCategory={message.statusCategory}
           />
         ) : null}
@@ -176,7 +180,7 @@ function Bubble({
           />
         ) : null}
 
-        {(isUser || message.text || !message.streaming) && (
+        {(isUser || message.text?.trim()) && (
         <div
           className={`text-sm font-medium leading-relaxed ${
             isUser
@@ -541,7 +545,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
         </div>
       ) : null}
 
-      {chatError ? (
+      {chatError && !pendingTx ? (
         <p
           role="alert"
           className={`${chatColumnClass} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
@@ -565,6 +569,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
             className={`${chatColumnClass} mb-3`}
             pending={pendingTx}
             busy={approving || rejecting}
+            statusMessage={chatError}
             onApprove={() => void approvePending()}
             onCancel={() => void rejectPending()}
           />

@@ -17,6 +17,8 @@ export function getAutoApproveMaxDisplay(chainId: ChainId): number {
       return parsePositiveNumber("AGENT_AUTO_APPROVE_MAX_ETH", 25);
     case "solana":
       return parsePositiveNumber("AGENT_AUTO_APPROVE_MAX_SOL", 25);
+    case "stellar":
+      return parsePositiveNumber("AGENT_AUTO_APPROVE_MAX_XLM", 25);
     default:
       return 25;
   }
@@ -32,6 +34,8 @@ export function getAutoApproveMaxAtomic(chainId: ChainId): bigint {
       return BigInt(Math.floor(display * 1e18));
     case "solana":
       return BigInt(Math.floor(display * 1_000_000_000));
+    case "stellar":
+      return BigInt(Math.floor(display * 10_000_000));
     default:
       return BigInt(0);
   }

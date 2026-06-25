@@ -20,7 +20,7 @@ function issueToMessage(issue: ZodIssue): string {
     case "invalid_type":
       return `${field} has an invalid type (expected ${issue.expected})`;
     case "invalid_enum_value":
-      return `${field} must be one of: ${issue.options.map(String).join(", ")}`;
+      return `${field} is not supported`;
     default:
       return issue.message ? `${field}: ${issue.message}` : `${field} is invalid`;
   }

@@ -13,14 +13,28 @@ type BucketState = {
 
 const memoryBuckets = new Map<string, BucketState>();
 
-function refillTokens(state: BucketState, config: TokenBucketConfig, now: number): number {
+/**
+ * Refill accrued tokens and advance the refill clock correctly. Critically, when
+ * no whole token has accrued yet the clock is left untouched so partial progress
+ * is preserved across calls — otherwise a denied request that rewrote
+ * `lastRefillMs = now` would discard accrued time, and frequent retries would
+ * keep an empty bucket starved forever.
+ */
+function refillBucket(state: BucketState, config: TokenBucketConfig, now: number): BucketState {
   const elapsed = now - state.lastRefillMs;
-  if (elapsed <= 0) return state.tokens;
+  if (elapsed <= 0) return state;
 
   const tokensToAdd = Math.floor(elapsed / config.refillIntervalMs);
-  if (tokensToAdd <= 0) return state.tokens;
+  if (tokensToAdd <= 0) return state;
 
-  return Math.min(config.capacity, state.tokens + tokensToAdd);
+  const tokens = Math.min(config.capacity, state.tokens + tokensToAdd);
+  // At capacity, anchor the clock to now (excess time doesn't bank); otherwise
+  // advance only by the whole tokens actually credited.
+  const lastRefillMs =
+    tokens >= config.capacity
+      ? now
+      : state.lastRefillMs + tokensToAdd * config.refillIntervalMs;
+  return { tokens, lastRefillMs };
 }
 
 async function readBucketState(key: string): Promise<BucketState | null> {
@@ -63,15 +77,17 @@ export async function tryConsumeTokenBucket(
     lastRefillMs: now,
   };
 
-  const tokens = refillTokens(existing, config, now);
-  if (tokens < cost) {
-    await writeBucketState(key, { tokens, lastRefillMs: now });
+  const refilled = refillBucket(existing, config, now);
+  if (refilled.tokens < cost) {
+    // Persist the refilled state (NOT lastRefillMs = now) so accrued time toward
+    // the next token survives repeated denied attempts.
+    await writeBucketState(key, refilled);
     return false;
   }
 
   await writeBucketState(key, {
-    tokens: tokens - cost,
-    lastRefillMs: now,
+    tokens: refilled.tokens - cost,
+    lastRefillMs: refilled.lastRefillMs,
   });
   return true;
 }

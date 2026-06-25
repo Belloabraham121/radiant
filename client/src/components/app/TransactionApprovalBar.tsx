@@ -7,55 +7,28 @@ import {
   useSwapQuoteCountdown,
 } from "@/hooks/useSwapQuoteCountdown";
 import { formatAmountDisplayText, formatDisplayNumber } from "@/lib/format-display-amount";
-import type { TransactionFiatPreview } from "@/lib/chat-api";
-
-function formatUsd(value: number | null | undefined): string | null {
-  if (value === null || value === undefined || !Number.isFinite(value)) {
-    return null;
-  }
-  return `~$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-}
-
-function FiatPreviewLines({ fiat }: { fiat: TransactionFiatPreview }) {
-  const pay = fiat.legs.find((leg) => leg.role === "pay");
-  const receive = fiat.legs.find((leg) => leg.role === "receive");
-  const payUsd = pay?.usd_value ?? fiat.total_pay_usd;
-  const receiveUsd = receive?.usd_value ?? fiat.total_receive_usd;
-
-  if (payUsd === null && receiveUsd === null) {
-    return null;
-  }
-
-  return (
-    <>
-      {payUsd !== null && receiveUsd !== null ? (
-        <p className="mt-2 text-sm font-semibold text-[var(--hero-ink)]/70">
-          {formatUsd(payUsd)} → {formatUsd(receiveUsd)}
-        </p>
-      ) : null}
-      {fiat.net_usd !== null ? (
-        <p className="mt-1 text-xs font-medium text-[var(--hero-ink)]/50">
-          Est. net received: {formatUsd(fiat.net_usd)}
-        </p>
-      ) : null}
-    </>
-  );
-}
+import { FiatPreviewLines } from "@/components/app/defi/FiatPreviewLines";
+import {
+  DeFiApprovalPreviewCard,
+  useDeFiApprovalState,
+} from "@/components/app/defi/DeFiApprovalPreview";
 
 export function TransactionApprovalBar({
   pending,
   busy,
+  statusMessage,
   onApprove,
   onCancel,
   className = "",
 }: {
   pending: PendingTransaction;
   busy?: boolean;
+  statusMessage?: string | null;
   onApprove: () => void;
   onCancel: () => void;
   className?: string;
 }) {
-  const isSwap = pending.action === "swap" || pending.action === "deepbook_swap";
+  const defiState = useDeFiApprovalState(pending);
   const isProvision = pending.action === "deepbook_provision_manager" || pending.action === "deepbook_provision_margin_manager";
   const isDeposit =
     pending.action === "deepbook_deposit" || pending.action === "deepbook_withdraw";
@@ -85,10 +58,98 @@ export function TransactionApprovalBar({
     : [];
   const isOrder = isLimitOrder || isMarketOrder;
 
-  const quoteExpiresAt = isSwap ? resolveQuoteExpiresAt(pending) : null;
-  const quoteCountdown = useSwapQuoteCountdown(quoteExpiresAt);
-  const quoteExpired = isSwap && quoteCountdown.status === "expired";
-  const approveDisabled = busy || quoteExpired;
+  const isLegacySwap =
+    !defiState.preview &&
+    (pending.action === "swap" || pending.action === "deepbook_swap");
+  const legacyQuoteExpiresAt = isLegacySwap ? resolveQuoteExpiresAt(pending) : null;
+  const legacyQuoteCountdown = useSwapQuoteCountdown(legacyQuoteExpiresAt);
+  const legacyQuoteExpired = isLegacySwap && legacyQuoteCountdown.status === "expired";
+  const quoteExpired = defiState.quoteExpired || legacyQuoteExpired;
+  const isLifiContinuation =
+    pending.params.lifi_continuation === true ||
+    pending.params.approval_kind === "lifi_continue" ||
+    defiState.preview?.kind === "lifi_continue";
+  const approveDisabled = busy || (quoteExpired && !isLifiContinuation);
+
+  const title = defiState.preview
+    ? defiState.title
+    : isFlashLoan
+      ? "Approve flash loan"
+      : isStake
+        ? "Approve stake"
+        : isUnstake
+          ? "Approve unstake"
+          : isSubmitProposal
+            ? "Approve proposal"
+            : isVote
+              ? "Approve vote"
+              : isMargin
+                ? "Approve margin action"
+                : isPredict
+                  ? "Approve prediction"
+                  : isOrder
+                    ? "Approve order"
+                    : isCancelOrder
+                      ? "Approve cancel"
+                      : isModifyOrder
+                        ? "Approve modify"
+                        : isSettledWithdraw
+                          ? "Approve claim"
+                          : isProvision
+                            ? "Approve setup"
+                            : defiState.title;
+
+  const subtitle = defiState.preview
+    ? defiState.subtitle
+    : isLegacySwap
+      ? "Review the quote, then approve to execute on chain."
+      : isFlashLoan
+        ? flashStrategy === "swap_chain_repay"
+          ? "Atomic borrow → swaps → repay in one transaction. If any step fails, everything reverts — you only pay gas."
+          : "Atomic borrow and repay in one transaction. If repayment fails, the entire transaction reverts — you only pay gas."
+        : isStake
+          ? "Stakes DEEP from your DeepBook balance manager into the pool for fee discounts."
+          : isUnstake
+            ? "Returns your active stake from the pool back to your balance manager."
+            : isSubmitProposal
+              ? "Submits proposed taker/maker fees and stake requirement for the next epoch. Requires active stake."
+              : isVote
+                ? "Casts your stake-weighted vote for the named proposal on this pool."
+                : isMargin
+                  ? "Review the margin action details. Margin trading involves leverage and liquidation risk."
+                  : isPredict
+                    ? "Review the prediction market action. Positions expire and may lose value if the outcome is unfavorable."
+                    : isLimitOrder
+                      ? "Review price and size, then approve to place the limit order on DeepBook."
+                      : isMarketOrder
+                        ? "Review the order size and side, then approve to place on DeepBook."
+                        : isCancelOrder
+                          ? "Review the cancellation, then approve to update your open orders."
+                          : isModifyOrder
+                            ? "Review the new order size, then approve to modify on DeepBook. Price cannot be changed — cancel and replace to change price."
+                            : isSettledWithdraw
+                              ? "Review the pool, then approve to move settled proceeds into your balance manager."
+                              : isProvision
+                                ? "Creates your DeepBook balance manager on chain. No token deposit — only network gas."
+                                : isDeposit
+                                  ? "Review the amount, then approve to sign and send."
+                                  : defiState.subtitle;
+
+  const isLifi =
+    pending.action === "cross_chain_swap" ||
+    pending.defi_preview?.provider_id === "evm-lifi" ||
+    defiState.preview?.kind === "bridge" ||
+    defiState.preview?.kind === "lifi_continue";
+
+  const displayTitle = busy
+    ? isLifi
+      ? "Submitting transaction"
+      : "Signing & sending"
+    : title;
+
+  const displaySubtitle = busy
+    ? "Signing and broadcasting on chain. This may take a moment."
+    : subtitle;
 
   return (
     <div
@@ -105,78 +166,26 @@ export function TransactionApprovalBar({
             id="tx-approval-title"
             className="font-heading text-lg font-extrabold tracking-tight text-[var(--hero-ink)]"
           >
-            {isSwap
-              ? "Approve swap"
-              : isFlashLoan
-                ? "Approve flash loan"
-                : isStake
-                  ? "Approve stake"
-                  : isUnstake
-                    ? "Approve unstake"
-                    : isSubmitProposal
-                      ? "Approve proposal"
-                      : isVote
-                        ? "Approve vote"
-                        : isMargin
-                          ? "Approve margin action"
-                          : isPredict
-                            ? "Approve prediction"
-                : isOrder
-                ? "Approve order"
-                : isCancelOrder
-                  ? "Approve cancel"
-                  : isModifyOrder
-                    ? "Approve modify"
-                    : isSettledWithdraw
-                      ? "Approve claim"
-                      : isProvision
-                        ? "Approve setup"
-                        : "Approve transaction"}
+            {displayTitle}
           </p>
-          <p className="mt-0.5 text-xs font-medium text-[var(--hero-ink)]/50">
-            {isSwap
-              ? "Review the quote, then approve to execute on chain."
-              : isFlashLoan
-                ? flashStrategy === "swap_chain_repay"
-                  ? "Atomic borrow → swaps → repay in one transaction. If any step fails, everything reverts — you only pay gas."
-                  : "Atomic borrow and repay in one transaction. If repayment fails, the entire transaction reverts — you only pay gas."
-                : isStake
-                  ? "Stakes DEEP from your DeepBook balance manager into the pool for fee discounts."
-                  : isUnstake
-                    ? "Returns your active stake from the pool back to your balance manager."
-                    : isSubmitProposal
-                      ? "Submits proposed taker/maker fees and stake requirement for the next epoch. Requires active stake."
-                      : isVote
-                        ? "Casts your stake-weighted vote for the named proposal on this pool."
-                        : isMargin
-                          ? "Review the margin action details. Margin trading involves leverage and liquidation risk."
-                          : isPredict
-                            ? "Review the prediction market action. Positions expire and may lose value if the outcome is unfavorable."
-                : isLimitOrder
-                ? "Review price and size, then approve to place the limit order on DeepBook."
-                : isMarketOrder
-                  ? "Review the order size and side, then approve to place on DeepBook."
-                  : isCancelOrder
-                    ? "Review the cancellation, then approve to update your open orders."
-                    : isModifyOrder
-                      ? "Review the new order size, then approve to modify on DeepBook. Price cannot be changed — cancel and replace to change price."
-                      : isSettledWithdraw
-                        ? "Review the pool, then approve to move settled proceeds into your balance manager."
-                        : isProvision
-                      ? "Creates your DeepBook balance manager on chain. No token deposit — only network gas."
-                      : isDeposit
-                        ? "Review the amount, then approve to sign and send."
-                        : "Review the details, then approve to sign and send."}
-          </p>
+          <p className="mt-0.5 text-xs font-medium text-[var(--hero-ink)]/50">{displaySubtitle}</p>
         </div>
         <span
           className={`shrink-0 rounded-full border-2 border-[var(--hero-ink)] px-2.5 py-0.5 text-[10px] font-bold uppercase ${
             quoteExpired
               ? "bg-[var(--hero-coral)]/15 text-[var(--hero-coral)]"
-              : "bg-[var(--hero-amber)]/15 text-[var(--hero-amber)]"
+              : busy
+                ? "bg-[var(--hero-blue)]/15 text-[var(--hero-blue)]"
+                : "bg-[var(--hero-amber)]/15 text-[var(--hero-amber)]"
           }`}
         >
-          {quoteExpired ? "Quote expired" : "Pending"}
+          {busy
+            ? "Executing"
+            : quoteExpired && !isLifiContinuation
+            ? "Quote expired"
+            : isLifiContinuation
+              ? "Action required"
+              : "Pending"}
         </span>
       </div>
 
@@ -190,7 +199,14 @@ export function TransactionApprovalBar({
         <p className="mt-1 font-mono text-[10px] font-semibold text-[var(--hero-ink)]/45">
           {pending.chain_id} · {pending.action}
         </p>
-        {isSwap ? (
+        {defiState.preview ? (
+          <DeFiApprovalPreviewCard
+            pending={pending}
+            preview={defiState.preview}
+            quoteCountdown={defiState.quoteCountdown}
+            quoteExpired={defiState.quoteExpired}
+          />
+        ) : isLegacySwap ? (
           <>
             {typeof pending.params.estimated_out_display === "number" ? (
               <p className="mt-2 text-sm font-semibold text-[var(--hero-ink)]/70">
@@ -204,12 +220,12 @@ export function TransactionApprovalBar({
             {pending.fiat_preview ? (
               <FiatPreviewLines fiat={pending.fiat_preview} />
             ) : null}
-            {quoteCountdown.status === "active" ? (
+            {legacyQuoteCountdown.status === "active" ? (
               <p className="mt-2 text-[10px] font-semibold tabular-nums text-[var(--hero-blue)]">
-                Quote valid for {quoteCountdown.label}
+                Quote valid for {legacyQuoteCountdown.label}
               </p>
             ) : null}
-            {quoteExpired ? (
+            {legacyQuoteExpired ? (
               <p className="mt-2 text-[10px] font-semibold text-[var(--hero-coral)]">
                 This quote expired. Cancel and ask again to get a fresh rate — approval is blocked
                 until you refresh.
@@ -258,6 +274,15 @@ export function TransactionApprovalBar({
         ) : null}
       </div>
 
+      {statusMessage && !busy ? (
+        <p
+          role="alert"
+          className="mt-4 rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3 text-xs font-semibold text-[var(--hero-coral)]"
+        >
+          {statusMessage}
+        </p>
+      ) : null}
+
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
@@ -266,7 +291,13 @@ export function TransactionApprovalBar({
           className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2.5 text-sm font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-coral)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-          {quoteExpired ? "Quote expired" : "Approve & send"}
+          {busy
+            ? "Submitting…"
+            : quoteExpired && !isLifiContinuation
+            ? "Quote expired"
+            : isLifiContinuation
+              ? "Sign & send"
+              : "Approve & send"}
         </button>
         <button
           type="button"

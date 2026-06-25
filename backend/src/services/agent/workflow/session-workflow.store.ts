@@ -50,6 +50,14 @@ export function clearSessionWorkflow(sessionId: string): void {
   workflowsBySession.delete(sessionId);
 }
 
+/**
+ * Re-insert a workflow run loaded from durable storage (Redis/DB) — used to
+ * rehydrate the in-memory cache after a restart so a paused workflow can resume.
+ */
+export function restoreSessionWorkflow(state: SessionWorkflowState): void {
+  workflowsBySession.set(state.sessionId, state);
+}
+
 /** Test hook */
 export function clearAllSessionWorkflowsForTests(): void {
   workflowsBySession.clear();

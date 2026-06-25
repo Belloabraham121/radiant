@@ -1,5 +1,5 @@
 import type { AgentChainId } from "@/lib/agent-chains";
-import { getEvmDefaultChainId } from "@/lib/chain-meta";
+import { getEnabledEvmChainIds } from "@/lib/evm-chains";
 import { invalidateWalletAssetsForChain } from "@/lib/wallet-assets-events";
 import {
   invalidateDeepBookManagerCache,
@@ -11,8 +11,11 @@ export function invalidateAllWalletCaches(): void {
   invalidateWalletAssetsCache();
   invalidateDeepBookManagerCache();
   invalidateWalletAssetsForChain("sui");
-  invalidateWalletAssetsForChain("ethereum", getEvmDefaultChainId());
+  for (const evmChainId of getEnabledEvmChainIds()) {
+    invalidateWalletAssetsForChain("ethereum", evmChainId);
+  }
   invalidateWalletAssetsForChain("solana");
+  invalidateWalletAssetsForChain("stellar");
 }
 
 export async function refreshAllWalletData(options: {

@@ -1,6 +1,7 @@
 import { AppError } from "../../errors/app-error.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 import type { CallApiToolInput } from "./browsing/call-api.tool.js";
+import { stellarAddressSchema } from "../wallet/wallet.types.js";
 
 const TRANSFER_ACTIONS = new Set([
   "transfer_native",
@@ -60,6 +61,10 @@ export function validateExecuteTransactionToolPolicy(input: ExecuteTransactionIn
 
   if (input.chain_id === "sui" && !SUI_ADDRESS_RE.test(recipient)) {
     throw new AppError(400, "POLICY_VIOLATION", "Invalid Sui recipient address.");
+  }
+
+  if (input.chain_id === "stellar" && !stellarAddressSchema.safeParse(recipient).success) {
+    throw new AppError(400, "POLICY_VIOLATION", "Invalid Stellar recipient address.");
   }
 
   if (

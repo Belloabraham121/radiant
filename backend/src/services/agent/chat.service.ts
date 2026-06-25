@@ -8,7 +8,7 @@ import {
 import type { ChatStreamSender } from "./execution-progress.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
 import { approvePendingTransaction, rejectPendingTransaction } from "./transaction-approval.service.js";
-import { buildExplorerTxUrl } from "../agent-transaction/explorer-url.js";
+import { buildExplorerTxUrl, explorerLabelForChain } from "../agent-transaction/explorer-url.js";
 import {
   buildTransactionErrorUserContext,
   transactionContextFromPending,
@@ -24,7 +24,13 @@ import {
   continueWorkflowAfterApproval,
   persistWorkflowChatResponse,
 } from "./workflow/workflow-runner.js";
+import { hydrateSessionState } from "./workflow/agent-session-state.store.js";
 import { formatMarginManagerApprovalNote } from "./runtime/summarize-tool-result.js";
+import {
+  buildCrossChainRoutesToolResult,
+  formatLifiEtaLabel,
+  readLifiTrackingFromTxResult,
+} from "../defi/lifi/lifi-tracking.js";
 
 export async function handleChatMessage(
   privyUserId: string,
@@ -42,6 +48,10 @@ export async function handleChatMessage(
     if (!answer) {
       throw new AppError(400, "CLARIFICATION_ANSWER_REQUIRED", "A clarification answer is required.");
     }
+
+    // Recover clarification / workflow state if this process lost it (restart or
+    // a different instance handled the original turn).
+    await hydrateSessionState(request.session_id);
 
     const continued = await continueWorkflowAfterClarification(
       privyUserId,
@@ -63,6 +73,9 @@ export async function handleChatMessage(
   }
 
   if (request.reject_transaction_id) {
+    if (request.session_id) {
+      await hydrateSessionState(request.session_id);
+    }
     const rejected = await rejectPendingTransaction(
       privyUserId,
       request.reject_transaction_id,
@@ -80,6 +93,11 @@ export async function handleChatMessage(
   }
 
   if (request.approve_transaction_id) {
+    // Recover the paused workflow so continueWorkflowAfterApproval can resume it
+    // after a restart / on another instance.
+    if (request.session_id) {
+      await hydrateSessionState(request.session_id);
+    }
     const outcome = await approvePendingTransaction(
       privyUserId,
       request.approve_transaction_id,
@@ -97,6 +115,31 @@ export async function handleChatMessage(
       const memoryBlock = formatMemoryBlock(await loadAgentMemory(privyUserId));
       const agentPermissions = await getAgentPermissions(privyUserId);
 
+      if (outcome.continuation_pending) {
+        const destLabel =
+          outcome.continuation_pending.defi_preview?.receive?.chain_label ??
+          outcome.continuation_pending.chain_id;
+        const reply = `Source step submitted. Sign the destination transaction on ${destLabel} to complete the transfer.`;
+        const toolCalls: ChatResponse["tool_calls"] = [
+          {
+            name: EXECUTE_TRANSACTION_TOOL_NAME,
+            action: outcome.pending.action,
+            result: {
+              status: "executed",
+              agent_transaction_id: request.approve_transaction_id,
+              result: outcome.result,
+            },
+          },
+        ];
+        return persistApprovalTurn(
+          privyUserId,
+          request,
+          reply,
+          toolCalls,
+          outcome.continuation_pending,
+        );
+      }
+
       if (request.session_id) {
         const continued = await continueWorkflowAfterApproval(
           privyUserId,
@@ -111,37 +154,78 @@ export async function handleChatMessage(
         }
       }
 
-      const explorerUrl = buildExplorerTxUrl(outcome.result.chain_id, outcome.result.digest);
+      const evmChainId = outcome.result.evm_chain_id;
+      const explorerUrl = buildExplorerTxUrl(
+        outcome.result.chain_id,
+        outcome.result.digest,
+        evmChainId,
+      );
+      const explorerLabel = explorerLabelForChain(outcome.result.chain_id, evmChainId);
       const marginNote = formatMarginManagerApprovalNote(outcome.result);
-      const reply = explorerUrl
-        ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [View on Sui Explorer](${explorerUrl}) — Digest: ${outcome.result.digest}.${marginNote}`
-        : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}.${marginNote}`;
+      const lifiTracking = readLifiTrackingFromTxResult(outcome.result);
+      const isLifiPending =
+        lifiTracking != null &&
+        (outcome.result.effects_status === "pending" ||
+          outcome.result.effects_status === "unknown");
 
-      return persistApprovalTurn(privyUserId, request, reply, [
-        {
-          name: "execute_transaction",
-          result: { status: "executed", result: outcome.result },
+      let reply: string;
+      if (isLifiPending && lifiTracking) {
+        const eta = formatLifiEtaLabel(lifiTracking.estimated_duration_seconds);
+        const sourceTx = outcome.result.digest || lifiTracking.tx_hashes[0];
+        reply = sourceTx
+          ? `Approved. Source transaction submitted (${sourceTx.slice(0, 10)}…). ${eta} — I'll update this thread as the bridge completes.`
+          : `Approved. Bridge submitted. ${eta} — I'll update this thread as the bridge completes.`;
+      } else {
+        reply = explorerUrl
+          ? `Approved. Transaction submitted on ${outcome.result.chain_id}. [${explorerLabel}](${explorerUrl}) — Digest: ${outcome.result.digest}.${marginNote}`
+          : `Approved. Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}.${marginNote}`;
+      }
+
+      const toolCalls: ChatResponse["tool_calls"] = [];
+      if (isLifiPending && outcome.pending.params) {
+        toolCalls.push({
+          name: "query_chain",
+          query: "cross_chain_routes",
+          result: buildCrossChainRoutesToolResult(outcome.pending.params),
+        });
+      }
+      toolCalls.push({
+        name: EXECUTE_TRANSACTION_TOOL_NAME,
+        action: outcome.pending.action,
+        result: {
+          status: "executed",
+          agent_transaction_id: request.approve_transaction_id,
+          result: outcome.result,
         },
-      ]);
+      });
+
+      return persistApprovalTurn(privyUserId, request, reply, toolCalls);
     }
 
     const txContext = transactionContextFromPending(outcome.pending);
 
-    return persistToolFailureTurn(privyUserId, request, {
-      toolName: EXECUTE_TRANSACTION_TOOL_NAME,
-      toolResult: {
-        error: {
-          code: outcome.error.code,
-          message: outcome.error.message,
-          ...(outcome.error.details !== undefined ? { details: outcome.error.details } : {}),
+    return persistToolFailureTurn(
+      privyUserId,
+      request,
+      {
+        toolName: EXECUTE_TRANSACTION_TOOL_NAME,
+        toolResult: {
+          error: {
+            code: outcome.error.code,
+            message: outcome.error.message,
+            ...(outcome.error.details !== undefined ? { details: outcome.error.details } : {}),
+          },
         },
+        transactionContext: txContext,
+        userContext: buildTransactionErrorUserContext(
+          txContext,
+          "I clicked Approve on a pending transaction in the app.",
+        ),
       },
-      transactionContext: txContext,
-      userContext: buildTransactionErrorUserContext(
-        txContext,
-        "I clicked Approve on a pending transaction in the app.",
-      ),
-    });
+      {
+        pending_transaction: outcome.retryable ? outcome.pending : null,
+      },
+    );
   }
 
   return runChatTurnWithFallback(privyUserId, request);

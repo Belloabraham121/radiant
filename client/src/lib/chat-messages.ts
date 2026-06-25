@@ -21,6 +21,7 @@ export type Receipt = {
   agentTransactionId?: string;
   digest?: string;
   chainId?: AgentChainId;
+  evmChainId?: number;
   sessionId?: string;
 };
 
@@ -80,11 +81,39 @@ export function receiptFromExecutionStep(step: ExecutionStep): Receipt | null {
         : "On-chain step",
     detail: formatDigestShort(step.digest),
     digest: step.digest,
-    chainId: step.chainId ?? "sui",
+    ...(step.chainId ? { chainId: step.chainId } : {}),
+    ...(step.evmChainId !== undefined ? { evmChainId: step.evmChainId } : {}),
     ...(step.agentTransactionId
       ? { agentTransactionId: step.agentTransactionId }
       : {}),
   };
+}
+
+/** Avoid receipt flicker on Li-Fi bridge poll updates with unchanged digests. */
+export function mergeReceiptsFromExecutionStep(
+  existing: Receipt[] | undefined,
+  step: ExecutionStep,
+): Receipt[] | undefined {
+  if (step.id === "lifi-bridge" && step.status === "running") {
+    return existing;
+  }
+
+  const receipt = receiptFromExecutionStep(step);
+  if (!receipt) {
+    return existing;
+  }
+
+  const prior = existing ?? [];
+  const duplicate = prior.some(
+    (item) =>
+      item.digest === receipt.digest &&
+      item.agentTransactionId === receipt.agentTransactionId,
+  );
+  if (duplicate) {
+    return prior;
+  }
+
+  return [...prior, receipt];
 }
 
 function resolveTransactionReceipts(
@@ -108,7 +137,7 @@ export function buildActionLinkReceipts(
   const flashLoan = isFlashLoanToolCalls(toolCalls);
 
   if (executeStep?.digest) {
-    const chainId = executeStep.chainId ?? "sui";
+    const chainId = executeStep.chainId;
     const executeCall = toolCalls.find(
       (call) => call.name === "execute_transaction",
     );
@@ -132,7 +161,10 @@ export function buildActionLinkReceipts(
             ? `Borrow ${flashLoanResult.borrow_amount} ${flashLoanResult.coin_key} · ${formatDigestShort(executeStep.digest)}`
             : formatDigestShort(executeStep.digest),
         digest: executeStep.digest,
-        chainId,
+        ...(chainId ? { chainId } : {}),
+        ...(executeStep.evmChainId !== undefined
+          ? { evmChainId: executeStep.evmChainId }
+          : {}),
       },
     ];
   }
@@ -155,6 +187,7 @@ export function buildActionLinkReceipts(
       result?: {
         digest?: string;
         chain_id?: AgentChainId;
+        evm_chain_id?: number;
         deepbook?: {
           flash_loan?: { borrow_amount?: number; coin_key?: string };
         };
@@ -173,7 +206,10 @@ export function buildActionLinkReceipts(
             ? `Borrow ${loan.borrow_amount} ${loan.coin_key} · ${formatDigestShort(outcome.result.digest)}`
             : formatDigestShort(outcome.result.digest),
         digest: outcome.result.digest,
-        chainId: outcome.result.chain_id ?? "sui",
+        ...(outcome.result.chain_id ? { chainId: outcome.result.chain_id } : {}),
+        ...(outcome.result.evm_chain_id !== undefined
+          ? { evmChainId: outcome.result.evm_chain_id }
+          : {}),
       },
     ];
   }

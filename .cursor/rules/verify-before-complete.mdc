@@ -1,0 +1,53 @@
+---
+description: Run frontend and backend checks before finishing any implementation task
+alwaysApply: true
+---
+
+# Verify before complete
+
+Do **not** stop or tell the user the task is done until verification passes for every package you changed.
+
+## When to run
+
+| Changed | Run before finishing |
+| ------- | -------------------- |
+| `backend/**` | Backend checks (below) |
+| `client/**` | Client checks (below) |
+| Both | **Both** — backend first, then client |
+
+If you only edited docs, skip build commands unless the user asked for a full verify.
+
+## Commands
+
+**Backend** (from repo root):
+
+```bash
+cd backend && npx tsc --noEmit
+```
+
+If the change is behavioral or touches routes/services/tests, also run:
+
+```bash
+cd backend && npm test
+```
+
+Or full gate: `cd backend && npm run check` (`tsc` + tests).
+
+**Client**:
+
+```bash
+cd client && npm run lint
+```
+
+If you changed components, routes, or `lib/` that affect the app shell:
+
+```bash
+cd client && npm run build
+```
+
+## Rules
+
+1. **Fix errors** — If `tsc`, `lint`, `test`, or `build` fails, fix the failure and re-run until clean. Do not hand off a broken tree.
+2. **Touched files** — After fixes, use editor/linter diagnostics on files you edited.
+3. **Pre-existing failures** — If unrelated errors block `npm run check`, say so explicitly: what you ran, what failed, and that your diff is clean on the checks you could run (e.g. targeted unit tests).
+4. **Report** — In the final message, state which commands passed (e.g. “backend `tsc` + client `lint` + `build` OK”).

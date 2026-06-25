@@ -5,6 +5,7 @@ import {
   parseAmountWei,
   parseEvmChainIdParam,
   parseEvmRecipient,
+  readOptionalEvmChainIdParam,
 } from "../../src/services/wallet/evm-transaction.service.js";
 
 describe("evm-transaction param parsing", () => {
@@ -33,5 +34,11 @@ describe("evm-transaction param parsing", () => {
   it("parseEvmChainIdParam parses numeric chain id", () => {
     assert.equal(parseEvmChainIdParam({ evm_chain_id: 8453 }), 8453);
     assert.equal(parseEvmChainIdParam({ evm_chain_id: "137" }), 137);
+  });
+
+  it("readOptionalEvmChainIdParam reads from_evm_chain_id", () => {
+    assert.equal(readOptionalEvmChainIdParam({ from_evm_chain_id: 8453 }), 8453);
+    assert.equal(readOptionalEvmChainIdParam({ evm_chain_id: 42161 }), 42161);
+    assert.equal(readOptionalEvmChainIdParam({}), undefined);
   });
 });

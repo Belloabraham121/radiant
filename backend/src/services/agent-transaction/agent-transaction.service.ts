@@ -1,7 +1,10 @@
 import { AppError } from "../../errors/app-error.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import { parseChainId } from "../chains/registry.js";
-import { readQuoteExpiresAt } from "../agent/deepbook/swap-quote-enrichment.js";
+import { readDeFiQuoteExpiresAt } from "../agent-transaction/approval-preview/quote-expiry.js";
+import {
+  isPendingApprovalExpired,
+} from "../defi/lifi/lifi-continuation-pending.js";
 import type { ChainId, ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { PendingTransaction } from "../agent/agent.types.js";
 import { resolveAgentWalletByPrivyUserId } from "../wallet/agent-wallet.service.js";
@@ -64,8 +67,24 @@ async function resolveWalletAddress(privyUserId: string, chainId: ChainId): Prom
   return wallet.address;
 }
 
+function readEvmChainIdFromResult(result: TxResult | null | undefined): number | undefined {
+  if (typeof result?.evm_chain_id === "number" && Number.isInteger(result.evm_chain_id)) {
+    return result.evm_chain_id;
+  }
+  const lifi = result?.lifi;
+  if (lifi && typeof lifi === "object" && "from_evm_chain_id" in lifi) {
+    const fromEvm = (lifi as { from_evm_chain_id?: unknown }).from_evm_chain_id;
+    if (typeof fromEvm === "number" && Number.isInteger(fromEvm)) {
+      return fromEvm;
+    }
+  }
+  return undefined;
+}
+
 function toListItem(row: AgentTransactionRecord): AgentTransactionListItem {
   const chainId = parseChainId(row.chain_id);
+  const result = (row.result as TxResult | null) ?? null;
+  const evmChainId = readEvmChainIdFromResult(result);
   return {
     id: row.id,
     status: row.status,
@@ -74,7 +93,7 @@ function toListItem(row: AgentTransactionRecord): AgentTransactionListItem {
     title: row.title,
     amount_display: row.amount_display,
     digest: row.digest,
-    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest) : null,
+    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest, evmChainId) : null,
     effects_status: row.effects_status,
     session_id: row.session_id,
     message_id: row.message_id,
@@ -85,6 +104,8 @@ function toListItem(row: AgentTransactionRecord): AgentTransactionListItem {
 
 function toDetail(row: AgentTransactionRecord): AgentTransactionDetail {
   const chainId = parseChainId(row.chain_id);
+  const result = (row.result as TxResult | null) ?? null;
+  const evmChainId = readEvmChainIdFromResult(result);
   return {
     ...toListItem(row),
     action: row.action,
@@ -95,7 +116,7 @@ function toDetail(row: AgentTransactionRecord): AgentTransactionDetail {
     error_code: row.error_code,
     error_message: row.error_message,
     submitted_at: row.submitted_at?.toISOString() ?? null,
-    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest) : null,
+    explorer_url: row.digest ? buildExplorerTxUrl(chainId, row.digest, evmChainId) : null,
   };
 }
 
@@ -108,7 +129,7 @@ export function pendingTransactionFromRecord(row: AgentTransactionRecord): Pendi
     params,
     amount_display: row.amount_display,
     summary: row.title,
-    quote_expires_at: readQuoteExpiresAt(params),
+    quote_expires_at: readDeFiQuoteExpiresAt(params),
   };
 }
 
@@ -129,13 +150,37 @@ export async function loadPendingApprovalForUser(
     return null;
   }
 
-  const cutoff = new Date(Date.now() - PENDING_APPROVAL_TTL_MS);
-  if (row.created_at < cutoff) {
+  const params = row.params as Record<string, unknown>;
+  if (isPendingApprovalExpired(params, row.created_at)) {
     await markExpired(transactionId);
     return null;
   }
 
   return row;
+}
+
+/**
+ * Diagnose why a pending-approval claim would fail: the row may not exist for
+ * this user, may be older than the TTL, or may already have moved out of
+ * `pending_approval` (e.g. a prior approve click already submitted/failed it).
+ */
+export async function describePendingApprovalState(
+  privyUserId: string,
+  transactionId: string,
+): Promise<"claimable" | "missing" | "expired" | `consumed:${string}`> {
+  const userId = await requireUserId(privyUserId);
+  const row = await findAgentTransactionByIdForUser(transactionId, userId);
+  if (!row) {
+    return "missing";
+  }
+  if (row.status !== "pending_approval") {
+    return `consumed:${row.status}`;
+  }
+  const params = row.params as Record<string, unknown>;
+  if (isPendingApprovalExpired(params, row.created_at)) {
+    return "expired";
+  }
+  return "claimable";
 }
 
 export async function claimPendingApprovalForUser(
@@ -150,6 +195,22 @@ export async function claimPendingApprovalForUser(
   return claimAgentTransactionStatus(row.id, row.user_id, "pending_approval", {
     status: "submitted",
     submitted_at: new Date(),
+  });
+}
+
+/**
+ * Return a claimed (submitted) approval back to `pending_approval` so the user
+ * can retry. Use only when execution failed *before* broadcasting anything on
+ * chain (rate limit, balance/quote preflight) — otherwise the approval must be
+ * consumed via {@link markCompleted}.
+ */
+export async function revertPendingApprovalToClaimable(
+  transactionId: string,
+  userId: bigint,
+): Promise<void> {
+  await claimAgentTransactionStatus(transactionId, userId, "submitted", {
+    status: "pending_approval",
+    submitted_at: null,
   });
 }
 
@@ -169,8 +230,40 @@ export async function claimPendingRejectionForUser(
 }
 
 export async function expireStalePendingApprovals(): Promise<number> {
-  const cutoff = new Date(Date.now() - PENDING_APPROVAL_TTL_MS);
-  return expirePendingApprovalsOlderThan(cutoff);
+  const nowMs = Date.now();
+  const standardCutoff = new Date(nowMs - PENDING_APPROVAL_TTL_MS);
+
+  const standardExpired = await expirePendingApprovalsOlderThan(standardCutoff, {
+    excludeLifiContinuation: true,
+  });
+
+  const continuationExpired = await expireLifiContinuationPendingApprovals(nowMs);
+  return standardExpired + continuationExpired;
+}
+
+async function expireLifiContinuationPendingApprovals(nowMs: number): Promise<number> {
+  const { prisma } = await import("../../infrastructure/postgres/client.js");
+  const rows = await prisma.agentTransaction.findMany({
+    where: {
+      status: "pending_approval",
+      OR: [
+        { params: { path: ["lifi_continuation"], equals: true } },
+        { params: { path: ["approval_kind"], equals: "lifi_continue" } },
+        { params: { path: ["approval_kind"], equals: "lifi_continuation" } },
+      ],
+    },
+    select: { id: true, params: true, created_at: true },
+  });
+
+  let expired = 0;
+  for (const row of rows) {
+    const params = row.params as Record<string, unknown>;
+    if (isPendingApprovalExpired(params, row.created_at, nowMs)) {
+      await markExpired(row.id);
+      expired += 1;
+    }
+  }
+  return expired;
 }
 
 export async function clearPendingApprovalsForTests(): Promise<void> {
@@ -251,6 +344,68 @@ export async function markApprovedSubmitted(transactionId: string): Promise<void
   });
 }
 
+export async function markLifiSubmitted(
+  transactionId: string,
+  input: {
+    digest: string | null;
+    effects_status: string;
+    result: TxResult;
+  },
+): Promise<AgentTransactionListItem | null> {
+  const row = await updateAgentTransactionById(transactionId, {
+    status: "submitted",
+    digest: input.digest,
+    effects_status: input.effects_status,
+    result: trimTxResult(input.result),
+    error_code: null,
+    error_message: null,
+    submitted_at: new Date(),
+  });
+  return row ? toListItem(row) : null;
+}
+
+export async function updateLifiTrackingProgress(
+  transactionId: string,
+  input: {
+    digest?: string | null;
+    effects_status: string;
+    result: TxResult;
+  },
+): Promise<AgentTransactionListItem | null> {
+  const row = await updateAgentTransactionById(transactionId, {
+    status: "submitted",
+    ...(input.digest !== undefined ? { digest: input.digest } : {}),
+    effects_status: input.effects_status,
+    result: trimTxResult(input.result),
+  });
+  return row ? toListItem(row) : null;
+}
+
+export async function markLifiTerminal(
+  transactionId: string,
+  input: {
+    status: "success" | "failure";
+    digest: string | null;
+    effects_status: string;
+    result: TxResult;
+    error?: { code: string; message: string };
+  },
+): Promise<AgentTransactionListItem | null> {
+  const now = new Date();
+  const row = await updateAgentTransactionById(transactionId, {
+    status: input.status,
+    digest: input.digest,
+    effects_status: input.effects_status,
+    result: trimTxResult(input.result),
+    error_code: input.error?.code ?? null,
+    error_message: input.error?.message
+      ? sanitizeErrorMessageForUi(input.error.message)
+      : null,
+    completed_at: now,
+  });
+  return row ? toListItem(row) : null;
+}
+
 export async function markCompleted(
   transactionId: string,
   completion: TransactionCompletion,
@@ -263,14 +418,17 @@ export async function markCompleted(
       ? enrichDisplayFromResult(existing.amount_display, completion.result)
       : enrichDisplayFromResult("", completion.result);
 
+    const terminalStatus =
+      completion.result.effects_status === "pending" ? "submitted" : "success";
+
     const row = await updateAgentTransactionById(transactionId, {
-      status: "success",
+      status: terminalStatus,
       digest: completion.result.digest,
       effects_status: completion.result.effects_status,
       result: trimTxResult(completion.result),
       error_code: null,
       error_message: null,
-      completed_at: now,
+      ...(terminalStatus === "success" ? { completed_at: now } : {}),
       ...(amountDisplay ? { amount_display: amountDisplay } : {}),
     });
     return row ? toListItem(row) : null;

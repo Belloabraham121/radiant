@@ -21,6 +21,12 @@ describe("agent-tool-errors", () => {
     assert.match(mapped.message, /enough/i);
   });
 
+  it("mapAgentToolError maps EVM insufficient funds to INSUFFICIENT_BALANCE", () => {
+    const mapped = mapAgentToolError(new Error("insufficient funds for gas * price + value"));
+    assert.equal(mapped.code, "INSUFFICIENT_BALANCE");
+    assert.match(mapped.message, /ETH/i);
+  });
+
   it("mapAgentToolError maps Too Many Requests to SUI_RPC_RATE_LIMITED", () => {
     const mapped = mapAgentToolError(new Error("Too Many Requests"));
     assert.equal(mapped.code, "SUI_RPC_RATE_LIMITED");

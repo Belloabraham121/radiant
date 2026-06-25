@@ -9,6 +9,8 @@ export type ChatToolCall = {
   result: unknown;
 };
 
+import type { DeFiApprovalPreview } from "@/lib/defi-approval-preview";
+
 export type TransactionFiatLeg = {
   role: "pay" | "receive" | "fee";
   amount_display: number;
@@ -35,6 +37,7 @@ export type PendingTransaction = {
   amount_display: string;
   quote_expires_at?: string | null;
   fiat_preview?: TransactionFiatPreview | null;
+  defi_preview?: DeFiApprovalPreview | null;
 };
 
 export type ClarificationInteractionType =

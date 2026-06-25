@@ -1,5 +1,10 @@
 import { ZodError } from "zod";
 import { AppError } from "../errors/app-error.js";
+import {
+  isStellarRpcRateLimitError,
+  stellarRpcRateLimitAppError,
+} from "../infrastructure/stellar/rpc-retry.js";
+import { isStellarRpcUnavailableError, stellarRpcUnavailableAppError } from "../config/stellar.js";
 import { isSuiRpcRateLimitError, suiRpcRateLimitAppError } from "../infrastructure/sui/rpc-retry.js";
 import { formatZodValidationError } from "./format-zod-validation.js";
 
@@ -27,11 +32,15 @@ export function mapAgentToolError(err: unknown): AppError {
 
   const message = errorMessage(err);
 
-  if (/insufficient\s*balance|insufficientcoinbalance|not enough\s+\w+/i.test(message)) {
+  if (
+    /insufficient\s*balance|insufficientcoinbalance|not enough\s+\w+|insufficient funds|exceeds balance|gas required exceeds/i.test(
+      message,
+    )
+  ) {
     return new AppError(
       400,
       "INSUFFICIENT_BALANCE",
-      "You do not have enough of the required token to complete this transaction.",
+      "You do not have enough of the required token or native ETH for network gas to complete this transaction.",
       { cause: message },
     );
   }
@@ -70,6 +79,14 @@ export function mapAgentToolError(err: unknown): AppError {
     return suiRpcRateLimitAppError(err);
   }
 
+  if (isStellarRpcUnavailableError(err)) {
+    return stellarRpcUnavailableAppError(err);
+  }
+
+  if (isStellarRpcRateLimitError(err)) {
+    return stellarRpcRateLimitAppError(err);
+  }
+
   return new AppError(400, "TRANSACTION_ERROR", message.slice(0, 500));
 }
 
@@ -98,18 +115,44 @@ export function toolErrorToModelContent(error: AgentToolErrorPayload): string {
 function guidanceForErrorCode(code: string): string {
   switch (code) {
     case "INSUFFICIENT_BALANCE":
-      return "Explain the wallet lacks enough of the required token or SUI for network gas. Suggest funding the agent wallet or using a smaller amount.";
+      return "Explain the wallet lacks enough of the required token and/or native gas on the source network (SUI for Sui, ETH on the specific EVM network for bridges). Suggest funding the agent wallet on that network or using a smaller amount.";
     case "SLIPPAGE_EXCEEDED":
       return "Explain the swap could not complete due to price movement. Suggest a smaller amount or higher slippage.";
     case "SUI_RPC_UNAVAILABLE":
     case "SUI_RPC_RATE_LIMITED":
       return "Explain Sui RPC was temporarily busy or unreachable. Suggest waiting a few seconds and retrying the swap. Do NOT use this explanation for deploy_app or publish_app failures — those are not on-chain.";
+    case "STELLAR_RPC_UNAVAILABLE":
+    case "STELLAR_RPC_RATE_LIMITED":
+      return "Explain Stellar RPC (Horizon or Soroban) was temporarily busy or unreachable. Suggest waiting a few seconds and retrying.";
+    case "STELLAR_CHAIN_NOT_CONFIGURED":
+      return "Explain Stellar is not configured on this deployment. Suggest contacting the operator or using an enabled chain.";
+    case "CROSS_ECOSYSTEM_NOT_SUPPORTED":
+      return "Explain cross-ecosystem bridging (e.g. Stellar to EVM) is not supported in v1. Suggest same-chain swaps or enabled EVM bridges only.";
+    case "DEFI_ROUTE_NOT_FOUND":
+      return "Explain no DeFi provider is configured for the requested chain and capability. Suggest an enabled chain or same-chain swap.";
+    case "LIFI_RATE_LIMITED":
+      return "Explain Li-Fi is temporarily rate limiting. Suggest waiting a few seconds before retrying cross_chain_quote or cross_chain_status.";
+    case "RATE_LIMITED":
+      return "Explain cross-chain execution is temporarily rate limited. Suggest waiting before retrying Approve on the same pending transaction.";
+    case "LIFI_NO_ROUTE":
+      return "Explain no bridge route exists for this token pair or amount. Suggest a different amount, token, or enabled EVM chain pair.";
+    case "LIFI_VALIDATION_ERROR":
+      return "Explain the Li-Fi request params were invalid or the quote expired. Re-run cross_chain_quote with correct from_address and chain ids.";
+    case "LIFI_UNAVAILABLE":
+      return "Explain Li-Fi is temporarily unavailable. Suggest retrying shortly.";
+    case "APPROVAL_FAILED":
+      return "Explain the ERC-20 approval transaction failed. Suggest checking gas and retrying lifi_approve or cross_chain_swap.";
+    case "CHAIN_NOT_ENABLED":
+      return "Explain the requested chain or EVM network is not enabled on this deployment. List enabled chains if known from context.";
+    case "CHAIN_NOT_SUPPORTED":
+      return "Explain the chain id is not supported. Suggest using an enabled chain from the Radiant allowlist.";
     case "TRANSACTION_ERROR":
     case "TRANSACTION_FAILED":
       return "Explain the transaction failed on chain in plain language.";
     case "INVALID_PUBLIC_KEY":
     case "WALLET_METADATA_MISSING":
     case "SIGNING_FAILED":
+    case "STELLAR_SIGNING_FAILED":
       return "Explain there was a wallet signing issue and suggest reconnecting or re-registering the agent wallet.";
     case "VALIDATION_ERROR":
       return "Explain which param was wrong in plain language. For generate_app: name must be a string, files must be an array of { path, content } objects (include app/page.tsx). For deepbook_flash_loan / flash_loan_quote: pool_key is the borrow pool; asset must be base or quote; swap_chain_repay steps are optional (auto-routed when omitted). Fix params and retry the tool — do not ask the user to confirm in chat when details are already in the thread.";

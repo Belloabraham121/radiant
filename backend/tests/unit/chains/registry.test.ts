@@ -14,6 +14,7 @@ describe("chains/registry", () => {
     setAdapterForTests("sui", suiAdapter);
     setAdapterForTests("ethereum", evmAdapter);
     setAdapterForTests("solana", solanaAdapter);
+    setAdapterForTests("stellar", undefined);
   });
 
   it("getAdapter returns sui adapter when enabled", () => {
@@ -22,6 +23,9 @@ describe("chains/registry", () => {
   });
 
   it("getAdapter throws for disabled chain", () => {
+    process.env.ENABLED_CHAINS = "sui";
+    resetChainConfigCacheForTests();
+
     assert.throws(
       () => getAdapter("ethereum"),
       (err: unknown) =>
@@ -29,6 +33,9 @@ describe("chains/registry", () => {
         err.code === "CHAIN_NOT_ENABLED" &&
         err.statusCode === 400,
     );
+
+    delete process.env.ENABLED_CHAINS;
+    resetChainConfigCacheForTests();
   });
 
   it("getAdapter throws when adapter is not registered", () => {

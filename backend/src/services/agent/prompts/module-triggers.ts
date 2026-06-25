@@ -137,4 +137,21 @@ export const PROMPT_MODULE_TRIGGERS: Partial<Record<PromptModuleId, PromptTrigge
   "platform:explorer": {
     keywords: [/\bdeploy_app\b/i, /\binstall_app\b/i, /\bpublish_app\b/i, /marketplace/i],
   },
+  "protocol:lifi:env": {
+    queryTypes: ["cross_chain_quote", "cross_chain_routes", "cross_chain_connections", "cross_chain_status"],
+    keywords: [/\bbridge\b/i, /cross[- ]?chain/i, /\blifi\b/i, /\bjumper\b/i],
+    chains: ["ethereum"],
+  },
+  "protocol:lifi:swap": {
+    executeActions: ["cross_chain_swap", "lifi_approve"],
+    queryTypes: ["cross_chain_quote", "cross_chain_routes"],
+    keywords: [/\bbridge\b/i, /cross[- ]?chain/i],
+    chains: ["ethereum"],
+  },
+  "protocol:lifi:bridge": {
+    executeActions: ["cross_chain_swap", "lifi_approve"],
+    queryTypes: ["cross_chain_quote", "cross_chain_routes", "cross_chain_status", "cross_chain_connections"],
+    keywords: [/\bbridge\b/i, /arbitrum/i, /\bbase\b/i, /ethereum.*arbitrum/i],
+    chains: ["ethereum"],
+  },
 };

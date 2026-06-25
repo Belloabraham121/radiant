@@ -55,7 +55,10 @@ export function AgentTransactionRow({ item, onSelect }: AgentTransactionRowProps
             onClick={(event) => event.stopPropagation()}
             className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--hero-blue)] hover:underline"
           >
-            {explorerLinkLabelForActivityCategory(item.category, { compact: true })}
+            {explorerLinkLabelForActivityCategory(item.category, {
+              compact: true,
+              chainId: item.chain_id,
+            })}
             <ExternalLink className="size-3" />
           </a>
         ) : null}

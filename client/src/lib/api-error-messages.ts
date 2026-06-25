@@ -129,6 +129,9 @@ export function messageForChatStreamError(code: string): string | null {
       return "The agent returned an empty response. Try sending your message again.";
     case "CHAT_STREAM_FAILED":
       return "Could not reach your agent. Try again.";
+    case "RATE_LIMITED":
+    case "LIFI_RATE_LIMITED":
+      return "Cross-chain execution is temporarily rate limited. Wait a moment, then try Approve again.";
     default:
       return null;
   }

@@ -222,12 +222,13 @@ OAuth callback setup is documented in `.env.example` (Privy + Google + GitHub re
 
 ## Pre-ship checklist
 
+- [ ] **Verify** — `npm run lint`; if UI/routes changed, `npm run build` (see `.cursor/rules/verify-before-complete.mdc`)
 - [ ] No secrets in client env, storage, or cache
 - [ ] API calls go through `apiFetch` in `lib/`
 - [ ] No effect-driven fetch loops (check Network tab)
 - [ ] Authenticated routes under `app/app/` use `AppShell`
 - [ ] Errors shown to user, not swallowed with `void`
-- [ ] `npm run lint` clean on touched files
+- [ ] `npm run lint` clean on touched files (and `npm run build` when app code changed)
 
 ---
 

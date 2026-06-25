@@ -27,6 +27,9 @@ import { buildDeepBookStakeLines } from "./protocols/deepbook/stake.js";
 import { buildDeepBookGovernanceLines } from "./protocols/deepbook/governance.js";
 import { buildDeepBookMarginLines } from "./protocols/deepbook/margin.js";
 import { buildDeepBookPredictLines } from "./protocols/deepbook/predict.js";
+import { buildLifiEnvLines } from "./protocols/lifi/env.js";
+import { buildLifiSwapLines } from "./protocols/lifi/swap.js";
+import { buildLifiBridgeLines } from "./protocols/lifi/bridge.js";
 import { buildPlatformBrowsingLines } from "./platform/browsing.js";
 import { buildPlatformStorageLines } from "./platform/storage.js";
 import { buildPlatformNotificationsLines } from "./platform/notifications.js";
@@ -188,6 +191,27 @@ const BASE_PROMPT_MODULES: PromptModule[] = [
     layer: "protocol",
     order: 410,
     build: () => buildDeepBookPredictLines(),
+  },
+  {
+    id: "protocol:lifi:env",
+    layer: "protocol",
+    order: 105,
+    build: () => buildLifiEnvLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:lifi:env"],
+  },
+  {
+    id: "protocol:lifi:swap",
+    layer: "protocol",
+    order: 125,
+    build: () => buildLifiSwapLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:lifi:swap"],
+  },
+  {
+    id: "protocol:lifi:bridge",
+    layer: "protocol",
+    order: 128,
+    build: () => buildLifiBridgeLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:lifi:bridge"],
   },
 ];
 

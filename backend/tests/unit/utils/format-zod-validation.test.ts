@@ -30,6 +30,19 @@ describe("format-zod-validation", () => {
     );
   });
 
+  it("does not leak enum options in invalid_enum_value messages", () => {
+    const schema = z.enum(["balance", "swap_quote"]);
+    try {
+      schema.parse("cross_chain_quote");
+      assert.fail("expected validation error");
+    } catch (err) {
+      assert.ok(err instanceof z.ZodError);
+      const message = formatZodValidationError(err);
+      assert.equal(message, "input is not supported");
+      assert.doesNotMatch(message, /balance/);
+    }
+  });
+
   it("mapAgentToolError maps ZodError to VALIDATION_ERROR", () => {
     const schema = z.object({ amount: z.number().positive() });
     try {

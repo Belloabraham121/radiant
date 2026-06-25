@@ -56,7 +56,9 @@ function formatTransactionBlock(
 
   if (item.digest) {
     lines.push(`   Digest: ${item.digest}`);
-    const explorerUrl = buildExplorerTxUrl(item.chain_id, item.digest);
+    const explorerUrl =
+      item.explorer_url ??
+      buildExplorerTxUrl(item.chain_id, item.digest);
     if (explorerUrl) {
       lines.push(`   Explorer: ${explorerUrl}`);
     }

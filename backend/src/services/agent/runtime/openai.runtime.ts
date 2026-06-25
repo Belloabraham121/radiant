@@ -54,7 +54,7 @@ import {
   detectUnsupportedCapability,
   isUnsupportedCapabilityNudge,
 } from "../deepbook/unsupported-capabilities.js";
-import { agentToolDefinitions, runAgentTool } from "../tools.js";
+import { buildAgentToolDefinitionsForRuntime, runAgentTool } from "../tools.js";
 import { buildSystemPrompt } from "./prompts.js";
 import { buildSystemPromptInputFromContext } from "../prompts/prompt-context.js";
 import { toOpenAiTools } from "./openai-tools.js";
@@ -392,7 +392,7 @@ export const openaiRuntime: AgentRuntime = {
     }
 
     const client = new OpenAI({ apiKey });
-    const tools = toOpenAiTools(agentToolDefinitions);
+    const tools = toOpenAiTools(buildAgentToolDefinitionsForRuntime(input.agentPermissions));
 
     const lastUserMessage =
       input.promptContext?.userMessage ??

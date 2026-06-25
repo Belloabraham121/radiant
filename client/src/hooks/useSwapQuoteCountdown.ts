@@ -50,9 +50,15 @@ export function resolveQuoteExpiresAt(pending: {
   quote_expires_at?: string | null;
   params?: Record<string, unknown>;
 }): string | null {
+  if (
+    pending.params?.lifi_continuation === true ||
+    pending.params?.approval_kind === "lifi_continue"
+  ) {
+    return null;
+  }
   if (pending.quote_expires_at) {
     return pending.quote_expires_at;
   }
-  const fromParams = pending.params?.quote_expires_at;
+  const fromParams = pending.params?.quote_expires_at ?? pending.params?.expires_at;
   return typeof fromParams === "string" ? fromParams : null;
 }

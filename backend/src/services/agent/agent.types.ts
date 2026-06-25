@@ -1,4 +1,5 @@
 import type { TransactionFiatPreview } from "../market/valuation.types.js";
+import type { DeFiApprovalPreview } from "../agent-transaction/approval-preview/approval-preview.types.js";
 import { z } from "zod";
 import { chainIdSchema } from "../chains/types.js";
 import type { BalanceResult, ChainId, TxResult } from "../chains/types.js";
@@ -115,6 +116,8 @@ export type PendingTransaction = {
   quote_expires_at?: string | null;
   /** USD estimates for approval UI (pay / receive / net). */
   fiat_preview?: TransactionFiatPreview | null;
+  /** Provider-agnostic DeFi approval card payload (swap, bridge, etc.). */
+  defi_preview?: DeFiApprovalPreview | null;
 };
 
 export type ChatResponse = {
@@ -131,50 +134,15 @@ export type ChatResponse = {
 
 const queryChainInputObjectSchema = z.object({
   chain_id: chainIdSchema,
-  query: z.enum([
-    "balance",
-    "native_balance",
-    "token_balances",
-    "deepbook_manager_info",
-    "deepbook_manager_balance",
-    "deepbook_pools",
-    "deepbook_pool_info",
-    "deepbook_ticker",
-    "swap_quote",
-    "flash_loan_quote",
-    "deepbook_open_orders",
-    "deepbook_stake_balance",
-    "deepbook_stake_required",
-    "deepbook_governance_state",
-    "deepbook_trades",
-    "deepbook_volume",
-    "deepbook_ohlcv",
-    "agent_transactions",
-    "project_actions",
-    "session_actions",
-    "project_notification_schema",
-    "margin_pool_info",
-    "margin_manager_info",
-    "margin_tpsl_info",
-    "margin_open_orders",
-    "margin_liquidations",
-    "margin_collateral_history",
-    "margin_loan_history",
-    "margin_at_risk_states",
-    "margin_managers_info",
-    "margin_manager_created",
-    "margin_supply_history",
-    "margin_indexer_supply",
-    "margin_manager_state",
-    "predict_markets",
-    "predict_trade_amounts",
-    "predict_range_amounts",
-    "predict_manager_info",
-    "predict_vault_summary",
-  ]),
+  query: z.string().min(1, "Query is required"),
   params: z
     .object({
       evm_chain_id: z.number().int().positive().optional(),
+      to_chain_id: chainIdSchema.optional(),
+      to_evm_chain_id: z.number().int().positive().optional(),
+      symbol: z.string().min(1).optional(),
+      token: z.string().min(1).optional(),
+      input: z.string().min(1).optional(),
       include_zero: z.boolean().optional(),
       include_usd: z.boolean().optional(),
       coin_key: z.string().min(1).optional(),

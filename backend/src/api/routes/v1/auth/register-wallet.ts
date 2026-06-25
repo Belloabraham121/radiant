@@ -24,6 +24,7 @@ authRegisterWalletRouter.post(
       const funded = await isWalletFunded(
         wallet.address,
         wallet.chain_type as ChainId,
+        { privyWalletId: wallet.privy_wallet_id },
       );
       return ok(req, res, toAgentWalletSummary(wallet, funded), 201);
     } catch (err) {

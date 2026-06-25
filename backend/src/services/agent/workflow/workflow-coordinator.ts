@@ -26,6 +26,8 @@ import {
   startAndRunWorkflow,
   continueWorkflowAfterMidRunClarification,
 } from "./workflow-runner.js";
+import { continueSwapClarification } from "../swap/swap-clarification.flow.js";
+import { continueBridgeClarification } from "../bridge/bridge-clarification.flow.js";
 import { getSessionWorkflow, updateSessionWorkflow } from "./session-workflow.store.js";
 import type { WorkflowPlan, WorkflowRunOutcome } from "./workflow.types.js";
 
@@ -201,6 +203,14 @@ export async function continueWorkflowAfterClarification(
   const state = getClarificationById(clarificationId);
   if (!state || state.sessionId !== sessionId) {
     return null;
+  }
+
+  if (state.context === "swap_intent") {
+    return continueSwapClarification(privyUserId, sessionId, clarificationId, answer);
+  }
+
+  if (state.context === "bridge_intent") {
+    return continueBridgeClarification(privyUserId, sessionId, clarificationId, answer);
   }
 
   const workflowState = getSessionWorkflow(sessionId);

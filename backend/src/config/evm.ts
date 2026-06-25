@@ -8,12 +8,15 @@ function optional(name: string): string | undefined {
 
 /** Well-known EVM networks — RPC can be overridden per chain via env. */
 const EVM_CHAIN_DEFAULTS: Record<number, { name: string; rpcUrl: string }> = {
-  1: { name: "Ethereum", rpcUrl: "https://eth.llamarpc.com" },
+  1: { name: "Ethereum", rpcUrl: "https://ethereum-rpc.publicnode.com" },
   8453: { name: "Base", rpcUrl: "https://mainnet.base.org" },
   137: { name: "Polygon", rpcUrl: "https://polygon-rpc.com" },
   42161: { name: "Arbitrum One", rpcUrl: "https://arb1.arbitrum.io/rpc" },
   10: { name: "Optimism", rpcUrl: "https://mainnet.optimism.io" },
 };
+
+/** v1 Radiant allowlist — Ethereum, Arbitrum, Base only. */
+const DEFAULT_ENABLED_EVM_CHAIN_IDS = [1, 42161, 8453] as const;
 
 export type EvmNetworkConfig = {
   chainId: number;
@@ -23,6 +26,7 @@ export type EvmNetworkConfig = {
 
 const evmEnvSchema = z.object({
   EVM_CHAIN_IDS: z.string().optional(),
+  ENABLED_EVM_CHAIN_IDS: z.string().optional(),
   EVM_DEFAULT_CHAIN_ID: z.coerce.number().int().positive().optional(),
   EVM_RPC_URL: z.string().url().optional(),
 });
@@ -31,11 +35,13 @@ type EvmEnv = z.infer<typeof evmEnvSchema>;
 
 let cachedEvmEnv: EvmEnv | undefined;
 let cachedNetworks: EvmNetworkConfig[] | undefined;
+let cachedEnabledEvmChainIds: number[] | undefined;
 
 function getEvmEnv(): EvmEnv {
   if (!cachedEvmEnv) {
     cachedEvmEnv = evmEnvSchema.parse({
       EVM_CHAIN_IDS: optional("EVM_CHAIN_IDS"),
+      ENABLED_EVM_CHAIN_IDS: optional("ENABLED_EVM_CHAIN_IDS"),
       EVM_DEFAULT_CHAIN_ID: optional("EVM_DEFAULT_CHAIN_ID"),
       EVM_RPC_URL: optional("EVM_RPC_URL"),
     });
@@ -89,6 +95,26 @@ function parseEvmChainIds(env: EvmEnv): number[] {
   return ids.length > 0 ? ids : [getDefaultEvmChainIdFromEnv(env)];
 }
 
+function parseEnabledEvmChainAllowlist(env: EvmEnv): number[] {
+  const raw = env.ENABLED_EVM_CHAIN_IDS;
+  if (!raw) {
+    return [...DEFAULT_ENABLED_EVM_CHAIN_IDS];
+  }
+
+  const ids = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .map((part) => Number.parseInt(part, 10))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  return ids.length > 0 ? ids : [...DEFAULT_ENABLED_EVM_CHAIN_IDS];
+}
+
+function isKnownEvmChainId(chainId: number): boolean {
+  return chainId in EVM_CHAIN_DEFAULTS;
+}
+
 function buildNetworks(): EvmNetworkConfig[] {
   const env = getEvmEnv();
   const chainIds = parseEvmChainIds(env);
@@ -111,6 +137,17 @@ export function getEvmNetworks(): EvmNetworkConfig[] {
   return cachedNetworks;
 }
 
+/** v1 allowlist — intersection of configured networks and `ENABLED_EVM_CHAIN_IDS`. */
+export function getEnabledEvmChainIds(): number[] {
+  if (!cachedEnabledEvmChainIds) {
+    const allowlist = new Set(parseEnabledEvmChainAllowlist(getEvmEnv()));
+    cachedEnabledEvmChainIds = getEvmNetworks()
+      .map((network) => network.chainId)
+      .filter((chainId) => allowlist.has(chainId));
+  }
+  return cachedEnabledEvmChainIds;
+}
+
 export function getEvmNetwork(chainId: number): EvmNetworkConfig | null {
   return getEvmNetworks().find((network) => network.chainId === chainId) ?? null;
 }
@@ -118,24 +155,38 @@ export function getEvmNetwork(chainId: number): EvmNetworkConfig | null {
 /** Default EVM chain for balance/tx when `evm_chain_id` is omitted. */
 export function getDefaultEvmChainId(): number {
   const preferred = getDefaultEvmChainIdFromEnv(getEvmEnv());
-  const networks = getEvmNetworks();
-  if (networks.some((network) => network.chainId === preferred)) {
+  const enabled = getEnabledEvmChainIds();
+  if (enabled.includes(preferred)) {
     return preferred;
   }
-  return networks[0]?.chainId ?? 1;
+  return enabled[0] ?? DEFAULT_ENABLED_EVM_CHAIN_IDS[0];
 }
 
 export function resolveEvmChainId(chainId?: number): number {
-  if (chainId === undefined) {
-    return getDefaultEvmChainId();
+  const id = chainId ?? getDefaultEvmChainId();
+  const allowlist = parseEnabledEvmChainAllowlist(getEvmEnv());
+
+  if (!allowlist.includes(id)) {
+    if (isKnownEvmChainId(id)) {
+      throw new AppError(
+        400,
+        "CHAIN_NOT_ENABLED",
+        `EVM chain ${id} is not enabled. Allowed ids: ${allowlist.join(", ")}.`,
+      );
+    }
+    throw new AppError(
+      400,
+      "EVM_CHAIN_NOT_CONFIGURED",
+      `EVM chain ${id} is not configured. Set EVM_CHAIN_IDS and EVM_RPC_URL_${id}.`,
+    );
   }
 
-  const network = getEvmNetwork(chainId);
+  const network = getEvmNetwork(id);
   if (!network) {
     throw new AppError(
       400,
       "EVM_CHAIN_NOT_CONFIGURED",
-      `EVM chain ${chainId} is not configured. Set EVM_CHAIN_IDS and EVM_RPC_URL_${chainId}.`,
+      `EVM chain ${id} is not configured. Set EVM_CHAIN_IDS and EVM_RPC_URL_${id}.`,
     );
   }
 
@@ -146,4 +197,5 @@ export function resolveEvmChainId(chainId?: number): number {
 export function resetEvmConfigCacheForTests(): void {
   cachedEvmEnv = undefined;
   cachedNetworks = undefined;
+  cachedEnabledEvmChainIds = undefined;
 }

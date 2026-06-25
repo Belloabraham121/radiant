@@ -1,6 +1,7 @@
 import type { AgentWallet } from "@prisma/client";
 import { getDefaultAgentChainId } from "../../config/chains.js";
 import { AppError } from "../../errors/app-error.js";
+import { logger } from "../../shared/logger.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
 import type { BalanceContext, ChainId } from "../chains/types.js";
 import {
@@ -23,6 +24,7 @@ import type {
 } from "./wallet.types.js";
 import { parseChainId } from "../chains/registry.js";
 import { assertPrivyWalletOwnership } from "./privy-wallet-ownership.service.js";
+import { isEvmWalletFundedAnyNetwork } from "./evm-wallet-funding.service.js";
 
 /** Map Prisma row → adapter shape (schema uses `address`, not legacy `sui_address`). */
 function toResolvedAgentWallet(wallet: AgentWallet): ResolvedAgentWallet {
@@ -58,7 +60,12 @@ export async function listAgentWalletsForPrivyUser(
 export async function isWalletFunded(
   address: string,
   chainId: ChainId = getDefaultAgentChainId(),
+  options?: { privyWalletId?: string },
 ): Promise<boolean> {
+  if (chainId === "ethereum") {
+    return isEvmWalletFundedAnyNetwork(address, options?.privyWalletId);
+  }
+
   try {
     const result = await getBalanceForAddress(chainId, address);
     return result.funded;
@@ -69,7 +76,12 @@ export async function isWalletFunded(
     ) {
       return false;
     }
-    throw err;
+    logger.warn("Wallet funded check failed; treating as unfunded", {
+      chainId,
+      address,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
   }
 }
 

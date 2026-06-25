@@ -24,6 +24,12 @@ export function getSolanaPolicyId(): string | undefined {
   return id || undefined;
 }
 
+/** Optional Stellar policy — must match `PRIVY_STELLAR_POLICY_ID` on the backend. */
+export function getStellarPolicyId(): string | undefined {
+  const id = process.env.NEXT_PUBLIC_PRIVY_STELLAR_POLICY_ID?.trim();
+  return id || undefined;
+}
+
 /** Per-chain-family policy ID for `addSigners`. */
 export function getPolicyIdForChain(chainId: AgentChainId): string | undefined {
   switch (chainId) {
@@ -33,6 +39,8 @@ export function getPolicyIdForChain(chainId: AgentChainId): string | undefined {
       return getEvmPolicyId();
     case "solana":
       return getSolanaPolicyId();
+    case "stellar":
+      return getStellarPolicyId();
     default: {
       const _exhaustive: never = chainId;
       return _exhaustive;

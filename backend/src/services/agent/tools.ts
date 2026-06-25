@@ -4,14 +4,12 @@ import type { ExecuteTransactionInput } from "../chains/types.js";
 import type { QueryChainInput } from "./agent.types.js";
 import {
   EXECUTE_TRANSACTION_TOOL_NAME,
-  executeTransactionToolDefinition,
-} from "./execute-transaction.tool.js";
+} from "./tools/execute-transaction.tool.js";
 import { runExecuteTransactionToolWithApproval } from "./execute-transaction-with-approval.js";
 import {
   QUERY_CHAIN_TOOL_NAME,
-  queryChainToolDefinition,
   runQueryChainTool,
-} from "./query-chain.tool.js";
+} from "./tools/query-chain.tool.js";
 import {
   DEPLOY_APP_TOOL_NAME,
   deployAppToolDefinition,
@@ -98,26 +96,53 @@ import {
   runUpdateNotificationRuleTool,
 } from "../notifications/notification-rules.tool.js";
 import type { AgentToolOptions } from "./execute-transaction-context.js";
+import {
+  buildAgentChainToolDefinitions,
+  staticToolDefinitionsContext,
+} from "./tools/build-tool-definitions.js";
+import type { BuildToolDefinitionsContext } from "./chains/types.js";
+import type { AgentToolDefinition } from "./runtime/openai-tools.js";
+import type { AgentPermissions } from "./agent-permissions.types.js";
+import { getEnabledChainConfigs } from "../../config/chains.js";
+import { denyDefaultAgentPermissions } from "./agent-permissions.service.js";
 
-export const agentToolDefinitions = [
-  executeTransactionToolDefinition,
-  callAppActionToolDefinition,
-  queryChainToolDefinition,
-  updateMemoryToolDefinition,
-  listSessionProjectsToolDefinition,
-  generateAppToolDefinition,
-  editAppToolDefinition,
-  readArtifactToolDefinition,
-  deployAppToolDefinition,
-  listPublicAppsToolDefinition,
-  installAppToolDefinition,
-  publishAppToolDefinition,
-  saveProjectToolDefinition,
-  webSearchToolDefinition,
-  browseWebpageToolDefinition,
-  callApiToolDefinition,
-  ...notificationRuleToolDefinitions,
-] as const;
+export type { BuildToolDefinitionsContext };
+
+export function buildAgentToolDefinitions(context: BuildToolDefinitionsContext): AgentToolDefinition[] {
+  const [executeTx, queryChain] = buildAgentChainToolDefinitions(context);
+  return [
+    executeTx,
+    callAppActionToolDefinition,
+    queryChain,
+    updateMemoryToolDefinition,
+    listSessionProjectsToolDefinition,
+    generateAppToolDefinition,
+    editAppToolDefinition,
+    readArtifactToolDefinition,
+    deployAppToolDefinition,
+    listPublicAppsToolDefinition,
+    installAppToolDefinition,
+    publishAppToolDefinition,
+    saveProjectToolDefinition,
+    webSearchToolDefinition,
+    browseWebpageToolDefinition,
+    callApiToolDefinition,
+    ...notificationRuleToolDefinitions,
+  ];
+}
+
+export function buildAgentToolDefinitionsForRuntime(
+  permissions?: AgentPermissions,
+): AgentToolDefinition[] {
+  return buildAgentToolDefinitions({
+    enabledChains: getEnabledChainConfigs().map((config) => config.id),
+    permissions: permissions ?? denyDefaultAgentPermissions(),
+  });
+}
+
+export const agentToolDefinitions = buildAgentToolDefinitions(
+  staticToolDefinitionsContext(),
+);
 
 export type AgentToolErrorResult = {
   error: {

@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,6 +24,7 @@ import {
 } from "@/components/wallet/AgentWalletProvider";
 import { EvmDepositDialog } from "@/components/wallet/deposits/EvmDepositDialog";
 import { SolanaDepositDialog } from "@/components/wallet/deposits/SolanaDepositDialog";
+import { StellarDepositDialog } from "@/components/wallet/deposits/StellarDepositDialog";
 import { SuiDepositDialog } from "@/components/wallet/deposits/SuiDepositDialog";
 import type { AgentChainId } from "@/lib/agent-chains";
 import {
@@ -31,14 +33,18 @@ import {
   chainExplorerAccountUrl,
   getEvmDefaultChainId,
 } from "@/lib/chain-meta";
+import { getEnabledEvmNetworks } from "@/lib/evm-chains";
 import {
   depositRailForChain,
   isDepositRailAvailable,
 } from "@/lib/personal-wallet";
 import { invalidateWalletAssetsForChain } from "@/lib/wallet-assets-events";
 import { refreshAllWalletData } from "@/lib/refresh-wallet-data";
+import { ChainLogo } from "@/components/wallet/ChainLogo";
+import { EvmChainStack } from "@/components/wallet/EvmChainStack";
 import { DeepBookBalancesLine } from "@/components/wallet/DeepBookBalancesLine";
 import { invalidateDeepBookManagerCache } from "@/lib/wallet-session-cache";
+import type { EvmNetworkMeta } from "@/lib/evm-chains";
 import { useProfileWalletData } from "@/hooks/useProfileWalletData";
 import { useWalletAssets } from "@/hooks/useWalletAssets";
 import type { WalletAssetRow } from "@/lib/wallet-assets-api";
@@ -69,16 +75,6 @@ function sortAssets(assets: WalletAssetRow[]): WalletAssetRow[] {
     if (aNonZero !== bNonZero) return aNonZero ? -1 : 1;
     return a.symbol.localeCompare(b.symbol);
   });
-}
-
-function collapsedSummary(assets: WalletAssetRow[]): string {
-  const nonZero = assets.filter((a) => a.balance_atomic !== "0");
-  if (nonZero.length === 0) return "No assets yet";
-
-  const top = nonZero
-    .slice(0, 2)
-    .map((a) => `${formatBalance(a.balance_display, a.decimals)} ${a.symbol}`);
-  return top.join(", ");
 }
 
 function AssetRow({ asset }: { asset: WalletAssetRow }) {
@@ -150,24 +146,27 @@ function AssetSkeletonRows() {
   );
 }
 
-function AgentWalletAssetsInline({
+function AgentWalletAssetsPanel({
   chainId,
+  evmChainId,
   hasAddress,
   walletReady,
   refreshBalancesOnly,
+  expanded,
 }: {
   chainId: AgentChainId;
+  evmChainId?: number;
   hasAddress: boolean;
   walletReady: boolean;
   refreshBalancesOnly: () => Promise<void>;
+  expanded: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const evmChainId =
-    chainId === "ethereum" ? getEvmDefaultChainId() : undefined;
+  const resolvedEvmChainId =
+    chainId === "ethereum" ? (evmChainId ?? getEvmDefaultChainId()) : undefined;
 
   const { data, loading, error, reload, loadIfNeeded } = useWalletAssets({
     chainId,
-    evmChainId,
+    evmChainId: resolvedEvmChainId,
     enabled: walletReady && hasAddress,
   });
 
@@ -190,216 +189,375 @@ function AgentWalletAssetsInline({
 
   const allZero =
     data !== null && data.assets.every((asset) => asset.balance_atomic === "0");
-  const summary = data ? collapsedSummary(sortedAssets) : "Tap to view assets";
+
+  if (!expanded) {
+    return null;
+  }
 
   return (
-    <div className="mt-5 border-t-2 border-[var(--hero-ink)]/10 pt-4">
+    <div className="mt-3 border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-3">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
+          {getChainMeta(chainId).label} assets
+        </p>
+        <button
+          type="button"
+          disabled={!hasAddress || loading}
+          onClick={() =>
+            void refreshAllWalletData({ refreshBalancesOnly }).then(() =>
+              reload(),
+            )
+          }
+          className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-2.5 py-0.5 text-[10px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <RefreshCw className={`size-3 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
+
+      {!hasAddress ? (
+        <p className="text-sm font-medium text-[var(--hero-ink)]/55">
+          Your agent wallet is still setting up.
+        </p>
+      ) : error ? (
+        <div className="rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
+          <p className="text-sm font-semibold text-[var(--hero-coral)]">
+            {error}
+          </p>
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-[var(--hero-blue)] hover:underline"
+          >
+            <RefreshCw className="size-3.5" />
+            Try again
+          </button>
+        </div>
+      ) : loading && !data ? (
+        <AssetSkeletonRows />
+      ) : (
+        <>
+          {data && data.total_usd !== null ? (
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
+              ≈ $
+              {data.total_usd.toLocaleString(undefined, {
+                maximumFractionDigits: 2,
+              })}{" "}
+              total
+            </p>
+          ) : null}
+
+          {allZero ? (
+            <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-[var(--hero-bg)] px-4 py-5 text-center">
+              <p className="text-sm font-semibold text-[var(--hero-ink)]/70">
+                No assets yet
+              </p>
+              <p className="mt-1 text-xs font-medium text-[var(--hero-ink)]/50">
+                Fund your {getChainMeta(chainId).label} agent wallet to get
+                started.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {sortedAssets.map((asset) => (
+                <AssetRow
+                  key={`${asset.coin_type}-${asset.symbol}`}
+                  asset={asset}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function WalletAddressCopyButton({
+  copied,
+  disabled,
+  onCopy,
+}: {
+  copied: boolean;
+  disabled: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onCopy();
+      }}
+      disabled={disabled}
+      aria-label={copied ? "Address copied" : "Copy wallet address"}
+      className={`flex size-8 shrink-0 items-center justify-center rounded-full border-2 border-[var(--hero-ink)] transition-colors ${
+        copied
+          ? "bg-[var(--hero-mint)] text-white"
+          : "bg-white hover:bg-[var(--hero-bg)]"
+      } disabled:cursor-not-allowed disabled:opacity-50`}
+    >
+      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+    </button>
+  );
+}
+
+function AgentWalletChainRow({
+  wallet,
+  provisioning,
+  expanded,
+  onToggle,
+  copied,
+  onCopy,
+  onDeposit,
+  walletReady,
+  refreshBalancesOnly,
+  evmChainId,
+  onEvmChainIdChange,
+  evmNetworks,
+  footer,
+}: {
+  wallet: ChainWalletState;
+  provisioning: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  copied: boolean;
+  onCopy: () => void;
+  onDeposit: () => void;
+  walletReady: boolean;
+  refreshBalancesOnly: () => Promise<void>;
+  evmChainId?: number;
+  onEvmChainIdChange?: (chainId: number) => void;
+  evmNetworks: EvmNetworkMeta[];
+  footer?: ReactNode;
+}) {
+  const meta = getChainMeta(wallet.chainId);
+  const address = wallet.address ?? "";
+  const short = address ? formatChainAddress(wallet.chainId, address) : "—";
+  const explorerUrl = chainExplorerAccountUrl(
+    wallet.chainId,
+    address,
+    wallet.chainId === "ethereum" ? evmChainId : undefined,
+  );
+  const showProvisioning = provisioning && !address;
+
+  return (
+    <div
+      className={`rounded-2xl border-2 px-4 py-3 transition-colors ${
+        expanded
+          ? "border-[var(--hero-ink)] bg-[var(--hero-violet)]/5 shadow-[2px_2px_0_var(--hero-ink)]"
+          : "border-[var(--hero-ink)]/15 bg-white hover:border-[var(--hero-ink)]/40"
+      }`}
+    >
       <button
         type="button"
-        onClick={() => setExpanded((open) => !open)}
+        onClick={onToggle}
+        aria-expanded={expanded}
         className="flex w-full items-center justify-between gap-3 text-left"
       >
-        <span>
-          <span className="block text-sm font-bold">Assets</span>
-          <span className="block text-xs font-medium text-[var(--hero-ink)]/50">
-            {loading && !data ? "Loading…" : summary}
+        <div className="flex min-w-0 items-center gap-3">
+          {wallet.chainId === "ethereum" ? (
+            <EvmChainStack networks={evmNetworks} size={36} />
+          ) : (
+            <ChainLogo chainId={wallet.chainId} size={36} />
+          )}
+          <div className="min-w-0">
+            <p className="text-sm font-extrabold uppercase tracking-wide text-[var(--hero-ink)]">
+              {meta.label}
+            </p>
+            <p
+              className={`text-[10px] font-bold uppercase tracking-[0.1em] ${
+                wallet.funded
+                  ? "text-[var(--hero-mint)]"
+                  : "text-[var(--hero-ink)]/40"
+              }`}
+            >
+              {wallet.funded ? "Funded" : "Empty"}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="font-mono text-xs font-semibold text-[var(--hero-ink)]/70">
+            {showProvisioning ? "Provisioning…" : short}
           </span>
-        </span>
-        <ChevronDown
-          className={`size-5 shrink-0 text-[var(--hero-ink)]/40 transition-transform ${
-            expanded ? "rotate-180" : ""
-          }`}
-          strokeWidth={2.5}
-        />
+          <WalletAddressCopyButton
+            copied={copied}
+            disabled={!address || showProvisioning}
+            onCopy={onCopy}
+          />
+          <ChevronDown
+            className={`size-4 shrink-0 text-[var(--hero-ink)]/40 transition-transform ${
+              expanded ? "rotate-180" : ""
+            }`}
+            strokeWidth={2.5}
+          />
+        </div>
       </button>
 
       {expanded ? (
-        <div className="pt-4">
-          <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        <div className="mt-3">
+          {explorerUrl ? (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--hero-blue)] hover:underline"
+            >
+              View on explorer
+              <ExternalLink className="size-3" />
+            </a>
+          ) : null}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
               type="button"
-              disabled={!hasAddress || loading}
-              onClick={() =>
-                void refreshAllWalletData({ refreshBalancesOnly }).then(() =>
-                  reload(),
-                )
-              }
-              className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDeposit();
+              }}
+              disabled={!address || showProvisioning}
+              className="inline-flex items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2 text-xs font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-coral)] disabled:opacity-50"
             >
-              <RefreshCw
-                className={`size-3.5 ${loading ? "animate-spin" : ""}`}
-              />
-              Refresh
+              <WalletMinimal className="size-3.5" />
+              Deposit
             </button>
+            {!wallet.signerAdded && !showProvisioning ? (
+              <span className="text-[10px] font-semibold text-[var(--hero-coral)]">
+                Signer pending
+              </span>
+            ) : null}
           </div>
 
-          {!hasAddress ? (
-            <p className="text-sm font-medium text-[var(--hero-ink)]/55">
-              Your agent wallet is still setting up.
-            </p>
-          ) : error ? (
-            <div className="rounded-2xl border-2 border-[var(--hero-coral)]/30 bg-[var(--hero-coral)]/10 px-4 py-3">
-              <p className="text-sm font-semibold text-[var(--hero-coral)]">
-                {error}
-              </p>
-              <button
-                type="button"
-                onClick={() => void reload()}
-                className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-[var(--hero-blue)] hover:underline"
-              >
-                <RefreshCw className="size-3.5" />
-                Try again
-              </button>
-            </div>
-          ) : loading && !data ? (
-            <AssetSkeletonRows />
-          ) : (
-            <>
-              {data && data.total_usd !== null ? (
-                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
-                  ≈ $
-                  {data.total_usd.toLocaleString(undefined, {
-                    maximumFractionDigits: 2,
-                  })}{" "}
-                  total
-                </p>
-              ) : null}
-
-              {allZero ? (
-                <div className="rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-[var(--hero-bg)] px-4 py-5 text-center">
-                  <p className="text-sm font-semibold text-[var(--hero-ink)]/70">
-                    No assets yet
-                  </p>
-                  <p className="mt-1 text-xs font-medium text-[var(--hero-ink)]/50">
-                    Fund your {getChainMeta(chainId).label} agent wallet to get
-                    started.
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {sortedAssets.map((asset) => (
-                    <AssetRow
-                      key={`${asset.coin_type}-${asset.symbol}`}
-                      asset={asset}
+          {wallet.chainId === "ethereum" &&
+          evmNetworks.length > 1 &&
+          onEvmChainIdChange ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="w-full text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
+                EVM network (assets)
+              </span>
+              {evmNetworks.map((network) => {
+                const networkFunded =
+                  wallet.evmFundedByNetwork?.[network.chainId] === true;
+                return (
+                <button
+                  key={network.chainId}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEvmChainIdChange(network.chainId);
+                  }}
+                  className={`relative rounded-full border-2 px-3 py-1 text-xs font-bold ${
+                    evmChainId === network.chainId
+                      ? "border-[var(--hero-ink)] bg-[var(--hero-ink)] text-[var(--hero-bg)]"
+                      : "border-[var(--hero-ink)]/25 bg-white text-[var(--hero-ink)]"
+                  }`}
+                >
+                  {networkFunded ? (
+                    <span
+                      className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[var(--hero-mint)] ring-2 ring-white"
+                      aria-hidden
                     />
-                  ))}
-                </div>
-              )}
-            </>
-          )}
+                  ) : null}
+                  {network.label}
+                </button>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {footer}
+
+          <AgentWalletAssetsPanel
+            chainId={wallet.chainId}
+            evmChainId={evmChainId}
+            hasAddress={Boolean(wallet.address)}
+            walletReady={walletReady}
+            refreshBalancesOnly={refreshBalancesOnly}
+            expanded
+          />
         </div>
       ) : null}
     </div>
   );
 }
 
-function AgentWalletChainCard({
-  wallet,
+function AgentWalletUnifiedCard({
+  wallets,
+  enabledChains,
+  expandedChainId,
+  onToggleChain,
   provisioning,
+  copiedChain,
+  onCopyAddress,
   onDeposit,
-  onCopy,
-  copied,
-  footer,
   walletReady,
   refreshBalancesOnly,
+  selectedEvmChainId,
+  onEvmChainIdChange,
+  evmNetworks,
 }: {
-  wallet: ChainWalletState;
+  wallets: ChainWalletState[];
+  enabledChains: AgentChainId[];
+  expandedChainId: AgentChainId | null;
+  onToggleChain: (chainId: AgentChainId) => void;
   provisioning: boolean;
-  onDeposit: () => void;
-  copied: boolean;
-  onCopy: () => void;
-  footer?: ReactNode;
+  copiedChain: AgentChainId | null;
+  onCopyAddress: (chainId: AgentChainId, address: string) => void;
+  onDeposit: (chainId: AgentChainId) => void;
   walletReady: boolean;
   refreshBalancesOnly: () => Promise<void>;
+  selectedEvmChainId: number;
+  onEvmChainIdChange: (chainId: number) => void;
+  evmNetworks: EvmNetworkMeta[];
 }) {
-  const meta = getChainMeta(wallet.chainId);
-  const address = wallet.address ?? "";
-  const short = address ? formatChainAddress(wallet.chainId, address) : "—";
-  const explorerUrl = chainExplorerAccountUrl(wallet.chainId, address);
-  const showProvisioning = provisioning && !address;
   return (
     <div className="rounded-3xl border-2 border-[var(--hero-ink)] bg-white p-5 shadow-[4px_4px_0_var(--hero-ink)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
-            {wallet.label} agent wallet
-          </p>
-        </div>
-        {wallet.funded ? (
-          <span className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)]/15 px-2.5 py-0.5 text-[10px] font-bold uppercase text-[var(--hero-mint)]">
-            Funded
-          </span>
-        ) : (
-          <span className="rounded-full border-2 border-[var(--hero-ink)]/20 px-2.5 py-0.5 text-[10px] font-bold uppercase text-[var(--hero-ink)]/40">
-            Empty
-          </span>
-        )}
-      </div>
-
-      <div className="mt-4 rounded-2xl border-2 border-dashed border-[var(--hero-ink)]/20 bg-[var(--hero-bg)] px-3 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="font-mono text-xs font-semibold text-[var(--hero-ink)]/70">
-            {showProvisioning ? "Provisioning…" : address || "—"}
-          </p>
-          <button
-            type="button"
-            onClick={onCopy}
-            disabled={!address}
-            className={`flex items-center gap-1 rounded-full border-2 border-[var(--hero-ink)] px-2 py-0.5 text-[10px] font-bold ${
-              copied ? "bg-[var(--hero-mint)] text-white" : "bg-white"
-            }`}
-          >
-            {copied ? (
-              <Check className="size-3" />
-            ) : (
-              <Copy className="size-3" />
-            )}
-            {copied ? "Copied" : "Copy"}
-          </button>
-        </div>
-        <p className="mt-1 text-[10px] font-medium text-[var(--hero-ink)]/45">
-          {short}
-        </p>
-        {explorerUrl ? (
-          <a
-            href={explorerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-[var(--hero-blue)] hover:underline"
-          >
-            View on explorer
-            <ExternalLink className="size-3" />
-          </a>
-        ) : null}
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onDeposit}
-          disabled={!address || showProvisioning}
-          className="inline-flex items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-ink)] px-4 py-2 text-xs font-bold text-[var(--hero-bg)] shadow-[3px_3px_0_var(--hero-coral)] disabled:opacity-50"
-        >
-          <WalletMinimal className="size-3.5" />
-          Deposit
-        </button>
-        {!wallet.signerAdded && !showProvisioning && (
-          <span className="text-[10px] font-semibold text-[var(--hero-coral)]">
-            Signer pending
-          </span>
-        )}
-      </div>
-
-      <p className="mt-3 text-xs font-medium text-[var(--hero-ink)]/50">
-        {meta.depositFallbackHint}
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/40">
+        Agent wallet
       </p>
-      {footer}
-      <AgentWalletAssetsInline
-        chainId={wallet.chainId}
-        hasAddress={Boolean(wallet.address)}
-        walletReady={walletReady}
-        refreshBalancesOnly={refreshBalancesOnly}
-      />
+      <p className="mt-1 text-xs font-medium text-[var(--hero-ink)]/50">
+        Tap a chain to view its address, explorer, and assets.
+      </p>
+
+      <div className="mt-4 flex flex-col gap-2">
+        {enabledChains.map((chainId) => {
+          const wallet = wallets.find((w) => w.chainId === chainId);
+          if (!wallet) return null;
+
+          return (
+            <AgentWalletChainRow
+              key={chainId}
+              wallet={wallet}
+              provisioning={provisioning}
+              expanded={expandedChainId === chainId}
+              onToggle={() => onToggleChain(chainId)}
+              copied={copiedChain === chainId}
+              onCopy={() => {
+                if (wallet.address) onCopyAddress(chainId, wallet.address);
+              }}
+              onDeposit={() => onDeposit(chainId)}
+              walletReady={walletReady}
+              refreshBalancesOnly={refreshBalancesOnly}
+              evmChainId={
+                chainId === "ethereum" ? selectedEvmChainId : undefined
+              }
+              onEvmChainIdChange={
+                chainId === "ethereum" ? onEvmChainIdChange : undefined
+              }
+              evmNetworks={evmNetworks}
+              footer={
+                chainId === "sui" && walletReady && wallet.address ? (
+                  <DeepBookBalancesLine
+                    enabled={walletReady}
+                    walletSuiBalance={wallet.balanceDisplay}
+                  />
+                ) : null
+              }
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -417,28 +575,42 @@ export function AgentWalletSection() {
   } = useAgentWallet();
 
   const suiWallets = useWallets();
-  const [selectedChainId, setSelectedChainId] =
-    useState<AgentChainId>(defaultChainId);
+  const [expandedChainId, setExpandedChainId] = useState<AgentChainId | null>(
+    defaultChainId,
+  );
   const [prevDefaultChainId, setPrevDefaultChainId] =
     useState<AgentChainId>(defaultChainId);
   const [copiedChain, setCopiedChain] = useState<AgentChainId | null>(null);
   const [depositChain, setDepositChain] = useState<AgentChainId | null>(null);
   const [depositHint, setDepositHint] = useState<string | null>(null);
+  const [selectedEvmChainId, setSelectedEvmChainId] = useState(() =>
+    getEvmDefaultChainId(),
+  );
+  const enabledEvmNetworks = useMemo(() => getEnabledEvmNetworks(), []);
 
   const walletReady = walletStatus === "ready";
   const [refreshingAll, setRefreshingAll] = useState(false);
+  const autoProvisionRef = useRef(false);
+
+  const hasMissingWallet = enabledChains.some(
+    (chainId) => !wallets.find((w) => w.chainId === chainId)?.address,
+  );
+
+  useEffect(() => {
+    if (autoProvisionRef.current) return;
+    if (walletStatus !== "ready") return;
+    if (!hasMissingWallet || provisioning) return;
+    autoProvisionRef.current = true;
+    refreshAgentWallet();
+  }, [hasMissingWallet, provisioning, refreshAgentWallet, walletStatus]);
 
   if (defaultChainId !== prevDefaultChainId) {
     setPrevDefaultChainId(defaultChainId);
-    setSelectedChainId(defaultChainId);
+    setExpandedChainId(defaultChainId);
   }
 
-  const activeChainId = enabledChains.includes(selectedChainId)
-    ? selectedChainId
-    : defaultChainId;
-  const selectedWallet = wallets.find((w) => w.chainId === activeChainId);
   const walletActionsDisabled =
-    provisioning || (!walletReady && !selectedWallet?.address);
+    provisioning || (!walletReady && wallets.every((w) => !w.address));
 
   const handleRefreshAll = async () => {
     setRefreshingAll(true);
@@ -447,6 +619,10 @@ export function AgentWalletSection() {
     } finally {
       setRefreshingAll(false);
     }
+  };
+
+  const toggleChain = (chainId: AgentChainId) => {
+    setExpandedChainId((current) => (current === chainId ? null : chainId));
   };
 
   const copyAddress = async (chainId: AgentChainId, address: string) => {
@@ -475,6 +651,7 @@ export function AgentWalletSection() {
   const suiWallet = wallets.find((w) => w.chainId === "sui");
   const evmWallet = wallets.find((w) => w.chainId === "ethereum");
   const solanaWallet = wallets.find((w) => w.chainId === "solana");
+  const stellarWallet = wallets.find((w) => w.chainId === "stellar");
 
   return (
     <>
@@ -488,60 +665,18 @@ export function AgentWalletSection() {
             <Wallet className="size-4" strokeWidth={2.5} />
             Agent wallet
           </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            {enabledChains.length > 1 ? (
-              <div className="relative">
-                <select
-                  value={activeChainId}
-                  onChange={(e) =>
-                    setSelectedChainId(e.target.value as AgentChainId)
-                  }
-                  aria-label="Select agent wallet chain"
-                  className="appearance-none rounded-full border-2 border-[var(--hero-ink)] bg-white py-1.5 pl-3 pr-8 text-xs font-bold transition-transform hover:-translate-y-0.5"
-                >
-                  {enabledChains.map((id) => {
-                    const meta = getChainMeta(id);
-                    return (
-                      <option key={id} value={id}>
-                        {meta.label}
-                        {id === defaultChainId ? " · default" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-                <ChevronDown
-                  className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--hero-ink)]/50"
-                  strokeWidth={2.5}
-                />
-              </div>
-            ) : (
-              <span className="rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-3 py-1 text-xs font-bold text-[var(--hero-violet)] shadow-[2px_2px_0_var(--hero-ink)]">
-                {getChainMeta(defaultChainId).label}
-              </span>
-            )}
-            <button
-              type="button"
-              disabled={walletActionsDisabled || refreshingAll}
-              onClick={() => void handleRefreshAll()}
-              className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RefreshCw
-                className={`size-3.5 ${refreshingAll ? "animate-spin" : ""}`}
-              />
-              Refresh balances
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={walletActionsDisabled || refreshingAll}
+            onClick={() => void handleRefreshAll()}
+            className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1 text-xs font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`size-3.5 ${refreshingAll ? "animate-spin" : ""}`}
+            />
+            Refresh balances
+          </button>
         </div>
-
-        <p className="mb-5 text-sm font-medium leading-relaxed text-[var(--hero-ink)]/55">
-          Your agent&apos;s embedded wallet on{" "}
-          {getChainMeta(activeChainId).label}. Switch chains to view other
-          wallets
-          {enabledChains.includes("ethereum")
-            ? " — the same 0x address is used across EVM networks"
-            : ""}
-          .
-        </p>
 
         {depositHint ? (
           <div className="mb-5 rounded-2xl border-2 border-[var(--hero-ink)]/20 bg-[var(--hero-bg)] px-4 py-3">
@@ -573,42 +708,23 @@ export function AgentWalletSection() {
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-4">
-          {selectedWallet ? (
-            <AgentWalletChainCard
-              wallet={{
-                ...selectedWallet,
-                label:
-                  selectedWallet.chainId === defaultChainId
-                    ? `${selectedWallet.label} · default`
-                    : selectedWallet.label,
-              }}
-              provisioning={provisioning}
-              copied={copiedChain === selectedWallet.chainId}
-              walletReady={walletReady}
-              refreshBalancesOnly={refreshBalancesOnly}
-              onCopy={() => {
-                if (selectedWallet.address) {
-                  void copyAddress(
-                    selectedWallet.chainId,
-                    selectedWallet.address,
-                  );
-                }
-              }}
-              onDeposit={() => openDeposit(selectedWallet.chainId)}
-              footer={
-                selectedWallet.chainId === "sui" &&
-                walletReady &&
-                selectedWallet.address ? (
-                  <DeepBookBalancesLine
-                    enabled={walletReady}
-                    walletSuiBalance={selectedWallet.balanceDisplay}
-                  />
-                ) : null
-              }
-            />
-          ) : null}
-        </div>
+        <AgentWalletUnifiedCard
+          wallets={wallets}
+          enabledChains={enabledChains}
+          expandedChainId={expandedChainId}
+          onToggleChain={toggleChain}
+          provisioning={provisioning}
+          copiedChain={copiedChain}
+          onCopyAddress={(chainId, address) =>
+            void copyAddress(chainId, address)
+          }
+          onDeposit={openDeposit}
+          walletReady={walletReady}
+          refreshBalancesOnly={refreshBalancesOnly}
+          selectedEvmChainId={selectedEvmChainId}
+          onEvmChainIdChange={setSelectedEvmChainId}
+          evmNetworks={enabledEvmNetworks}
+        />
       </section>
 
       {suiWallet?.address && (
@@ -646,6 +762,14 @@ export function AgentWalletSection() {
             void refreshBalancesOnly();
             invalidateWalletAssetsForChain("solana");
           }}
+        />
+      )}
+
+      {stellarWallet?.address && (
+        <StellarDepositDialog
+          open={depositChain === "stellar"}
+          onOpenChange={(open) => !open && setDepositChain(null)}
+          agentAddress={stellarWallet.address}
         />
       )}
     </>

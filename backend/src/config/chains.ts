@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getHorizonUrl } from "./stellar.js";
 import type { ChainId } from "../services/chains/types.js";
 import { CHAIN_IDS } from "../services/chains/types.js";
 
@@ -26,6 +27,7 @@ const chainsEnvSchema = z.object({
   PRIVY_SUI_POLICY_ID: z.string().min(1).optional(),
   PRIVY_EVM_POLICY_ID: z.string().min(1).optional(),
   PRIVY_SOLANA_POLICY_ID: z.string().min(1).optional(),
+  PRIVY_STELLAR_POLICY_ID: z.string().min(1).optional(),
   EVM_RPC_URL: z.string().url().optional(),
   SOLANA_RPC_URL: z.string().url().optional(),
 });
@@ -43,6 +45,7 @@ function getChainsEnv(): ChainsEnv {
       PRIVY_SUI_POLICY_ID: optional("PRIVY_SUI_POLICY_ID"),
       PRIVY_EVM_POLICY_ID: optional("PRIVY_EVM_POLICY_ID"),
       PRIVY_SOLANA_POLICY_ID: optional("PRIVY_SOLANA_POLICY_ID"),
+      PRIVY_STELLAR_POLICY_ID: optional("PRIVY_STELLAR_POLICY_ID"),
       EVM_RPC_URL: optional("EVM_RPC_URL"),
       SOLANA_RPC_URL: optional("SOLANA_RPC_URL"),
     });
@@ -99,6 +102,14 @@ function buildChainCatalog(): Record<ChainId, ChainConfig> {
       rpcUrl: env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com",
       policyId: env.PRIVY_SOLANA_POLICY_ID,
       privyChainType: "solana",
+    },
+    stellar: {
+      id: "stellar",
+      enabled: false,
+      nativeSymbol: "XLM",
+      rpcUrl: getHorizonUrl(),
+      policyId: env.PRIVY_STELLAR_POLICY_ID,
+      privyChainType: "stellar",
     },
   };
 }
