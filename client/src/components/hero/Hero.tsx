@@ -85,11 +85,15 @@ export function Hero() {
 
         <h1
           data-hero-fade
-          className="max-w-5xl font-heading text-5xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl md:text-7xl lg:text-8xl"
+          className="max-w-5xl text-balance font-heading text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl md:text-7xl lg:text-8xl"
         >
           Your personal AI agent
           <br />
-          that <EvolvingWord />
+          that{" "}
+          {/* On phones the rotating pill drops to its own line so the layout
+              doesn't jump as phrases of different lengths cycle through. */}
+          <br className="sm:hidden" />
+          <EvolvingWord />
         </h1>
 
         <p
