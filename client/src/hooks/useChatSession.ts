@@ -64,7 +64,6 @@ import {
   subscribePreviewExecuteResult,
 } from "@/lib/preview-execute-result";
 import { clarificationAnswerDisplayText } from "@/lib/clarification-display";
-import { debugSessionLog } from "@/lib/debug-session-log";
 
 function isLifiDestinationContinuation(
   pending: PendingTransaction | null | undefined,
@@ -164,17 +163,8 @@ export function useChatSession(sessionId?: string) {
     (
       pending: PendingTransaction | null,
       sessionKey?: string,
-      options?: { fromPreview?: boolean; debugSource?: string },
+      options?: { fromPreview?: boolean },
     ) => {
-      debugSessionLog("useChatSession.ts:applyPendingTransaction", "pending_tx_set", {
-        source: options?.debugSource ?? "unknown",
-        pendingId: pending?.id ?? null,
-        action: pending?.action ?? null,
-        isContinuation:
-          pending?.params?.lifi_continuation === true ||
-          pending?.params?.approval_kind === "lifi_continue",
-        approving: approvingRef.current,
-      }, "H1-H5");
       setPendingTx(pending);
       if (!pending) {
         setPendingTxRelayedToPreview(false);
@@ -204,20 +194,7 @@ export function useChatSession(sessionId?: string) {
         const { items } = await listSessionAgentTransactions(sessionKey);
         const pending = await loadClaimableLifiContinuationPending(items);
         if (pending) {
-          debugSessionLog(
-            "useChatSession.ts:syncPendingContinuationFromSession",
-            "continuation_restored",
-            {
-              pendingId: pending.id,
-              action: pending.action,
-              force: options?.force ?? false,
-              approving: approvingRef.current,
-            },
-            "H1",
-          );
-          applyPendingTransaction(pending, sessionKey, {
-            debugSource: "syncPendingContinuationFromSession",
-          });
+          applyPendingTransaction(pending, sessionKey);
         }
       } catch {
         // Best-effort — poll will retry.
@@ -826,44 +803,18 @@ export function useChatSession(sessionId?: string) {
 
     const snapshot = pendingTx;
 
-    debugSessionLog("useChatSession.ts:approvePending", "approve_start", {
-      pendingId: snapshot.id,
-      action: snapshot.action,
-      isContinuation:
-        snapshot.params?.lifi_continuation === true ||
-        snapshot.params?.approval_kind === "lifi_continue",
-      runId: "post-fix",
-    }, "H2-H4");
-
     setApproving(true);
     setChatError(null);
     approvingTransactionIdRef.current = snapshot.id;
-    applyPendingTransaction(null, undefined, {
-      debugSource: "approvePending:dismiss",
-    });
+    applyPendingTransaction(null);
 
     const isLifiPending =
       snapshot.action === "cross_chain_swap" ||
       snapshot.defi_preview?.provider_id === "evm-lifi";
     if (isLifiPending) {
-      setMessages((current) => {
-        const next = applyOptimisticLifiApprovalToMessages(current, snapshot);
-        debugSessionLog(
-          "useChatSession.ts:approvePending",
-          "approve_optimistic",
-          {
-            transactionId: snapshot.id,
-            stepIds:
-              next
-                .flatMap((message) => message.executionSteps ?? [])
-                .filter((step) => step.agentTransactionId === snapshot.id)
-                .map((step) => `${step.id}:${step.status}`) ?? [],
-            runId: "post-fix",
-          },
-          "H6",
-        );
-        return next;
-      });
+      setMessages((current) =>
+        applyOptimisticLifiApprovalToMessages(current, snapshot),
+      );
 
       void (async () => {
         try {
@@ -875,16 +826,6 @@ export function useChatSession(sessionId?: string) {
           if (!steps?.length) {
             return;
           }
-          debugSessionLog(
-            "useChatSession.ts:approvePending",
-            "approve_early_poll",
-            {
-              transactionId: snapshot.id,
-              stepIds: steps.map((step) => `${step.id}:${step.status}`),
-              runId: "post-fix",
-            },
-            "H6-H7",
-          );
           setMessages((current) =>
             applyLifiLiveUpdateToMessages(current, snapshot.id, steps, {
               primaryMessageId: detail.message_id,
@@ -912,27 +853,12 @@ export function useChatSession(sessionId?: string) {
           call.result !== null &&
           "error" in call.result,
       );
-      debugSessionLog("useChatSession.ts:approvePending", "approve_response", {
-        pendingId: data.pending_transaction?.id ?? null,
-        action: data.pending_transaction?.action ?? null,
-        replyPreview: data.reply?.slice(0, 120) ?? null,
-        isContinuation:
-          data.pending_transaction?.params?.lifi_continuation === true ||
-          data.pending_transaction?.params?.approval_kind === "lifi_continue",
-        sameAsSnapshot: data.pending_transaction?.id === snapshot.id,
-        isToolFailure,
-        clearedOnSuccess:
-          !isToolFailure && !isLifiDestinationContinuation(data.pending_transaction),
-        runId: "post-fix",
-      }, "H2-H3");
       const nextPending = isToolFailure
         ? (data.pending_transaction ?? null)
         : isLifiDestinationContinuation(data.pending_transaction)
           ? data.pending_transaction
           : null;
-      applyPendingTransaction(nextPending, data.session_id, {
-        debugSource: "approvePending:response",
-      });
+      applyPendingTransaction(nextPending, data.session_id);
       setPendingClarification(data.pending_clarification ?? null);
       if (isToolFailure && data.pending_transaction) {
         setChatError(data.reply);
@@ -969,18 +895,6 @@ export function useChatSession(sessionId?: string) {
           receipts: approveExtras.receipts,
         });
 
-        debugSessionLog(
-          "useChatSession.ts:approvePending",
-          "approve_fold",
-          {
-            folded: folded.folded,
-            transactionId: snapshot.id,
-            stepIds: approvedSteps?.map((step) => `${step.id}:${step.status}`) ?? [],
-            runId: "post-fix",
-          },
-          "H2-H5",
-        );
-
         if (folded.folded) {
           return folded.messages;
         }
@@ -1012,19 +926,6 @@ export function useChatSession(sessionId?: string) {
             if (!steps?.length) {
               return;
             }
-            debugSessionLog(
-              "useChatSession.ts:approvePending",
-              "approve_immediate_poll",
-              {
-                transactionId: snapshot.id,
-                trackingStatus: (
-                  detail.result as Record<string, unknown> | null
-                )?.tracking_status,
-                stepIds: steps.map((step) => `${step.id}:${step.status}`),
-                runId: "post-fix",
-              },
-              "H1-H3",
-            );
             setMessages((current) =>
               applyLifiLiveUpdateToMessages(current, snapshot.id, steps, {
                 primaryMessageId: detail.message_id,
@@ -1049,14 +950,7 @@ export function useChatSession(sessionId?: string) {
           ? (messageForChatStreamError(err.code) ?? err.message)
           : "Approval failed. Try again.";
       setChatError(message);
-      debugSessionLog("useChatSession.ts:approvePending", "approve_error", {
-        pendingId: snapshot.id,
-        error: message,
-        runId: "post-fix",
-      }, "H4");
-      applyPendingTransaction(snapshot, undefined, {
-        debugSource: "approvePending:error_restore",
-      });
+      applyPendingTransaction(snapshot);
     } finally {
       approvingTransactionIdRef.current = null;
       setApproving(false);

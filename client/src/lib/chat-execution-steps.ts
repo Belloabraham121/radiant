@@ -159,24 +159,6 @@ export function upsertExecutionStep(
           ? existingStart
           : incomingStart;
       merged.bridgeStartedAt = keepEarliest;
-      // #region agent log
-      fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "90234e",
-        },
-        body: JSON.stringify({
-          sessionId: "90234e",
-          location: "chat-execution-steps.ts:upsertExecutionStep",
-          message: "countdown_anchor_preserved",
-          data: { existingStart, incomingStart, kept: keepEarliest },
-          timestamp: Date.now(),
-          runId: "post-fix",
-          hypothesisId: "H2",
-        }),
-      }).catch(() => {});
-      // #endregion
     } else if (existingStart && !incomingStart) {
       merged.bridgeStartedAt = existingStart;
     }

@@ -116,24 +116,6 @@ export async function handleChatMessage(
       const agentPermissions = await getAgentPermissions(privyUserId);
 
       if (outcome.continuation_pending) {
-        // #region agent log
-        fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-          body: JSON.stringify({
-            sessionId: "90234e",
-            location: "chat.service.ts:approve",
-            message: "continuation_pending_returned",
-            data: {
-              approvedId: request.approve_transaction_id,
-              continuationId: outcome.continuation_pending.id,
-              action: outcome.continuation_pending.action,
-            },
-            hypothesisId: "H2",
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         const destLabel =
           outcome.continuation_pending.defi_preview?.receive?.chain_label ??
           outcome.continuation_pending.chain_id;
@@ -221,26 +203,6 @@ export async function handleChatMessage(
     }
 
     const txContext = transactionContextFromPending(outcome.pending);
-
-    // #region agent log
-    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-      body: JSON.stringify({
-        sessionId: "90234e",
-        location: "chat.service.ts:approve",
-        message: "approve_failed",
-        data: {
-          approvedId: request.approve_transaction_id,
-          errorCode: outcome.error.code,
-          errorMessage: outcome.error.message,
-          retryable: outcome.retryable ?? false,
-        },
-        hypothesisId: "H4",
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
 
     return persistToolFailureTurn(
       privyUserId,

@@ -510,20 +510,6 @@ export async function approvePendingTransaction(
       kind: "failure",
       error: { code: error.code, message: error.message },
     });
-    // #region agent log
-    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-      body: JSON.stringify({
-        sessionId: "90234e",
-        location: "transaction-approval.service.ts:quote_expired",
-        message: "quote_expired_block",
-        data: { transactionId, action: executeInput.action },
-        hypothesisId: "H4",
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     return { ok: false, pending, error };
   }
 
@@ -584,25 +570,6 @@ export async function approvePendingTransaction(
       // Destination-chain continuation approvals are created by the Li-Fi status
       // poll when ACTION_REQUIRED is detected — not here. Returning one in the
       // approve HTTP response kept the source approval bar mounted.
-
-      // #region agent log
-      fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "90234e" },
-        body: JSON.stringify({
-          sessionId: "90234e",
-          location: "transaction-approval.service.ts:approve",
-          message: "lifi_tracking_complete",
-          data: {
-            transactionId,
-            continuationId: null,
-            effectsStatus: enriched.effects_status,
-          },
-          hypothesisId: "H2",
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
 
       return {
         ok: true,

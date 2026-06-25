@@ -424,40 +424,9 @@ export function reconcileTerminalLifiSteps(
 }
 
 function normalizeLifiExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
-  const normalized = sortExecutionSteps(
+  return sortExecutionSteps(
     reconcileTerminalLifiSteps(stripStaleApprovalExecuteStep(steps)),
   );
-  // #region agent log
-  const bridge = normalized.find((step) => step.id === "lifi-bridge");
-  const complete = normalized.find((step) => step.id === "lifi-complete");
-  if (
-    bridge &&
-    complete &&
-    (complete.status === "ok" || complete.status === "failed")
-  ) {
-    fetch("http://127.0.0.1:7538/ingest/5ed43092-4295-4656-995d-39c0019df20f", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "90234e",
-      },
-      body: JSON.stringify({
-        sessionId: "90234e",
-        location: "lifi-execution-tracking.ts:normalizeLifiExecutionSteps",
-        message: "terminal_reconcile",
-        data: {
-          bridgeStatus: bridge.status,
-          completeStatus: complete.status,
-          bridgeLabel: bridge.label,
-        },
-        timestamp: Date.now(),
-        runId: "post-fix",
-        hypothesisId: "H1",
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
-  return normalized;
 }
 
 export function applyLifiTransactionStepsToMessages<
