@@ -74,6 +74,7 @@ import {
   shouldEnqueueLifiSwapTracking,
 } from "../defi/lifi/lifi-tracking.js";
 import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
+import { emitLiquidityFallbackOfferedStep } from "./agent-stream-cross-chain.js";
 import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
 import { runWithLifiExecuteContext } from "../defi/lifi/lifi-execute-context.js";
 import {
@@ -212,6 +213,10 @@ export async function createLiquidityFallbackPendingTransaction(
     },
     pending,
   });
+
+  if (context?.sessionId && pending.liquidity_fallback_offer) {
+    emitLiquidityFallbackOfferedStep(context.sessionId, pending.liquidity_fallback_offer);
+  }
 
   return pending;
 }
@@ -498,6 +503,13 @@ export async function createPendingTransaction(
     },
     pending,
   });
+
+  if (context?.sessionId && pending.approval_outcome === "liquidity_fallback_offered") {
+    const offer = pending.liquidity_fallback_offer;
+    if (offer) {
+      emitLiquidityFallbackOfferedStep(context.sessionId, offer);
+    }
+  }
 
   return pending;
 }

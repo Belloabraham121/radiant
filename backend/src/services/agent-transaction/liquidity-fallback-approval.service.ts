@@ -8,6 +8,10 @@ import {
 import type { CrossChainRouteOption } from "../defi/cross-chain/cross-chain.types.js";
 import { applySquidRouteToExecuteParams } from "../agent-transaction/approval-preview/enrichers/squid-route-params.js";
 import { createPendingTransaction } from "../agent/transaction-approval.service.js";
+import {
+  emitSquidQuoteStep,
+} from "../agent/agent-stream-cross-chain.js";
+import { findPendingApprovalSessionIdByFallbackOfferId } from "./agent-transaction.repository.js";
 
 function pickBestRoute(routes: CrossChainRouteOption[]): CrossChainRouteOption | null {
   if (routes.length === 0) {
@@ -90,11 +94,42 @@ export async function acceptLiquidityFallbackForApproval(
   privyUserId: string,
   fallbackOfferId: string,
 ): Promise<AcceptLiquidityFallbackApiResult> {
-  const routesResult = await acceptLiquidityFallback(privyUserId, fallbackOfferId);
+  const sessionId = await findPendingApprovalSessionIdByFallbackOfferId(
+    privyUserId,
+    fallbackOfferId,
+  );
+
+  emitSquidQuoteStep(sessionId, { status: "running", fallback_offer_id: fallbackOfferId });
+
+  let routesResult: Awaited<ReturnType<typeof acceptLiquidityFallback>>;
+  try {
+    routesResult = await acceptLiquidityFallback(privyUserId, fallbackOfferId);
+  } catch (err) {
+    emitSquidQuoteStep(sessionId, {
+      status: "failed",
+      fallback_offer_id: fallbackOfferId,
+      detail: err instanceof AppError ? err.message : "Could not fetch alternate route",
+    });
+    throw err;
+  }
+
   const best = pickBestRoute(routesResult.routes);
   if (!best) {
+    emitSquidQuoteStep(sessionId, {
+      status: "failed",
+      fallback_offer_id: fallbackOfferId,
+      detail: "No alternate route found for this transfer",
+    });
     throw new AppError(404, "SQUID_NO_ROUTE", "No alternate route found for this transfer.");
   }
+
+  emitSquidQuoteStep(sessionId, {
+    status: "ok",
+    from_token: best.from_token_symbol,
+    to_token: best.to_token_symbol,
+    fallback_offer_id: fallbackOfferId,
+    detail: best.bridges.length > 0 ? `Via ${best.bridges.join(", ")}` : undefined,
+  });
 
   const executeInput = crossChainOptionToExecuteInput(best);
   const pending = await createPendingTransaction(privyUserId, executeInput);

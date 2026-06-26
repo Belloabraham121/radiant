@@ -119,11 +119,28 @@ export function filterExecutionStepsForDisplay(
 export function mapStreamStepToExecutionStep(
   step: StreamExecutionStepPayload,
 ): ExecutionStep {
+  const mappedId =
+    step.id === "liquidity_fallback_offered"
+      ? "fallback-offer"
+      : step.id === "squid_quote"
+        ? "squid-quote"
+        : step.id;
+  const mappedLabel =
+    step.id === "liquidity_fallback_offered"
+      ? "Finding another route…"
+      : step.id === "squid_quote" && step.status === "running"
+        ? "Getting alternate route…"
+        : step.label;
+  const mappedStatus =
+    step.id === "liquidity_fallback_offered" && step.status === "running"
+      ? "pending"
+      : step.status;
+
   const chainId = step.chain_id as AgentChainId | undefined;
   return {
-    id: step.id,
-    status: step.status,
-    label: step.label,
+    id: mappedId,
+    status: mappedStatus,
+    label: mappedLabel,
     detail: step.detail,
     ...(step.agent_transaction_id
       ? { agentTransactionId: step.agent_transaction_id }
@@ -182,6 +199,8 @@ export const EXECUTION_STEP_ORDER = [
   "swap-2",
   "swap-3",
   "swap-quote",
+  "fallback-offer",
+  "squid-quote",
   "lifi-quote",
   "lifi-submit",
   "lifi-bridge",

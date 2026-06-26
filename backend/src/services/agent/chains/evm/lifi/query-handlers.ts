@@ -16,6 +16,8 @@ import {
   lifiRoutesInputSchema,
 } from "../../../../defi/lifi/lifi.types.js";
 import { formatEnabledBridgeDestinationHint } from "../../../../defi/lifi/lifi-endpoint-params.js";
+import { emitLiquidityFallbackOfferedStep } from "../../../agent-stream-cross-chain.js";
+import type { LiquidityFallbackOffer } from "../../../../defi/cross-chain/cross-chain.types.js";
 
 const LIFI_AGENT_CHAINS = new Set<ChainId>(["ethereum", "sui", "solana"]);
 
@@ -43,18 +45,37 @@ function mergeCrossChainParams(ctx: QueryHandlerContext) {
   };
 }
 
+function maybeEmitLiquidityFallbackFromResult(
+  sessionId: string | undefined,
+  result: unknown,
+): void {
+  if (!sessionId || typeof result !== "object" || result === null) {
+    return;
+  }
+  const offer = (result as { liquidity_fallback_offer?: LiquidityFallbackOffer })
+    .liquidity_fallback_offer;
+  if (!offer) {
+    return;
+  }
+  emitLiquidityFallbackOfferedStep(sessionId, offer);
+}
+
 const crossChainQuoteHandler: ChainQueryHandler = async (ctx) => {
   assertLifiChain(ctx);
   assertLifiReady();
   const params = lifiQuoteInputSchema.parse(mergeCrossChainParams(ctx));
-  return getCrossChainQuote(ctx.privyUserId, params);
+  const result = await getCrossChainQuote(ctx.privyUserId, params);
+  maybeEmitLiquidityFallbackFromResult(ctx.options?.sessionId, result);
+  return result;
 };
 
 const crossChainRoutesHandler: ChainQueryHandler = async (ctx) => {
   assertLifiChain(ctx);
   assertLifiReady();
   const params = lifiRoutesInputSchema.parse(mergeCrossChainParams(ctx));
-  return getCrossChainRoutes(ctx.privyUserId, params);
+  const result = await getCrossChainRoutes(ctx.privyUserId, params);
+  maybeEmitLiquidityFallbackFromResult(ctx.options?.sessionId, result);
+  return result;
 };
 
 const crossChainConnectionsHandler: ChainQueryHandler = async (ctx) => {

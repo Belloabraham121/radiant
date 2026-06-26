@@ -302,13 +302,13 @@ Mirror `lifi/` layout.
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | New stream step type: `liquidity_fallback_offered` | `agent-stream.types.ts` |
-| [ ] | Emit step when fallback built (quote-time or execute-time) | `agent-stream-lifi.ts` → `agent-stream-cross-chain.ts` |
-| [ ] | Emit `squid_quote` step when user accepts and Squid quote starts | ↑ |
-| [ ] | `inferStatusCategoryFromStep` — map new steps to `defi` category | client `useChatSession.ts` / stream parser |
-| [ ] | Agent prompt: on fallback offer, wait for user — do not call `cross_chain_swap` until accepted | `prompts/protocols/lifi/bridge.ts` |
-| [ ] | Optional prompt module `protocol:cross-chain:fallback` | `prompts/protocols/cross-chain/fallback.ts` |
-| [ ] | Register in `module-triggers.ts` | ↑ |
+| [x] | New stream step type: `liquidity_fallback_offered` | `agent-stream.types.ts` |
+| [x] | Emit step when fallback built (quote-time or execute-time) | `agent-stream-lifi.ts` → `agent-stream-cross-chain.ts` |
+| [x] | Emit `squid_quote` step when user accepts and Squid quote starts | ↑ |
+| [x] | `inferStatusCategoryFromStep` — map new steps to `defi` category | client `useChatSession.ts` / stream parser |
+| [x] | Agent prompt: on fallback offer, wait for user — do not call `cross_chain_swap` until accepted | `prompts/protocols/lifi/bridge.ts` |
+| [x] | Optional prompt module `protocol:cross-chain:fallback` | `prompts/protocols/cross-chain/fallback.ts` |
+| [x] | Register in `module-triggers.ts` | ↑ |
 
 ---
 
