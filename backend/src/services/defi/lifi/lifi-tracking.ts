@@ -1,3 +1,4 @@
+import type { LifiChainRef } from "../../../config/lifi-chains.js";
 import type { ChainId, TxResult } from "../../chains/types.js";
 import { parseChainId } from "../../chains/registry.js";
 import { formatLifiStaticEtaLabel } from "./lifi-countdown.js";
@@ -18,11 +19,26 @@ export function isLifiPendingEffectsStatus(
 
 /** Same-chain Li-Fi route (EVM network or Solana/Sui family). */
 export function isSameChainLifiRoute(tracking: LifiTrackingMeta): boolean {
-  if (tracking.from_chain_id !== tracking.to_chain_id) {
+  return isSameChainLifiChainRefs(
+    {
+      chain_id: tracking.from_chain_id,
+      ...(tracking.from_evm_chain_id !== undefined
+        ? { evm_chain_id: tracking.from_evm_chain_id }
+        : {}),
+    },
+    {
+      chain_id: tracking.to_chain_id,
+      ...(tracking.to_evm_chain_id !== undefined ? { evm_chain_id: tracking.to_evm_chain_id } : {}),
+    },
+  );
+}
+
+export function isSameChainLifiChainRefs(from: LifiChainRef, to: LifiChainRef): boolean {
+  if (from.chain_id !== to.chain_id) {
     return false;
   }
-  if (tracking.from_chain_id === "ethereum") {
-    return tracking.from_evm_chain_id === tracking.to_evm_chain_id;
+  if (from.chain_id === "ethereum") {
+    return from.evm_chain_id === to.evm_chain_id;
   }
   return true;
 }
@@ -52,21 +68,15 @@ export function shouldEnqueueLifiCrossChainTracking(
   return isLifiPendingEffectsStatus(result.effects_status);
 }
 
-/** Same-chain Li-Fi swap routes that still need status polling. */
+/**
+ * Same-chain Li-Fi swaps finalize via on-chain receipt during execute.
+ * Li-Fi /status often 404s for DEX tools (kyberswap, etc.) on same-chain routes.
+ */
 export function shouldEnqueueLifiSwapTracking(
-  result: TxResult,
+  _result: TxResult,
   tracking: LifiTrackingMeta | null,
 ): tracking is LifiTrackingMeta {
-  if (!isLifiTrackingCandidate(result, tracking)) {
-    return false;
-  }
-  if (!isSameChainLifiRoute(tracking)) {
-    return false;
-  }
-  if (isLifiPendingEffectsStatus(result.effects_status)) {
-    return true;
-  }
-  return !isTerminalLifiStatus(tracking.tracking_status);
+  return false;
 }
 
 /** @deprecated Prefer lifiBridgeStepLabel / formatLifiStaticEtaLabel for new code. */

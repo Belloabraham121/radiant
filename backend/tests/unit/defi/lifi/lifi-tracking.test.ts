@@ -141,7 +141,7 @@ describe("lifi-tracking", () => {
       executeResult,
     });
 
-    assert.equal(shouldEnqueueLifiSwapTracking(pendingTx, tracking), true);
+    assert.equal(shouldEnqueueLifiSwapTracking(pendingTx, tracking), false);
     assert.equal(shouldEnqueueLifiCrossChainTracking(pendingTx, tracking), false);
 
     const successResult = txResultFromLifiExecute({
@@ -152,7 +152,7 @@ describe("lifi-tracking", () => {
       params: sameChainParams,
       executeResult: { ...executeResult, effects_status: "success" },
     });
-    assert.equal(shouldEnqueueLifiSwapTracking(successResult, tracking), true);
+    assert.equal(shouldEnqueueLifiSwapTracking(successResult, tracking), false);
     assert.equal(shouldEnqueueLifiCrossChainTracking(successResult, tracking), false);
 
     const crossChainTracking = buildLifiTrackingMeta(params, executeResult);

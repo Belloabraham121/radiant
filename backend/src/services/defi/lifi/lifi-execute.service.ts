@@ -1,8 +1,10 @@
 import { convertQuoteToRoute, executeRoute, type RouteExtended } from "@lifi/sdk";
 import type { Route } from "@lifi/types";
+import type { Hex } from "viem";
 import { getLifiSdkClient } from "./lifi.client.js";
 import { AppError } from "../../../errors/app-error.js";
 import { isLifiEnabled } from "../../../config/lifi.js";
+import { getEvmPublicClient } from "../../../infrastructure/evm/client.js";
 import {
   listAgentWalletsForPrivyUser,
   resolveAgentWalletByPrivyUserId,
@@ -23,7 +25,7 @@ import { lifiToRadiantChainRef } from "./lifi-chain-map.js";
 import { storeLifiRoute } from "./lifi-cache.js";
 import { createRouteId } from "./lifi-normalize.js";
 import { resolveLifiBridgeWalletAddresses } from "./lifi-wallet-addresses.js";
-import { isDeFiQuoteExpired, isLifiContinuationApproval } from "../../agent-transaction/approval-preview/quote-expiry.js";
+import { isLifiContinuationApproval } from "../../agent-transaction/approval-preview/quote-expiry.js";
 import { buildLifiSdkProvidersForRoute } from "./lifi-providers.service.js";
 import { getLifiExecuteContext } from "./lifi-execute-context.js";
 import { emitAgentStreamExecutionStep } from "../../agent/agent-stream-lifi.js";
@@ -33,6 +35,11 @@ import {
 } from "./lifi-countdown.js";
 import type { LifiTrackingMeta } from "./lifi-tracking.types.js";
 import { mapLifiExecuteError } from "./lifi.errors.js";
+import {
+  executeSameChainEvmLifiRoute,
+  isSameChainEvmLifiRoute,
+} from "./lifi-same-chain-execute.service.js";
+import { isSameChainLifiChainRefs } from "./lifi-tracking.js";
 import type { LifiExecuteInput, LifiExecuteResult } from "./lifi.types.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
 import type { ChainId } from "../../chains/types.js";
@@ -106,6 +113,27 @@ function collectTxHashes(route: RouteExtended): string[] {
   return hashes;
 }
 
+/** Li-Fi quotes can go stale before the user approves — always re-quote on first execute. */
+function shouldRefreshRouteAtExecute(continuation: boolean): boolean {
+  return !continuation;
+}
+
+async function assertEvmSourceReceiptSucceeded(
+  txHash: string,
+  evmChainId: number,
+): Promise<void> {
+  const publicClient = getEvmPublicClient(evmChainId);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash as Hex });
+  if (receipt.status === "reverted") {
+    throw new AppError(
+      400,
+      "TRANSACTION_FAILED",
+      "The swap transaction reverted on chain. The quote may have expired — try again with a fresh quote, or use a slightly smaller amount.",
+      { tx_hash: txHash, evm_chain_id: evmChainId },
+    );
+  }
+}
+
 function detectPendingStep(route: RouteExtended): LifiExecuteResult["pending_step"] {
   for (let index = 0; index < route.steps.length; index++) {
     const step = route.steps[index];
@@ -168,10 +196,8 @@ async function runLifiCrossChainSwap(
   await resolveAgentWallet(privyUserId, sourceChain.chain_id);
 
   const continuation = isLifiContinuationApproval(input as unknown as Record<string, unknown>);
-  const quoteStillFresh =
-    continuation || !isDeFiQuoteExpired(input as unknown as Record<string, unknown>);
   let refreshedRoute = storedRoute;
-  if (!quoteStillFresh) {
+  if (shouldRefreshRouteAtExecute(continuation)) {
     refreshedRoute = await refreshRouteAtExecute(storedRoute, fromAddress, toAddress);
   }
   const routeId =
@@ -193,21 +219,54 @@ async function runLifiCrossChainSwap(
     }
   }
 
-  const client = getLifiSdkClient();
-  const agentWallets = await resolveAgentWalletMap(privyUserId);
-  const providers = await buildLifiSdkProvidersForRoute({
-    sourceChainId: sourceChain.chain_id,
-    routeChainIds: collectRouteChainIds(refreshedRoute),
-    agentWallets,
-  });
-  client.setProviders(providers);
+  const streamCtx = getLifiExecuteContext();
+  const sameChainEvmSwap =
+    isSameChainEvmLifiRoute(sourceChain, refreshedRoute) &&
+    sourceChain.evm_chain_id !== undefined;
+  const sameChainSwap = isSameChainLifiChainRefs(sourceChain, destChain);
 
   let executedRoute: RouteExtended;
-  const streamCtx = getLifiExecuteContext();
   let bridgeCountdownStartedAt: string | null = null;
   let bridgeDurationSeconds: number | null = null;
-  try {
-    executedRoute = await executeRoute(client, refreshedRoute, {
+
+  if (sameChainEvmSwap) {
+    executedRoute = await executeSameChainEvmLifiRoute(
+      privyUserId,
+      refreshedRoute,
+      sourceChain.evm_chain_id!,
+    );
+    const txHashes = collectTxHashes(executedRoute);
+    const digest = txHashes[0];
+    if (streamCtx?.sessionId) {
+      const sourceEvmChainId = sourceChain.evm_chain_id;
+      emitAgentStreamExecutionStep(streamCtx.sessionId, {
+        id: "lifi-submit",
+        status: digest ? "ok" : "running",
+        label: "Submitting",
+        detail: digest ? `Swap tx · ${digest.slice(0, 10)}…` : "Broadcasting swap",
+        ...(streamCtx.transactionId ? { agent_transaction_id: streamCtx.transactionId } : {}),
+        ...(digest
+          ? {
+              digest,
+              chain_id: sourceChain.chain_id,
+              ...(sourceEvmChainId !== undefined ? { evm_chain_id: sourceEvmChainId } : {}),
+            }
+          : {}),
+        status_category: "defi",
+      });
+    }
+  } else {
+    const client = getLifiSdkClient();
+    const agentWallets = await resolveAgentWalletMap(privyUserId);
+    const providers = await buildLifiSdkProvidersForRoute({
+      sourceChainId: sourceChain.chain_id,
+      routeChainIds: collectRouteChainIds(refreshedRoute),
+      agentWallets,
+    });
+    client.setProviders(providers);
+
+    try {
+      executedRoute = await executeRoute(client, refreshedRoute, {
       updateRouteHook: (updatedRoute) => {
         if (!streamCtx?.sessionId) {
           return;
@@ -234,7 +293,7 @@ async function runLifiCrossChainSwap(
           status_category: "defi",
         });
 
-        if (!digest) {
+        if (!digest || sameChainSwap) {
           return;
         }
 
@@ -281,11 +340,18 @@ async function runLifiCrossChainSwap(
         });
       },
     });
-  } catch (err) {
-    throw mapLifiExecuteError(err);
+    } catch (err) {
+      throw mapLifiExecuteError(err);
+    }
+
+    const txHashes = collectTxHashes(executedRoute);
+    if (sourceChain.evm_chain_id !== undefined && txHashes[0]) {
+      await assertEvmSourceReceiptSucceeded(txHashes[0], sourceChain.evm_chain_id);
+    }
   }
 
   const txHashes = collectTxHashes(executedRoute);
+
   const pendingStep = detectPendingStep(executedRoute);
   const lastStatus = executedRoute.steps.at(-1)?.execution?.status;
 
