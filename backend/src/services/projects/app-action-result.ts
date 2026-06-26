@@ -1,6 +1,7 @@
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { buildExplorerTxUrl } from "../agent-transaction/explorer-url.js";
 import type { ExecuteToolOutcome } from "../agent/agent.types.js";
+import { isExecutePendingUserAction } from "../agent/agent.types.js";
 import type { AgentToolOptions } from "../agent/execute-transaction-context.js";
 import type {
   AppActionContext,
@@ -33,6 +34,24 @@ export function mapExecuteOutcomeToAppActionResult(
       agent_transaction_id: agentTransactionId,
       pending: outcome.pending,
     };
+  }
+
+  if (outcome.status === "liquidity_fallback_offered") {
+    const agentTransactionId = outcome.agent_transaction_id ?? outcome.pending.id;
+    return {
+      status: "approval_required",
+      action,
+      agent_transaction_id: agentTransactionId,
+      pending: {
+        ...outcome.pending,
+        approval_outcome: "liquidity_fallback_offered",
+        liquidity_fallback_offer: outcome.liquidity_fallback_offer,
+      },
+    };
+  }
+
+  if (outcome.status !== "executed") {
+    throw new Error("Unexpected execute tool outcome");
   }
 
   return {

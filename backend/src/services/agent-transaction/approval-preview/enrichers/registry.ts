@@ -1,24 +1,50 @@
 import type { ExecuteTransactionInput } from "../../../chains/types.js";
+import type { LiquidityFallbackOffer } from "../../../defi/cross-chain/cross-chain.types.js";
 import { enrichDeepBookSwapExecuteInputForApproval } from "./deepbook.js";
-import { enrichLifiExecuteInputForApproval } from "./lifi.js";
+import {
+  enrichCrossChainExecuteInputForApproval,
+  matchCrossChainExecuteInput,
+} from "./cross-chain.js";
+
+export type EnrichExecuteInputForApprovalResult =
+  | { kind: "enriched"; input: ExecuteTransactionInput }
+  | {
+      kind: "liquidity_fallback_offered";
+      input: ExecuteTransactionInput;
+      liquidity_fallback_offer: LiquidityFallbackOffer;
+    };
 
 type ApprovalEnricher = {
-  enrich: (privyUserId: string, input: ExecuteTransactionInput) => Promise<ExecuteTransactionInput>;
+  match: (input: ExecuteTransactionInput) => boolean;
+  enrich: (
+    privyUserId: string,
+    input: ExecuteTransactionInput,
+  ) => Promise<EnrichExecuteInputForApprovalResult>;
 };
 
 const APPROVAL_ENRICHERS: readonly ApprovalEnricher[] = [
-  { enrich: enrichDeepBookSwapExecuteInputForApproval },
-  { enrich: enrichLifiExecuteInputForApproval },
+  {
+    match: matchCrossChainExecuteInput,
+    enrich: enrichCrossChainExecuteInputForApproval,
+  },
+  {
+    match: () => true,
+    enrich: async (privyUserId, input) => ({
+      kind: "enriched",
+      input: await enrichDeepBookSwapExecuteInputForApproval(privyUserId, input),
+    }),
+  },
 ];
 
 /** Run provider-specific enrichers to attach fresh quote metadata before approval UI. */
 export async function enrichExecuteInputForApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
-): Promise<ExecuteTransactionInput> {
-  let enriched = input;
-  for (const { enrich } of APPROVAL_ENRICHERS) {
-    enriched = await enrich(privyUserId, enriched);
+): Promise<EnrichExecuteInputForApprovalResult> {
+  for (const { match, enrich } of APPROVAL_ENRICHERS) {
+    if (match(input)) {
+      return enrich(privyUserId, input);
+    }
   }
-  return enriched;
+  return { kind: "enriched", input };
 }

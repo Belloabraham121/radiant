@@ -1,6 +1,7 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import { isLifiExecuteAction } from "../../agent/chains/evm/lifi/execute-actions.js";
+import { isSquidCrossChainRoute } from "./enrichers/squid.js";
 import {
   isDeepBookSwapAction,
   parseDeepBookSwapParams,
@@ -97,12 +98,13 @@ function buildDeepBookSwapPreview(
   };
 }
 
-function buildLifiBridgePreview(
+function buildCrossChainBridgePreview(
   display: TransactionDisplay,
   input: ExecuteTransactionInput,
   fiat_preview: TransactionFiatPreview | null,
 ): DeFiApprovalPreview {
   const params = input.params;
+  const isSquid = isSquidCrossChainRoute(params);
   const paySymbol = readStringParam(params, "from_token_symbol") ?? readStringParam(params, "from_token") ?? "token";
   const receiveSymbol = readStringParam(params, "to_token_symbol") ?? readStringParam(params, "to_token") ?? "token";
   const payAmount = readStringParam(params, "from_amount_display") ?? "";
@@ -119,7 +121,9 @@ function buildLifiBridgePreview(
   const routeSummary =
     bridges.length > 0
       ? `via ${bridges.join(" → ")}`
-      : undefined;
+      : isSquid
+        ? "via alternate liquidity route"
+        : undefined;
 
   const title =
     fromChainLabel && toChainLabel
@@ -128,7 +132,7 @@ function buildLifiBridgePreview(
 
   return {
     kind: "bridge",
-    provider_id: "evm-lifi",
+    provider_id: isSquid ? "evm-squid" : "evm-lifi",
     title,
     amount_display: display.amount_display,
     pay: payAmount
@@ -151,7 +155,18 @@ function buildLifiBridgePreview(
     quote_expires_at: readDeFiQuoteExpiresAt(params),
     slippage: readNumberParam(params, "slippage"),
     fiat_preview,
+    ...(isSquid
+      ? { alternate_route: true, route_provider_label: "Alternate route" }
+      : {}),
   };
+}
+
+function buildLifiBridgePreview(
+  display: TransactionDisplay,
+  input: ExecuteTransactionInput,
+  fiat_preview: TransactionFiatPreview | null,
+): DeFiApprovalPreview {
+  return buildCrossChainBridgePreview(display, input, fiat_preview);
 }
 
 function buildLifiContinuationPreview(

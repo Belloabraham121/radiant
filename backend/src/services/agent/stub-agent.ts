@@ -5,6 +5,7 @@ import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
 import { runAgentTool } from "./tools.js";
 import { getAgentPermissions, approvalThresholdLabel } from "./agent-permissions.service.js";
 import type { ExecuteToolOutcome } from "./agent.types.js";
+import { isExecutePendingUserAction, pendingTransactionFromExecuteOutcome } from "./agent.types.js";
 import type { BalanceResult } from "../chains/types.js";
 
 function defaultChainId() {
@@ -46,7 +47,10 @@ async function formatExecuteReply(
   privyUserId: string,
   outcome: ExecuteToolOutcome,
 ): Promise<string> {
-  if (outcome.status === "approval_required") {
+  if (isExecutePendingUserAction(outcome)) {
+    if (outcome.status === "liquidity_fallback_offered") {
+      return "Li-Fi has no route for this transfer. An alternate liquidity route is available — review it in the dialog.";
+    }
     const permissions = await getAgentPermissions(privyUserId);
     if (!permissions.auto_approve_enabled) {
       return "This transaction needs your approval. Review the details and approve to continue.";
@@ -55,6 +59,10 @@ async function formatExecuteReply(
       `That transfer is above your auto-approve limit (${approvalThresholdLabel(outcome.pending.chain_id, permissions)}). ` +
       "Review the details and approve to continue."
     );
+  }
+
+  if (outcome.status !== "executed") {
+    return "Transaction outcome is pending.";
   }
 
   return `Transaction submitted on ${outcome.result.chain_id}. Digest: ${outcome.result.digest}`;
@@ -101,8 +109,8 @@ export async function runStubAgent(
       )) as ExecuteToolOutcome;
 
       tool_calls.push({ name: EXECUTE_TRANSACTION_TOOL_NAME, result: outcome });
-      if (outcome.status === "approval_required") {
-        pending_transaction = outcome.pending;
+      if (isExecutePendingUserAction(outcome)) {
+        pending_transaction = pendingTransactionFromExecuteOutcome(outcome) ?? null;
       }
       reply = await formatExecuteReply(privyUserId, outcome);
     } else {

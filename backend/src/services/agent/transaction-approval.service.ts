@@ -46,8 +46,10 @@ import {
 import { buildTransactionDisplay } from "../agent-transaction/deepbook/build-display.js";
 import { buildDeFiApprovalPreview } from "../agent-transaction/approval-preview/build-preview.js";
 import { enrichExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/registry.js";
-import { enrichLifiExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/lifi.js";
+import { enrichCrossChainExecuteInput } from "../agent-transaction/approval-preview/enrichers/cross-chain.js";
+import { isSquidCrossChainRoute } from "../agent-transaction/approval-preview/enrichers/squid.js";
 import { isLifiApprovalDisplayComplete } from "../agent-transaction/approval-preview/enrichers/lifi-route-params.js";
+import { isSquidApprovalDisplayComplete } from "../agent-transaction/approval-preview/enrichers/squid-route-params.js";
 import { isExecutableLifiRoute } from "../defi/lifi/lifi-normalize.js";
 import {
   coalesceDeFiQuoteExpiresAt,
@@ -148,7 +150,32 @@ export async function buildPendingTransactionPreview(
   input: ExecuteTransactionInput,
   id = randomUUID(),
 ): Promise<PendingTransaction> {
-  const enriched = await enrichExecuteInputForApproval(privyUserId, input);
+  const enrichResult = await enrichExecuteInputForApproval(privyUserId, input);
+
+  if (enrichResult.kind === "liquidity_fallback_offered") {
+    const offer = enrichResult.liquidity_fallback_offer;
+    const fromSymbol = offer.from_token;
+    const toSymbol = offer.to_token;
+    return {
+      id,
+      chain_id: enrichResult.input.chain_id,
+      action: enrichResult.input.action,
+      params: {
+        ...enrichResult.input.params,
+        approval_outcome: "liquidity_fallback_offered",
+        liquidity_fallback_offer: offer,
+      },
+      summary: `Alternate route available for ${fromSymbol} → ${toSymbol}`,
+      amount_display: `${fromSymbol} → ${toSymbol}`,
+      quote_expires_at: offer.expires_at,
+      fiat_preview: null,
+      defi_preview: null,
+      approval_outcome: "liquidity_fallback_offered",
+      liquidity_fallback_offer: offer,
+    };
+  }
+
+  let enriched = enrichResult.input;
   if (isLifiExecuteAction(enriched.action)) {
     if (isLifiContinuationApproval(enriched.params)) {
       enriched.params = {
@@ -192,6 +219,7 @@ export async function buildPendingTransactionPreview(
       : readDeFiQuoteExpiresAt(enriched.params),
     fiat_preview,
     defi_preview,
+    approval_outcome: "approval_required",
   };
 }
 
@@ -459,12 +487,17 @@ export async function approvePendingTransaction(
   let executeInput = executeInputFromRecord(claimed);
 
   if (isLifiExecuteAction(executeInput.action)) {
-    const hasStoredRoute = isExecutableLifiRoute(
-      executeInput.params.lifi_route ?? executeInput.params.route,
-    );
-    const displayComplete = isLifiApprovalDisplayComplete(executeInput.params);
+    const isSquid = isSquidCrossChainRoute(executeInput.params);
+    const hasStoredRoute = isSquid
+      ? Boolean(executeInput.params.squid_route)
+      : isExecutableLifiRoute(
+          executeInput.params.lifi_route ?? executeInput.params.route,
+        );
+    const displayComplete = isSquid
+      ? isSquidApprovalDisplayComplete(executeInput.params)
+      : isLifiApprovalDisplayComplete(executeInput.params);
     if (!hasStoredRoute || !displayComplete) {
-      executeInput = await enrichLifiExecuteInputForApproval(privyUserId, executeInput, {
+      executeInput = await enrichCrossChainExecuteInput(privyUserId, executeInput, {
         requoteOnCacheMiss: !isLifiContinuationApproval(executeInput.params),
       });
     }
@@ -491,7 +524,8 @@ export async function approvePendingTransaction(
       };
     }
   } else if (isDeepBookSwapAction(executeInput.action)) {
-    executeInput = await enrichExecuteInputForApproval(privyUserId, executeInput);
+    const enrichResult = await enrichExecuteInputForApproval(privyUserId, executeInput);
+    executeInput = enrichResult.input;
   }
 
   if (

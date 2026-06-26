@@ -140,6 +140,9 @@ export async function buildTransactionDisplay(
       title = "Swap via DeepBook";
     }
   } else if (input.action === "cross_chain_swap") {
+    const isSquid =
+      input.params.provider_id === "evm-squid" ||
+      (typeof input.params.route_id === "string" && input.params.route_id.startsWith("squid:"));
     const fromSymbol =
       (typeof input.params.from_token_symbol === "string" && input.params.from_token_symbol) ||
       (typeof input.params.from_token === "string" && input.params.from_token) ||
@@ -188,6 +191,9 @@ export async function buildTransactionDisplay(
           ? `Bridge ${fromSymbol} ${fromChainLabel} → ${toChainLabel} via ${bridges.join(" → ")}`
           : `Bridge ${fromSymbol} ${fromChainLabel} → ${toChainLabel}`
         : `Bridge ${fromSymbol} → ${toSymbol}`;
+    if (isSquid && title.startsWith("Bridge ")) {
+      title = `${title} (alternate route)`;
+    }
   } else if (input.action === "lifi_approve") {
     title = "Approve ERC-20 for Li-Fi bridge";
     amount_display = "Token allowance approval";

@@ -167,7 +167,31 @@ function readSnapshotChainId(
 }
 
 /** Re-fetch a Li-Fi quote from execute/approval snapshot fields when route cache expired. */
+type RequoteLifiFromSnapshotFn = (
+  privyUserId: string,
+  params: Record<string, unknown>,
+  options?: { onError?: (err: unknown) => void },
+) => Promise<CrossChainQuote | null>;
+
+let requoteLifiFromSnapshotOverride: RequoteLifiFromSnapshotFn | null = null;
+
+export function setRequoteLifiFromSnapshotForTests(fn: RequoteLifiFromSnapshotFn | null): void {
+  requoteLifiFromSnapshotOverride = fn;
+}
+
 export async function requoteLifiFromSnapshot(
+  privyUserId: string,
+  params: Record<string, unknown>,
+  options?: { onError?: (err: unknown) => void },
+): Promise<CrossChainQuote | null> {
+  if (requoteLifiFromSnapshotOverride) {
+    return requoteLifiFromSnapshotOverride(privyUserId, params, options);
+  }
+
+  return requoteLifiFromSnapshotLive(privyUserId, params, options);
+}
+
+async function requoteLifiFromSnapshotLive(
   privyUserId: string,
   params: Record<string, unknown>,
   options?: { onError?: (err: unknown) => void },

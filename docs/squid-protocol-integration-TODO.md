@@ -274,16 +274,16 @@ Mirror `lifi/` layout.
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `cross_chain_swap` execute: `resolveCrossChainRouteForExecute` → `executeLifi*` or `executeSquid*` | `execute-transaction-with-approval.ts` / `evm/lifi/execute-actions.ts` |
-| [ ] | Approval preview enricher dispatcher `enrichCrossChainExecuteInputForApproval` | `approval-preview/enrichers/cross-chain.ts` |
-| [ ] | `enrichSquidExecuteInputForApproval` — display pay/receive, fees, countdown | `approval-preview/enrichers/squid.ts` |
-| [ ] | `applySquidRouteToExecuteParams` (mirror `lifi-route-params.ts`) | ↑ |
-| [ ] | Approval dialog shows **provider-agnostic** labels; optional subtle “Alternate route” badge | `build-preview.ts`, `build-display.ts` |
-| [ ] | On Li-Fi enrich failure with `LIFI_NO_ROUTE` → return fallback offer on pending transaction, not 400 | `approval-preview/enrichers/lifi.ts` |
-| [ ] | `transaction-approval.service.ts` — new outcome: `liquidity_fallback_offered` | `transaction-approval.service.ts` |
-| [ ] | API: accept fallback on agent transaction or dedicated endpoint | `api/v1/agent-transactions/...` |
-| [ ] | Valuation / notional preview for Squid routes | `market/valuation.service.ts` |
-| [ ] | Unit tests: approval enricher Squid path | `approval-preview-squid.test.ts` |
+| [x] | `cross_chain_swap` execute: `resolveCrossChainRouteForExecute` → `executeLifi*` or `executeSquid*` | `execute-transaction-with-approval.ts` / `evm/lifi/execute-actions.ts` |
+| [x] | Approval preview enricher dispatcher `enrichCrossChainExecuteInputForApproval` | `approval-preview/enrichers/cross-chain.ts` |
+| [x] | `enrichSquidExecuteInputForApproval` — display pay/receive, fees, countdown | `approval-preview/enrichers/squid.ts` |
+| [x] | `applySquidRouteToExecuteParams` (mirror `lifi-route-params.ts`) | ↑ |
+| [x] | Approval dialog shows **provider-agnostic** labels; optional subtle “Alternate route” badge | `build-preview.ts`, `build-display.ts` |
+| [x] | On Li-Fi enrich failure with `LIFI_NO_ROUTE` → return fallback offer on pending transaction, not 400 | `approval-preview/enrichers/lifi.ts` |
+| [x] | `transaction-approval.service.ts` — new outcome: `liquidity_fallback_offered` | `transaction-approval.service.ts` |
+| [x] | API: accept fallback on agent transaction or dedicated endpoint | `api/v1/agent-transactions/...` |
+| [x] | Valuation / notional preview for Squid routes | `market/valuation.service.ts` |
+| [x] | Unit tests: approval enricher Squid path | `approval-preview-squid.test.ts` |
 
 ---
 

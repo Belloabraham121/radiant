@@ -89,6 +89,16 @@ export async function runExecuteTransactionToolWithApproval(
         const enabledChains = getEnabledChainConfigs().map((config) => config.id);
         await runExecutePreflightHooks(privyUserId, input, enabledChains);
         const pending = await createPendingTransaction(privyUserId, input, context);
+        if (pending.approval_outcome === "liquidity_fallback_offered" && pending.liquidity_fallback_offer) {
+          const outcome = {
+            status: "liquidity_fallback_offered" as const,
+            pending,
+            liquidity_fallback_offer: pending.liquidity_fallback_offer,
+            agent_transaction_id: pending.id,
+          };
+          emitAgentStreamExecutionOutcome(streamCtx, streamAction, outcome);
+          return outcome;
+        }
         const outcome = {
           status: "approval_required" as const,
           pending,
