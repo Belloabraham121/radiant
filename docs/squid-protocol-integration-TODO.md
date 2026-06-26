@@ -245,15 +245,15 @@ Mirror `lifi/` layout.
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `getCrossChainRoutes(privyUserId, input)` — Li-Fi only; **no** auto Squid | `cross-chain-router.service.ts` |
-| [ ] | Detect no-route: empty `routes`, `LIFI_NO_ROUTE`, re-quote failure at enrich time | `cross-chain-fallback.ts` |
-| [ ] | `isLiquidityFallbackEligible(err, routes)` — true only for no-liquidity cases | ↑ |
-| [ ] | `buildLiquidityFallbackOffer(input, lifiError?)` — snapshot params for later Squid quote | `cross-chain-fallback.service.ts` |
-| [ ] | `fallback_offer_id` stored in Redis with TTL (~10 min) + original quote params | `cross-chain-fallback-cache.ts` |
-| [ ] | `acceptLiquidityFallback(privyUserId, offerId)` → `getSquidRoutes` → routes result | ↑ |
-| [ ] | `rejectLiquidityFallback(offerId)` — mark rejected | ↑ |
-| [ ] | `resolveCrossChainRouteForExecute({ routeId })` — dispatch `lifi:` vs `squid:` prefix | `cross-chain-router.service.ts` |
-| [ ] | Unit tests: Li-Fi empty → offer; accept → Squid mocked; reject → no Squid call | `cross-chain-router.test.ts` |
+| [x] | `getCrossChainRoutes(privyUserId, input)` — Li-Fi only; **no** auto Squid | `cross-chain-router.service.ts` |
+| [x] | Detect no-route: empty `routes`, `LIFI_NO_ROUTE`, re-quote failure at enrich time | `cross-chain-fallback.ts` |
+| [x] | `isLiquidityFallbackEligible(err, routes)` — true only for no-liquidity cases | ↑ |
+| [x] | `buildLiquidityFallbackOffer(input, lifiError?)` — snapshot params for later Squid quote | `cross-chain-fallback.service.ts` |
+| [x] | `fallback_offer_id` stored in Redis with TTL (~10 min) + original quote params | `cross-chain-fallback-cache.ts` |
+| [x] | `acceptLiquidityFallback(privyUserId, offerId)` → `getSquidRoutes` → routes result | ↑ |
+| [x] | `rejectLiquidityFallback(offerId)` — mark rejected | ↑ |
+| [x] | `resolveCrossChainRouteForExecute({ routeId })` — dispatch `lifi:` vs `squid:` prefix | `cross-chain-router.service.ts` |
+| [x] | Unit tests: Li-Fi empty → offer; accept → Squid mocked; reject → no Squid call | `cross-chain-router.test.ts` |
 
 ---
 
