@@ -11,17 +11,63 @@ export const LIQUIDITY_FALLBACK_BRIDGE_REPLY =
 export const LIQUIDITY_FALLBACK_SWAP_REPLY =
   "Li-Fi couldn't find liquidity for this swap. I can check another route provider — confirm in the dialog when it appears.";
 
+/** Below this USD size, prefer routes without source-chain DEX hops (they often revert on-chain). */
+export const SMALL_CROSS_CHAIN_USD_THRESHOLD = 10;
+
+/** Hard floor for cross-chain bridges that still require a source swap step. */
+export const MIN_CROSS_CHAIN_SWAP_ROUTE_USD = 5;
+
+export type PickBestCrossChainRouteOptions = {
+  /** When true, pick among routes with no source-chain exchange steps first. */
+  preferDirectRoutes?: boolean;
+  /** When true, deprioritize Li-Fi feeCollection composer routes. */
+  avoidFeeCollection?: boolean;
+};
+
+export function crossChainRouteHasFeeCollection(route: CrossChainRouteOption): boolean {
+  if (route.bridges.includes("feeCollection") || route.exchanges.includes("feeCollection")) {
+    return true;
+  }
+  if (route.provider_payload.kind !== "lifi") {
+    return false;
+  }
+  for (const step of route.provider_payload.lifi_route.steps) {
+    if (step.tool === "feeCollection") {
+      return true;
+    }
+    if (step.includedSteps?.some((included) => included.tool === "feeCollection")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function pickBestCrossChainRoute(
   routes: CrossChainRouteOption[],
+  options?: PickBestCrossChainRouteOptions,
 ): CrossChainRouteOption | null {
   if (routes.length === 0) {
     return null;
   }
 
-  let best = routes[0];
+  let candidates = routes;
+  if (options?.avoidFeeCollection) {
+    const withoutFee = routes.filter((route) => !crossChainRouteHasFeeCollection(route));
+    if (withoutFee.length > 0) {
+      candidates = withoutFee;
+    }
+  }
+  if (options?.preferDirectRoutes) {
+    const direct = candidates.filter((route) => route.exchanges.length === 0);
+    if (direct.length > 0) {
+      candidates = direct;
+    }
+  }
+
+  let best = candidates[0];
   let bestScore = Number.POSITIVE_INFINITY;
 
-  for (const route of routes) {
+  for (const route of candidates) {
     const fee = route.fee_cost_usd ?? 0;
     const gas = route.gas_cost_usd ?? 0;
     const score = fee + gas;
@@ -32,6 +78,14 @@ export function pickBestCrossChainRoute(
   }
 
   return best;
+}
+
+export function isSmallCrossChainUsdAmount(usdAmount: number | undefined): boolean {
+  return usdAmount !== undefined && usdAmount < SMALL_CROSS_CHAIN_USD_THRESHOLD;
+}
+
+export function crossChainRouteNeedsSourceSwap(route: CrossChainRouteOption): boolean {
+  return route.exchanges.some((tool) => tool !== "feeCollection");
 }
 
 export function buildCrossChainSwapParams(route: CrossChainRouteOption): Record<string, unknown> {

@@ -14,7 +14,9 @@ import {
   getLifiQuote,
   resolveLifiRouteForExecute,
   resolveSourceChainFromExecuteInput,
+  routeNeedsStepTransactionRefresh,
 } from "./lifi-quote.service.js";
+import { getLifiStepTransaction } from "./lifi-step.service.js";
 import { lifiSdk } from "./lifi.client.js";
 import { consumeLifiExecuteQuota } from "./lifi-rate-limit.js";
 import {
@@ -93,10 +95,37 @@ async function refreshRouteAtExecute(
   route: Route,
   fromAddress: string,
   toAddress: string,
+  privyUserId: string,
 ): Promise<Route> {
+  const routeId = route.id ?? createRouteId(JSON.stringify(route));
+  const resolvedToAddress = toAddress ?? route.toAddress ?? route.steps.at(-1)?.action.toAddress;
+
+  if (routeNeedsStepTransactionRefresh(route)) {
+    const refreshedSteps = await Promise.all(
+      route.steps.map(async (step) => {
+        const stepInput = {
+          ...step,
+          action: {
+            ...step.action,
+            fromAddress,
+            ...(resolvedToAddress ? { toAddress: resolvedToAddress } : {}),
+          },
+        };
+        return getLifiStepTransaction(privyUserId, stepInput);
+      }),
+    );
+    const refreshed = {
+      ...route,
+      id: routeId,
+      fromAddress,
+      ...(resolvedToAddress ? { toAddress: resolvedToAddress } : {}),
+      steps: refreshedSteps,
+    };
+    return refreshed;
+  }
+
   const refreshParams = buildQuoteRefreshParams(route, fromAddress, toAddress);
   const freshStep = await lifiSdk.getQuote(refreshParams);
-  const routeId = route.id ?? createRouteId(JSON.stringify(refreshParams));
   const refreshed = convertQuoteToRoute(freshStep);
   return { ...refreshed, id: routeId };
 }
@@ -196,9 +225,14 @@ async function runLifiCrossChainSwap(
   await resolveAgentWallet(privyUserId, sourceChain.chain_id);
 
   const continuation = isLifiContinuationApproval(input as unknown as Record<string, unknown>);
+  const sameChainEvmSwap =
+    isSameChainEvmLifiRoute(sourceChain, storedRoute) &&
+    sourceChain.evm_chain_id !== undefined;
+
   let refreshedRoute = storedRoute;
-  if (shouldRefreshRouteAtExecute(continuation)) {
-    refreshedRoute = await refreshRouteAtExecute(storedRoute, fromAddress, toAddress);
+  // Same-chain EVM swaps refresh each step via getStepTransaction at broadcast time.
+  if (shouldRefreshRouteAtExecute(continuation) && !sameChainEvmSwap) {
+    refreshedRoute = await refreshRouteAtExecute(storedRoute, fromAddress, toAddress, privyUserId);
   }
   const routeId =
     refreshedRoute.id ?? input.route_id ?? createRouteId(JSON.stringify(refreshedRoute));
@@ -220,9 +254,6 @@ async function runLifiCrossChainSwap(
   }
 
   const streamCtx = getLifiExecuteContext();
-  const sameChainEvmSwap =
-    isSameChainEvmLifiRoute(sourceChain, refreshedRoute) &&
-    sourceChain.evm_chain_id !== undefined;
   const sameChainSwap = isSameChainLifiChainRefs(sourceChain, destChain);
 
   let executedRoute: RouteExtended;
@@ -232,7 +263,7 @@ async function runLifiCrossChainSwap(
   if (sameChainEvmSwap) {
     executedRoute = await executeSameChainEvmLifiRoute(
       privyUserId,
-      refreshedRoute,
+      storedRoute,
       sourceChain.evm_chain_id!,
     );
     const txHashes = collectTxHashes(executedRoute);
@@ -267,6 +298,7 @@ async function runLifiCrossChainSwap(
 
     try {
       executedRoute = await executeRoute(client, refreshedRoute, {
+      acceptExchangeRateUpdateHook: async () => true,
       updateRouteHook: (updatedRoute) => {
         if (!streamCtx?.sessionId) {
           return;

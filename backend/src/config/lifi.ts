@@ -36,7 +36,11 @@ export function lifiFeeSdkParam(fee: number): { fee?: number } {
 export function lifiIntegratorSdkFields(
   config: Pick<LifiConfig, "integrator" | "integratorFee">,
   integratorOverride?: string,
+  options?: { waiveFee?: boolean },
 ): { integrator: string; fee?: number } {
+  if (options?.waiveFee) {
+    return { integrator: integratorOverride ?? config.integrator };
+  }
   return {
     integrator: integratorOverride ?? config.integrator,
     ...lifiFeeSdkParam(config.integratorFee),

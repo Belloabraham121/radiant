@@ -78,23 +78,30 @@ export async function executeSameChainEvmLifiRoute(
   const executed = structuredClone(route) as RouteExtended;
 
   for (let index = 0; index < executed.steps.length; index++) {
-    let step = executed.steps[index];
-    if (!step.transactionRequest?.to) {
-      step = await getLifiStepTransaction(privyUserId, step);
-      executed.steps[index] = step;
-    }
+    const stepWithAddress = {
+      ...executed.steps[index],
+      action: {
+        ...executed.steps[index].action,
+        fromAddress: agentWallet.address,
+        toAddress: executed.steps[index].action.toAddress ?? agentWallet.address,
+      },
+    };
+    const step = await getLifiStepTransaction(privyUserId, stepWithAddress);
+    executed.steps[index] = step;
 
     const tx = step.transactionRequest;
     if (!tx?.to) {
       throw new AppError(400, "LIFI_VALIDATION_ERROR", "Li-Fi route step is missing transaction data.");
     }
 
+    const txValue = readBigInt(tx.value) ?? 0n;
+
     const hash = await walletClient.sendTransaction({
       account,
       chain: walletClient.chain,
       to: tx.to as Hex,
       data: (tx.data ?? "0x") as Hex,
-      value: readBigInt(tx.value) ?? 0n,
+      value: txValue,
       ...(readBigInt(tx.gasLimit) !== undefined ? { gas: readBigInt(tx.gasLimit) } : {}),
       ...(readBigInt(tx.gasPrice) !== undefined ? { gasPrice: readBigInt(tx.gasPrice) } : {}),
       ...(readBigInt(tx.maxFeePerGas) !== undefined

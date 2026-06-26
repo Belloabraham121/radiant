@@ -12,6 +12,7 @@ import {
   createPendingFromLiquidityFallbackOffer,
   LIQUIDITY_FALLBACK_SWAP_REPLY,
   pickBestCrossChainRoute,
+  isSmallCrossChainUsdAmount,
 } from "../cross-chain-intent-helpers.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
@@ -148,6 +149,17 @@ export async function executeResolvedLifiSameChainSwap(
     return null;
   }
 
+  const swapUsdAmount =
+    intent.amountUnit === "usd" && intent.amount !== undefined
+      ? intent.amount
+      : resolvedIntent.resolvedTokenAmount?.resolvedFromUsd;
+
+  const smallUsdSwap = isSmallCrossChainUsdAmount(swapUsdAmount);
+  if (smallUsdSwap) {
+    routeParams.waive_integrator_fee = true;
+    routeParams.slippage = 0.03;
+  }
+
   const tool_calls: ToolCallRecord[] = [];
   let routesResult;
 
@@ -185,7 +197,10 @@ export async function executeResolvedLifiSameChainSwap(
     result: routesResult,
   });
 
-  const route = pickBestCrossChainRoute(routesResult.routes);
+  const route = pickBestCrossChainRoute(routesResult.routes, {
+    preferDirectRoutes: smallUsdSwap,
+    avoidFeeCollection: smallUsdSwap,
+  });
   if (!route) {
     const offer = routesResult.liquidity_fallback_offer;
     if (offer) {

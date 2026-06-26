@@ -246,7 +246,7 @@ export async function resolveUserAmountToToken(
   };
 }
 
-/** Whether a bare token amount may mean USD instead (e.g. 0.6 ETH vs $0.60). */
+/** Whether a bare token amount may mean USD instead (e.g. 0.6 ETH vs $0.60, 1.5 ETH vs $1.50). */
 export function isAmountUnitAmbiguous(
   value: number,
   unit: AmountUnit,
@@ -255,10 +255,17 @@ export function isAmountUnitAmbiguous(
   if (unit !== "token" || !symbol) {
     return false;
   }
-  if (value >= 1) {
+  if (!AMBIGUOUS_EXPENSIVE_SYMBOLS.has(symbol.toUpperCase())) {
     return false;
   }
-  return AMBIGUOUS_EXPENSIVE_SYMBOLS.has(symbol.toUpperCase());
+  if (value < 1) {
+    return true;
+  }
+  // Fractional amounts on expensive tokens are often USD without a $ prefix (1.5 → $1.50).
+  if (!Number.isInteger(value) && value < 100) {
+    return true;
+  }
+  return false;
 }
 
 export function formatAmbiguousAmountQuestion(

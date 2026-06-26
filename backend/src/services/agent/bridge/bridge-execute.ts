@@ -9,7 +9,10 @@ import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "../
 import {
   buildCrossChainSwapParams,
   createPendingFromLiquidityFallbackOffer,
+  crossChainRouteNeedsSourceSwap,
+  isSmallCrossChainUsdAmount,
   LIQUIDITY_FALLBACK_BRIDGE_REPLY,
+  MIN_CROSS_CHAIN_SWAP_ROUTE_USD,
   pickBestCrossChainRoute,
 } from "../cross-chain-intent-helpers.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
@@ -150,7 +153,14 @@ export async function executeResolvedBridgeIntent(
     result: routesResult,
   });
 
-  const route = pickBestCrossChainRoute(routesResult.routes);
+  const bridgeUsdAmount =
+    intent.amountUnit === "usd" && intent.amount !== undefined
+      ? intent.amount
+      : resolvedIntent.resolvedTokenAmount?.resolvedFromUsd;
+
+  const route = pickBestCrossChainRoute(routesResult.routes, {
+    preferDirectRoutes: isSmallCrossChainUsdAmount(bridgeUsdAmount),
+  });
   if (!route) {
     const offer = routesResult.liquidity_fallback_offer;
     if (offer) {
@@ -167,6 +177,18 @@ export async function executeResolvedBridgeIntent(
     return {
       reply:
         "No bridge routes are available for that transfer right now. Try a different destination token or amount.",
+      tool_calls,
+      pending_transaction: null,
+    };
+  }
+
+  if (
+    bridgeUsdAmount !== undefined &&
+    bridgeUsdAmount < MIN_CROSS_CHAIN_SWAP_ROUTE_USD &&
+    crossChainRouteNeedsSourceSwap(route)
+  ) {
+    return {
+      reply: `Bridging $${bridgeUsdAmount.toFixed(2)} of ETH to Sui isn't reliable — the only available route includes an on-chain swap that reverts for amounts this small. Try at least $${MIN_CROSS_CHAIN_SWAP_ROUTE_USD} worth of ETH.`,
       tool_calls,
       pending_transaction: null,
     };

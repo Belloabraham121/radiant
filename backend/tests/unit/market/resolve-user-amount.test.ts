@@ -43,6 +43,7 @@ describe("resolve-user-amount parser", () => {
 
   it("detects ambiguous expensive-token amounts", () => {
     assert.equal(isAmountUnitAmbiguous(0.6, "token", "ETH"), true);
+    assert.equal(isAmountUnitAmbiguous(1.5, "token", "ETH"), true);
     assert.equal(isAmountUnitAmbiguous(0.6, "usd", "ETH"), false);
     assert.equal(isAmountUnitAmbiguous(2, "token", "ETH"), false);
     assert.equal(isAmountUnitAmbiguous(0.6, "token", "SUI"), false);

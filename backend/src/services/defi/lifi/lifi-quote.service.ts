@@ -71,6 +71,7 @@ export async function getLifiQuote(
     from_address: fromAddress,
     to_address: toAddress,
     slippage: input.slippage ?? config.defaultSlippage,
+    waive_integrator_fee: input.waive_integrator_fee ?? false,
   };
 
   return lifiCachedQuoteFetch(cacheParams, async () => {
@@ -85,7 +86,9 @@ export async function getLifiQuote(
       toAddress,
       fromAmount: amountAtomic,
       slippage: input.slippage ?? config.defaultSlippage,
-      ...lifiIntegratorSdkFields(config, input.integrator),
+      ...lifiIntegratorSdkFields(config, input.integrator, {
+        waiveFee: input.waive_integrator_fee,
+      }),
     });
 
     const routeId = createRouteId(JSON.stringify(cacheParams));
@@ -233,6 +236,21 @@ async function requoteLifiFromSnapshotLive(
     options?.onError?.(err);
     return null;
   }
+}
+
+/** Routes from getRoutes need per-step refresh; getQuote routes can use getQuote refresh. */
+export function routeNeedsStepTransactionRefresh(route: Route): boolean {
+  if (!Array.isArray(route.steps) || route.steps.length === 0) {
+    return false;
+  }
+  if (route.steps.length > 1) {
+    return true;
+  }
+  const first = route.steps[0];
+  if ((first.includedSteps?.length ?? 0) > 0) {
+    return true;
+  }
+  return !first.transactionRequest?.to;
 }
 
 export function buildQuoteRefreshParams(

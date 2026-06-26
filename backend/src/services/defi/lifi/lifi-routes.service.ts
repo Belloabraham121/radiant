@@ -56,6 +56,7 @@ export async function getLifiAdvancedRoutes(
     to_address: toAddress,
     max_routes: input.max_routes ?? 3,
     slippage: input.slippage ?? config.defaultSlippage,
+    waive_integrator_fee: input.waive_integrator_fee ?? false,
   };
 
   const result = await defiCachedFetch(
@@ -72,7 +73,9 @@ export async function getLifiAdvancedRoutes(
         fromAmount: amountAtomic,
         options: {
           slippage: input.slippage ?? config.defaultSlippage,
-          ...lifiIntegratorSdkFields(config, input.integrator),
+          ...lifiIntegratorSdkFields(config, input.integrator, {
+            waiveFee: input.waive_integrator_fee,
+          }),
           order: "RECOMMENDED",
         },
       });
