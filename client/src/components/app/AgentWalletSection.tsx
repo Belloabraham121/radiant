@@ -349,11 +349,18 @@ function AgentWalletChainRow({
           : "border-[var(--hero-ink)]/15 bg-white hover:border-[var(--hero-ink)]/40"
       }`}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
         aria-expanded={expanded}
-        className="flex w-full items-center justify-between gap-3 text-left"
+        className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"
       >
         <div className="flex min-w-0 items-center gap-3">
           {wallet.chainId === "ethereum" ? (
@@ -392,7 +399,7 @@ function AgentWalletChainRow({
             strokeWidth={2.5}
           />
         </div>
-      </button>
+      </div>
 
       {expanded ? (
         <div className="mt-3">

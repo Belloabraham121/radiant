@@ -4,6 +4,7 @@ import {
 } from "../../defi/deepbook/pool-key.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import type { ClarificationAnswer } from "../workflow/clarification.types.js";
+import { enrichGapWithSynthesizedQuestion } from "../clarification/intent-clarification-runner.js";
 import { gapToPending } from "../workflow/workflow-clarification-gaps.js";
 import {
   clearSessionClarification,
@@ -18,6 +19,7 @@ import {
   collectSwapClarificationGap,
   swapIntentPreview,
   swapIntentReadyForExecute,
+  toSwapQuestionContext,
   withDefaultChain,
 } from "./swap-clarification-gaps.js";
 import {
@@ -39,27 +41,32 @@ import {
   bridgeIntentPreview,
   bridgeIntentReadyForExecute,
   collectBridgeClarificationGap,
+  toBridgeQuestionContext,
   withDefaultBridgeChains,
 } from "../bridge/bridge-clarification-gaps.js";
 import { executeResolvedBridgeIntent } from "../bridge/bridge-execute.js";
 
 const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [] };
 
-function startBridgeClarificationFromSwap(
+async function startBridgeClarificationFromSwap(
   sessionId: string,
   bridgeIntent: ReturnType<typeof swapIntentToBridgeIntent>,
   gap: NonNullable<ReturnType<typeof collectBridgeClarificationGap>>,
-): WorkflowRunOutcome {
+): Promise<WorkflowRunOutcome> {
+  const enrichedGap = await enrichGapWithSynthesizedQuestion(
+    gap,
+    toBridgeQuestionContext(bridgeIntent, gap),
+  );
   const state = startSessionClarification({
     sessionId,
-    gap,
+    gap: enrichedGap,
     plan: EMPTY_WORKFLOW_PLAN,
     context: "bridge_intent",
     bridgeIntent: withDefaultBridgeChains(bridgeIntent),
   });
-  const pending = gapToPending(gap, state.id);
+  const pending = gapToPending(enrichedGap, state.id);
   return {
-    reply: gap.question,
+    reply: enrichedGap.question,
     tool_calls: [],
     pending_transaction: null,
     pending_clarification: {
@@ -189,19 +196,23 @@ function buildClarificationOutcome(
   };
 }
 
-function startSwapClarification(
+async function startSwapClarification(
   sessionId: string,
   intent: PartialSwapIntent,
   gap: NonNullable<ReturnType<typeof collectSwapClarificationGap>>,
-): WorkflowRunOutcome {
+): Promise<WorkflowRunOutcome> {
+  const enrichedGap = await enrichGapWithSynthesizedQuestion(
+    gap,
+    toSwapQuestionContext(intent, gap),
+  );
   const state = startSessionClarification({
     sessionId,
-    gap,
+    gap: enrichedGap,
     plan: EMPTY_WORKFLOW_PLAN,
     context: "swap_intent",
     swapIntent: withDefaultChain(intent),
   });
-  return buildClarificationOutcome(gap.question, state.id, gap, intent);
+  return buildClarificationOutcome(enrichedGap.question, state.id, enrichedGap, intent);
 }
 
 async function finishResolvedSwapIntent(

@@ -1,5 +1,6 @@
 import { isLifiEnabled } from "../../../config/lifi.js";
 import type { ClarificationAnswer } from "../workflow/clarification.types.js";
+import { enrichGapWithSynthesizedQuestion } from "../clarification/intent-clarification-runner.js";
 import { gapToPending } from "../workflow/workflow-clarification-gaps.js";
 import {
   clearSessionClarification,
@@ -14,6 +15,7 @@ import {
   bridgeIntentPreview,
   bridgeIntentReadyForExecute,
   collectBridgeClarificationGap,
+  toBridgeQuestionContext,
   withDefaultBridgeChains,
 } from "./bridge-clarification-gaps.js";
 import {
@@ -45,19 +47,23 @@ function buildClarificationOutcome(
   };
 }
 
-function startBridgeClarification(
+async function startBridgeClarification(
   sessionId: string,
   intent: PartialBridgeIntent,
   gap: NonNullable<ReturnType<typeof collectBridgeClarificationGap>>,
-): WorkflowRunOutcome {
+): Promise<WorkflowRunOutcome> {
+  const enrichedGap = await enrichGapWithSynthesizedQuestion(
+    gap,
+    toBridgeQuestionContext(intent, gap),
+  );
   const state = startSessionClarification({
     sessionId,
-    gap,
+    gap: enrichedGap,
     plan: EMPTY_WORKFLOW_PLAN,
     context: "bridge_intent",
     bridgeIntent: withDefaultBridgeChains(intent),
   });
-  return buildClarificationOutcome(gap.question, state.id, gap, intent);
+  return buildClarificationOutcome(enrichedGap.question, state.id, enrichedGap, intent);
 }
 
 async function finishResolvedBridgeIntent(

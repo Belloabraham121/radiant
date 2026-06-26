@@ -8,6 +8,8 @@ import {
   isAmountUnitAmbiguous,
   parseUserAmount,
 } from "../../market/resolve-user-amount.js";
+import type { ClarificationKnownFacts } from "../clarification/clarification-question-context.js";
+import type { ClarificationQuestionContext } from "../clarification/clarification-question-context.js";
 import type { ClarificationAnswer, ClarificationGap } from "../workflow/clarification.types.js";
 import type { BridgeIntentField, PartialBridgeIntent } from "./bridge-intent.types.js";
 import { BRIDGE_KNOWN_TOKENS } from "./bridge-intent.types.js";
@@ -87,6 +89,50 @@ function formatAmountSnippet(intent: PartialBridgeIntent): string | null {
     return `${intent.amount} ${intent.fromToken}`;
   }
   return String(intent.amount);
+}
+
+function buildBridgeKnownFacts(intent: PartialBridgeIntent): ClarificationKnownFacts {
+  const filled = withDefaultBridgeChains(intent);
+  const known: ClarificationKnownFacts = {};
+
+  if (filled.fromChainId) {
+    known.from_chain = formatChainLabel(filled.fromChainId, filled.fromEvmChainId);
+  }
+  if (filled.toChainId) {
+    known.to_chain = formatChainLabel(filled.toChainId, filled.toEvmChainId);
+  }
+  if (filled.fromToken) {
+    known.from_token = filled.fromToken;
+  }
+  if (filled.toToken) {
+    known.to_token = filled.toToken;
+  }
+  if (filled.amount !== undefined) {
+    known.amount = formatAmountSnippet(filled) ?? String(filled.amount);
+  }
+  if (filled.amountUnit) {
+    known.amount_unit = filled.amountUnit;
+  }
+
+  return known;
+}
+
+export function toBridgeQuestionContext(
+  intent: PartialBridgeIntent,
+  gap: ClarificationGap,
+): ClarificationQuestionContext {
+  const field = (gap.field as BridgeIntentField | undefined) ?? "unknown";
+
+  return {
+    action: "bridge",
+    gap_id: gap.gap_id,
+    field,
+    interaction_type: gap.interaction_type,
+    known: buildBridgeKnownFacts(intent),
+    options: gap.options,
+    template_question: gap.question,
+    template_hint: gap.hint,
+  };
 }
 
 /** Build a clarification question from what we already parsed — only ask about the missing piece. */

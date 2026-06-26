@@ -6,6 +6,8 @@ import {
   isAmountUnitAmbiguous,
   parseUserAmount,
 } from "../../market/resolve-user-amount.js";
+import type { ClarificationKnownFacts } from "../clarification/clarification-question-context.js";
+import type { ClarificationQuestionContext } from "../clarification/clarification-question-context.js";
 import type { ClarificationAnswer, ClarificationGap } from "../workflow/clarification.types.js";
 import type { PartialSwapIntent, SwapIntentField } from "./swap-intent.types.js";
 import { SWAP_KNOWN_COINS } from "./swap-intent.types.js";
@@ -83,6 +85,65 @@ function formatIntentPreview(intent: PartialSwapIntent): string {
     }
   }
   return parts.join("\n");
+}
+
+function buildSwapKnownFacts(intent: PartialSwapIntent): ClarificationKnownFacts {
+  const filled = withDefaultChain(intent);
+  const known: ClarificationKnownFacts = {};
+
+  if (filled.inputCoin) {
+    known.input_coin = filled.inputCoin;
+  }
+  if (filled.outputCoin) {
+    known.output_coin = filled.outputCoin;
+  }
+  if (filled.amount !== undefined) {
+    const unit = filled.amountUnit ?? "token";
+    const coin =
+      filled.amountSide === "receive"
+        ? filled.outputCoin
+        : filled.inputCoin;
+    known.amount =
+      unit === "usd"
+        ? `$${filled.amount}`
+        : coin
+          ? `${filled.amount} ${coin}`
+          : String(filled.amount);
+  }
+  if (filled.amountUnit) {
+    known.amount_unit = filled.amountUnit;
+  }
+  if (filled.amountSide) {
+    known.amount_side = filled.amountSide;
+  }
+  if (filled.chainId) {
+    if (filled.chainId === "ethereum" && filled.evmChainId !== undefined) {
+      const network = getEvmNetwork(filled.evmChainId);
+      known.network = network?.name ?? `EVM ${filled.evmChainId}`;
+    } else {
+      known.network = filled.chainId;
+    }
+  }
+
+  return known;
+}
+
+export function toSwapQuestionContext(
+  intent: PartialSwapIntent,
+  gap: ClarificationGap,
+): ClarificationQuestionContext {
+  const field = (gap.field as SwapIntentField | undefined) ?? "unknown";
+
+  return {
+    action: "swap",
+    gap_id: gap.gap_id,
+    field,
+    interaction_type: gap.interaction_type,
+    known: buildSwapKnownFacts(intent),
+    options: gap.options,
+    template_question: gap.question,
+    template_hint: gap.hint,
+  };
 }
 
 /** First missing or ambiguous swap slot to clarify. */
