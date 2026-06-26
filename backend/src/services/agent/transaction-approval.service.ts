@@ -28,6 +28,7 @@ import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { AppActionSource } from "../projects/app-action.types.js";
 import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 import type { PendingTransaction } from "./agent.types.js";
+import type { LiquidityFallbackOffer } from "../defi/cross-chain/cross-chain.types.js";
 import { AppError } from "../../errors/app-error.js";
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { mapLifiExecuteError } from "../defi/lifi/lifi.errors.js";
@@ -145,6 +146,76 @@ async function pruneExpired(): Promise<void> {
   await expireStalePendingApprovals();
 }
 
+export function buildLiquidityFallbackPendingFromOffer(
+  input: ExecuteTransactionInput,
+  offer: LiquidityFallbackOffer,
+  id = randomUUID(),
+): PendingTransaction {
+  const fromSymbol = offer.from_token;
+  const toSymbol = offer.to_token;
+  return {
+    id,
+    chain_id: input.chain_id,
+    action: input.action,
+    params: {
+      ...input.params,
+      approval_outcome: "liquidity_fallback_offered",
+      liquidity_fallback_offer: offer,
+    },
+    summary: `Alternate route available for ${fromSymbol} → ${toSymbol}`,
+    amount_display: `${fromSymbol} → ${toSymbol}`,
+    quote_expires_at: offer.expires_at,
+    fiat_preview: null,
+    defi_preview: null,
+    approval_outcome: "liquidity_fallback_offered",
+    liquidity_fallback_offer: offer,
+  };
+}
+
+type CreateLiquidityFallbackPendingFn = (
+  privyUserId: string,
+  input: ExecuteTransactionInput,
+  offer: LiquidityFallbackOffer,
+  context?: ExecuteTransactionContext,
+) => Promise<PendingTransaction>;
+
+let createLiquidityFallbackPendingForTests: CreateLiquidityFallbackPendingFn | null = null;
+
+export function setCreateLiquidityFallbackPendingForTests(
+  fn: CreateLiquidityFallbackPendingFn | null,
+): void {
+  createLiquidityFallbackPendingForTests = fn;
+}
+
+export async function createLiquidityFallbackPendingTransaction(
+  privyUserId: string,
+  input: ExecuteTransactionInput,
+  offer: LiquidityFallbackOffer,
+  context?: ExecuteTransactionContext,
+): Promise<PendingTransaction> {
+  if (createLiquidityFallbackPendingForTests) {
+    return createLiquidityFallbackPendingForTests(privyUserId, input, offer, context);
+  }
+
+  await pruneExpired();
+  const pending = buildLiquidityFallbackPendingFromOffer(input, offer);
+
+  await recordPendingApproval({
+    privyUserId,
+    sessionId: context?.sessionId,
+    messageId: context?.messageId,
+    workflowStepIndex: context?.workflowStepIndex,
+    input: {
+      chain_id: pending.chain_id,
+      action: pending.action,
+      params: pending.params,
+    },
+    pending,
+  });
+
+  return pending;
+}
+
 export async function buildPendingTransactionPreview(
   privyUserId: string,
   input: ExecuteTransactionInput,
@@ -153,26 +224,7 @@ export async function buildPendingTransactionPreview(
   const enrichResult = await enrichExecuteInputForApproval(privyUserId, input);
 
   if (enrichResult.kind === "liquidity_fallback_offered") {
-    const offer = enrichResult.liquidity_fallback_offer;
-    const fromSymbol = offer.from_token;
-    const toSymbol = offer.to_token;
-    return {
-      id,
-      chain_id: enrichResult.input.chain_id,
-      action: enrichResult.input.action,
-      params: {
-        ...enrichResult.input.params,
-        approval_outcome: "liquidity_fallback_offered",
-        liquidity_fallback_offer: offer,
-      },
-      summary: `Alternate route available for ${fromSymbol} → ${toSymbol}`,
-      amount_display: `${fromSymbol} → ${toSymbol}`,
-      quote_expires_at: offer.expires_at,
-      fiat_preview: null,
-      defi_preview: null,
-      approval_outcome: "liquidity_fallback_offered",
-      liquidity_fallback_offer: offer,
-    };
+    return buildLiquidityFallbackPendingFromOffer(enrichResult.input, enrichResult.liquidity_fallback_offer, id);
   }
 
   let enriched = enrichResult.input;

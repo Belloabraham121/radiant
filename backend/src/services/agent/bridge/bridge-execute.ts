@@ -1,11 +1,17 @@
 import { isLifiEnabled } from "../../../config/lifi.js";
 import { resolveTokenSymbol } from "../../../config/supported-tokens.js";
-import { getLifiAdvancedRoutes } from "../../defi/lifi/lifi-routes.service.js";
-import type { CrossChainRouteOption } from "../../defi/lifi/lifi.types.js";
+import { getCrossChainRoutes } from "../../defi/cross-chain/cross-chain-router.service.js";
+import type { LifiRoutesInput } from "../../defi/lifi/lifi.types.js";
 import { resolveBridgeIntentAmount } from "../resolve-intent-amounts.js";
 import { AppError } from "../../../errors/app-error.js";
 import { mapAgentToolError } from "../../../utils/agent-tool-errors.js";
 import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "../agent.types.js";
+import {
+  buildCrossChainSwapParams,
+  createPendingFromLiquidityFallbackOffer,
+  LIQUIDITY_FALLBACK_BRIDGE_REPLY,
+  pickBestCrossChainRoute,
+} from "../cross-chain-intent-helpers.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { runExecuteTransactionToolWithApproval } from "../tools.js";
@@ -77,46 +83,6 @@ export function buildBridgeRouteParams(intent: PartialBridgeIntent): Record<stri
   };
 }
 
-function pickBestRoute(routes: CrossChainRouteOption[]): CrossChainRouteOption | null {
-  if (routes.length === 0) {
-    return null;
-  }
-
-  let best = routes[0];
-  let bestScore = Number.POSITIVE_INFINITY;
-
-  for (const route of routes) {
-    const fee = route.fee_cost_usd ?? 0;
-    const gas = route.gas_cost_usd ?? 0;
-    const score = fee + gas;
-    if (score < bestScore) {
-      bestScore = score;
-      best = route;
-    }
-  }
-
-  return best;
-}
-
-function buildCrossChainSwapParams(route: CrossChainRouteOption): Record<string, unknown> {
-  return {
-    route_id: route.route_id,
-    from_token: route.from_token_symbol,
-    to_token: route.to_token_symbol,
-    from_token_symbol: route.from_token_symbol,
-    to_token_symbol: route.to_token_symbol,
-    from_amount_atomic: route.from_amount_atomic,
-    to_amount_atomic: route.to_amount_atomic,
-    from_chain_id: route.from_chain_id,
-    to_chain_id: route.to_chain_id,
-    from_evm_chain_id: route.from_evm_chain_id,
-    to_evm_chain_id: route.to_evm_chain_id,
-    bridges: route.bridges,
-    fee_cost_usd: route.fee_cost_usd,
-    expires_at: route.expires_at,
-  };
-}
-
 export async function executeResolvedBridgeIntent(
   privyUserId: string,
   intent: PartialBridgeIntent,
@@ -151,9 +117,9 @@ export async function executeResolvedBridgeIntent(
   let routesResult;
 
   try {
-    routesResult = await getLifiAdvancedRoutes(
+    routesResult = await getCrossChainRoutes(
       privyUserId,
-      routeParams as Parameters<typeof getLifiAdvancedRoutes>[1],
+      routeParams as LifiRoutesInput,
     );
   } catch (err) {
     const mapped = mapAgentToolError(err);
@@ -184,8 +150,20 @@ export async function executeResolvedBridgeIntent(
     result: routesResult,
   });
 
-  const route = pickBestRoute(routesResult.routes);
+  const route = pickBestCrossChainRoute(routesResult.routes);
   if (!route) {
+    const offer = routesResult.liquidity_fallback_offer;
+    if (offer) {
+      const pending = await createPendingFromLiquidityFallbackOffer(privyUserId, offer, {
+        sessionId,
+      });
+      return {
+        reply: LIQUIDITY_FALLBACK_BRIDGE_REPLY,
+        tool_calls,
+        pending_transaction: pending,
+      };
+    }
+
     return {
       reply:
         "No bridge routes are available for that transfer right now. Try a different destination token or amount.",
@@ -230,6 +208,14 @@ export async function executeResolvedBridgeIntent(
     name: EXECUTE_TRANSACTION_TOOL_NAME,
     result: executeOutcome,
   });
+
+  if (executeOutcome.status === "liquidity_fallback_offered") {
+    return {
+      reply: LIQUIDITY_FALLBACK_BRIDGE_REPLY,
+      tool_calls,
+      pending_transaction: executeOutcome.pending,
+    };
+  }
 
   if (executeOutcome.status === "approval_required") {
     return {

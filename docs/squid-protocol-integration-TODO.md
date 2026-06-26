@@ -291,10 +291,10 @@ Mirror `lifi/` layout.
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `bridge-execute.ts` — use `getCrossChainRoutes`; on empty → `buildLiquidityFallbackOffer` in outcome | `bridge/bridge-execute.ts` |
-| [ ] | `swap-lifi-execute.ts` — same pattern | `swap/swap-lifi-execute.ts` |
-| [ ] | Stream/agent reply: offer consent instead of “No bridge routes available…” | ↑ |
-| [ ] | Integration test: bridge intent → Li-Fi empty → fallback offer payload | `bridge-execute-squid-fallback.test.ts` |
+| [x] | `bridge-execute.ts` — use `getCrossChainRoutes`; on empty → `buildLiquidityFallbackOffer` in outcome | `bridge/bridge-execute.ts` |
+| [x] | `swap-lifi-execute.ts` — same pattern | `swap/swap-lifi-execute.ts` |
+| [x] | Stream/agent reply: offer consent instead of “No bridge routes available…” | ↑ |
+| [x] | Integration test: bridge intent → Li-Fi empty → fallback offer payload | `bridge-execute-squid-fallback.test.ts` |
 
 ---
 
