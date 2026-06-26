@@ -1,7 +1,11 @@
 import type { Route } from "@lifi/types";
+import { z } from "zod";
 import type { ChainId } from "../../chains/types.js";
 import type { DeFiProviderId } from "../types.js";
 import type { SquidRouteSnapshot, SquidStoredRoutePayload } from "../squid/squid.types.js";
+
+const evmChainIdSchema = z.coerce.number().int().positive();
+const crossChainRadiantChainIdSchema = z.enum(["sui", "solana", "ethereum"]);
 
 export type CrossChainFallbackStatus = "offered" | "accepted" | "rejected" | "expired";
 
@@ -96,3 +100,26 @@ export type StoredLiquidityFallbackOffer = LiquidityFallbackOffer & {
   privyUserId: string;
   quoteParams: CrossChainFallbackQuoteParams;
 };
+
+/** Returned by cross_chain_quote when Li-Fi has no liquidity but Squid fallback is offered. */
+export type CrossChainQuoteFallbackResult = {
+  liquidity_fallback_offer: LiquidityFallbackOffer;
+  unavailable_routes: unknown;
+  routing?: CrossChainRoutesResult["routing"];
+};
+
+export const crossChainStatusInputSchema = z.object({
+  provider_id: z.enum(["evm-lifi", "evm-squid"]).optional(),
+  tx_hash: z.string().min(8).optional(),
+  transaction_id: z.string().min(8).optional(),
+  quote_id: z.string().min(1).optional(),
+  from_chain_id: crossChainRadiantChainIdSchema.optional(),
+  to_chain_id: crossChainRadiantChainIdSchema.optional(),
+  from_evm_chain_id: evmChainIdSchema.optional(),
+  to_evm_chain_id: evmChainIdSchema.optional(),
+  bridge: z.string().min(1).optional(),
+  request_id: z.string().min(1).optional(),
+  bridge_type: z.string().min(1).optional(),
+  route_id: z.string().min(1).optional(),
+});
+export type CrossChainStatusInput = z.infer<typeof crossChainStatusInputSchema>;

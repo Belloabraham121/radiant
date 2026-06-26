@@ -261,12 +261,12 @@ Mirror `lifi/` layout.
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `cross_chain_routes` handler calls `getCrossChainRoutes` instead of `getLifiAdvancedRoutes` | `chains/evm/lifi/query-handlers.ts` |
-| [ ] | `cross_chain_quote` handler uses router best route | ↑ |
-| [ ] | Return shape includes `liquidity_fallback_offer` when Li-Fi has no routes (instead of bare error) | ↑ |
-| [ ] | `cross_chain_status` dispatches by `provider_id` on stored transaction metadata | ↑ |
-| [ ] | Solana plugin query handlers — same router delegation | `chains/registry.ts` (solana plugin) |
-| [ ] | Unit tests: query handler returns fallback offer on empty Li-Fi | `query-chain-squid-fallback.test.ts` |
+| [x] | `cross_chain_routes` handler calls `getCrossChainRoutes` instead of `getLifiAdvancedRoutes` | `chains/evm/lifi/query-handlers.ts` |
+| [x] | `cross_chain_quote` handler uses router best route | ↑ |
+| [x] | Return shape includes `liquidity_fallback_offer` when Li-Fi has no routes (instead of bare error) | ↑ |
+| [x] | `cross_chain_status` dispatches by `provider_id` on stored transaction metadata | ↑ |
+| [x] | Solana plugin query handlers — same router delegation | `chains/registry.ts` (solana plugin) |
+| [x] | Unit tests: query handler returns fallback offer on empty Li-Fi | `query-chain-squid-fallback.test.ts` |
 
 ---
 

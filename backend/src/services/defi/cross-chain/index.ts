@@ -3,14 +3,17 @@ export type {
   CrossChainFallbackStatus,
   CrossChainProviderId,
   CrossChainProviderPayload,
+  CrossChainQuoteFallbackResult,
   CrossChainRouteOption,
   CrossChainRoutesResult,
+  CrossChainStatusInput,
   LiquidityFallbackOffer,
   LifiProviderPayload,
   ResolvedCrossChainRoute,
   SquidProviderPayload,
   StoredLiquidityFallbackOffer,
 } from "./cross-chain.types.js";
+export { crossChainStatusInputSchema } from "./cross-chain.types.js";
 
 export { isLiquidityFallbackEligible } from "./cross-chain-fallback.js";
 export {
@@ -34,8 +37,13 @@ export {
   stripLifiRouteIdPrefix,
   toLifiPrefixedRouteId,
 } from "./cross-chain-lifi-adapter.js";
+export type { CrossChainQuoteResult } from "./cross-chain-router.service.js";
 export {
+  getCrossChainQuote,
   getCrossChainRoutes,
+  getCrossChainStatus,
   resolveCrossChainRouteForExecute,
   setGetLifiAdvancedRoutesForTests,
+  setGetLifiCrossChainStatusForTests,
+  setGetSquidCrossChainStatusForTests,
 } from "./cross-chain-router.service.js";
