@@ -8,7 +8,12 @@ export type DeFiApprovalAssetLine = {
 
 export type DeFiApprovalPreview = {
   kind: DeFiApprovalPreviewKind;
-  provider_id?: "sui-deepbook" | "evm-lifi" | "evm-sushiswap" | "stellar-soroswap";
+  provider_id?:
+    | "sui-deepbook"
+    | "evm-lifi"
+    | "evm-squid"
+    | "evm-sushiswap"
+    | "stellar-soroswap";
   title: string;
   amount_display: string;
   pay?: DeFiApprovalAssetLine;
@@ -19,4 +24,7 @@ export type DeFiApprovalPreview = {
   quote_expires_at?: string | null;
   slippage?: number | null;
   fiat_preview?: import("@/lib/chat-api").TransactionFiatPreview | null;
+  /** True when the route was found via liquidity fallback (not primary Li-Fi). */
+  alternate_route?: boolean;
+  route_provider_label?: string;
 };

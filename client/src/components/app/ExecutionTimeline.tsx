@@ -2,7 +2,7 @@
 
 import { Check, Circle, ExternalLink, Loader2, Minus, X } from "lucide-react";
 import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
-import { LifiCountdownLabel } from "@/components/app/LifiCountdownLabel";
+import { RouteCountdownLabel } from "@/components/app/RouteCountdownLabel";
 import type { ExecutionStep } from "@/lib/chat-execution-steps";
 import { executionStepHasLifiCountdown } from "@/lib/lifi-countdown";
 import { inferStatusCategoryFromExecutionSteps } from "@/lib/agent-status-category";
@@ -104,7 +104,7 @@ export function ExecutionTimeline({
                   className={`text-xs font-bold ${isActive ? "text-[var(--hero-blue)]" : "text-[var(--hero-ink)]"}`}
                 >
                   {executionStepHasLifiCountdown(step) ? (
-                    <LifiCountdownLabel
+                    <RouteCountdownLabel
                       kind={step.countdownKind ?? "bridge"}
                       startedAt={step.bridgeStartedAt!}
                       durationSeconds={step.estimatedDurationSeconds!}

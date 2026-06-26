@@ -45,7 +45,8 @@ export function isLifiAgentTransaction(
   return (
     typeof params.lifi_route === "object" ||
     typeof params.route === "object" ||
-    typeof params.route_id === "string"
+    typeof params.route_id === "string" ||
+    params.provider_id === "evm-squid"
   );
 }
 

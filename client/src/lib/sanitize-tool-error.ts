@@ -7,6 +7,9 @@ type ZodIssueLike = {
 
 const LIFI_SDK_VERSION_SUFFIX_RE = /\n?LI\.FI SDK version: [\d.]+$/i;
 const LIFI_ERROR_PREFIX_RE = /^\[(?:TransactionError|SDKError|RPCError|ProviderError)\]\s*/i;
+const SQUID_SDK_NOISE_RE =
+  /(?:@0xsquid\/sdk|SquidRouter|squid\.xyz|integratorId|routeStatus)/i;
+const SQUID_NO_ROUTE_RE = /SQUID_NO_ROUTE|no alternate route/i;
 
 function pathLabel(path: (string | number)[]): string {
   return path.length === 0 ? "input" : path.join(".");
@@ -42,7 +45,35 @@ function friendlyLifiTransactionMessage(message: string): string {
   return cleaned;
 }
 
+function stripSquidSdkNoise(message: string): string {
+  return message
+    .replace(/\[object Object\]/g, "")
+    .replace(/\{[^}]*integratorId[^}]*\}/gi, "")
+    .replace(/@0xsquid\/sdk/gi, "")
+    .replace(/SquidRouter/gi, "")
+    .replace(/squid\.xyz/gi, "")
+    .replace(/integratorId\s*\w*/gi, "")
+    .replace(/routeStatus/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^\[\]\s*/, "")
+    .trim();
+}
+
+function friendlySquidNoRouteMessage(message: string): string {
+  if (SQUID_NO_ROUTE_RE.test(message)) {
+    return "No alternate route is available for this transfer right now. Try a different amount or pair.";
+  }
+  return message;
+}
+
 function sanitizeKnownToolErrorMessage(message: string): string {
+  if (SQUID_NO_ROUTE_RE.test(message)) {
+    return friendlySquidNoRouteMessage(message);
+  }
+  if (SQUID_SDK_NOISE_RE.test(message)) {
+    const cleaned = stripSquidSdkNoise(message);
+    return cleaned || "The alternate route request failed. Try again in a moment.";
+  }
   if (
     LIFI_SDK_VERSION_SUFFIX_RE.test(message) ||
     LIFI_ERROR_PREFIX_RE.test(message) ||

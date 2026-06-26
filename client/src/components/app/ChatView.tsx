@@ -7,6 +7,8 @@ import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
+import { LiquidityFallbackDialog } from "@/components/app/LiquidityFallbackDialog";
+import { isLiquidityFallbackPending } from "@/lib/cross-chain-fallback";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
 import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
@@ -282,11 +284,15 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
     pendingClarification,
     approving,
     rejecting,
+    acceptingFallback,
+    rejectingFallback,
     respondingClarification,
     sendMessage,
     stopExecution,
     approvePending,
     rejectPending,
+    acceptLiquidityFallbackPending,
+    rejectLiquidityFallbackPending,
     respondClarification,
     dismissClarification,
   } = useChatSession(sessionId, draftResetKey);
@@ -574,7 +580,16 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
           />
         ) : null}
 
-        {pendingTx && !pendingTxRelayedToPreview ? (
+        {pendingTx && isLiquidityFallbackPending(pendingTx) ? (
+          <LiquidityFallbackDialog
+            className={`${chatColumnClass} mb-3`}
+            offer={pendingTx.liquidity_fallback_offer}
+            busy={acceptingFallback || rejectingFallback}
+            error={chatError}
+            onAccept={() => void acceptLiquidityFallbackPending()}
+            onReject={() => void rejectLiquidityFallbackPending()}
+          />
+        ) : pendingTx && !pendingTxRelayedToPreview ? (
           <TransactionApprovalBar
             className={`${chatColumnClass} mb-3`}
             pending={pendingTx}

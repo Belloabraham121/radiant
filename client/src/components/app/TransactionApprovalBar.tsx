@@ -2,6 +2,7 @@
 
 import { Loader2, ShieldAlert } from "lucide-react";
 import type { PendingTransaction } from "@/lib/chat-api";
+import { isAlternateCrossChainRoute } from "@/lib/cross-chain-fallback";
 import {
   resolveQuoteExpiresAt,
   useSwapQuoteCountdown,
@@ -138,8 +139,12 @@ export function TransactionApprovalBar({
   const isLifi =
     pending.action === "cross_chain_swap" ||
     pending.defi_preview?.provider_id === "evm-lifi" ||
+    pending.defi_preview?.provider_id === "evm-squid" ||
     defiState.preview?.kind === "bridge" ||
     defiState.preview?.kind === "lifi_continue";
+  const isAlternateRoute = isAlternateCrossChainRoute(pending);
+  const alternateRouteLabel =
+    pending.defi_preview?.route_provider_label ?? "Alternate route";
 
   const displayTitle = busy
     ? isLifi
@@ -176,6 +181,8 @@ export function TransactionApprovalBar({
               ? "bg-[var(--hero-coral)]/15 text-[var(--hero-coral)]"
               : busy
                 ? "bg-[var(--hero-blue)]/15 text-[var(--hero-blue)]"
+                : isAlternateRoute
+                  ? "bg-[var(--hero-mint)]/15 text-[var(--hero-mint)]"
                 : "bg-[var(--hero-amber)]/15 text-[var(--hero-amber)]"
           }`}
         >
@@ -183,6 +190,8 @@ export function TransactionApprovalBar({
             ? "Executing"
             : quoteExpired && !isLifiContinuation
             ? "Quote expired"
+            : isAlternateRoute
+              ? alternateRouteLabel
             : isLifiContinuation
               ? "Action required"
               : "Pending"}

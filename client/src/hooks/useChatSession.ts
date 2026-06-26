@@ -36,15 +36,21 @@ import {
   loadClaimableLifiContinuationPending,
 } from "@/lib/lifi-continuation-pending";
 import {
-  applyLifiLiveUpdateToMessages,
-  applyLifiTransactionStepsToMessages,
-  applyOptimisticLifiApprovalToMessages,
-  collectTrackedLifiTransactionIds,
+  acceptLiquidityFallback,
+  isLiquidityFallbackPending,
+  rejectLiquidityFallback,
+} from "@/lib/cross-chain-fallback";
+import {
+  applyCrossChainLiveUpdateToMessages,
+  applyOptimisticCrossChainApprovalToMessages,
+  collectTrackedCrossChainTransactionIds,
   executionStepsFromAgentTransaction,
   foldApproveOutcomeIntoLifiMessage,
-  isInFlightLifiTransaction,
-  mergeTransactionStepsIntoMessages,
-} from "@/lib/lifi-execution-tracking";
+  isCrossChainPending,
+  isInFlightCrossChainTransaction,
+  markFallbackOfferDeclinedInMessages,
+  mergeCrossChainTransactionStepsIntoMessages,
+} from "@/lib/cross-chain-execution-tracking";
 import {
   isApproveRequestTimeout,
   isLifiAgentTransaction,
@@ -145,6 +151,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     useState<PendingClarification | null>(boot.pending_clarification);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [acceptingFallback, setAcceptingFallback] = useState(false);
+  const [rejectingFallback, setRejectingFallback] = useState(false);
   const [respondingClarification, setRespondingClarification] = useState(false);
   const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] =
     useState(false);
@@ -208,6 +216,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     setPendingClarification(null);
     setApproving(false);
     setRejecting(false);
+    setAcceptingFallback(false);
+    setRejectingFallback(false);
     setRespondingClarification(false);
     setPendingTxRelayedToPreview(false);
     closePanel("new");
@@ -390,7 +400,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     async function hydrateInFlightLifiTransactions() {
       try {
         const { items } = await listSessionAgentTransactions(sessionId!);
-        const inFlight = items.filter(isInFlightLifiTransaction);
+        const inFlight = items.filter(isInFlightCrossChainTransaction);
         if (inFlight.length === 0) {
           return;
         }
@@ -408,7 +418,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
         if (cancelled) return;
 
         setMessages((current) =>
-          mergeTransactionStepsIntoMessages(current, inFlight, details),
+          mergeCrossChainTransactionStepsIntoMessages(current, inFlight, details),
         );
       } catch {
         // Best-effort hydration — polling will retry.
@@ -437,8 +447,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     async function pollInFlightTransactions() {
       try {
         const { items } = await listSessionAgentTransactions(activeSessionId!);
-        const inFlight = items.filter(isInFlightLifiTransaction);
-        const trackedIds = collectTrackedLifiTransactionIds(messagesRef.current);
+        const inFlight = items.filter(isInFlightCrossChainTransaction);
+        const trackedIds = collectTrackedCrossChainTransactionIds(messagesRef.current);
         const pollIds = [
           ...new Set([
             ...inFlight.map((tx) => tx.id),
@@ -471,7 +481,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           }
 
           setMessages((current) =>
-            applyLifiLiveUpdateToMessages(current, txId, steps, {
+            applyCrossChainLiveUpdateToMessages(current, txId, steps, {
               primaryMessageId: detail.message_id,
               detail,
             }),
@@ -484,7 +494,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           const fastPoll =
             approvingRef.current ||
             approvingTransactionIdRef.current !== null ||
-            collectTrackedLifiTransactionIds(messagesRef.current).length > 0;
+            collectTrackedCrossChainTransactionIds(messagesRef.current).length > 0;
           timer = setTimeout(() => {
             void pollInFlightTransactions();
           }, fastPoll ? 2_000 : 10_000);
@@ -530,7 +540,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
 
       setMessages((current) => {
         if (incoming.agentTransactionId) {
-          return applyLifiLiveUpdateToMessages(
+          return applyCrossChainLiveUpdateToMessages(
             current,
             incoming.agentTransactionId,
             [incoming],
@@ -854,12 +864,10 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     approvingTransactionIdRef.current = snapshot.id;
     applyPendingTransaction(null);
 
-    const isLifiPending =
-      snapshot.action === "cross_chain_swap" ||
-      snapshot.defi_preview?.provider_id === "evm-lifi";
-    if (isLifiPending) {
+    const isCrossChain = isCrossChainPending(snapshot);
+    if (isCrossChain) {
       setMessages((current) =>
-        applyOptimisticLifiApprovalToMessages(current, snapshot),
+        applyOptimisticCrossChainApprovalToMessages(current, snapshot),
       );
 
       void (async () => {
@@ -873,7 +881,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
             return;
           }
           setMessages((current) =>
-            applyLifiLiveUpdateToMessages(current, snapshot.id, steps, {
+            applyCrossChainLiveUpdateToMessages(current, snapshot.id, steps, {
               primaryMessageId: detail.message_id,
               detail,
             }),
@@ -973,7 +981,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
               return;
             }
             setMessages((current) =>
-              applyLifiLiveUpdateToMessages(current, snapshot.id, steps, {
+              applyCrossChainLiveUpdateToMessages(current, snapshot.id, steps, {
                 primaryMessageId: detail.message_id,
                 detail,
               }),
@@ -996,10 +1004,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           ? (messageForChatStreamError(err.code) ?? err.message)
           : "Approval failed. Try again.";
       const timedOut = isApproveRequestTimeout(err);
-      const snapshotIsLifi =
-        snapshot.action === "cross_chain_swap" ||
-        snapshot.defi_preview?.provider_id === "evm-lifi" ||
-        isLifiAgentTransaction(snapshot);
+      const snapshotIsCrossChain =
+        isCrossChainPending(snapshot) || isLifiAgentTransaction(snapshot);
 
       let outcome: ApproveCatchOutcome = {
         kind: "uncertain",
@@ -1020,14 +1026,14 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
         );
         if (steps?.length) {
           setMessages((current) =>
-            applyLifiLiveUpdateToMessages(current, snapshot.id, steps, {
+            applyCrossChainLiveUpdateToMessages(current, snapshot.id, steps, {
               primaryMessageId: detail.message_id,
               detail,
             }),
           );
         }
       } catch {
-        if (timedOut && snapshotIsLifi) {
+        if (timedOut && snapshotIsCrossChain) {
           outcome = { kind: "in_flight", message: null };
         }
       }
@@ -1051,6 +1057,67 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     openArtifact,
     pendingTx,
     refreshSessions,
+    rejecting,
+  ]);
+
+  const acceptLiquidityFallbackPending = useCallback(async () => {
+    if (!isLiquidityFallbackPending(pendingTx) || acceptingFallback || rejectingFallback) {
+      return;
+    }
+
+    const offerId = pendingTx.liquidity_fallback_offer.fallback_offer_id;
+    setAcceptingFallback(true);
+    setChatError(null);
+
+    try {
+      const result = await acceptLiquidityFallback(offerId);
+      applyPendingTransaction(result.pending, activeSessionId ?? undefined);
+      setChatError(null);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? (messageForChatStreamError(err.code) ?? err.message)
+          : "Could not load an alternate route. Try again.";
+      setChatError(message);
+    } finally {
+      setAcceptingFallback(false);
+    }
+  }, [
+    acceptingFallback,
+    activeSessionId,
+    applyPendingTransaction,
+    pendingTx,
+    rejectingFallback,
+  ]);
+
+  const rejectLiquidityFallbackPending = useCallback(async () => {
+    if (!isLiquidityFallbackPending(pendingTx) || acceptingFallback || rejectingFallback) {
+      return;
+    }
+
+    const offerId = pendingTx.liquidity_fallback_offer.fallback_offer_id;
+    setRejectingFallback(true);
+    setChatError(null);
+
+    try {
+      await rejectLiquidityFallback(offerId);
+      applyPendingTransaction(null);
+      setMessages((current) => markFallbackOfferDeclinedInMessages(current));
+      setChatError(null);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Could not decline the alternate route offer. Try again.";
+      setChatError(message);
+    } finally {
+      setRejectingFallback(false);
+    }
+  }, [
+    acceptingFallback,
+    applyPendingTransaction,
+    pendingTx,
+    rejectingFallback,
   ]);
 
   const rejectPending = useCallback(async () => {
@@ -1197,11 +1264,15 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     pendingClarification,
     approving,
     rejecting,
+    acceptingFallback,
+    rejectingFallback,
     respondingClarification,
     sendMessage,
     stopExecution,
     approvePending,
     rejectPending,
+    acceptLiquidityFallbackPending,
+    rejectLiquidityFallbackPending,
     respondClarification,
     dismissPending: () => applyPendingTransaction(null),
     dismissClarification: () => setPendingClarification(null),

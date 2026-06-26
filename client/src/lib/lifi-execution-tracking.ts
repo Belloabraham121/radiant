@@ -48,7 +48,8 @@ export function executionStepsForPendingApproval(
 
   const isLifi =
     pending.action === "cross_chain_swap" ||
-    pending.defi_preview?.provider_id === "evm-lifi";
+    pending.defi_preview?.provider_id === "evm-lifi" ||
+    pending.defi_preview?.provider_id === "evm-squid";
 
   if (isLifi) {
     const isSameChain =

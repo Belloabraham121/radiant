@@ -318,38 +318,38 @@ Mirror `lifi/` layout.
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `LiquidityFallbackOffer` client type | `client/src/lib/cross-chain-fallback.ts` |
-| [ ] | `acceptLiquidityFallback(offerId)` API helper | ↑ |
-| [ ] | `rejectLiquidityFallback(offerId)` API helper | ↑ |
+| [x] | `LiquidityFallbackOffer` client type | `client/src/lib/cross-chain-fallback.ts` |
+| [x] | `acceptLiquidityFallback(offerId)` API helper | ↑ |
+| [x] | `rejectLiquidityFallback(offerId)` API helper | ↑ |
 
 #### 8.2 Consent dialog
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `LiquidityFallbackDialog` component — short Li-Fi message, Yes / No | `client/src/components/app/LiquidityFallbackDialog.tsx` |
-| [ ] | Wire dialog to `pending_transaction.liquidity_fallback_offer` or stream payload | `ChatView.tsx` or approval layer |
-| [ ] | On Yes: call accept API → open **second** approval modal with Squid route | ↑ |
-| [ ] | On No: dismiss + update timeline step to cancelled/skipped | ↑ |
-| [ ] | Prevent double-submit while Squid quote loading | ↑ |
+| [x] | `LiquidityFallbackDialog` component — short Li-Fi message, Yes / No | `client/src/components/app/LiquidityFallbackDialog.tsx` |
+| [x] | Wire dialog to `pending_transaction.liquidity_fallback_offer` or stream payload | `ChatView.tsx` or approval layer |
+| [x] | On Yes: call accept API → open **second** approval modal with Squid route | ↑ |
+| [x] | On No: dismiss + update timeline step to cancelled/skipped | ↑ |
+| [x] | Prevent double-submit while Squid quote loading | ↑ |
 
 #### 8.3 Execution timeline
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | Map stream step `liquidity_fallback_offered` → ExecutionStep `fallback-offer` / “Finding another route…” | `client/src/lib/chat-execution-steps.ts` |
-| [ ] | Map `squid_quote` step → “Getting alternate route…” | ↑ |
-| [ ] | Generalize `lifi-execution-tracking.ts` → `cross-chain-execution-tracking.ts` OR branch on `provider_id` | `client/src/lib/` |
-| [ ] | Squid submit/bridge/complete step labels (mirror Li-Fi) | ↑ |
-| [ ] | `applySquidLiveUpdateToMessages` for post-approve streaming | ↑ |
-| [ ] | Optimistic approval steps for Squid approve click | ↑ |
-| [ ] | `LifiCountdownLabel` → generic `RouteCountdownLabel` or Squid branch | `client/src/components/app/` |
+| [x] | Map stream step `liquidity_fallback_offered` → ExecutionStep `fallback-offer` / “Finding another route…” | `client/src/lib/chat-execution-steps.ts` |
+| [x] | Map `squid_quote` step → “Getting alternate route…” | ↑ |
+| [x] | Generalize `lifi-execution-tracking.ts` → `cross-chain-execution-tracking.ts` OR branch on `provider_id` | `client/src/lib/` |
+| [x] | Squid submit/bridge/complete step labels (mirror Li-Fi) | ↑ |
+| [x] | `applySquidLiveUpdateToMessages` for post-approve streaming | ↑ |
+| [x] | Optimistic approval steps for Squid approve click | ↑ |
+| [x] | `LifiCountdownLabel` → generic `RouteCountdownLabel` or Squid branch | `client/src/components/app/` |
 
 #### 8.4 Error sanitization
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | Strip Squid SDK noise in client tool error display | `client/src/lib/sanitize-tool-error.ts` |
-| [ ] | User-facing copy for `SQUID_NO_ROUTE` after user already consented | ↑ |
+| [x] | Strip Squid SDK noise in client tool error display | `client/src/lib/sanitize-tool-error.ts` |
+| [x] | User-facing copy for `SQUID_NO_ROUTE` after user already consented | ↑ |
 
 ---
 
@@ -375,7 +375,7 @@ Mirror `lifi/` layout.
 | [ ] | Agent query handler fallback offer test | `backend/tests/unit/agent/` |
 | [ ] | Approval preview Squid test | `backend/tests/unit/agent-transaction/` |
 | [ ] | Bridge execute fallback test | `backend/tests/unit/agent/` |
-| [ ] | Client unit tests: execution steps mapping for fallback | `client/tests/unit/` |
+| [x] | Client unit tests: execution steps mapping for fallback | `client/tests/unit/` |
 | [ ] | Manual E2E script or checklist: Li-Fi fail → consent → Squid approve → complete | `docs/squid-protocol-integration-TODO.md` § E2E |
 
 ---

@@ -132,6 +132,10 @@ export function messageForChatStreamError(code: string): string | null {
     case "RATE_LIMITED":
     case "LIFI_RATE_LIMITED":
       return "Cross-chain execution is temporarily rate limited. Wait a moment, then try Approve again.";
+    case "SQUID_NO_ROUTE":
+      return "No alternate route is available for this transfer right now. Try a different amount or pair.";
+    case "SQUID_UNAVAILABLE":
+      return "Alternate routing is temporarily unavailable. Try again later.";
     default:
       return null;
   }

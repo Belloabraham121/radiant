@@ -10,6 +10,11 @@ export type ChatToolCall = {
 };
 
 import type { DeFiApprovalPreview } from "@/lib/defi-approval-preview";
+import type { LiquidityFallbackOffer } from "@/lib/cross-chain-fallback";
+
+export type PendingTransactionApprovalOutcome =
+  | "approval_required"
+  | "liquidity_fallback_offered";
 
 export type TransactionFiatLeg = {
   role: "pay" | "receive" | "fee";
@@ -38,6 +43,10 @@ export type PendingTransaction = {
   quote_expires_at?: string | null;
   fiat_preview?: TransactionFiatPreview | null;
   defi_preview?: DeFiApprovalPreview | null;
+  /** Distinguishes normal approval vs alternate-route consent. */
+  approval_outcome?: PendingTransactionApprovalOutcome;
+  /** Offered when Li-Fi has no liquidity and an alternate route is available. */
+  liquidity_fallback_offer?: LiquidityFallbackOffer;
 };
 
 export type ClarificationInteractionType =
