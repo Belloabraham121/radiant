@@ -1,13 +1,15 @@
 import { getSquidConfig, isSquidEnabled, squidSlippageFromFraction } from "../../../config/squid.js";
+import { resolveSquidChainRef, type SquidChainRef } from "../../../config/squid-chains.js";
 import { AppError } from "../../../errors/app-error.js";
+import type { ChainId } from "../../chains/types.js";
 import type { CrossChainRouteOption } from "../cross-chain/cross-chain.types.js";
 import { radiantToSquidChainId, toSquidTokenAddress } from "./squid-chain-map.js";
 import { squidSdk } from "./squid.client.js";
-import { storeSquidRoute } from "./squid-cache.js";
+import { getStoredSquidRoute, storeSquidRoute } from "./squid-cache.js";
 import { resolveSquidTokens, type ResolvedSquidChainPair } from "./squid-input.js";
-import { createSquidRouteId, normalizeSquidRouteOption } from "./squid-normalize.js";
+import { createSquidRouteId, isExecutableSquidRoute, normalizeSquidRouteOption } from "./squid-normalize.js";
 import { consumeSquidQuoteQuota } from "./squid-rate-limit.js";
-import type { SquidQuoteInput, SquidStoredRoutePayload } from "./squid.types.js";
+import type { SquidQuoteInput, SquidRouteSnapshot, SquidStoredRoutePayload } from "./squid.types.js";
 import { resolveSquidWalletAddresses } from "./squid-wallet-addresses.js";
 
 /** SDK quote + normalize + route store — testable without wallet resolution. */
@@ -126,4 +128,179 @@ export async function getSquidRoute(
     slippage: input.slippage,
     quoteOnly: input.quote_only,
   });
+}
+
+export async function resolveSquidRouteForExecute(input: {
+  routeId?: string;
+  squidRoute?: Record<string, unknown>;
+  privyUserId?: string;
+  snapshotParams?: Record<string, unknown>;
+}): Promise<SquidStoredRoutePayload> {
+  const embedded = input.squidRoute;
+  if (isExecutableSquidRoute(embedded)) {
+    return {
+      route: embedded,
+      quote_id: embedded.quoteId,
+      from_chain_id: readSnapshotChainId(input.snapshotParams ?? {}, "from_chain_id") ?? "ethereum",
+      to_chain_id: readSnapshotChainId(input.snapshotParams ?? {}, "to_chain_id") ?? "ethereum",
+      from_squid_chain_id: String(embedded.params?.fromChain ?? ""),
+      to_squid_chain_id: String(embedded.params?.toChain ?? ""),
+    };
+  }
+
+  if (input.routeId) {
+    const stored = await getStoredSquidRoute(input.routeId);
+    if (stored && isExecutableSquidRoute(stored.route)) {
+      return stored;
+    }
+
+    if (input.privyUserId && input.snapshotParams) {
+      let requoteError: unknown = null;
+      const requoted = await requoteSquidFromSnapshot(input.privyUserId, input.snapshotParams, {
+        onError: (err) => {
+          requoteError = err;
+        },
+      });
+      if (requoted) {
+        const refreshed = await getStoredSquidRoute(requoted.route_id);
+        if (refreshed && isExecutableSquidRoute(refreshed.route)) {
+          return refreshed;
+        }
+      }
+      if (requoteError instanceof AppError) {
+        throw requoteError;
+      }
+    }
+
+    throw new AppError(
+      404,
+      "SQUID_NO_ROUTE",
+      "Bridge route expired. Fetch a fresh quote and try again.",
+    );
+  }
+
+  throw new AppError(
+    400,
+    "SQUID_NO_ROUTE",
+    "Bridge route data was incomplete. Fetch a fresh cross_chain_quote and pass its route_id before executing.",
+  );
+}
+
+function readSnapshotString(params: Record<string, unknown>, key: string): string | null {
+  const value = params[key];
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function readSnapshotChainId(
+  params: Record<string, unknown>,
+  key: string,
+): ChainId | undefined {
+  const value = params[key];
+  if (
+    value === "sui" ||
+    value === "solana" ||
+    value === "ethereum" ||
+    value === "stellar"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+/** Re-fetch a Squid quote from execute/approval snapshot fields when route cache expired. */
+export async function requoteSquidFromSnapshot(
+  privyUserId: string,
+  params: Record<string, unknown>,
+  options?: { onError?: (err: unknown) => void },
+): Promise<CrossChainRouteOption | null> {
+  const fromToken =
+    readSnapshotString(params, "from_token_symbol") ?? readSnapshotString(params, "from_token");
+  const toToken =
+    readSnapshotString(params, "to_token_symbol") ?? readSnapshotString(params, "to_token");
+  const amountAtomic = readSnapshotString(params, "from_amount_atomic");
+  const fromChainId = readSnapshotChainId(params, "from_chain_id");
+  const toChainId = readSnapshotChainId(params, "to_chain_id");
+
+  if (!fromToken || !toToken || !amountAtomic || !fromChainId || !toChainId) {
+    return null;
+  }
+
+  const fromEvmChainId =
+    typeof params.from_evm_chain_id === "number" ? params.from_evm_chain_id : undefined;
+  const toEvmChainId =
+    typeof params.to_evm_chain_id === "number" ? params.to_evm_chain_id : undefined;
+
+  try {
+    return await getSquidRoute(privyUserId, {
+      from_chain_id: fromChainId,
+      to_chain_id: toChainId,
+      from_evm_chain_id: fromEvmChainId,
+      to_evm_chain_id: toEvmChainId,
+      from_token: fromToken,
+      to_token: toToken,
+      amount_atomic: amountAtomic,
+      confirm_same_token:
+        typeof params.confirm_same_token === "boolean" ? params.confirm_same_token : undefined,
+      quote_only: false,
+    });
+  } catch (err) {
+    options?.onError?.(err);
+    return null;
+  }
+}
+
+export function resolveSourceChainFromSquidExecuteInput(input: {
+  from_chain_id?: ChainId;
+  from_evm_chain_id?: number;
+  stored?: SquidStoredRoutePayload;
+}): SquidChainRef {
+  if (input.from_chain_id || input.from_evm_chain_id !== undefined) {
+    return resolveSquidChainRef({
+      chain_id: input.from_chain_id,
+      evm_chain_id: input.from_evm_chain_id,
+    });
+  }
+
+  if (input.stored) {
+    return resolveSquidChainRef({
+      chain_id: input.stored.from_chain_id,
+      evm_chain_id: input.stored.from_evm_chain_id,
+    });
+  }
+
+  throw new AppError(
+    400,
+    "VALIDATION_ERROR",
+    "Unable to determine source chain for Squid execute.",
+  );
+}
+
+export function resolveDestinationChainFromSquidStored(stored: SquidStoredRoutePayload): SquidChainRef {
+  return resolveSquidChainRef({
+    chain_id: stored.to_chain_id,
+    evm_chain_id: stored.to_evm_chain_id,
+  });
+}
+
+export async function refreshSquidRouteAtExecute(input: {
+  stored: SquidStoredRoutePayload;
+  tokens: ResolvedSquidChainPair;
+  fromAddress: string;
+  toAddress: string;
+  slippage?: number;
+}): Promise<SquidStoredRoutePayload> {
+  const normalized = await fetchSquidRouteQuote({
+    tokens: input.tokens,
+    amountAtomic: input.stored.route.params?.fromAmount ?? input.stored.route.estimate?.fromAmount ?? "0",
+    fromAddress: input.fromAddress,
+    toAddress: input.toAddress,
+    slippage: input.slippage,
+    quoteOnly: false,
+  });
+
+  const refreshed = await getStoredSquidRoute(normalized.route_id);
+  if (!refreshed) {
+    throw new AppError(404, "SQUID_NO_ROUTE", "Failed to refresh Squid route at execute time.");
+  }
+  return refreshed;
 }

@@ -46,6 +46,23 @@ export type TxResult = {
     substatus_message: string | null;
     receiving_tx_hash: string | null;
   };
+  squid?: {
+    route_id: string;
+    quote_id: string;
+    request_id: string | null;
+    transaction_id: string | null;
+    tx_hashes: string[];
+    from_chain_id: ChainId;
+    to_chain_id: ChainId;
+    from_evm_chain_id?: number;
+    to_evm_chain_id?: number;
+    estimated_duration_seconds: number | null;
+    bridge_started_at: string | null;
+    tracking_status: string | null;
+    substatus: string | null;
+    substatus_message: string | null;
+    receiving_tx_hash: string | null;
+  };
   deepbook?: {
     coin_key?: string;
     amount_display?: number;

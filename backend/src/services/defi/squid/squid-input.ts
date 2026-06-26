@@ -4,7 +4,7 @@ import {
   resolveSquidChainRef,
   type SquidChainRef,
 } from "../../../config/squid-chains.js";
-import { formatLifiChainRefLabel } from "../../agent-transaction/approval-preview/chain-labels.js";
+import { formatRadiantChainLabel } from "../../agent-transaction/approval-preview/chain-labels.js";
 import {
   assertCrossEcosystemSupported,
   resolveEvmTokenByAddress,
@@ -123,8 +123,15 @@ export function assertBridgeDestinationToken(input: {
   throw new AppError(
     400,
     "DESTINATION_TOKEN_REQUIRED",
-    `Which token should you receive on ${formatLifiChainRefLabel(input.to)}? Ask the user to choose (e.g. USDC, ETH).`,
+    `Which token should you receive on ${formatSquidChainRefLabel(input.to)}? Ask the user to choose (e.g. USDC, ETH).`,
   );
+}
+
+function formatSquidChainRefLabel(ref: SquidChainRef): string {
+  if (ref.chain_id === "ethereum") {
+    return formatRadiantChainLabel("ethereum", ref.evm_chain_id);
+  }
+  return formatRadiantChainLabel(ref.chain_id);
 }
 
 export function resolveSquidTokens(input: {

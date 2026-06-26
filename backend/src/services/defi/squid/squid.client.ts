@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 import type { Squid as SquidClient } from "@0xsquid/sdk";
 import { mapSquidError } from "./squid.errors.js";
 import { buildSquidSdkConfig } from "./squid.client.config.js";
-import type { SquidRouteRequest, SquidRouteResponse } from "./squid.types.js";
+import type { SquidRouteRequest, SquidRouteResponse, SquidExecuteRouteRequest, SquidExecuteRouteResponse, SquidGetStatusRequest } from "./squid.types.js";
+import type { StatusResponse } from "@0xsquid/sdk/dist/types/index.js";
 
 const require = createRequire(import.meta.url);
 const MAX_429_RETRIES = 3;
@@ -78,4 +79,14 @@ export async function withSquidSdk<T>(fn: (sdk: SquidClient) => Promise<T>): Pro
 export const squidSdk = {
   getRoute: (params: SquidRouteRequest): Promise<SquidRouteResponse> =>
     withSquidSdk((sdk) => sdk.getRoute(params)),
+  executeRoute: (params: SquidExecuteRouteRequest): Promise<SquidExecuteRouteResponse> =>
+    withSquidSdk((sdk) => sdk.executeRoute(params)),
+  getStatus: (params: SquidGetStatusRequest): Promise<StatusResponse> =>
+    withSquidSdk((sdk) => sdk.getStatus(params)),
+  isRouteApproved: (
+    params: Parameters<SquidClient["isRouteApproved"]>[0],
+  ): ReturnType<SquidClient["isRouteApproved"]> =>
+    withSquidSdk((sdk) => sdk.isRouteApproved(params)),
+  approveRoute: (params: SquidExecuteRouteRequest): Promise<SquidExecuteRouteResponse | null> =>
+    withSquidSdk((sdk) => sdk.approveRoute(params)),
 };

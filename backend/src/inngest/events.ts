@@ -1,4 +1,5 @@
 import type { LifiTrackJobInput } from "../services/defi/lifi/lifi-tracking.types.js";
+import type { SquidTrackJobInput } from "../services/defi/squid/squid-tracking.types.js";
 
 /** Deploy pipeline job queued from POST /api/v1/deploy. */
 export const DEPLOY_REQUESTED_EVENT = "radiant/deploy.requested" as const;
@@ -54,4 +55,12 @@ export const LIFI_TRACK_SWAP_EVENT = "radiant/lifi.track.swap" as const;
 export type LifiTrackSwapEvent = {
   name: typeof LIFI_TRACK_SWAP_EVENT;
   data: LifiTrackJobInput;
+};
+
+/** Durable Squid cross-chain bridge status polling after approval (requires quoteId). */
+export const SQUID_TRACK_CROSS_CHAIN_EVENT = "radiant/squid.track.cross_chain" as const;
+
+export type SquidTrackCrossChainEvent = {
+  name: typeof SQUID_TRACK_CROSS_CHAIN_EVENT;
+  data: SquidTrackJobInput;
 };

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { StatusResponse } from "@0xsquid/sdk/dist/types/index.js";
 import type { SquidChainRef } from "../../../config/squid-chains.js";
 import {
   radiantChainRefToSquidChainId,
@@ -8,6 +9,7 @@ import type { CrossChainRouteOption } from "../cross-chain/cross-chain.types.js"
 import type { RouteStep } from "../types.js";
 import { squidToRadiantChainRef } from "./squid-chain-map.js";
 import type { SquidRouteResponse, SquidRouteSnapshot } from "./squid.types.js";
+import type { SquidCrossChainStatusResult, SquidNormalizedStatus } from "./squid.types.js";
 
 /** Squid quotes are short-lived — align approval countdown with Li-Fi (~60s). */
 export const SQUID_QUOTE_TTL_MS = 60_000;
@@ -37,7 +39,7 @@ function extractSquidBridges(route: SquidRouteSnapshot): string[] {
   if (Array.isArray(actions)) {
     for (const action of actions) {
       if (action && typeof action === "object") {
-        const record = action as Record<string, unknown>;
+        const record = action as unknown as Record<string, unknown>;
         const provider = record.provider ?? record.type ?? record.action;
         if (typeof provider === "string" && provider.trim()) {
           bridges.add(provider);
@@ -140,6 +142,97 @@ export function normalizeSquidRouteOption(input: {
 /** Resolve Squid chain id from route params for status/tracking helpers. */
 export function squidChainIdFromRouteParam(chainId: string | number): SquidChainRef {
   return squidToRadiantChainRef(String(chainId));
+}
+
+function readStatusString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeSquidStatusToken(raw: string | null | undefined): SquidNormalizedStatus {
+  if (!raw) {
+    return "UNKNOWN";
+  }
+  const token = raw.toLowerCase().replace(/[\s-]+/g, "_");
+  if (token === "success" || token === "completed" || token === "done") {
+    return "SUCCESS";
+  }
+  if (token === "partial_success" || token === "partial") {
+    return "PARTIAL_SUCCESS";
+  }
+  if (token === "needs_gas" || token === "need_gas" || token === "insufficient_gas") {
+    return "NEEDS_GAS";
+  }
+  if (token === "not_found" || token === "missing") {
+    return "NOT_FOUND";
+  }
+  if (
+    token === "pending" ||
+    token === "ongoing" ||
+    token === "in_progress" ||
+    token === "running"
+  ) {
+    return "PENDING";
+  }
+  if (
+    token === "failed" ||
+    token === "failure" ||
+    token === "refunded" ||
+    token === "error"
+  ) {
+    return "FAILED";
+  }
+  return "UNKNOWN";
+}
+
+function chainRefFieldsForStatus(from: SquidChainRef, to: SquidChainRef) {
+  return {
+    from_chain_id: from.chain_id,
+    to_chain_id: to.chain_id,
+    from_evm_chain_id: from.chain_id === "ethereum" ? from.evm_chain_id : undefined,
+    to_evm_chain_id: to.chain_id === "ethereum" ? to.evm_chain_id : undefined,
+  };
+}
+
+export function normalizeSquidStatus(input: {
+  status: StatusResponse;
+  transactionId: string;
+  quoteId: string;
+  from: SquidChainRef;
+  to: SquidChainRef;
+}): SquidCrossChainStatusResult {
+  const primary =
+    readStatusString(input.status.squidTransactionStatus) ??
+    readStatusString(input.status.status) ??
+    readStatusString(input.status.gasStatus);
+
+  const receivingTxHash =
+    readStatusString(input.status.toChain?.transactionId) ??
+    readStatusString(input.status.fromChain?.transactionId);
+
+  const normalized = normalizeSquidStatusToken(primary);
+  const substatus = readStatusString(input.status.gasStatus);
+  const substatusMessage =
+    (typeof input.status.error === "string" ? input.status.error : null) ??
+    (normalized === "NEEDS_GAS" ? "Destination needs gas to complete the transfer." : null);
+
+  return {
+    status: normalized,
+    substatus,
+    substatus_message: substatusMessage,
+    transaction_id: input.transactionId,
+    quote_id: input.quoteId,
+    ...chainRefFieldsForStatus(input.from, input.to),
+    receiving_tx_hash: receivingTxHash,
+    raw: input.status,
+  };
+}
+
+export function isExecutableSquidRoute(value: unknown): value is SquidRouteSnapshot {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const route = value as SquidRouteSnapshot;
+  return typeof route.quoteId === "string" && route.quoteId.length > 0;
 }
 
 export { normalizeSquidRouteSteps };

@@ -4,6 +4,7 @@ import {
   filterEnabledSquidChainIds,
   radiantChainRefToSquidChainId,
   SQUID_SOLANA_CHAIN_ID,
+  SQUID_STELLAR_CHAIN_ID,
   SQUID_SUI_CHAIN_ID,
   squidChainIdToRadiantChainRef,
   type SquidChainRef,
@@ -21,7 +22,7 @@ export const SQUID_SOLANA_NATIVE_TOKEN_ADDRESS = "111111111111111111111111111111
 export const SQUID_SUI_NATIVE_TOKEN_ADDRESS =
   "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI";
 
-export { filterEnabledSquidChainIds, SQUID_SOLANA_CHAIN_ID, SQUID_SUI_CHAIN_ID };
+export { filterEnabledSquidChainIds, SQUID_SOLANA_CHAIN_ID, SQUID_STELLAR_CHAIN_ID, SQUID_SUI_CHAIN_ID };
 export type { SquidChainRef };
 
 export function radiantToSquidChainId(ref: SquidChainRef): string {
@@ -69,6 +70,21 @@ export function toSquidTokenAddress(token: SupportedToken, chainRef: SquidChainR
       );
     }
     return token.address;
+  }
+
+  if (chainRef.chain_id === "stellar") {
+    if (token.kind === "native" || token.symbol === "XLM") {
+      return "native";
+    }
+    if (token.stellar_asset_code && token.stellar_issuer) {
+      return `${token.stellar_asset_code}:${token.stellar_issuer}`;
+    }
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      `Token ${token.symbol} has no Stellar asset mapping for Squid.`,
+      { symbol: token.symbol },
+    );
   }
 
   if (token.kind === "native" || token.symbol === "ETH") {

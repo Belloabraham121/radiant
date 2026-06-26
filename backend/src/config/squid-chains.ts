@@ -10,14 +10,23 @@ export const SQUID_SUI_CHAIN_ID = "sui-mainnet";
 /** Squid string chain id for Solana mainnet. */
 export const SQUID_SOLANA_CHAIN_ID = "solana-mainnet-beta";
 
-export type SquidRadiantChainId = Extract<ChainId, "sui" | "solana" | "ethereum">;
+/** Squid string chain id for Stellar mainnet (soft support when Radiant enables stellar). */
+export const SQUID_STELLAR_CHAIN_ID = "stellar-mainnet";
+
+export type SquidRadiantChainId = Extract<ChainId, "sui" | "solana" | "ethereum" | "stellar">;
 
 export type SquidChainRef =
   | { chain_id: "sui" }
   | { chain_id: "solana" }
+  | { chain_id: "stellar" }
   | { chain_id: "ethereum"; evm_chain_id: number };
 
-const SQUID_RADIANT_CHAIN_IDS: readonly SquidRadiantChainId[] = ["sui", "solana", "ethereum"];
+const SQUID_RADIANT_CHAIN_IDS: readonly SquidRadiantChainId[] = [
+  "sui",
+  "solana",
+  "ethereum",
+  "stellar",
+];
 
 function parseOptionalSquidChainIdOverride(): string[] | null {
   const raw = optional("SQUID_ENABLED_CHAIN_IDS", "").trim();
@@ -49,6 +58,9 @@ export function getEnabledSquidChainIds(): string[] {
   if (enabledRadiant.has("solana")) {
     ids.push(SQUID_SOLANA_CHAIN_ID);
   }
+  if (enabledRadiant.has("stellar")) {
+    ids.push(SQUID_STELLAR_CHAIN_ID);
+  }
   if (enabledRadiant.has("ethereum")) {
     for (const evmChainId of getEnabledEvmChainIds()) {
       ids.push(String(evmChainId));
@@ -68,6 +80,8 @@ export function radiantChainRefToSquidChainId(ref: SquidChainRef): string {
       return SQUID_SUI_CHAIN_ID;
     case "solana":
       return SQUID_SOLANA_CHAIN_ID;
+    case "stellar":
+      return SQUID_STELLAR_CHAIN_ID;
     case "ethereum":
       return String(ref.evm_chain_id);
   }
@@ -79,6 +93,9 @@ export function squidChainIdToRadiantChainRef(squidChainId: string): SquidChainR
   }
   if (squidChainId === SQUID_SOLANA_CHAIN_ID) {
     return { chain_id: "solana" };
+  }
+  if (squidChainId === SQUID_STELLAR_CHAIN_ID) {
+    return { chain_id: "stellar" };
   }
 
   const evmChainId = Number.parseInt(squidChainId, 10);
@@ -131,6 +148,9 @@ function isRadiantChainEnabledForSquid(chainId: SquidRadiantChainId): boolean {
   if (chainId === "ethereum") {
     return getEnabledEvmChainIds().some((evmChainId) => enabledSquid.has(String(evmChainId)));
   }
+  if (chainId === "stellar") {
+    return enabledSquid.has(SQUID_STELLAR_CHAIN_ID);
+  }
   return enabledSquid.has(radiantChainRefToSquidChainId({ chain_id: chainId }));
 }
 
@@ -156,4 +176,9 @@ export function squidChainRefLabel(ref: SquidChainRef): string {
     return `ethereum:${ref.evm_chain_id}`;
   }
   return ref.chain_id;
+}
+
+/** Squid SDK executeRoute does not implement Stellar handlers yet — reject before execute. */
+export function isSquidSdkExecuteSupported(ref: SquidChainRef): boolean {
+  return ref.chain_id !== "stellar";
 }

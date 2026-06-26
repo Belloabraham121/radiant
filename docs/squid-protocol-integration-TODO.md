@@ -217,27 +217,27 @@ Mirror `lifi/` layout.
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `resolveSquidRouteForExecute({ routeId, privyUserId, snapshotParams })` | `squid-quote.service.ts` |
-| [ ] | `executeSquidCrossChainSwap(privyUserId, input)` | `squid-execute.service.ts` |
-| [ ] | Map Squid `transactionRequest` → Privy EVM sign (viem) | ↑ |
-| [ ] | Sui source tx via Mysten signer adapter (if corridor needs it) | `squid-execute-providers.service.ts` |
-| [ ] | Solana source tx adapter — **Phase 2** if required | defer or `squid-execute-providers.service.ts` |
-| [ ] | Handle ERC-20 approval before swap if `transactionRequest` needs it | `squid-approval.service.ts` |
+| [x] | `resolveSquidRouteForExecute({ routeId, privyUserId, snapshotParams })` | `squid-quote.service.ts` |
+| [x] | `executeSquidCrossChainSwap(privyUserId, input)` | `squid-execute.service.ts` |
+| [x] | Map Squid `transactionRequest` → Privy EVM sign (viem) | ↑ |
+| [x] | Sui source tx via Mysten signer adapter (if corridor needs it) | `squid-execute-providers.service.ts` |
+| [x] | Solana source tx adapter — **Phase 2** if required | defer or `squid-execute-providers.service.ts` |
+| [x] | Handle ERC-20 approval before swap if `transactionRequest` needs it | `squid-approval.service.ts` |
 | [ ] | `squid_approve` execute action OR fold into unified `cross_chain_swap` preflight | `chains/evm/squid/execute-actions.ts` or extend lifi execute |
-| [ ] | Re-quote on expired route before execute (mirror Li-Fi) | `squid-quote.service.ts` |
-| [ ] | Unit tests: execute input validation | `squid-execute.service.test.ts` |
+| [x] | Re-quote on expired route before execute (mirror Li-Fi) | `squid-quote.service.ts` |
+| [x] | Unit tests: execute input validation | `squid-execute.service.test.ts` |
 
 #### 2.8 Status & tracking
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | `getSquidCrossChainStatus(input)` — SDK/API `getStatus` with **`quoteId`** | `squid-status.service.ts` |
-| [ ] | Map statuses: `success`, `partial_success`, `needs_gas`, `not_found`, etc. | `squid-normalize.ts` |
-| [ ] | `SquidTrackingMeta` type (tx hash, quoteId, from/to chain ids) | `squid-tracking.types.ts` |
-| [ ] | `enqueueSquidTracking(job)` | `infrastructure/inngest/enqueue-squid-tracking.ts` |
-| [ ] | Inngest `squid-track-cross-chain` + poll loop | `inngest/functions/squid-track-*.ts` |
-| [ ] | Register functions in Inngest serve handler | `inngest/index.ts` |
-| [ ] | Unit tests: status mapping | `squid-status.test.ts` |
+| [x] | `getSquidCrossChainStatus(input)` — SDK/API `getStatus` with **`quoteId`** | `squid-status.service.ts` |
+| [x] | Map statuses: `success`, `partial_success`, `needs_gas`, `not_found`, etc. | `squid-normalize.ts` |
+| [x] | `SquidTrackingMeta` type (tx hash, quoteId, from/to chain ids) | `squid-tracking.types.ts` |
+| [x] | `enqueueSquidTracking(job)` | `infrastructure/inngest/enqueue-squid-tracking.ts` |
+| [x] | Inngest `squid-track-cross-chain` + poll loop | `inngest/functions/squid-track-*.ts` |
+| [x] | Register functions in Inngest serve handler | `inngest/index.ts` |
+| [x] | Unit tests: status mapping | `squid-status.test.ts` |
 
 ---
 
