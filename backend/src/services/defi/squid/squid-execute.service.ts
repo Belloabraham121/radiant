@@ -14,9 +14,11 @@ import { mapSquidExecuteError } from "./squid.errors.js";
 import {
   assertSquidRouteExecutable,
   buildSquidExecuteSigner,
+  executeSquidChainflipDepositRoute,
   executeSquidSolanaRouteManually,
   executeSquidSuiRouteManually,
   extractSquidTxHash,
+  isSquidChainflipDepositRoute,
 } from "./squid-execute-providers.service.js";
 import {
   refreshSquidRouteAtExecute,
@@ -68,13 +70,13 @@ async function runSquidCrossChainSwap(
   });
 
   assertSquidExecuteCorridorSupported(stored);
-  assertSquidRouteExecutable(stored.route);
 
   const sourceChain = resolveSourceChainFromSquidExecuteInput({
     from_chain_id: input.from_chain_id,
     from_evm_chain_id: input.from_evm_chain_id,
     stored,
   });
+  assertSquidRouteExecutable(stored.route, sourceChain.chain_id);
   const destChain = resolveDestinationChainFromSquidStored(stored);
 
   const { fromAddress, toAddress } = await resolveSquidWalletAddresses(
@@ -126,10 +128,21 @@ async function runSquidCrossChainSwap(
 
   const agentWallet = await resolveAgentWallet(privyUserId, sourceChain.chain_id);
   let txHash: string | null = null;
+  let chainflipDeposit: SquidExecuteResult["chainflip_deposit"] | undefined;
   const bridgeStartedAt = new Date().toISOString();
 
   try {
-    if (sourceChain.chain_id === "solana") {
+    if (isSquidChainflipDepositRoute(refreshed.route)) {
+      const chainflip = await executeSquidChainflipDepositRoute({
+        privyUserId,
+        route: refreshed.route,
+        quoteId: refreshed.quote_id,
+        agentWallet,
+        toEvmChainId: destChain.chain_id === "ethereum" ? destChain.evm_chain_id : undefined,
+      });
+      txHash = chainflip.txHash;
+      chainflipDeposit = chainflip.chainflipDeposit;
+    } else if (sourceChain.chain_id === "solana") {
       txHash = await executeSquidSolanaRouteManually({
         route: refreshed.route,
         agentWallet,
@@ -164,6 +177,13 @@ async function runSquidCrossChainSwap(
     approval_tx_hash: approvalTxHash,
     bridge_started_at: txHashes.length > 0 ? bridgeStartedAt : null,
     estimated_duration_seconds: duration,
+    ...(chainflipDeposit
+      ? {
+          chainflip_deposit: chainflipDeposit,
+          chainflip_status_tracking_id: chainflipDeposit.chainflip_status_tracking_id,
+          bridge_type: chainflipDeposit.bridge_type,
+        }
+      : {}),
   };
 }
 

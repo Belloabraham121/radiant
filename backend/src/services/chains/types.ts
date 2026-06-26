@@ -62,6 +62,14 @@ export type TxResult = {
     substatus: string | null;
     substatus_message: string | null;
     receiving_tx_hash: string | null;
+    bridge_type?: "chainflip" | "chainflipmultihop" | null;
+    chainflip_status_tracking_id?: string | null;
+    chainflip_deposit?: {
+      deposit_address: string;
+      amount: string;
+      chainflip_status_tracking_id: string;
+      bridge_type: "chainflip" | "chainflipmultihop";
+    } | null;
   };
   deepbook?: {
     coin_key?: string;

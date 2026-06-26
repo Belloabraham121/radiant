@@ -43,7 +43,89 @@ type SquidTrackingMeta = {
   tracking_status?: string | null;
   substatus_message?: string | null;
   receiving_tx_hash?: string | null;
+  bridge_type?: "chainflip" | "chainflipmultihop" | null;
+  chainflip_status_tracking_id?: string | null;
+  chainflip_deposit?: {
+    deposit_address: string;
+    amount: string;
+    chainflip_status_tracking_id: string;
+    bridge_type: "chainflip" | "chainflipmultihop";
+  } | null;
 };
+
+function isChainflipDepositRoute(
+  result: Record<string, unknown> | null | undefined,
+  tracking: SquidTrackingMeta | null,
+): boolean {
+  if (tracking?.chainflip_deposit || tracking?.chainflip_status_tracking_id) {
+    return true;
+  }
+  const squidRoute = result?.squid_route;
+  if (!squidRoute || typeof squidRoute !== "object") {
+    return false;
+  }
+  const txRequest = (squidRoute as { transactionRequest?: { type?: string } }).transactionRequest;
+  return txRequest?.type === "CHAINFLIP_DEPOSIT_ADDRESS";
+}
+
+function isChainflipDepositPending(pending: PendingTransaction): boolean {
+  const squidRoute = pending.params?.squid_route;
+  if (!squidRoute || typeof squidRoute !== "object") {
+    return false;
+  }
+  const txRequest = (squidRoute as { transactionRequest?: { type?: string } }).transactionRequest;
+  return txRequest?.type === "CHAINFLIP_DEPOSIT_ADDRESS";
+}
+
+function chainflipDepositSteps(meta: {
+  agentTransactionId?: string;
+  chainId: AgentChainId;
+  evmChainId?: number;
+  digest?: string;
+  depositPhase: "address" | "send" | "done";
+}): ExecutionStep[] {
+  const shared = {
+    agentTransactionId: meta.agentTransactionId,
+    chainId: meta.chainId,
+    ...(meta.evmChainId !== undefined ? { evmChainId: meta.evmChainId } : {}),
+    ...(meta.digest ? { digest: meta.digest } : {}),
+  };
+
+  const addressStatus =
+    meta.depositPhase === "address"
+      ? "running"
+      : meta.depositPhase === "send" || meta.depositPhase === "done"
+        ? "ok"
+        : "pending";
+  const sendStatus =
+    meta.depositPhase === "send"
+      ? "running"
+      : meta.depositPhase === "done"
+        ? "ok"
+        : meta.depositPhase === "address"
+          ? "pending"
+          : "pending";
+
+  return [
+    {
+      id: "squid-deposit-address",
+      status: addressStatus,
+      label: "Preparing deposit…",
+      detail: "Fetching Chainflip deposit address",
+      ...shared,
+    },
+    {
+      id: "squid-deposit-send",
+      status: sendStatus,
+      label: "Sending to bridge…",
+      detail:
+        meta.depositPhase === "done" && meta.digest
+          ? `Deposit tx · ${meta.digest.slice(0, 10)}…`
+          : "Transferring assets to bridge deposit address",
+      ...shared,
+    },
+  ];
+}
 
 function crossChainCountdownFields(input: {
   fromChainId?: AgentChainId;
@@ -98,6 +180,7 @@ function isSquidTerminalFailure(status: string | null | undefined): boolean {
 function executionStepsFromSquidTransaction(
   tx: AgentTransactionDetail | AgentTransactionListItem,
   tracking: SquidTrackingMeta,
+  result?: Record<string, unknown> | null,
 ): ExecutionStep[] {
   const chainId = (tx.chain_id ?? tracking.from_chain_id ?? "ethereum") as AgentChainId;
   const toChainId = (tracking.to_chain_id ?? chainId) as AgentChainId;
@@ -118,6 +201,7 @@ function executionStepsFromSquidTransaction(
     bridgeStartedAt: tracking.bridge_started_at,
   });
   const countdownKind = countdownMeta.countdownKind ?? "bridge";
+  const isChainflip = isChainflipDepositRoute(result, tracking);
 
   const steps: ExecutionStep[] = [
     {
@@ -127,14 +211,39 @@ function executionStepsFromSquidTransaction(
       detail: "Route ready via alternate provider",
       ...meta,
     },
-    {
-      id: "lifi-submit",
-      status: digest ? "ok" : tx.status === "submitted" ? "running" : "pending",
-      label: "Submitting",
-      detail: digest ? `Source tx · ${digest.slice(0, 10)}…` : "Broadcasting source transaction",
-      ...meta,
-    },
   ];
+
+  if (isChainflip) {
+    const depositPhase =
+      digest && (tx.status === "submitted" || tx.status === "success")
+        ? "done"
+        : tx.status === "submitted"
+          ? "send"
+          : "address";
+    steps.push(
+      ...chainflipDepositSteps({
+        agentTransactionId: tx.id,
+        chainId,
+        evmChainId,
+        digest,
+        depositPhase,
+      }),
+    );
+  }
+
+  steps.push({
+    id: "lifi-submit",
+    status: digest ? "ok" : tx.status === "submitted" ? "running" : "pending",
+    label: isChainflip ? "Deposit submitted" : "Submitting",
+    detail: digest
+      ? isChainflip
+        ? `Deposit tx · ${digest.slice(0, 10)}…`
+        : `Source tx · ${digest.slice(0, 10)}…`
+      : isChainflip
+        ? "Broadcasting deposit transfer"
+        : "Broadcasting source transaction",
+    ...meta,
+  });
 
   const trackingStatus = tracking.tracking_status;
   if (tx.status === "success" || isSquidTerminalSuccess(trackingStatus)) {
@@ -216,11 +325,28 @@ export function executionStepsForPendingApproval(
 ): ExecutionStep[] {
   if (isAlternateCrossChainRoute(pending)) {
     const base = lifiExecutionStepsForPendingApproval(pending);
-    return base.map((step) =>
+    const mapped = base.map((step) =>
       step.id === "lifi-quote"
         ? { ...step, label: "Alternate route quoted", detail: step.detail ?? "Route ready" }
         : step,
     );
+    if (isChainflipDepositPending(pending)) {
+      const chainId = (pending.chain_id ?? pending.params?.from_chain_id ?? "solana") as AgentChainId;
+      const evmChainId =
+        typeof pending.params?.from_evm_chain_id === "number"
+          ? pending.params.from_evm_chain_id
+          : undefined;
+      return [
+        ...mapped.filter((step) => step.id === "lifi-quote"),
+        ...chainflipDepositSteps({
+          chainId,
+          evmChainId,
+          depositPhase: "address",
+        }),
+        ...mapped.filter((step) => step.id !== "lifi-quote"),
+      ];
+    }
+    return mapped;
   }
   return lifiExecutionStepsForPendingApproval(pending);
 }
@@ -231,7 +357,7 @@ export function executionStepsFromAgentTransaction(
 ): ExecutionStep[] | undefined {
   const squid = readSquidTracking(result);
   if (squid) {
-    return executionStepsFromSquidTransaction(tx, squid);
+    return executionStepsFromSquidTransaction(tx, squid, result);
   }
   return lifiExecutionStepsFromAgentTransaction(tx, result);
 }

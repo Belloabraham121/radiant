@@ -122,6 +122,15 @@ export type SquidCrossChainStatusResult = {
   raw: StatusResponse;
 };
 
+export type SquidChainflipBridgeType = "chainflip" | "chainflipmultihop";
+
+export type SquidChainflipDepositInfo = {
+  deposit_address: string;
+  amount: string;
+  chainflip_status_tracking_id: string;
+  bridge_type: SquidChainflipBridgeType;
+};
+
 export type SquidExecuteResult = {
   route_id: string;
   quote_id: string;
@@ -131,6 +140,9 @@ export type SquidExecuteResult = {
   approval_tx_hash: string | null;
   bridge_started_at: string | null;
   estimated_duration_seconds: number | null;
+  chainflip_status_tracking_id?: string;
+  bridge_type?: SquidChainflipBridgeType;
+  chainflip_deposit?: SquidChainflipDepositInfo;
 };
 
 export type SquidApprovalResult = {

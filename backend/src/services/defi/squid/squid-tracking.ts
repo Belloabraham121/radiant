@@ -1,7 +1,12 @@
 import type { ChainId, TxResult } from "../../chains/types.js";
 import { parseChainId } from "../../chains/registry.js";
 import type { SquidTrackingMeta } from "./squid-tracking.types.js";
-import type { SquidCrossChainStatusResult, SquidExecuteResult } from "./squid.types.js";
+import type {
+  SquidChainflipBridgeType,
+  SquidChainflipDepositInfo,
+  SquidCrossChainStatusResult,
+  SquidExecuteResult,
+} from "./squid.types.js";
 
 const TERMINAL_SQUID_STATUSES = new Set([
   "SUCCESS",
@@ -72,19 +77,57 @@ function readStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string" && item.length > 0);
 }
 
+export function isSquidCrossChainExecuteParams(params: Record<string, unknown>): boolean {
+  if (params.provider_id === "evm-squid") {
+    return true;
+  }
+  const routeId = params.route_id;
+  return typeof routeId === "string" && routeId.startsWith("squid:");
+}
+
+function readChainflipDeposit(value: unknown): SquidChainflipDepositInfo | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Partial<SquidChainflipDepositInfo>;
+  if (
+    typeof record.deposit_address !== "string" ||
+    typeof record.amount !== "string" ||
+    typeof record.chainflip_status_tracking_id !== "string" ||
+    (record.bridge_type !== "chainflip" && record.bridge_type !== "chainflipmultihop")
+  ) {
+    return null;
+  }
+  return {
+    deposit_address: record.deposit_address,
+    amount: record.amount,
+    chainflip_status_tracking_id: record.chainflip_status_tracking_id,
+    bridge_type: record.bridge_type,
+  };
+}
+
 export function buildSquidTrackingMeta(
   params: Record<string, unknown>,
   executeResult: SquidExecuteResult,
 ): SquidTrackingMeta {
   const fromChain = readChainId(params.from_chain_id) ?? "ethereum";
   const toChain = readChainId(params.to_chain_id) ?? fromChain;
+  const chainflipDeposit =
+    executeResult.chainflip_deposit ?? readChainflipDeposit(params.chainflip_deposit);
+  const chainflipTrackingId =
+    chainflipDeposit?.chainflip_status_tracking_id ??
+    executeResult.chainflip_status_tracking_id ??
+    null;
+  const bridgeType: SquidChainflipBridgeType | null =
+    chainflipDeposit?.bridge_type ?? executeResult.bridge_type ?? null;
   const txHash = executeResult.tx_hashes[0] ?? null;
+  const statusTransactionId = chainflipTrackingId ?? txHash;
 
   return {
     route_id: executeResult.route_id,
     quote_id: executeResult.quote_id,
     request_id: executeResult.request_id,
-    transaction_id: txHash,
+    transaction_id: statusTransactionId,
     tx_hashes: executeResult.tx_hashes,
     from_chain_id: fromChain,
     to_chain_id: toChain,
@@ -103,7 +146,40 @@ export function buildSquidTrackingMeta(
     substatus: null,
     substatus_message: null,
     receiving_tx_hash: null,
+    ...(bridgeType ? { bridge_type: bridgeType } : {}),
+    ...(chainflipTrackingId ? { chainflip_status_tracking_id: chainflipTrackingId } : {}),
+    ...(chainflipDeposit ? { chainflip_deposit: chainflipDeposit } : {}),
   };
+}
+
+export function txResultFromSquidExecute(input: {
+  chain_id: ChainId;
+  address: string;
+  digest: string;
+  evm_chain_id?: number;
+  params: Record<string, unknown>;
+  executeResult: SquidExecuteResult;
+}): TxResult {
+  const tracking = buildSquidTrackingMeta(input.params, input.executeResult);
+  const effectsStatus =
+    input.executeResult.effects_status === "success"
+      ? "success"
+      : input.executeResult.effects_status === "failure"
+        ? "failure"
+        : input.executeResult.effects_status === "pending"
+          ? "pending"
+          : "unknown";
+
+  return attachSquidMetaToTxResult(
+    {
+      chain_id: input.chain_id,
+      address: input.address,
+      digest: input.digest,
+      effects_status: effectsStatus,
+      ...(input.evm_chain_id !== undefined ? { evm_chain_id: input.evm_chain_id } : {}),
+    },
+    tracking,
+  );
 }
 
 export function attachSquidMetaToTxResult(result: TxResult, tracking: SquidTrackingMeta): TxResult {
@@ -151,6 +227,15 @@ export function readSquidTrackingFromTxResult(
       typeof squid.substatus_message === "string" ? squid.substatus_message : null,
     receiving_tx_hash:
       typeof squid.receiving_tx_hash === "string" ? squid.receiving_tx_hash : null,
+    ...(readString(squid.bridge_type) === "chainflip" || readString(squid.bridge_type) === "chainflipmultihop"
+      ? { bridge_type: readString(squid.bridge_type) as SquidChainflipBridgeType }
+      : {}),
+    ...(readString(squid.chainflip_status_tracking_id)
+      ? { chainflip_status_tracking_id: readString(squid.chainflip_status_tracking_id) }
+      : {}),
+    ...(readChainflipDeposit(squid.chainflip_deposit)
+      ? { chainflip_deposit: readChainflipDeposit(squid.chainflip_deposit) }
+      : {}),
   };
 }
 
@@ -175,8 +260,12 @@ export function squidStatusInputFromTracking(tracking: SquidTrackingMeta): {
   from_evm_chain_id?: number;
   to_evm_chain_id?: number;
   request_id?: string;
+  bridge_type?: string;
 } {
-  const transactionId = tracking.transaction_id ?? tracking.tx_hashes[0];
+  const transactionId =
+    tracking.chainflip_status_tracking_id ??
+    tracking.transaction_id ??
+    tracking.tx_hashes[0];
   if (!transactionId) {
     throw new Error("Squid tracking missing source transaction id");
   }
@@ -192,5 +281,6 @@ export function squidStatusInputFromTracking(tracking: SquidTrackingMeta): {
       ? { to_evm_chain_id: tracking.to_evm_chain_id }
       : {}),
     ...(tracking.request_id ? { request_id: tracking.request_id } : {}),
+    ...(tracking.bridge_type ? { bridge_type: tracking.bridge_type } : {}),
   };
 }

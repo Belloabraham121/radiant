@@ -1,7 +1,8 @@
 import { createRequire } from "node:module";
 import type { Squid as SquidClient } from "@0xsquid/sdk";
+import { getSquidConfig } from "../../../config/squid.js";
 import { mapSquidError } from "./squid.errors.js";
-import { buildSquidSdkConfig } from "./squid.client.config.js";
+import { buildSquidSdkConfig, DEFAULT_SQUID_TIMEOUT_MS } from "./squid.client.config.js";
 import type { SquidRouteRequest, SquidRouteResponse, SquidExecuteRouteRequest, SquidExecuteRouteResponse, SquidGetStatusRequest } from "./squid.types.js";
 import type { StatusResponse } from "@0xsquid/sdk/dist/types/index.js";
 
@@ -76,6 +77,37 @@ export async function withSquidSdk<T>(fn: (sdk: SquidClient) => Promise<T>): Pro
   throw mapSquidError(lastError);
 }
 
+async function postSquidDepositAddress(transactionRequest: unknown): Promise<unknown> {
+  const config = getSquidConfig();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DEFAULT_SQUID_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${config.apiBaseUrl}/v2/deposit-address`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-integrator-id": config.integratorId,
+      },
+      body: JSON.stringify(transactionRequest),
+      signal: controller.signal,
+    });
+    const data: unknown = await response.json();
+    if (!response.ok) {
+      throw {
+        response: {
+          status: response.status,
+          data,
+        },
+      };
+    }
+    return data;
+  } catch (err) {
+    throw mapSquidError(err);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export const squidSdk = {
   getRoute: (params: SquidRouteRequest): Promise<SquidRouteResponse> =>
     withSquidSdk((sdk) => sdk.getRoute(params)),
@@ -89,4 +121,6 @@ export const squidSdk = {
     withSquidSdk((sdk) => sdk.isRouteApproved(params)),
   approveRoute: (params: SquidExecuteRouteRequest): Promise<SquidExecuteRouteResponse | null> =>
     withSquidSdk((sdk) => sdk.approveRoute(params)),
+  requestDepositAddress: (params: { route: SquidRouteResponse["route"] }): Promise<unknown> =>
+    postSquidDepositAddress(params.route.transactionRequest),
 };

@@ -1,4 +1,5 @@
 import type { ChainId } from "../../chains/types.js";
+import type { SquidChainflipBridgeType, SquidChainflipDepositInfo } from "./squid.types.js";
 
 /** Persisted on agent_transaction.result.squid and used by the status poller. */
 export type SquidTrackingMeta = {
@@ -17,6 +18,9 @@ export type SquidTrackingMeta = {
   substatus: string | null;
   substatus_message: string | null;
   receiving_tx_hash: string | null;
+  bridge_type?: SquidChainflipBridgeType | null;
+  chainflip_status_tracking_id?: string | null;
+  chainflip_deposit?: SquidChainflipDepositInfo | null;
 };
 
 export type SquidTrackJobInput = {

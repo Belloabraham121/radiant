@@ -4,7 +4,26 @@ import { AppError } from "../../../errors/app-error.js";
 import { squidSdk } from "./squid.client.js";
 import { consumeSquidStatusQuota } from "./squid-rate-limit.js";
 import { normalizeSquidStatus } from "./squid-normalize.js";
-import type { SquidCrossChainStatusResult, SquidStatusInput } from "./squid.types.js";
+import type {
+  SquidChainflipBridgeType,
+  SquidCrossChainStatusResult,
+  SquidStatusInput,
+} from "./squid.types.js";
+
+/** Arbitrum — Chainflip direct bridge uses `bridgeType: chainflip`. */
+export const SQUID_CHAINFLIP_ARBITRUM_EVM_CHAIN_ID = 42161;
+
+/** Map destination EVM chain id to Squid CHAINFLIP status `bridgeType`. */
+export function resolveSquidBridgeType(
+  toEvmChainId: number | undefined,
+): SquidChainflipBridgeType | undefined {
+  if (toEvmChainId === undefined) {
+    return undefined;
+  }
+  return toEvmChainId === SQUID_CHAINFLIP_ARBITRUM_EVM_CHAIN_ID
+    ? "chainflip"
+    : "chainflipmultihop";
+}
 
 export async function getSquidCrossChainStatus(
   privyUserId: string,

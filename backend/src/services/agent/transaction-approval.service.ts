@@ -67,12 +67,19 @@ import { previewExecuteTransactionFiat } from "../market/valuation.service.js";
 import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
 import { preflightLifiExecuteBalance } from "./chains/evm/lifi/approval-preflight.js";
 import { enqueueLifiCrossChainTrackingJob, enqueueLifiSwapTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
+import { enqueueSquidCrossChainTrackingJob } from "../../infrastructure/inngest/enqueue-squid-tracking.js";
 import {
   attachLifiMetaToTxResult,
   readLifiTrackingFromTxResult,
   shouldEnqueueLifiCrossChainTracking,
   shouldEnqueueLifiSwapTracking,
 } from "../defi/lifi/lifi-tracking.js";
+import {
+  attachSquidMetaToTxResult,
+  readSquidTrackingFromTxResult,
+  shouldEnqueueSquidCrossChainTracking,
+} from "../defi/squid/squid-tracking.js";
+import type { LifiTrackingMeta } from "../defi/lifi/lifi-tracking.types.js";
 import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
 import { emitLiquidityFallbackOfferedStep } from "./agent-stream-cross-chain.js";
 import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
@@ -629,12 +636,73 @@ export async function approvePendingTransaction(
     );
 
     const tracking = readLifiTrackingFromTxResult(result);
+    const squidTracking = readSquidTrackingFromTxResult(result);
+    const needsSquidTracking =
+      isLifiExecuteAction(executeInput.action) &&
+      isSquidCrossChainRoute(executeInput.params) &&
+      shouldEnqueueSquidCrossChainTracking(result, squidTracking);
     const needsCrossChainTracking =
+      !needsSquidTracking &&
       isLifiExecuteAction(executeInput.action) &&
       shouldEnqueueLifiCrossChainTracking(result, tracking);
     const needsSwapTracking =
-      isLifiExecuteAction(executeInput.action) && shouldEnqueueLifiSwapTracking(result, tracking);
+      !needsSquidTracking &&
+      isLifiExecuteAction(executeInput.action) &&
+      shouldEnqueueLifiSwapTracking(result, tracking);
     const needsLifiTracking = needsCrossChainTracking || needsSwapTracking;
+
+    if (needsSquidTracking) {
+      const enriched = attachSquidMetaToTxResult(result, squidTracking);
+      await markLifiSubmitted(transactionId, {
+        digest: enriched.digest || squidTracking.tx_hashes[0] || null,
+        effects_status: "pending",
+        result: enriched,
+      });
+
+      if (sessionId) {
+        const streamTracking: LifiTrackingMeta = {
+          route_id: squidTracking.route_id,
+          tx_hashes: squidTracking.tx_hashes,
+          from_chain_id: squidTracking.from_chain_id,
+          to_chain_id: squidTracking.to_chain_id,
+          ...(squidTracking.from_evm_chain_id !== undefined
+            ? { from_evm_chain_id: squidTracking.from_evm_chain_id }
+            : {}),
+          ...(squidTracking.to_evm_chain_id !== undefined
+            ? { to_evm_chain_id: squidTracking.to_evm_chain_id }
+            : {}),
+          bridge_tool: null,
+          estimated_duration_seconds: squidTracking.estimated_duration_seconds,
+          bridge_started_at: squidTracking.bridge_started_at,
+          tracking_status: squidTracking.tracking_status,
+          substatus: squidTracking.substatus,
+          substatus_message: squidTracking.substatus_message,
+          receiving_tx_hash: squidTracking.receiving_tx_hash,
+        };
+        for (const step of buildInitialLifiExecutionSteps({
+          tracking: streamTracking,
+          transactionId,
+          chainId: enriched.chain_id,
+          digest: enriched.digest || squidTracking.tx_hashes[0] || null,
+          evmChainId: enriched.evm_chain_id ?? squidTracking.from_evm_chain_id,
+        })) {
+          emitAgentStreamExecutionStep(sessionId, step);
+        }
+      }
+
+      void enqueueSquidCrossChainTrackingJob({
+        transactionId,
+        privyUserId,
+        sessionId: sessionId ?? null,
+        tracking: squidTracking,
+      }).catch(() => undefined);
+
+      return {
+        ok: true,
+        pending,
+        result: enriched,
+      };
+    }
 
     if (needsLifiTracking) {
       const enriched = attachLifiMetaToTxResult(result, tracking);

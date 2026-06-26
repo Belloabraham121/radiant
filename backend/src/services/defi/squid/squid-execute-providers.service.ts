@@ -13,10 +13,17 @@ import {
   signSuiTransactionBytes,
 } from "../../wallet/sui-signing.service.js";
 import { executeSignedSuiTransaction } from "../../wallet/sui-transaction.service.js";
+import {
+  isSolanaNativeTokenAddress,
+  sendSolanaChainflipDeposit,
+} from "../../wallet/solana-transaction.service.js";
 import { buildSignerAuthorizationContext } from "../../../utils/privy-authorization.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
 import type { SquidChainRef } from "../../../config/squid-chains.js";
-import type { SquidRouteSnapshot } from "./squid.types.js";
+import type { ChainId } from "../../chains/types.js";
+import { getSquidChainflipDepositAddress } from "./squid-deposit.service.js";
+import { resolveSquidBridgeType } from "./squid-status.service.js";
+import type { SquidChainflipDepositInfo, SquidRouteSnapshot } from "./squid.types.js";
 
 const require = createRequire(import.meta.url);
 const ethers = require("ethers") as typeof import("ethers");
@@ -202,14 +209,83 @@ export async function executeSquidSolanaRouteManually(input: {
   return txid;
 }
 
-export function assertSquidRouteExecutable(route: SquidRouteSnapshot): void {
+export function isSquidChainflipDepositRoute(route: SquidRouteSnapshot): boolean {
+  return route.transactionRequest?.type === SquidDataType.ChainflipDepositAddress;
+}
+
+function readRouteFromToken(route: SquidRouteSnapshot): string {
+  const fromToken = route.params?.fromToken;
+  if (typeof fromToken !== "string" || !fromToken.trim()) {
+    throw new AppError(400, "SQUID_VALIDATION_ERROR", "Squid route missing source token.");
+  }
+  if (isSolanaNativeTokenAddress(fromToken)) {
+    return fromToken;
+  }
+  if (fromToken.startsWith("0x") && fromToken.length === 42) {
+    throw new AppError(
+      400,
+      "SQUID_VALIDATION_ERROR",
+      "Squid Solana route returned an EVM-style token address.",
+    );
+  }
+  return fromToken;
+}
+
+/** Solana CHAINFLIP deposit-address execute: fetch address, then Privy transfer. */
+export async function executeSquidChainflipDepositRoute(input: {
+  privyUserId: string;
+  route: SquidRouteSnapshot;
+  quoteId: string;
+  agentWallet: ResolvedAgentWallet;
+  toEvmChainId?: number;
+}): Promise<{ txHash: string; chainflipDeposit: SquidChainflipDepositInfo }> {
+  const deposit = await getSquidChainflipDepositAddress(input.privyUserId, {
+    transactionRequest: input.route.transactionRequest,
+    quoteId: input.quoteId,
+    route: input.route,
+  });
+
+  const amountAtomic = BigInt(deposit.amount);
+  const transfer = await sendSolanaChainflipDeposit({
+    privyWalletId: input.agentWallet.privy_wallet_id,
+    from: input.agentWallet.address,
+    to: deposit.depositAddress,
+    amountAtomic,
+    fromTokenAddress: readRouteFromToken(input.route),
+  });
+
+  const bridgeType = resolveSquidBridgeType(input.toEvmChainId);
+  if (!bridgeType) {
+    throw new AppError(
+      400,
+      "SQUID_VALIDATION_ERROR",
+      "CHAINFLIP routes require an EVM destination chain id.",
+    );
+  }
+
+  return {
+    txHash: transfer.hash,
+    chainflipDeposit: {
+      deposit_address: deposit.depositAddress,
+      amount: deposit.amount,
+      chainflip_status_tracking_id: deposit.chainflipStatusTrackingId,
+      bridge_type: bridgeType,
+    },
+  };
+}
+
+export function assertSquidRouteExecutable(route: SquidRouteSnapshot, sourceChainId: ChainId): void {
   const txType = route.transactionRequest?.type;
   if (txType === SquidDataType.ChainflipDepositAddress) {
-    // Phase 9 — CHAINFLIP deposit-address flows deferred until integrator beta wiring.
+    if (sourceChainId === "solana") {
+      return;
+    }
     throw new AppError(
       501,
       "SQUID_VALIDATION_ERROR",
-      "CHAINFLIP deposit-address routes are not supported yet. Try a different corridor or provider.",
+      sourceChainId === "ethereum"
+        ? "Bitcoin CHAINFLIP deposit-address routes are not supported yet. Try a different corridor or provider."
+        : "CHAINFLIP deposit-address routes are only supported from Solana in this release.",
     );
   }
 }

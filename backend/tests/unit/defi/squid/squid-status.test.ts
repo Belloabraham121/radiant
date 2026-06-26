@@ -3,7 +3,15 @@ import { describe, it } from "node:test";
 import {
   normalizeSquidStatus,
 } from "../../../../src/services/defi/squid/squid-normalize.js";
-import { isTerminalSquidStatus } from "../../../../src/services/defi/squid/squid-tracking.js";
+import {
+  resolveSquidBridgeType,
+  SQUID_CHAINFLIP_ARBITRUM_EVM_CHAIN_ID,
+} from "../../../../src/services/defi/squid/squid-status.service.js";
+import {
+  buildSquidTrackingMeta,
+  isTerminalSquidStatus,
+  squidStatusInputFromTracking,
+} from "../../../../src/services/defi/squid/squid-tracking.js";
 
 describe("squid status normalization", () => {
   it("maps success status", () => {
@@ -56,5 +64,42 @@ describe("squid status normalization", () => {
     assert.equal(isTerminalSquidStatus("FAILED"), true);
     assert.equal(isTerminalSquidStatus("NOT_FOUND"), true);
     assert.equal(isTerminalSquidStatus("PENDING"), false);
+  });
+
+  it("resolveSquidBridgeType maps Arbitrum vs other EVM destinations", () => {
+    assert.equal(resolveSquidBridgeType(SQUID_CHAINFLIP_ARBITRUM_EVM_CHAIN_ID), "chainflip");
+    assert.equal(resolveSquidBridgeType(8453), "chainflipmultihop");
+    assert.equal(resolveSquidBridgeType(undefined), undefined);
+  });
+
+  it("squidStatusInputFromTracking passes chainflip id and bridgeType", () => {
+    const tracking = buildSquidTrackingMeta(
+      {
+        from_chain_id: "solana",
+        to_chain_id: "ethereum",
+        to_evm_chain_id: 8453,
+      },
+      {
+        route_id: "squid:route-1",
+        quote_id: "quote-1",
+        request_id: null,
+        tx_hashes: ["sol-tx-1"],
+        effects_status: "pending",
+        approval_tx_hash: null,
+        bridge_started_at: new Date().toISOString(),
+        estimated_duration_seconds: 120,
+        chainflip_deposit: {
+          deposit_address: "Dep0s1tAddr3551111111111111111111111111111",
+          amount: "100000000",
+          chainflip_status_tracking_id: "5994435-Solana-26351",
+          bridge_type: "chainflipmultihop",
+        },
+      },
+    );
+
+    const statusInput = squidStatusInputFromTracking(tracking);
+    assert.equal(statusInput.transaction_id, "5994435-Solana-26351");
+    assert.equal(statusInput.bridge_type, "chainflipmultihop");
+    assert.equal(statusInput.quote_id, "quote-1");
   });
 });

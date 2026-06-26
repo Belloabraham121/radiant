@@ -16,6 +16,11 @@ import {
 import { executeLifiAction, isLifiExecuteAction } from "../../agent/chains/evm/lifi/execute-actions.js";
 import { txResultFromLifiExecute } from "../../defi/lifi/lifi-tracking.js";
 import type { LifiExecuteResult } from "../../defi/lifi/lifi.types.js";
+import {
+  isSquidCrossChainExecuteParams,
+  txResultFromSquidExecute,
+} from "../../defi/squid/squid-tracking.js";
+import type { SquidExecuteResult } from "../../defi/squid/squid.types.js";
 import type { BalanceContext, ChainAdapter, TxResult } from "../types.js";
 import { toEvmBalanceResult } from "./evm-balance.js";
 
@@ -141,15 +146,25 @@ export const evmAdapter: ChainAdapter = {
       if ("tx_hashes" in result) {
         const agentWallet = await resolveSigningWallet(privyUserId);
         const evmChainId = readOptionalEvmChainIdParam(params) ?? 1;
-        const lifiResult = result as LifiExecuteResult;
-        const txHash = lifiResult.tx_hashes[0] ?? "0x0";
+        const txHash =
+          (result as SquidExecuteResult | LifiExecuteResult).tx_hashes[0] ?? "0x0";
+        if (isSquidCrossChainExecuteParams(params)) {
+          return txResultFromSquidExecute({
+            chain_id: "ethereum",
+            address: agentWallet.address,
+            digest: txHash,
+            evm_chain_id: evmChainId,
+            params,
+            executeResult: result as SquidExecuteResult,
+          });
+        }
         return txResultFromLifiExecute({
           chain_id: "ethereum",
           address: agentWallet.address,
           digest: txHash,
           evm_chain_id: evmChainId,
           params,
-          executeResult: lifiResult,
+          executeResult: result as LifiExecuteResult,
         });
       }
     }

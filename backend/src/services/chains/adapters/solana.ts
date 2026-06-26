@@ -17,6 +17,11 @@ import {
 } from "../../agent/chains/evm/lifi/execute-actions.js";
 import { txResultFromLifiExecute } from "../../defi/lifi/lifi-tracking.js";
 import type { LifiExecuteResult } from "../../defi/lifi/lifi.types.js";
+import {
+  isSquidCrossChainExecuteParams,
+  txResultFromSquidExecute,
+} from "../../defi/squid/squid-tracking.js";
+import type { SquidExecuteResult } from "../../defi/squid/squid.types.js";
 import type { ChainAdapter, TxResult } from "../types.js";
 import { toSolanaBalanceResult } from "./solana-balance.js";
 
@@ -139,14 +144,23 @@ export const solanaAdapter: ChainAdapter = {
       const lifiParams = { ...params, from_chain_id: "solana" };
       const result = await executeLifiAction(privyUserId, action, lifiParams);
       if ("tx_hashes" in result) {
-        const lifiResult = result as LifiExecuteResult;
-        const txHash = lifiResult.tx_hashes[0] ?? "unknown";
+        const txHash =
+          (result as SquidExecuteResult | LifiExecuteResult).tx_hashes[0] ?? "unknown";
+        if (isSquidCrossChainExecuteParams(lifiParams)) {
+          return txResultFromSquidExecute({
+            chain_id: "solana",
+            address: agentWallet.address,
+            digest: txHash,
+            params: lifiParams,
+            executeResult: result as SquidExecuteResult,
+          });
+        }
         return txResultFromLifiExecute({
           chain_id: "solana",
           address: agentWallet.address,
           digest: txHash,
           params: lifiParams,
-          executeResult: lifiResult,
+          executeResult: result as LifiExecuteResult,
         });
       }
     }

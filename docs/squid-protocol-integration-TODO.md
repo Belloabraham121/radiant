@@ -357,11 +357,25 @@ Mirror `lifi/` layout.
 
 | Status | Task | Path |
 | ------ | ---- | ---- |
-| [ ] | Document Squid `CHAINFLIP_DEPOSIT_ADDRESS` `transactionRequest.type` handling | `docs/squid-protocol-integration-TODO.md` |
-| [ ] | Deposit-address API step before transfer | `squid-deposit.service.ts` |
-| [ ] | Status polling with `bridgeType: chainflip` / `chainflipmultihop` | `squid-status.service.ts` |
-| [ ] | Confirm integrator beta access for Solana↔EVM | external |
-| [ ] | Client timeline steps for deposit-address flow | client |
+| [x] | Document Squid `CHAINFLIP_DEPOSIT_ADDRESS` `transactionRequest.type` handling | `docs/squid-protocol-integration-TODO.md` |
+| [x] | Deposit-address API step before transfer | `squid-deposit.service.ts` |
+| [x] | Status polling with `bridgeType: chainflip` / `chainflipmultihop` | `squid-status.service.ts` |
+| [ ] | Confirm integrator beta access for Solana↔EVM | external (manual) |
+| [x] | Client timeline steps for deposit-address flow | client |
+
+#### CHAINFLIP deposit-address flow (Solana source — v1)
+
+Squid routes from Solana (or Bitcoin) to EVM may return `transactionRequest.type === "CHAINFLIP_DEPOSIT_ADDRESS"` instead of `ON_CHAIN_EXECUTION`. Radiant handles **Solana source** in v1; **Bitcoin source** is deferred (no Privy BTC wallet).
+
+1. **Route** — `getRoute` returns `CHAINFLIP_DEPOSIT_ADDRESS` in `transactionRequest`.
+2. **Deposit address** — POST `https://v2.api.squidrouter.com/v2/deposit-address` with the `transactionRequest` body + `x-integrator-id` (via `@0xsquid/sdk` `requestDepositAddress`). Response: `depositAddress`, `amount`, `chainflipStatusTrackingId`.
+3. **Transfer** — Privy signs a Solana native or SPL transfer from the agent wallet to `depositAddress` for `amount` (`sendSolanaChainflipDeposit`).
+4. **Execute result** — `SquidExecuteResult.chainflip_deposit` + `chainflip_status_tracking_id` + `bridge_type` (`chainflip` when `to_evm_chain_id === 42161`, else `chainflipmultihop`).
+5. **Status poll** — `getStatus` with `transactionId = chainflipStatusTrackingId`, `quoteId`, and `bridgeType` set. Enqueued via `enqueueSquidCrossChainTrackingJob`.
+
+**Integrator beta:** Solana↔EVM CHAINFLIP corridors require Squid to enable your integrator ID ([Squid Bitcoin & Solana guide](https://docs.squidrouter.com/api-and-sdk-integration/chain-integration-guides/bitcoin-and-solana)). Confirm with Squid before production E2E.
+
+**Bitcoin (future):** Same deposit-address API; user would send from a BTC wallet to `depositAddress`. Not implemented in Radiant v1.
 
 ---
 
