@@ -118,7 +118,7 @@ function initialChatSessionState(sessionId?: string) {
   };
 }
 
-export function useChatSession(sessionId?: string) {
+export function useChatSession(sessionId?: string, draftResetKey = 0) {
   const router = useRouter();
   const { refreshSessions } = useChatSessions();
   const {
@@ -126,6 +126,7 @@ export function useChatSession(sessionId?: string) {
     updateArtifact,
     setArtifactStreaming,
     migrateArtifactSession,
+    closePanel,
   } = useArtifactContext();
   const [boot] = useState(() => initialChatSessionState(sessionId));
 
@@ -152,6 +153,7 @@ export function useChatSession(sessionId?: string) {
   const approvingRef = useRef(false);
   const approvingTransactionIdRef = useRef<string | null>(null);
   const messagesRef = useRef<ChatMessage[]>(boot.messages);
+  const draftResetKeyRef = useRef(draftResetKey);
 
   useEffect(() => {
     pendingTxRef.current = pendingTx;
@@ -189,6 +191,41 @@ export function useChatSession(sessionId?: string) {
     },
     [],
   );
+
+  const resetToDraftChat = useCallback(() => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+    approvingTransactionIdRef.current = null;
+    setMessages([]);
+    setTitle("New chat");
+    setActiveSessionId(undefined);
+    setHydrating(false);
+    setLoadError(null);
+    setTyping(false);
+    setStreaming(false);
+    setChatError(null);
+    applyPendingTransaction(null);
+    setPendingClarification(null);
+    setApproving(false);
+    setRejecting(false);
+    setRespondingClarification(false);
+    setPendingTxRelayedToPreview(false);
+    closePanel("new");
+  }, [applyPendingTransaction, closePanel]);
+
+  useEffect(() => {
+    if (sessionId) {
+      return;
+    }
+    if (draftResetKey === draftResetKeyRef.current) {
+      return;
+    }
+    draftResetKeyRef.current = draftResetKey;
+    if (draftResetKey === 0) {
+      return;
+    }
+    resetToDraftChat();
+  }, [draftResetKey, resetToDraftChat, sessionId]);
 
   const syncPendingContinuationFromSession = useCallback(
     async (sessionKey: string, options?: { force?: boolean }) => {

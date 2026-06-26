@@ -240,9 +240,11 @@ function ChatHydratingIndicator() {
 
 type ChatViewProps = {
   sessionId?: string;
+  /** Bumps when the user starts a new draft chat without a DB session yet. */
+  draftResetKey?: number;
 };
 
-export function ChatView({ sessionId }: ChatViewProps) {
+export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
   const ref = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -287,7 +289,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
     rejectPending,
     respondClarification,
     dismissClarification,
-  } = useChatSession(sessionId);
+  } = useChatSession(sessionId, draftResetKey);
 
   const scopeSessionKey = sessionId ?? activeSessionId;
   const { scope: appScope, setScope: setAppScope } = useChatAppScope(scopeSessionKey);
@@ -325,7 +327,15 @@ export function ChatView({ sessionId }: ChatViewProps) {
     animatedMessageIdsRef.current.clear();
     initialBatchDoneRef.current = false;
     stickToBottomRef.current = true;
-  }, [sessionId]);
+  }, [sessionId, draftResetKey]);
+
+  useEffect(() => {
+    if (sessionId) {
+      return;
+    }
+    setInput("");
+    resetInputHeight();
+  }, [draftResetKey, resetInputHeight, sessionId]);
 
   useEffect(() => {
     const container = scrollRef.current;

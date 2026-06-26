@@ -10,6 +10,11 @@ export function ChatSessionsProvider({ children }: { children: React.ReactNode }
   const [sessions, setSessions] = useState<ChatSessionListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftResetKey, setDraftResetKey] = useState(0);
+
+  const startNewChat = useCallback(() => {
+    setDraftResetKey((current) => current + 1);
+  }, []);
 
   const refreshSessions = useCallback(async (options?: RefreshSessionsOptions) => {
     if (!ready || !authenticated) {
@@ -80,8 +85,10 @@ export function ChatSessionsProvider({ children }: { children: React.ReactNode }
       loading,
       error,
       refreshSessions,
+      draftResetKey,
+      startNewChat,
     }),
-    [sessions, loading, error, refreshSessions],
+    [sessions, loading, error, refreshSessions, draftResetKey, startNewChat],
   );
 
   return (
