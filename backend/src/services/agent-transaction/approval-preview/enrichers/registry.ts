@@ -19,6 +19,7 @@ type ApprovalEnricher = {
   enrich: (
     privyUserId: string,
     input: ExecuteTransactionInput,
+    options?: import("./enrichers/cross-chain.js").CrossChainEnrichOptions,
   ) => Promise<EnrichExecuteInputForApprovalResult>;
 };
 
@@ -29,7 +30,7 @@ const APPROVAL_ENRICHERS: readonly ApprovalEnricher[] = [
   },
   {
     match: () => true,
-    enrich: async (privyUserId, input) => ({
+    enrich: async (privyUserId, input, _options?) => ({
       kind: "enriched",
       input: await enrichDeepBookSwapExecuteInputForApproval(privyUserId, input),
     }),
@@ -40,10 +41,11 @@ const APPROVAL_ENRICHERS: readonly ApprovalEnricher[] = [
 export async function enrichExecuteInputForApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
+  options?: import("./enrichers/cross-chain.js").CrossChainEnrichOptions,
 ): Promise<EnrichExecuteInputForApprovalResult> {
   for (const { match, enrich } of APPROVAL_ENRICHERS) {
     if (match(input)) {
-      return enrich(privyUserId, input);
+      return enrich(privyUserId, input, options);
     }
   }
   return { kind: "enriched", input };

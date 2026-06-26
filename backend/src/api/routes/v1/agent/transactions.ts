@@ -14,6 +14,7 @@ import {
 } from "../../../../services/agent-transaction/liquidity-fallback-approval.service.js";
 import {
   approveAgentTransactionForUi,
+  refreshAgentTransactionQuoteForUi,
   rejectAgentTransactionForUi,
 } from "../../../../services/projects/app-action-approval.service.js";
 import { fail, ok } from "../../../../utils/http-response.js";
@@ -133,6 +134,33 @@ agentTransactionsRouter.get(
           message: "Invalid transaction id",
           details: err.flatten(),
         });
+      }
+      next(err);
+    }
+  },
+);
+
+agentTransactionsRouter.post(
+  "/api/v1/agent/transactions/:id/refresh-quote",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const transactionId = transactionIdSchema.parse(req.params.id);
+      const result = await refreshAgentTransactionQuoteForUi(
+        req.user.privyUserId,
+        transactionId,
+      );
+      return ok(req, res, result);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "Invalid transaction id",
+          details: err.flatten(),
+        });
+      }
+      if (err instanceof AppError && err.code === "APPROVAL_NOT_FOUND") {
+        return fail(req, res, 404, { code: err.code, message: err.message });
       }
       next(err);
     }

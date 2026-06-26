@@ -284,12 +284,14 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
     pendingClarification,
     approving,
     rejecting,
+    refreshingQuote,
     acceptingFallback,
     rejectingFallback,
     respondingClarification,
     sendMessage,
     stopExecution,
     approvePending,
+    refreshPendingQuote,
     rejectPending,
     acceptLiquidityFallbackPending,
     rejectLiquidityFallbackPending,
@@ -594,9 +596,11 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
             className={`${chatColumnClass} mb-3`}
             pending={pendingTx}
             busy={approving || rejecting}
+            refreshingQuote={refreshingQuote}
             statusMessage={chatError}
             onApprove={() => void approvePending()}
             onCancel={() => void rejectPending()}
+            onFreshQuote={() => void refreshPendingQuote()}
           />
         ) : null}
 

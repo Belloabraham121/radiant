@@ -13,6 +13,11 @@ import {
 import { enrichLifiExecuteInputForApproval } from "./lifi.js";
 import { enrichSquidExecuteInputForApproval, isSquidCrossChainRoute } from "./squid.js";
 
+export type CrossChainEnrichOptions = {
+  requoteOnCacheMiss?: boolean;
+  forceRequote?: boolean;
+};
+
 export type CrossChainEnrichmentResult =
   | { kind: "enriched"; input: ExecuteTransactionInput }
   | {
@@ -127,7 +132,7 @@ export function matchCrossChainExecuteInput(input: ExecuteTransactionInput): boo
 export async function enrichCrossChainExecuteInputForApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
-  options?: { requoteOnCacheMiss?: boolean },
+  options?: CrossChainEnrichOptions,
 ): Promise<CrossChainEnrichmentResult> {
   if (!matchCrossChainExecuteInput(input)) {
     return { kind: "enriched", input };
@@ -174,7 +179,7 @@ export async function enrichCrossChainExecuteInputForApproval(
 export async function enrichCrossChainExecuteInput(
   privyUserId: string,
   input: ExecuteTransactionInput,
-  options?: { requoteOnCacheMiss?: boolean },
+  options?: CrossChainEnrichOptions,
 ): Promise<ExecuteTransactionInput> {
   const result = await enrichCrossChainExecuteInputForApproval(privyUserId, input, options);
   return result.input;

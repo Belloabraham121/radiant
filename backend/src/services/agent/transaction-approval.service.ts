@@ -95,7 +95,9 @@ import {
   pendingTransactionFromRecord,
   recordPendingApproval,
   revertPendingApprovalToClaimable,
+  loadPendingApprovalForUser,
 } from "../agent-transaction/agent-transaction.service.js";
+import { updateAgentTransactionById } from "../agent-transaction/agent-transaction.repository.js";
 import type { ExecuteTransactionContext } from "./execute-transaction-context.js";
 
 const TRANSFER_ACTIONS = new Set([
@@ -605,18 +607,34 @@ export async function approvePendingTransaction(
         !isLifiContinuationApproval(executeInput.params))) &&
     isDeFiQuoteExpired(executeInput.params)
   ) {
-    const error = new AppError(
-      400,
-      "QUOTE_EXPIRED",
-      isLifiExecuteAction(executeInput.action)
-        ? "This bridge quote expired. Cancel and ask again to get a fresh rate before approving."
-        : "This swap quote expired. Cancel and ask again to get a fresh rate before approving.",
-    );
-    await markCompleted(transactionId, {
-      kind: "failure",
-      error: { code: error.code, message: error.message },
-    });
-    return { ok: false, pending, error };
+    if (isLifiExecuteAction(executeInput.action)) {
+      executeInput = await enrichCrossChainExecuteInput(privyUserId, executeInput, {
+        requoteOnCacheMiss: true,
+        forceRequote: true,
+      });
+      const coalescedExpiry = coalesceDeFiQuoteExpiresAt(
+        readDeFiQuoteExpiresAt(executeInput.params),
+      );
+      executeInput = {
+        ...executeInput,
+        params: {
+          ...executeInput.params,
+          expires_at: coalescedExpiry,
+          quote_expires_at: coalescedExpiry,
+        },
+      };
+    }
+    if (isDeFiQuoteExpired(executeInput.params)) {
+      await revertPendingApprovalToClaimable(transactionId, claimed.user_id);
+      const error = new AppError(
+        400,
+        "QUOTE_EXPIRED",
+        isLifiExecuteAction(executeInput.action)
+          ? "This bridge quote expired. Tap Fresh quote to update the rate, then approve."
+          : "This swap quote expired. Tap Fresh quote to update the rate, then approve.",
+      );
+      return { ok: false, pending, error, retryable: true };
+    }
   }
 
   try {
@@ -789,6 +807,7 @@ const RETRYABLE_PRE_BROADCAST_ERROR_CODES = new Set([
   "LIFI_UNAVAILABLE",
   "LIFI_VALIDATION_ERROR",
   "LIFI_NO_ROUTE",
+  "QUOTE_EXPIRED",
   "INSUFFICIENT_BALANCE",
   "WALLET_NOT_FOUND",
   "WALLET_SIGNER_NOT_CONFIGURED",
@@ -815,6 +834,57 @@ export async function rejectPendingTransaction(
   }
 
   return pendingTransactionFromRecord(rejected);
+}
+
+/** Re-fetch Li-Fi/Squid quote for a pending approval and update stored params + UI fields. */
+export async function refreshPendingTransactionQuote(
+  privyUserId: string,
+  transactionId: string,
+): Promise<PendingTransaction | null> {
+  await pruneExpired();
+
+  const row = await loadPendingApprovalForUser(privyUserId, transactionId);
+  if (!row) {
+    return null;
+  }
+
+  const executeInput = executeInputFromRecord(row);
+  if (isLifiContinuationApproval(executeInput.params)) {
+    return pendingTransactionFromRecord(row);
+  }
+
+  const enrichResult = await enrichExecuteInputForApproval(privyUserId, executeInput, {
+    requoteOnCacheMiss: true,
+    forceRequote: true,
+  });
+
+  if (enrichResult.kind === "liquidity_fallback_offered") {
+    const fallbackPending = buildLiquidityFallbackPendingFromOffer(
+      enrichResult.input,
+      enrichResult.liquidity_fallback_offer,
+      transactionId,
+    );
+    await updateAgentTransactionById(transactionId, {
+      params: fallbackPending.params,
+      title: fallbackPending.summary,
+      amount_display: fallbackPending.amount_display,
+    });
+    return fallbackPending;
+  }
+
+  const pending = await buildPendingTransactionPreview(
+    privyUserId,
+    enrichResult.input,
+    transactionId,
+  );
+
+  await updateAgentTransactionById(transactionId, {
+    params: pending.params,
+    title: pending.summary,
+    amount_display: pending.amount_display,
+  });
+
+  return pending;
 }
 
 /** Test hook — clear pending approval rows from the database. */

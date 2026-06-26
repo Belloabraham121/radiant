@@ -30,6 +30,7 @@ import {
 import {
   getAgentTransaction,
   listSessionAgentTransactions,
+  refreshAgentTransactionQuote,
   type AgentTransactionDetail,
 } from "@/lib/agent-transactions-api";
 import {
@@ -150,6 +151,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
   const [pendingClarification, setPendingClarification] =
     useState<PendingClarification | null>(boot.pending_clarification);
   const [approving, setApproving] = useState(false);
+  const [refreshingQuote, setRefreshingQuote] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [acceptingFallback, setAcceptingFallback] = useState(false);
   const [rejectingFallback, setRejectingFallback] = useState(false);
@@ -1060,6 +1062,33 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     rejecting,
   ]);
 
+  const refreshPendingQuote = useCallback(async () => {
+    if (!pendingTx || approving || refreshingQuote || rejecting) {
+      return;
+    }
+
+    setRefreshingQuote(true);
+    setChatError(null);
+
+    try {
+      const result = await refreshAgentTransactionQuote(pendingTx.id);
+      applyPendingTransaction(result.pending, activeSessionId ?? undefined);
+    } catch (err) {
+      setChatError(
+        err instanceof ApiError ? err.message : "Could not refresh the quote. Try again.",
+      );
+    } finally {
+      setRefreshingQuote(false);
+    }
+  }, [
+    activeSessionId,
+    applyPendingTransaction,
+    approving,
+    pendingTx,
+    refreshingQuote,
+    rejecting,
+  ]);
+
   const acceptLiquidityFallbackPending = useCallback(async () => {
     if (!isLiquidityFallbackPending(pendingTx) || acceptingFallback || rejectingFallback) {
       return;
@@ -1264,12 +1293,14 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     pendingClarification,
     approving,
     rejecting,
+    refreshingQuote,
     acceptingFallback,
     rejectingFallback,
     respondingClarification,
     sendMessage,
     stopExecution,
     approvePending,
+    refreshPendingQuote,
     rejectPending,
     acceptLiquidityFallbackPending,
     rejectLiquidityFallbackPending,

@@ -101,6 +101,18 @@ export async function approveAgentTransaction(
   return apiFetch(`/api/v1/agent/transactions/${id}/approve`, { method: "POST" });
 }
 
+export type AgentTransactionRefreshQuoteResult = {
+  status: "refreshed";
+  agent_transaction_id: string;
+  pending: import("@/lib/chat-api").PendingTransaction;
+};
+
+export async function refreshAgentTransactionQuote(
+  id: string,
+): Promise<AgentTransactionRefreshQuoteResult> {
+  return apiFetch(`/api/v1/agent/transactions/${id}/refresh-quote`, { method: "POST" });
+}
+
 export async function rejectAgentTransaction(
   id: string,
 ): Promise<AgentTransactionRejectApiResult> {

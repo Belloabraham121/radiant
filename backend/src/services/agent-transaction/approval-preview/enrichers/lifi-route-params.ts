@@ -291,8 +291,37 @@ export function applyLifiRouteToExecuteParams(
 /** Resolve Li-Fi route + display fields for approval UI. */
 export async function resolveLifiApprovalParams(
   params: Record<string, unknown>,
-  options?: { privyUserId?: string; requoteOnCacheMiss?: boolean },
+  options?: { privyUserId?: string; requoteOnCacheMiss?: boolean; forceRequote?: boolean },
 ): Promise<Record<string, unknown>> {
+  if (options?.forceRequote && options.privyUserId) {
+    const requoted = await requoteLifiFromSnapshot(options.privyUserId, params, {
+      skipCache: true,
+    });
+    const refreshedRoute = requoted?.lifi_route;
+    if (requoted && refreshedRoute) {
+      return applyLifiRouteToExecuteParams(
+        {
+          ...params,
+          route_id: requoted.route_id,
+          from_token_symbol: requoted.from_token_symbol,
+          to_token_symbol: requoted.to_token_symbol,
+          from_token: requoted.from_token,
+          to_token: requoted.to_token,
+          from_amount_atomic: requoted.from_amount_atomic,
+          to_amount_atomic: requoted.to_amount_atomic,
+          from_chain_id: requoted.from_chain_id,
+          to_chain_id: requoted.to_chain_id,
+          from_evm_chain_id: requoted.from_evm_chain_id,
+          to_evm_chain_id: requoted.to_evm_chain_id,
+          bridges: requoted.bridges,
+          fee_cost_usd: requoted.fee_cost_usd,
+          expires_at: requoted.expires_at,
+        },
+        refreshedRoute,
+      );
+    }
+  }
+
   const embedded = readRouteFromParams(params);
   if (embedded) {
     return applyLifiRouteToExecuteParams(params, embedded);

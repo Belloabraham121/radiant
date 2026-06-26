@@ -32,6 +32,8 @@ export type CreateAgentTransactionData = {
 
 export type UpdateAgentTransactionData = {
   status?: AgentTransactionStatus;
+  title?: string;
+  params?: Record<string, unknown>;
   amount_display?: string;
   digest?: string | null;
   effects_status?: string | null;

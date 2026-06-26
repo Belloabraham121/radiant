@@ -49,11 +49,13 @@ export async function lifiCachedCatalogFetch<T>(
 export async function lifiCachedQuoteFetch<T>(
   params: Record<string, unknown>,
   fetcher: () => Promise<T>,
+  options?: { skipCache?: boolean },
 ): Promise<T> {
   return defiCachedFetch(
     lifiQuoteCacheKey(params),
     getDefiCacheConfig().quoteDedupeTtlSeconds,
     fetcher,
+    options?.skipCache ? { skipCache: true } : undefined,
   );
 }
 

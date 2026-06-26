@@ -4,6 +4,7 @@ import type { TxResult } from "../chains/types.js";
 import type { ApprovalResult } from "../agent/transaction-approval.service.js";
 import {
   approvePendingTransaction,
+  refreshPendingTransactionQuote,
   rejectPendingTransaction,
 } from "../agent/transaction-approval.service.js";
 
@@ -71,6 +72,34 @@ export async function approveAgentTransactionForUi(
   }
 
   return mapApprovalOutcomeToApiResult(transactionId, outcome);
+}
+
+export type AgentTransactionRefreshQuoteApiResult = {
+  status: "refreshed";
+  agent_transaction_id: string;
+  pending: import("../agent/agent.types.js").PendingTransaction;
+};
+
+/** Re-quote a pending approval without executing (fresh rate for the same dialog). */
+export async function refreshAgentTransactionQuoteForUi(
+  privyUserId: string,
+  transactionId: string,
+): Promise<AgentTransactionRefreshQuoteApiResult> {
+  const pending = await refreshPendingTransactionQuote(privyUserId, transactionId);
+
+  if (!pending) {
+    throw new AppError(
+      404,
+      "APPROVAL_NOT_FOUND",
+      "Transaction approval expired or was not found.",
+    );
+  }
+
+  return {
+    status: "refreshed",
+    agent_transaction_id: transactionId,
+    pending,
+  };
 }
 
 /** Reject a pending agent transaction (UI / app action path — no chat session required). */
