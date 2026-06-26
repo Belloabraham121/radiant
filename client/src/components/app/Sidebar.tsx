@@ -38,7 +38,7 @@ export function Sidebar() {
   const router = useRouter();
   const { open, setOpen } = useSidebar();
   const { seed, displayName } = useUserProfile();
-  const { sessions, loading, error, refreshSessions } = useChatSessions();
+  const { sessions, loading, error, refreshSessions, startNewChat } = useChatSessions();
   const { unreadCount } = useNotifications();
   const [deleteTarget, setDeleteTarget] = useState<ChatSessionListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -49,7 +49,10 @@ export function Sidebar() {
     : null;
 
   const handleNewChat = () => {
-    router.push(`/app?draft=${Date.now()}`);
+    startNewChat();
+    if (pathname !== "/app") {
+      router.replace("/app");
+    }
     setOpen(false);
   };
 

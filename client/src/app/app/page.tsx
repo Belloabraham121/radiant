@@ -1,19 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import { ChatView } from "@/components/app/ChatView";
-
-function DraftChatView() {
-  const searchParams = useSearchParams();
-  const draftKey = searchParams.get("draft") ?? "new-chat";
-  return <ChatView key={draftKey} />;
-}
+import { useChatSessions } from "@/components/app/chat-sessions-context";
 
 export default function AppChatIndexPage() {
-  return (
-    <Suspense fallback={<ChatView key="new-chat" />}>
-      <DraftChatView />
-    </Suspense>
-  );
+  const { draftResetKey } = useChatSessions();
+  return <ChatView draftResetKey={draftResetKey} />;
 }

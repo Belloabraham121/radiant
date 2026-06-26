@@ -13,6 +13,9 @@ export type ChatSessionsContextValue = {
   loading: boolean;
   error: string | null;
   refreshSessions: (options?: RefreshSessionsOptions) => Promise<void>;
+  /** Increments when the user starts a fresh draft chat (no DB session until first message). */
+  draftResetKey: number;
+  startNewChat: () => void;
 };
 
 export const ChatSessionsContext = createContext<ChatSessionsContextValue | null>(null);
