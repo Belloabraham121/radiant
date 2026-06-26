@@ -318,7 +318,39 @@ export function parsePartialBridgeIntent(message: string): PartialBridgeIntent |
     return null;
   }
 
+  inferObviousReceiveToken(intent, toChainParsed.remaining);
+
   return intent;
+}
+
+const STABLECOIN_BRIDGE_SYMBOLS = new Set(["USDC", "USDT"]);
+
+/** When the user names one token and two chains, stablecoins usually bridge 1:1 to the destination. */
+export function inferObviousReceiveToken(
+  intent: PartialBridgeIntent,
+  destinationSegmentRemaining: readonly string[] = [],
+): void {
+  if (intent.toToken || !intent.fromToken || !intent.fromChainId || !intent.toChainId) {
+    return;
+  }
+  if (!isBridgeCrossChain(intent)) {
+    return;
+  }
+
+  const destTokenMentioned = destinationSegmentRemaining.some(
+    (token) => findCoinSymbol(token) !== undefined,
+  );
+  if (destTokenMentioned) {
+    return;
+  }
+
+  const symbol = intent.fromToken.toUpperCase();
+  if (!STABLECOIN_BRIDGE_SYMBOLS.has(symbol)) {
+    return;
+  }
+
+  intent.toToken = symbol;
+  intent.confirmSameToken = true;
 }
 
 function isBridgeCrossChain(intent: PartialBridgeIntent): boolean {

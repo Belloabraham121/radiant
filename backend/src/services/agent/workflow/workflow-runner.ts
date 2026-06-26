@@ -19,6 +19,7 @@ import { getAgentRuntime } from "../runtime/index.js";
 import { runAgentTool, type AgentToolErrorResult } from "../tools.js";
 import { linkToolCallTransactionsToMessage } from "../../agent-transaction/link-transactions.js";
 import { extractArtifactFromToolCalls } from "../../projects/extract-artifact.js";
+import { synthesizeWorkflowClarificationGap } from "../clarification/intent-clarification-runner.js";
 import { startSessionClarification } from "./clarification.store.js";
 import { persistSessionStateSnapshot } from "./agent-session-state.store.js";
 import type { ClarificationAnswer, ClarificationGap, PendingClarification } from "./clarification.types.js";
@@ -297,16 +298,17 @@ async function executeWorkflowStep(
         step_index: stepIndex,
         kind: "amount_ref",
       };
+      const enrichedGap = await synthesizeWorkflowClarificationGap(state.plan, gap);
       const clarificationState = startSessionClarification({
         sessionId,
-        gap,
+        gap: enrichedGap,
         plan: state.plan,
       });
       updateSessionWorkflow(sessionId, {
         status: "paused_clarification",
         pendingClarificationId: clarificationState.id,
       });
-      const pending = gapToPending(gap, clarificationState.id);
+      const pending = gapToPending(enrichedGap, clarificationState.id);
       return {
         status: "clarification_required" as const,
         pending,
@@ -389,16 +391,17 @@ async function executeWorkflowStep(
         step_index: stepIndex,
         kind: "amount_ref",
       };
+      const enrichedGap = await synthesizeWorkflowClarificationGap(state.plan, gap);
       const clarificationState = startSessionClarification({
         sessionId,
-        gap,
+        gap: enrichedGap,
         plan: state.plan,
       });
       updateSessionWorkflow(sessionId, {
         status: "paused_clarification",
         pendingClarificationId: clarificationState.id,
       });
-      const pending = gapToPending(gap, clarificationState.id);
+      const pending = gapToPending(enrichedGap, clarificationState.id);
       return {
         status: "clarification_required" as const,
         pending,
@@ -579,9 +582,13 @@ export async function runWorkflowFromStep(
     if (outcome.status === "error") {
       const retryGap = await buildLimitOrderRetryGap(freshState.plan, index, outcome.error.message);
       if (retryGap) {
+        const enrichedRetryGap = await synthesizeWorkflowClarificationGap(
+          freshState.plan,
+          retryGap,
+        );
         const clarificationState = startSessionClarification({
           sessionId,
-          gap: retryGap,
+          gap: enrichedRetryGap,
           plan: freshState.plan,
         });
         updateSessionWorkflow(sessionId, {
@@ -589,9 +596,9 @@ export async function runWorkflowFromStep(
           pendingClarificationId: clarificationState.id,
           currentStepIndex: index,
         });
-        const pending = gapToPending(retryGap, clarificationState.id);
+        const pending = gapToPending(enrichedRetryGap, clarificationState.id);
         return {
-          reply: retryGap.question,
+          reply: enrichedRetryGap.question,
           tool_calls: allToolCalls,
           pending_transaction: null,
           pending_clarification: pending,
@@ -789,10 +796,10 @@ export async function continueWorkflowAfterMidRunClarification(
     collectClarificationGaps(normalizedPlan),
   );
   if (gaps.length > 0) {
-    const nextGap = gaps[0];
+    const enrichedNextGap = await synthesizeWorkflowClarificationGap(normalizedPlan, gaps[0]);
     const clarificationState = startSessionClarification({
       sessionId,
-      gap: nextGap,
+      gap: enrichedNextGap,
       plan: normalizedPlan,
     });
     updateSessionWorkflow(sessionId, {
@@ -800,9 +807,9 @@ export async function continueWorkflowAfterMidRunClarification(
       status: "paused_clarification",
       pendingClarificationId: clarificationState.id,
     });
-    const pending = gapToPending(nextGap, clarificationState.id);
+    const pending = gapToPending(enrichedNextGap, clarificationState.id);
     return {
-      reply: nextGap.question,
+      reply: enrichedNextGap.question,
       tool_calls: [],
       pending_transaction: null,
       pending_clarification: pending,

@@ -25,4 +25,13 @@ describe("sanitizeErrorMessageForUi", () => {
   it("falls back when input is empty", () => {
     assert.equal(sanitizeErrorMessageForUi(""), "Transaction failed");
   });
+
+  it("sanitizes Li-Fi SDK TransactionError blobs", () => {
+    assert.equal(
+      sanitizeErrorMessageForUi(
+        "[TransactionError] Transaction failed: [object Object]\nLI.FI SDK version: 4.0.1",
+      ),
+      "The bridge transaction failed on chain. Check your wallet balance and try again.",
+    );
+  });
 });

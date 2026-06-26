@@ -8,6 +8,8 @@ import {
   isAmountUnitAmbiguous,
   parseUserAmount,
 } from "../../market/resolve-user-amount.js";
+import type { ClarificationKnownFacts } from "../clarification/clarification-question-context.js";
+import type { ClarificationQuestionContext } from "../clarification/clarification-question-context.js";
 import type { ClarificationAnswer, ClarificationGap } from "../workflow/clarification.types.js";
 import type { BridgeIntentField, PartialBridgeIntent } from "./bridge-intent.types.js";
 import { BRIDGE_KNOWN_TOKENS } from "./bridge-intent.types.js";
@@ -67,7 +69,114 @@ function formatChainLabel(chainId?: ChainId, evmChainId?: number): string {
     const network = getEvmNetwork(evmChainId);
     return network?.name ?? `EVM ${evmChainId}`;
   }
+  if (chainId === "sui") {
+    return "Sui";
+  }
+  if (chainId === "solana") {
+    return "Solana";
+  }
   return chainId;
+}
+
+function formatAmountSnippet(intent: PartialBridgeIntent): string | null {
+  if (intent.amount === undefined) {
+    return null;
+  }
+  if (intent.amountUnit === "usd") {
+    return `$${intent.amount}`;
+  }
+  if (intent.fromToken) {
+    return `${intent.amount} ${intent.fromToken}`;
+  }
+  return String(intent.amount);
+}
+
+function buildBridgeKnownFacts(intent: PartialBridgeIntent): ClarificationKnownFacts {
+  const filled = withDefaultBridgeChains(intent);
+  const known: ClarificationKnownFacts = {};
+
+  if (filled.fromChainId) {
+    known.from_chain = formatChainLabel(filled.fromChainId, filled.fromEvmChainId);
+  }
+  if (filled.toChainId) {
+    known.to_chain = formatChainLabel(filled.toChainId, filled.toEvmChainId);
+  }
+  if (filled.fromToken) {
+    known.from_token = filled.fromToken;
+  }
+  if (filled.toToken) {
+    known.to_token = filled.toToken;
+  }
+  if (filled.amount !== undefined) {
+    known.amount = formatAmountSnippet(filled) ?? String(filled.amount);
+  }
+  if (filled.amountUnit) {
+    known.amount_unit = filled.amountUnit;
+  }
+
+  return known;
+}
+
+export function toBridgeQuestionContext(
+  intent: PartialBridgeIntent,
+  gap: ClarificationGap,
+): ClarificationQuestionContext {
+  const field = (gap.field as BridgeIntentField | undefined) ?? "unknown";
+
+  return {
+    action: "bridge",
+    gap_id: gap.gap_id,
+    field,
+    interaction_type: gap.interaction_type,
+    known: buildBridgeKnownFacts(intent),
+    options: gap.options,
+    template_question: gap.question,
+    template_hint: gap.hint,
+  };
+}
+
+/** Build a clarification question from what we already parsed — only ask about the missing piece. */
+export function formatBridgeClarificationQuestion(
+  intent: PartialBridgeIntent,
+  field: BridgeIntentField,
+): string {
+  const filled = withDefaultBridgeChains(intent);
+  const fromLabel = formatChainLabel(filled.fromChainId, filled.fromEvmChainId);
+  const toLabel = formatChainLabel(filled.toChainId, filled.toEvmChainId);
+  const amountSnippet = formatAmountSnippet(filled);
+
+  switch (field) {
+    case "from_chain": {
+      const dest = filled.toChainId ? ` to ${toLabel}` : "";
+      const token = filled.fromToken ? ` ${filled.fromToken}` : "";
+      const amt = amountSnippet ? ` ${amountSnippet}` : "";
+      return `Got it — bridge${amt}${token}${dest}. Which network are those tokens on now?`;
+    }
+    case "to_chain": {
+      const src = filled.fromChainId ? ` from ${fromLabel}` : "";
+      const token = filled.fromToken ? ` ${filled.fromToken}` : "";
+      const amt = amountSnippet ? ` ${amountSnippet}` : "";
+      return `Bridging${amt}${token}${src} — which network should receive them?`;
+    }
+    case "from_token":
+      return amountSnippet
+        ? `Bridging ${amountSnippet} from ${fromLabel} to ${toLabel} — which token are you sending?`
+        : `Which token on ${fromLabel} should I bridge to ${toLabel}?`;
+    case "to_token":
+      return amountSnippet
+        ? `Bridging ${amountSnippet} from ${fromLabel} to ${toLabel} — what token should arrive on ${toLabel}?`
+        : `You're sending ${filled.fromToken} from ${fromLabel} to ${toLabel} — what should you receive there?`;
+    case "confirm_same_token":
+      return `You're bridging ${filled.fromToken} from ${fromLabel} to ${toLabel} — receive ${filled.fromToken} on ${toLabel}, or swap into something else?`;
+    case "amount":
+      return amountSnippet
+        ? `How much more ${filled.fromToken} should I bridge to ${toLabel}?`
+        : `How much ${filled.fromToken} should I bridge from ${fromLabel} to ${toLabel}?`;
+    case "amount_unit":
+      return formatAmbiguousAmountQuestion(filled.amount!, filled.fromToken!);
+    default:
+      return "I need one more detail to run this bridge.";
+  }
 }
 
 function formatIntentPreview(intent: PartialBridgeIntent): string {
@@ -143,7 +252,7 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
     return {
       gap_id: "bridge.from_chain",
       interaction_type: "single_choice",
-      question: "Which network are you bridging from?",
+      question: formatBridgeClarificationQuestion(filled, "from_chain"),
       hint: "Pick the chain where your tokens currently are.",
       step_index: 0,
       field: "from_chain",
@@ -161,7 +270,7 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
     return {
       gap_id: "bridge.to_chain",
       interaction_type: "single_choice",
-      question: "Which network should receive the bridged tokens?",
+      question: formatBridgeClarificationQuestion(filled, "to_chain"),
       hint: "Pick the destination chain.",
       step_index: 0,
       field: "to_chain",
@@ -175,7 +284,7 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
     return {
       gap_id: "bridge.from_token",
       interaction_type: "single_choice",
-      question: `Which token should I bridge from ${formatChainLabel(filled.fromChainId, filled.fromEvmChainId)}?`,
+      question: formatBridgeClarificationQuestion(filled, "from_token"),
       step_index: 0,
       field: "from_token",
       action: "bridge",
@@ -188,7 +297,7 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
     return {
       gap_id: "bridge.to_token",
       interaction_type: "single_choice",
-      question: `What should you receive on ${formatChainLabel(filled.toChainId, filled.toEvmChainId)}?`,
+      question: formatBridgeClarificationQuestion(filled, "to_token"),
       hint: "Pick the destination token — don't assume it matches the source.",
       step_index: 0,
       field: "to_token",
@@ -202,7 +311,7 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
     return {
       gap_id: "bridge.confirm_same_token",
       interaction_type: "single_choice",
-      question: `Do you want to receive ${filled.fromToken} on the destination chain, or a different token?`,
+      question: formatBridgeClarificationQuestion(filled, "confirm_same_token"),
       step_index: 0,
       field: "to_token",
       action: "bridge",
@@ -218,7 +327,7 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
     return {
       gap_id: "bridge.amount",
       interaction_type: "input",
-      question: `How much ${filled.fromToken} should I bridge to ${formatChainLabel(filled.toChainId, filled.toEvmChainId)}?`,
+      question: formatBridgeClarificationQuestion(filled, "amount"),
       hint: `Enter amount in ${filled.fromToken} or USD (e.g. 0.5 ${filled.fromToken} or $10).`,
       step_index: 0,
       field: "amount",
@@ -237,7 +346,7 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
     return {
       gap_id: "bridge.amount_unit",
       interaction_type: "single_choice",
-      question: formatAmbiguousAmountQuestion(filled.amount, filled.fromToken!),
+      question: formatBridgeClarificationQuestion(filled, "amount_unit"),
       step_index: 0,
       field: "amount_unit",
       action: "bridge",

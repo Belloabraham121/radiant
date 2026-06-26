@@ -12,6 +12,18 @@ export type ParsedUserAmount = {
 
 const USD_WORDS = new Set(["usd", "usdc", "usdt", "dollar", "dollars", "buck", "bucks"]);
 const CENT_WORDS = new Set(["cent", "cents"]);
+const NUMBER_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
 
 /** Tokens whose bare sub-1 amounts are often meant as USD (e.g. 0.6 → $0.60). */
 const AMBIGUOUS_EXPENSIVE_SYMBOLS = new Set([
@@ -117,6 +129,11 @@ export function parseUserAmount(input: string): ParsedUserAmount | null {
 /** Parse a single tokenized message segment (e.g. "$10", "10usd"). */
 export function parseAmountFromToken(token: string): ParsedUserAmount | null {
   const lower = token.toLowerCase();
+
+  const numberWord = NUMBER_WORDS[lower];
+  if (numberWord !== undefined) {
+    return { value: numberWord, unit: "token" };
+  }
 
   if (lower.startsWith("$")) {
     const val = parsePositiveNumber(lower.slice(1));

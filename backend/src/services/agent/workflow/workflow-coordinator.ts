@@ -6,7 +6,7 @@ import {
   getClarificationById,
   startSessionClarification,
 } from "./clarification.store.js";
-import type { ClarificationAnswer, PendingClarification } from "./clarification.types.js";
+import type { ClarificationAnswer, ClarificationGap, PendingClarification } from "./clarification.types.js";
 import { planWorkflowMessage } from "./workflow-planner.js";
 import { skipStepsInPlan, validatePlannerOutput } from "./workflow-plan-validator.js";
 import {
@@ -17,6 +17,7 @@ import {
   gapToPending,
 } from "./workflow-clarification-gaps.js";
 import { enrichClarificationGaps } from "./limit-order-clarification.js";
+import { synthesizeWorkflowClarificationGap } from "../clarification/intent-clarification-runner.js";
 import {
   normalizeWorkflowPlan,
   validateWorkflowPlan,
@@ -68,6 +69,25 @@ function buildClarificationOutcome(
   };
 }
 
+async function startWorkflowClarification(
+  sessionId: string,
+  plan: WorkflowPlan,
+  gap: ClarificationGap,
+  options?: { includePlanPreview?: boolean },
+): Promise<WorkflowRunOutcome> {
+  const enrichedGap = await synthesizeWorkflowClarificationGap(plan, gap);
+  const clarificationState = startSessionClarification({
+    sessionId,
+    gap: enrichedGap,
+    plan,
+  });
+  const pending = gapToPending(enrichedGap, clarificationState.id);
+  if (options?.includePlanPreview !== false) {
+    pending.plan_preview = buildPlanPreview(plan);
+  }
+  return buildClarificationOutcome(enrichedGap.question, pending);
+}
+
 function workflowAbortedReply(): WorkflowRunOutcome {
   return {
     reply: "Understood — I won't run those steps.",
@@ -100,15 +120,7 @@ async function continueWithResolvedPlan(
   const normalized = normalizeWorkflowPlan(plan);
   const gaps = await enrichClarificationGaps(normalized, collectClarificationGaps(normalized));
   if (gaps.length > 0) {
-    const gap = gaps[0];
-    const clarificationState = startSessionClarification({
-      sessionId,
-      gap,
-      plan: normalized,
-    });
-    const pending = gapToPending(gap, clarificationState.id);
-    pending.plan_preview = buildPlanPreview(normalized);
-    return buildClarificationOutcome(gap.question, pending);
+    return startWorkflowClarification(sessionId, normalized, gaps[0]);
   }
 
   const paramCheck = validateWorkflowPlan(normalized);
@@ -118,14 +130,9 @@ async function continueWithResolvedPlan(
       collectClarificationGaps(normalized),
     );
     if (gapsAfterValidation.length > 0) {
-      const gap = gapsAfterValidation[0];
-      const clarificationState = startSessionClarification({
-        sessionId,
-        gap,
-        plan: normalized,
+      return startWorkflowClarification(sessionId, normalized, gapsAfterValidation[0], {
+        includePlanPreview: false,
       });
-      const pending = gapToPending(gap, clarificationState.id);
-      return buildClarificationOutcome(gap.question, pending);
     }
     return {
       reply: paramCheck.message,
@@ -170,16 +177,7 @@ export async function tryStartWorkflowFromMessage(
   }
 
   if (validation.status === "clarify") {
-    const clarificationState = startSessionClarification({
-      sessionId,
-      gap: validation.gap,
-      plan: validation.plan,
-    });
-
-    const pending = gapToPending(validation.gap, clarificationState.id);
-    pending.plan_preview = buildPlanPreview(validation.plan);
-
-    return buildClarificationOutcome(validation.gap.question, pending);
+    return startWorkflowClarification(sessionId, validation.plan, validation.gap);
   }
 
   return startAndRunWorkflow(

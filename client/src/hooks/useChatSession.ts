@@ -45,6 +45,12 @@ import {
   isInFlightLifiTransaction,
   mergeTransactionStepsIntoMessages,
 } from "@/lib/lifi-execution-tracking";
+import {
+  isApproveRequestTimeout,
+  isLifiAgentTransaction,
+  resolveApproveCatchOutcome,
+  type ApproveCatchOutcome,
+} from "@/lib/lifi-approve-recovery";
 import { agentStreamUrl } from "@/lib/agent-stream";
 import { ChatStreamAbortedError, postChatStream } from "@/lib/chat-stream";
 import {
@@ -187,6 +193,9 @@ export function useChatSession(sessionId?: string) {
   const syncPendingContinuationFromSession = useCallback(
     async (sessionKey: string, options?: { force?: boolean }) => {
       if (!options?.force && pendingTxRef.current) {
+        return;
+      }
+      if (approvingTransactionIdRef.current) {
         return;
       }
 
@@ -949,8 +958,51 @@ export function useChatSession(sessionId?: string) {
         err instanceof ApiError
           ? (messageForChatStreamError(err.code) ?? err.message)
           : "Approval failed. Try again.";
-      setChatError(message);
-      applyPendingTransaction(snapshot);
+      const timedOut = isApproveRequestTimeout(err);
+      const snapshotIsLifi =
+        snapshot.action === "cross_chain_swap" ||
+        snapshot.defi_preview?.provider_id === "evm-lifi" ||
+        isLifiAgentTransaction(snapshot);
+
+      let outcome: ApproveCatchOutcome = {
+        kind: "uncertain",
+        message,
+      };
+
+      try {
+        const detail = await getAgentTransaction(snapshot.id);
+        outcome = resolveApproveCatchOutcome(
+          detail,
+          snapshot.id,
+          timedOut,
+          message,
+        );
+        const steps = executionStepsFromAgentTransaction(
+          detail,
+          detail.result as Record<string, unknown> | null,
+        );
+        if (steps?.length) {
+          setMessages((current) =>
+            applyLifiLiveUpdateToMessages(current, snapshot.id, steps, {
+              primaryMessageId: detail.message_id,
+              detail,
+            }),
+          );
+        }
+      } catch {
+        if (timedOut && snapshotIsLifi) {
+          outcome = { kind: "in_flight", message: null };
+        }
+      }
+
+      if (outcome.kind === "restore_pending") {
+        applyPendingTransaction(snapshot);
+        setChatError(outcome.message);
+      } else if (outcome.kind === "in_flight") {
+        setChatError(null);
+      } else {
+        setChatError(outcome.message);
+      }
     } finally {
       approvingTransactionIdRef.current = null;
       setApproving(false);
