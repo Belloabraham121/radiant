@@ -320,6 +320,14 @@ export function mergeTransactionStepsIntoMessages<
   });
 }
 
+/** List items omit `action`; match Li-Fi titles from agent-transaction build-display. */
+function isLikelyLifiListItem(tx: AgentTransactionListItem): boolean {
+  return (
+    tx.title.startsWith("Bridge ") ||
+    tx.title === "Approve ERC-20 for Li-Fi bridge"
+  );
+}
+
 export function isInFlightLifiTransaction(tx: AgentTransactionListItem): boolean {
   if (tx.status === "success" && tx.effects_status === "pending") {
     return true;
@@ -332,7 +340,7 @@ export function isInFlightLifiTransaction(tx: AgentTransactionListItem): boolean
   }
   // Approval claimed; source broadcast may still be in progress before Li-Fi meta is saved.
   return (
-    (tx.action === "cross_chain_swap" || tx.action === "lifi_approve") &&
+    isLikelyLifiListItem(tx) &&
     tx.effects_status !== "success" &&
     tx.effects_status !== "failure"
   );
