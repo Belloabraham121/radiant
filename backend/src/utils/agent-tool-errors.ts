@@ -140,6 +140,14 @@ function guidanceForErrorCode(code: string): string {
       return "Explain the Li-Fi request params were invalid or the quote expired. Re-run cross_chain_quote with correct from_address and chain ids.";
     case "LIFI_UNAVAILABLE":
       return "Explain Li-Fi is temporarily unavailable. Suggest retrying shortly.";
+    case "SQUID_RATE_LIMITED":
+      return "Explain Squid is temporarily rate limiting. Suggest waiting a few seconds before retrying the alternate route.";
+    case "SQUID_NO_ROUTE":
+      return "Explain no alternate bridge route exists for this token pair or amount. Suggest a different amount, token, or enabled chain pair.";
+    case "SQUID_VALIDATION_ERROR":
+      return "Explain the alternate route request params were invalid or the quote expired. Re-run cross_chain_quote after correcting params.";
+    case "SQUID_UNAVAILABLE":
+      return "Explain the alternate route provider is temporarily unavailable. Suggest retrying shortly or choosing a different transfer.";
     case "APPROVAL_FAILED":
       return "Explain the ERC-20 approval transaction failed. Suggest checking gas and retrying lifi_approve or cross_chain_swap.";
     case "CHAIN_NOT_ENABLED":

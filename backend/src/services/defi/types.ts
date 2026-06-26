@@ -2,6 +2,7 @@
 export type DeFiProviderId =
   | "sui-deepbook"
   | "evm-lifi"
+  | "evm-squid"
   | "evm-sushiswap"
   | "stellar-soroswap";
 

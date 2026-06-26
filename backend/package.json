@@ -32,6 +32,8 @@
     "worker:deploy": "tsx src/workers/deploy.worker.ts"
   },
   "dependencies": {
+    "@0xsquid/sdk": "2.13.0",
+    "@0xsquid/squid-types": "0.1.216",
     "@libsql/client": "^0.17.4",
     "@lifi/sdk": "^4.0.1",
     "@lifi/sdk-provider-ethereum": "^4.0.2",
