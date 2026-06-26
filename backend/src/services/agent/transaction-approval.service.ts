@@ -30,6 +30,7 @@ import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import { AppError } from "../../errors/app-error.js";
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
+import { mapLifiExecuteError } from "../defi/lifi/lifi.errors.js";
 import { runExecuteTransactionTool } from "./execute-transaction.tool.js";
 import {
   getAgentPermissions,
@@ -585,7 +586,10 @@ export async function approvePendingTransaction(
       result,
     };
   } catch (err) {
-    const error = mapAgentToolError(err);
+    const mapError = isLifiExecuteAction(executeInput.action)
+      ? mapLifiExecuteError
+      : mapAgentToolError;
+    const error = mapError(err);
     if (isRetryablePreBroadcastError(error.code)) {
       // Nothing was broadcast on chain (rate limit / balance / quote preflight),
       // so keep the approval claimable instead of consuming it — otherwise every

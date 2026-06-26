@@ -5,7 +5,9 @@ import type { AgentChainId } from "@/lib/agent-chains";
 import { subscribeWalletAssetsInvalidation } from "@/lib/wallet-assets-events";
 import { fetchWalletAssets, type WalletAssetsData } from "@/lib/wallet-assets-api";
 import {
+  isWalletAssetsCacheStale,
   readWalletAssetsCache,
+  readWalletAssetsCacheEntry,
   walletAssetsCacheKey,
   writeWalletAssetsCache,
 } from "@/lib/wallet-session-cache";
@@ -52,43 +54,62 @@ export function useWalletAssets({
     setHasFetched(cached !== undefined);
   }
 
-  const reload = useCallback(async () => {
-    if (!enabled) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = withPersistentTokenMetadata(
-        await fetchWalletAssets(chainId, {
-          evmChainId,
-          includeZero: true,
-          includeUsd: true,
-        }),
-      );
-      writeWalletAssetsCache(cacheKey, result);
-      setData(result);
-      setHasFetched(true);
-    } catch (err) {
-      setHasFetched(false);
-      setError(err instanceof Error ? err.message : "Could not load wallet assets.");
-    } finally {
-      setLoading(false);
-    }
-  }, [cacheKey, chainId, enabled, evmChainId]);
+  const runFetch = useCallback(
+    async (options?: { background?: boolean }) => {
+      if (!enabled) return;
+      const background = options?.background ?? false;
+      // A background (revalidation) fetch keeps the cached balances on screen and
+      // doesn't surface its own spinner or errors.
+      if (!background) {
+        setLoading(true);
+        setError(null);
+      }
+      try {
+        const result = withPersistentTokenMetadata(
+          await fetchWalletAssets(chainId, {
+            evmChainId,
+            includeZero: true,
+            includeUsd: true,
+          }),
+        );
+        writeWalletAssetsCache(cacheKey, result);
+        setData(result);
+        setHasFetched(true);
+        if (background) setError(null);
+      } catch (err) {
+        if (!background) {
+          setHasFetched(false);
+          setError(err instanceof Error ? err.message : "Could not load wallet assets.");
+        }
+        // On a background failure we keep the stale cached balances visible.
+      } finally {
+        if (!background) setLoading(false);
+      }
+    },
+    [cacheKey, chainId, enabled, evmChainId],
+  );
+
+  const reload = useCallback(() => runFetch(), [runFetch]);
 
   const loadIfNeeded = useCallback(async () => {
     if (!enabled) return;
 
-    const cached = readWalletAssetsCache(cacheKey);
+    const cached = readWalletAssetsCacheEntry(cacheKey);
     if (cached) {
-      setData(withPersistentTokenMetadata(cached));
+      // Show cached balances immediately…
+      setData(withPersistentTokenMetadata(cached.data));
       setHasFetched(true);
       setError(null);
+      // …and silently refresh in the background when they've gone stale.
+      if (isWalletAssetsCacheStale(cacheKey)) {
+        void runFetch({ background: true });
+      }
       return;
     }
 
     if (hasFetched) return;
-    await reload();
-  }, [cacheKey, enabled, hasFetched, reload]);
+    await runFetch();
+  }, [cacheKey, enabled, hasFetched, runFetch]);
 
   useEffect(
     () =>

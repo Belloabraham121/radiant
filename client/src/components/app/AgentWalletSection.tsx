@@ -575,8 +575,10 @@ export function AgentWalletSection() {
   } = useAgentWallet();
 
   const suiWallets = useWallets();
+  // Start collapsed — the wallet rows (incl. Sui) should be closed when you
+  // open Settings, not auto-expanded.
   const [expandedChainId, setExpandedChainId] = useState<AgentChainId | null>(
-    defaultChainId,
+    null,
   );
   const [prevDefaultChainId, setPrevDefaultChainId] =
     useState<AgentChainId>(defaultChainId);

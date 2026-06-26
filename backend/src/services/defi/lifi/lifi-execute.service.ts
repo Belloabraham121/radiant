@@ -32,7 +32,7 @@ import {
   lifiCountdownStepFields,
 } from "./lifi-countdown.js";
 import type { LifiTrackingMeta } from "./lifi-tracking.types.js";
-import { mapAgentToolError } from "../../../utils/agent-tool-errors.js";
+import { mapLifiExecuteError } from "./lifi.errors.js";
 import type { LifiExecuteInput, LifiExecuteResult } from "./lifi.types.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
 import type { ChainId } from "../../chains/types.js";
@@ -282,7 +282,7 @@ async function runLifiCrossChainSwap(
       },
     });
   } catch (err) {
-    throw mapAgentToolError(err);
+    throw mapLifiExecuteError(err);
   }
 
   const txHashes = collectTxHashes(executedRoute);

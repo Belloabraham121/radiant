@@ -7,7 +7,14 @@ export const maxDuration = 300;
 const CHAT_UPSTREAM_TIMEOUT_MS = 5 * 60 * 1000;
 
 export async function POST(request: Request): Promise<Response> {
+  let parsedBody: { approve_transaction_id?: string } | null = null;
   const body = await request.text();
+  try {
+    parsedBody = JSON.parse(body) as { approve_transaction_id?: string };
+  } catch {
+    parsedBody = null;
+  }
+  const isApproveRequest = Boolean(parsedBody?.approve_transaction_id);
   const proxyHeaders = buildUpstreamProxyHeaders(request);
   const url = new URL(request.url);
   const stream = url.searchParams.get("stream") === "1";
@@ -51,7 +58,9 @@ export async function POST(request: Request): Promise<Response> {
         error: {
           code: timedOut ? "UPSTREAM_TIMEOUT" : "UPSTREAM_UNAVAILABLE",
           message: timedOut
-            ? "The agent request timed out. Try again — complex research can take a minute."
+            ? isApproveRequest
+              ? "Approval is still processing. Watch the execution timeline — don't approve again unless a new prompt appears."
+              : "The agent request timed out. Try again — complex research can take a minute."
             : "Could not reach the backend API. Make sure it is running on port 3001.",
         },
       },

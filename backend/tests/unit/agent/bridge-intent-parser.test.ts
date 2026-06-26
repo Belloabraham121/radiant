@@ -166,4 +166,36 @@ describe("bridge-clarification-gaps", () => {
     assert.equal(intent!.amount, 10);
     assert.equal(intent!.amountUnit, "usd");
   });
+
+  it("parses bridge $1 USDC from Base to Sui without clarification gaps", () => {
+    const intent = parsePartialBridgeIntent("bridge $1 USDC from Base to SUI");
+    assert.ok(intent);
+    assert.equal(intent!.fromChainId, "ethereum");
+    assert.equal(intent!.fromEvmChainId, 8453);
+    assert.equal(intent!.toChainId, "sui");
+    assert.equal(intent!.fromToken, "USDC");
+    assert.equal(intent!.toToken, "USDC");
+    assert.equal(intent!.confirmSameToken, true);
+    assert.equal(collectBridgeClarificationGap(intent!), null);
+    assert.equal(isBridgeIntentComplete(intent!), true);
+  });
+
+  it("parses one USDC from base to sui with amount inferred", () => {
+    const intent = parsePartialBridgeIntent("bridge one USDC from base to sui");
+    assert.ok(intent);
+    assert.equal(intent!.amount, 1);
+    assert.equal(intent!.toToken, "USDC");
+    assert.equal(collectBridgeClarificationGap(intent!), null);
+    assert.equal(isBridgeIntentComplete(intent!), true);
+  });
+
+  it("still asks destination token for native-token bridges", () => {
+    const intent = parsePartialBridgeIntent("bridge 2 sui to base");
+    assert.ok(intent);
+    const gap = collectBridgeClarificationGap(intent!);
+    assert.ok(gap);
+    assert.equal(gap!.field, "to_token");
+    assert.match(gap!.question, /Base/i);
+    assert.match(gap!.question, /SUI/i);
+  });
 });

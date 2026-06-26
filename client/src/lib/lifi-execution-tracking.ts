@@ -321,7 +321,21 @@ export function mergeTransactionStepsIntoMessages<
 }
 
 export function isInFlightLifiTransaction(tx: AgentTransactionListItem): boolean {
-  return tx.status === "submitted" && tx.effects_status === "pending";
+  if (tx.status === "success" && tx.effects_status === "pending") {
+    return true;
+  }
+  if (tx.status !== "submitted") {
+    return false;
+  }
+  if (tx.effects_status === "pending") {
+    return true;
+  }
+  // Approval claimed; source broadcast may still be in progress before Li-Fi meta is saved.
+  return (
+    (tx.action === "cross_chain_swap" || tx.action === "lifi_approve") &&
+    tx.effects_status !== "success" &&
+    tx.effects_status !== "failure"
+  );
 }
 
 /** Remove the pre-approval "waiting for dialog" step once execution starts. */
