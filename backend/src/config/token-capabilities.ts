@@ -79,6 +79,13 @@ const TOKEN_IDENTITIES: Record<string, TokenIdentity> = {
     agent_note:
       "Solana native coin. Receiving SOL on a non-Solana chain (or vice versa) needs explicit confirmation.",
   },
+  XLM: {
+    symbol: "XLM",
+    kind: "chain_native",
+    default_receive: "prompt",
+    agent_note:
+      "Stellar native coin (Stellar-only). Receiving XLM on a non-Stellar chain (or vice versa) needs explicit confirmation.",
+  },
   DEEP: {
     symbol: "DEEP",
     kind: "chain_native",
