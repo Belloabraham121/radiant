@@ -2,6 +2,7 @@ import { isStablecoinSymbol } from "../defi/deepbook/asset-scalars.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
 import { isDeepBookSwapAction, parseDeepBookSwapParams } from "../defi/deepbook/deepbook-swap.service.js";
 import { isLifiExecuteAction } from "../agent/chains/evm/lifi/execute-actions.js";
+import { isSoroswapExecuteAction } from "../agent/chains/stellar/soroswap/execute-actions.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
 import type { WalletAssetsData } from "../wallet/wallet-assets.types.js";
 import { resolveCoingeckoMarketData } from "./coingecko.client.js";
@@ -217,6 +218,44 @@ export async function previewExecuteTransactionFiat(
     } catch {
       return null;
     }
+  }
+
+  if (isSoroswapExecuteAction(input.action) && input.chain_id === "stellar") {
+    const payAmount = Number(
+      input.params.from_amount_display ?? input.params.input_amount_display,
+    );
+    const receiveAmount = Number(
+      input.params.to_amount_display ??
+        input.params.output_amount_display ??
+        input.params.estimated_out_display,
+    );
+    const paySymbol =
+      typeof input.params.token_in === "string"
+        ? input.params.token_in
+        : typeof input.params.input_coin === "string"
+          ? input.params.input_coin
+          : null;
+    const receiveSymbol =
+      typeof input.params.token_out === "string"
+        ? input.params.token_out
+        : typeof input.params.output_coin === "string"
+          ? input.params.output_coin
+          : null;
+
+    if (
+      !Number.isFinite(payAmount) ||
+      !Number.isFinite(receiveAmount) ||
+      !paySymbol ||
+      !receiveSymbol
+    ) {
+      return null;
+    }
+
+    return previewSwapFiat({
+      chain_id: "stellar",
+      pay: { amount_display: payAmount, symbol: paySymbol },
+      receive: { amount_display: receiveAmount, symbol: receiveSymbol },
+    });
   }
 
   if (isLifiExecuteAction(input.action) && input.action === "cross_chain_swap") {

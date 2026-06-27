@@ -99,6 +99,19 @@ export async function runExecuteTransactionToolWithApproval(
           emitAgentStreamExecutionOutcome(streamCtx, streamAction, outcome);
           return outcome;
         }
+        if (
+          pending.approval_outcome === "stellar_routing_fallback_offered" &&
+          pending.stellar_routing_fallback_offer
+        ) {
+          const outcome = {
+            status: "stellar_routing_fallback_offered" as const,
+            pending,
+            stellar_routing_fallback_offer: pending.stellar_routing_fallback_offer,
+            agent_transaction_id: pending.id,
+          };
+          emitAgentStreamExecutionOutcome(streamCtx, streamAction, outcome);
+          return outcome;
+        }
         const outcome = {
           status: "approval_required" as const,
           pending,

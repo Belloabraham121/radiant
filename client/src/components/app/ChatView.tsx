@@ -8,7 +8,9 @@ import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
 import { LiquidityFallbackDialog } from "@/components/app/LiquidityFallbackDialog";
+import { StellarRoutingFallbackDialog } from "@/components/app/StellarRoutingFallbackDialog";
 import { isLiquidityFallbackPending } from "@/lib/cross-chain-fallback";
+import { isStellarRoutingFallbackPending } from "@/lib/stellar-routing-fallback";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
 import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
@@ -295,6 +297,8 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
     rejectPending,
     acceptLiquidityFallbackPending,
     rejectLiquidityFallbackPending,
+    acceptStellarRoutingFallbackPending,
+    rejectStellarRoutingFallbackPending,
     respondClarification,
     dismissClarification,
   } = useChatSession(sessionId, draftResetKey);
@@ -591,6 +595,15 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
             error={chatError}
             onAccept={() => void acceptLiquidityFallbackPending()}
             onReject={() => void rejectLiquidityFallbackPending()}
+          />
+        ) : pendingTx && isStellarRoutingFallbackPending(pendingTx) ? (
+          <StellarRoutingFallbackDialog
+            className={`${chatColumnClass} mb-3`}
+            offer={pendingTx.stellar_routing_fallback_offer}
+            busy={acceptingFallback || rejectingFallback}
+            error={chatError}
+            onAccept={() => void acceptStellarRoutingFallbackPending()}
+            onReject={() => void rejectStellarRoutingFallbackPending()}
           />
         ) : pendingTx && !pendingTxRelayedToPreview ? (
           <TransactionApprovalBar

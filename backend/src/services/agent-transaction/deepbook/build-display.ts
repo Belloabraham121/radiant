@@ -32,6 +32,7 @@ import {
   parseDeepBookVoteParams,
 } from "../../defi/deepbook/deepbook-governance.service.js";
 import type { ExecuteTransactionInput, ChainId, TxResult } from "../../chains/types.js";
+import { isSoroswapExecuteAction } from "../../agent/chains/stellar/soroswap/execute-actions.js";
 import { fmtDisplayNumber } from "../../../utils/format-display-number.js";
 import { formatRadiantChainLabel } from "../approval-preview/chain-labels.js";
 
@@ -139,6 +140,36 @@ export async function buildTransactionDisplay(
       amount_display = "DeepBook swap";
       title = "Swap via DeepBook";
     }
+  } else if (isSoroswapExecuteAction(input.action) && input.chain_id === "stellar") {
+    const inputCoin =
+      (typeof input.params.token_in === "string" && input.params.token_in) ||
+      (typeof input.params.input_coin === "string" && input.params.input_coin) ||
+      (typeof input.params.from_token === "string" && input.params.from_token) ||
+      "token";
+    const outputCoin =
+      (typeof input.params.token_out === "string" && input.params.token_out) ||
+      (typeof input.params.output_coin === "string" && input.params.output_coin) ||
+      (typeof input.params.to_token === "string" && input.params.to_token) ||
+      "token";
+    const payAmount =
+      typeof input.params.from_amount_display === "string"
+        ? input.params.from_amount_display
+        : typeof input.params.input_amount_display === "string"
+          ? input.params.input_amount_display
+          : null;
+    const receiveAmount =
+      typeof input.params.to_amount_display === "string"
+        ? input.params.to_amount_display
+        : typeof input.params.output_amount_display === "string"
+          ? input.params.output_amount_display
+          : typeof input.params.estimated_out_display === "number"
+            ? fmtDisplayNumber(input.params.estimated_out_display)
+            : null;
+    amount_display =
+      payAmount && receiveAmount
+        ? `${payAmount} ${inputCoin} → ~${receiveAmount} ${outputCoin}`
+        : `Swap ${inputCoin} → ${outputCoin} on Stellar`;
+    title = `Swap on Stellar (${inputCoin} → ${outputCoin})`;
   } else if (input.action === "cross_chain_swap") {
     const isSquid =
       input.params.provider_id === "evm-squid" ||

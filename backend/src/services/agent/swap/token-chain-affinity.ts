@@ -25,6 +25,8 @@ export type CrossChainSwapMismatch = {
   inputSources?: TokenChainRef[];
 };
 
+export const STELLAR_SWAP_CHAIN_LABEL = "Stellar (Soroswap)";
+
 function formatChainLabel(chainId: ChainId, evmChainId?: number): string {
   if (chainId === "ethereum" && evmChainId !== undefined) {
     const network = getEvmNetwork(evmChainId);
@@ -35,6 +37,9 @@ function formatChainLabel(chainId: ChainId, evmChainId?: number): string {
   }
   if (chainId === "solana") {
     return "Solana";
+  }
+  if (chainId === "stellar") {
+    return STELLAR_SWAP_CHAIN_LABEL;
   }
   return chainId;
 }
@@ -50,6 +55,25 @@ function sameChainRef(
     return a.evmChainId === b.evmChainId;
   }
   return true;
+}
+
+/** Chains where both tokens can be swapped together (intersection of allowlists). */
+export function getSharedChainsForSwapPair(
+  inputCoin: string,
+  outputCoin: string,
+): TokenChainRef[] {
+  const inputChains = getChainsForToken(inputCoin);
+  const outputChains = getChainsForToken(outputCoin);
+
+  return inputChains.filter((inputChain) =>
+    outputChains.some((outputChain) => sameChainRef(inputChain, outputChain)),
+  );
+}
+
+/** True when the only shared chain for a pair is Stellar (e.g. XLM + USDC). */
+export function isSwapPairOnlyOnStellar(inputCoin: string, outputCoin: string): boolean {
+  const shared = getSharedChainsForSwapPair(inputCoin, outputCoin);
+  return shared.length === 1 && shared[0]?.chainId === "stellar";
 }
 
 /** Chains where a token symbol is allowlisted in v1. */

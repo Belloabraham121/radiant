@@ -653,6 +653,8 @@ Build in this order. **Cross-ecosystem routing is last** — only after every pr
 ## Phase 2 — Soroswap (`services/defi/soroswap/`)
 
 > Stellar / Soroban swaps. Requires Phase 0 stellar adapter.
+>
+> **Detailed checklist:** [soroswap-integration-TODO.md](./soroswap-integration-TODO.md) (Phase 0–8)
 
 ### 2.1 HTTP client
 

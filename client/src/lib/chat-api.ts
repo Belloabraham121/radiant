@@ -11,10 +11,12 @@ export type ChatToolCall = {
 
 import type { DeFiApprovalPreview } from "@/lib/defi-approval-preview";
 import type { LiquidityFallbackOffer } from "@/lib/cross-chain-fallback";
+import type { StellarRoutingFallbackOffer } from "@/lib/stellar-routing-fallback";
 
 export type PendingTransactionApprovalOutcome =
   | "approval_required"
-  | "liquidity_fallback_offered";
+  | "liquidity_fallback_offered"
+  | "stellar_routing_fallback_offered";
 
 export type TransactionFiatLeg = {
   role: "pay" | "receive" | "fee";
@@ -47,6 +49,8 @@ export type PendingTransaction = {
   approval_outcome?: PendingTransactionApprovalOutcome;
   /** Offered when Li-Fi has no liquidity and an alternate route is available. */
   liquidity_fallback_offer?: LiquidityFallbackOffer;
+  /** Offered when tokens are Stellar-only but user selected another chain. */
+  stellar_routing_fallback_offer?: StellarRoutingFallbackOffer;
 };
 
 export type ClarificationInteractionType =

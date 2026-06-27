@@ -9,6 +9,7 @@ import {
   buildToolRoutingWorkflowLines,
 } from "./core/tool-routing.js";
 import { buildErrorHandlingLines } from "./core/errors.js";
+import { buildDefiGuardrailLines } from "./core/defi-guardrails.js";
 import {
   buildArtifactBuildLines,
   buildArtifactBuildSwapVsBuildLine,
@@ -31,6 +32,9 @@ import { buildLifiEnvLines } from "./protocols/lifi/env.js";
 import { buildLifiSwapLines } from "./protocols/lifi/swap.js";
 import { buildLifiBridgeLines } from "./protocols/lifi/bridge.js";
 import { buildCrossChainFallbackLines } from "./protocols/cross-chain/fallback.js";
+import { buildSoroswapEnvLines } from "./protocols/soroswap/env.js";
+import { buildSoroswapSwapLines } from "./protocols/soroswap/swap.js";
+import { buildStellarRoutingFallbackLines } from "./protocols/stellar/routing-fallback.js";
 import { buildPlatformBrowsingLines } from "./platform/browsing.js";
 import { buildPlatformStorageLines } from "./platform/storage.js";
 import { buildPlatformNotificationsLines } from "./platform/notifications.js";
@@ -43,6 +47,7 @@ export const CORE_MODULE_IDS: PromptModuleId[] = [
   "core:tool-routing",
   "core:tool-routing:overview",
   "core:permissions",
+  "core:defi-guardrails",
   "core:tool-routing:workflow",
   "core:errors",
   "core:personality:context",
@@ -66,6 +71,12 @@ const BASE_PROMPT_MODULES: PromptModule[] = [
     layer: "core",
     order: 30,
     build: (ctx) => buildPermissionLines(ctx),
+  },
+  {
+    id: "core:defi-guardrails",
+    layer: "core",
+    order: 32,
+    build: () => buildDefiGuardrailLines(),
   },
   {
     id: "core:tool-routing:overview",
@@ -221,6 +232,27 @@ const BASE_PROMPT_MODULES: PromptModule[] = [
     build: () => buildCrossChainFallbackLines(),
     triggers: PROMPT_MODULE_TRIGGERS["protocol:cross-chain:fallback"],
   },
+  {
+    id: "protocol:soroswap:env",
+    layer: "protocol",
+    order: 106,
+    build: () => buildSoroswapEnvLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:soroswap:env"],
+  },
+  {
+    id: "protocol:soroswap:swap",
+    layer: "protocol",
+    order: 126,
+    build: () => buildSoroswapSwapLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:soroswap:swap"],
+  },
+  {
+    id: "protocol:stellar:routing-fallback",
+    layer: "protocol",
+    order: 127,
+    build: () => buildStellarRoutingFallbackLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:stellar:routing-fallback"],
+  },
 ];
 
 export const ALL_PROMPT_MODULES: PromptModule[] = BASE_PROMPT_MODULES.map((module) => {
@@ -243,6 +275,7 @@ const FULL_MODE_COMPOSE_STEPS: ComposeStep[] = [
   { kind: "module", id: "core:personality" },
   { kind: "module", id: "core:tool-routing" },
   { kind: "module", id: "core:permissions" },
+  { kind: "module", id: "core:defi-guardrails" },
   { kind: "module", id: "core:tool-routing:overview" },
   { kind: "module", id: "protocol:deepbook:env" },
   { kind: "module", id: "protocol:deepbook:balance" },

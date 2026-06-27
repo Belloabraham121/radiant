@@ -257,6 +257,25 @@ export async function findPendingApprovalSessionIdByFallbackOfferId(
   return row?.session_id ?? null;
 }
 
+export async function findPendingApprovalSessionIdByStellarRoutingFallbackOfferId(
+  privyUserId: string,
+  fallbackOfferId: string,
+): Promise<string | null> {
+  const row = await prisma.agentTransaction.findFirst({
+    where: {
+      status: "pending_approval",
+      user: { privy_user_id: privyUserId },
+      params: {
+        path: ["stellar_routing_fallback_offer", "fallback_offer_id"],
+        equals: fallbackOfferId,
+      },
+    },
+    select: { session_id: true },
+    orderBy: { created_at: "desc" },
+  });
+  return row?.session_id ?? null;
+}
+
 export async function findPendingApprovalByIdForPrivyUser(
   id: string,
   privyUserId: string,

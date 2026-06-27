@@ -36,11 +36,18 @@ import {
 import {
   loadClaimableLifiContinuationPending,
 } from "@/lib/lifi-continuation-pending";
+import { loadClaimableStellarContinuationPending } from "@/lib/stellar-continuation-pending";
 import {
   acceptLiquidityFallback,
   isLiquidityFallbackPending,
   rejectLiquidityFallback,
 } from "@/lib/cross-chain-fallback";
+import {
+  acceptStellarRoutingFallback,
+  isStellarRoutingFallbackPending,
+  markStellarRoutingOfferDeclinedInMessages,
+  rejectStellarRoutingFallback,
+} from "@/lib/stellar-routing-fallback";
 import {
   applyCrossChainLiveUpdateToMessages,
   applyOptimisticCrossChainApprovalToMessages,
@@ -51,7 +58,9 @@ import {
   isInFlightCrossChainTransaction,
   markFallbackOfferDeclinedInMessages,
   mergeCrossChainTransactionStepsIntoMessages,
+  shouldInvalidateStellarWalletAssets,
 } from "@/lib/cross-chain-execution-tracking";
+import { invalidateWalletAssetsForChain } from "@/lib/wallet-assets-events";
 import {
   isApproveRequestTimeout,
   isLifiAgentTransaction,
@@ -125,6 +134,14 @@ function initialChatSessionState(sessionId?: string) {
     pending_transaction: null as PendingTransaction | null,
     pending_clarification: null as PendingClarification | null,
   };
+}
+
+function maybeInvalidateStellarWalletAssets(
+  steps: import("@/lib/chat-execution-steps").ExecutionStep[] | undefined,
+): void {
+  if (steps && shouldInvalidateStellarWalletAssets(steps)) {
+    invalidateWalletAssetsForChain("stellar");
+  }
 }
 
 export function useChatSession(sessionId?: string, draftResetKey = 0) {
@@ -272,9 +289,14 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
 
       try {
         const { items } = await listSessionAgentTransactions(sessionKey);
-        const pending = await loadClaimableLifiContinuationPending(items);
-        if (pending) {
-          applyPendingTransaction(pending, sessionKey);
+        const lifiPending = await loadClaimableLifiContinuationPending(items);
+        if (lifiPending) {
+          applyPendingTransaction(lifiPending, sessionKey);
+          return;
+        }
+        const stellarPending = await loadClaimableStellarContinuationPending(items);
+        if (stellarPending) {
+          applyPendingTransaction(stellarPending, sessionKey);
         }
       } catch {
         // Best-effort — poll will retry.
@@ -504,6 +526,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
             continue;
           }
 
+          maybeInvalidateStellarWalletAssets(steps);
+
           setMessages((current) =>
             applyCrossChainLiveUpdateToMessages(current, txId, steps, {
               primaryMessageId: detail.message_id,
@@ -564,6 +588,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
 
       setMessages((current) => {
         if (incoming.agentTransactionId) {
+          maybeInvalidateStellarWalletAssets([incoming]);
           return applyCrossChainLiveUpdateToMessages(
             current,
             incoming.agentTransactionId,
@@ -579,7 +604,9 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
               message.executionSteps?.some(
                 (step) =>
                   step.agentTransactionId === incoming.agentTransactionId ||
-                  step.id.startsWith("lifi-"),
+                  step.id.startsWith("lifi-") ||
+                  step.id.startsWith("stellar-") ||
+                  step.id.startsWith("soroswap-"),
               ),
           );
         if (targetIndex === -1) {
@@ -597,6 +624,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           const executionSteps = sortExecutionSteps(
             upsertExecutionStep(messageRow.executionSteps ?? [], incoming),
           );
+          maybeInvalidateStellarWalletAssets(executionSteps);
           const receipts = mergeReceiptsFromExecutionStep(
             messageRow.receipts,
             incoming,
@@ -620,6 +648,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
         const executionSteps = sortExecutionSteps(
           upsertExecutionStep(messageRow.executionSteps ?? [], incoming),
         );
+        maybeInvalidateStellarWalletAssets(executionSteps);
         const receipts = mergeReceiptsFromExecutionStep(messageRow.receipts, incoming);
         return current.map((row, i) =>
           i === index
@@ -1007,6 +1036,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
             if (!steps?.length) {
               return;
             }
+            maybeInvalidateStellarWalletAssets(steps);
             setMessages((current) =>
               applyCrossChainLiveUpdateToMessages(current, snapshot.id, steps, {
                 primaryMessageId: detail.message_id,
@@ -1174,6 +1204,74 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     rejectingFallback,
   ]);
 
+  const acceptStellarRoutingFallbackPending = useCallback(async () => {
+    if (
+      !isStellarRoutingFallbackPending(pendingTx) ||
+      acceptingFallback ||
+      rejectingFallback
+    ) {
+      return;
+    }
+
+    const offerId = pendingTx.stellar_routing_fallback_offer.fallback_offer_id;
+    setAcceptingFallback(true);
+    setChatError(null);
+
+    try {
+      const result = await acceptStellarRoutingFallback(offerId);
+      applyPendingTransaction(result.pending, activeSessionId ?? undefined);
+      setChatError(null);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? (messageForChatStreamError(err.code) ?? err.message)
+          : "Could not fetch a Stellar swap quote. Try again.";
+      setChatError(message);
+    } finally {
+      setAcceptingFallback(false);
+    }
+  }, [
+    acceptingFallback,
+    activeSessionId,
+    applyPendingTransaction,
+    pendingTx,
+    rejectingFallback,
+  ]);
+
+  const rejectStellarRoutingFallbackPending = useCallback(async () => {
+    if (
+      !isStellarRoutingFallbackPending(pendingTx) ||
+      acceptingFallback ||
+      rejectingFallback
+    ) {
+      return;
+    }
+
+    const offerId = pendingTx.stellar_routing_fallback_offer.fallback_offer_id;
+    setRejectingFallback(true);
+    setChatError(null);
+
+    try {
+      await rejectStellarRoutingFallback(offerId);
+      applyPendingTransaction(null);
+      setMessages((current) => markStellarRoutingOfferDeclinedInMessages(current));
+      setChatError(null);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Could not decline the Stellar swap offer. Try again.";
+      setChatError(message);
+    } finally {
+      setRejectingFallback(false);
+    }
+  }, [
+    acceptingFallback,
+    applyPendingTransaction,
+    pendingTx,
+    rejectingFallback,
+  ]);
+
   const rejectPending = useCallback(async () => {
     if (!pendingTx || rejecting || approving) return;
 
@@ -1329,6 +1427,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     rejectPending,
     acceptLiquidityFallbackPending,
     rejectLiquidityFallbackPending,
+    acceptStellarRoutingFallbackPending,
+    rejectStellarRoutingFallbackPending,
     respondClarification,
     dismissPending: () => applyPendingTransaction(null),
     dismissClarification: () => setPendingClarification(null),

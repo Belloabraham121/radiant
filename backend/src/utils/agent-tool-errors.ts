@@ -148,6 +148,18 @@ function guidanceForErrorCode(code: string): string {
       return "Explain the alternate route request params were invalid or the quote expired. Re-run cross_chain_quote after correcting params.";
     case "SQUID_UNAVAILABLE":
       return "Explain the alternate route provider is temporarily unavailable. Suggest retrying shortly or choosing a different transfer.";
+    case "SOROSWAP_ROUTE_NOT_FOUND":
+      return "Explain no Stellar liquidity exists for this pair or amount. Suggest a smaller amount, adjust slippage, or confirm XLM/USDC on Stellar. Do not call Li-Fi or Squid for Stellar same-chain swaps.";
+    case "SOROSWAP_VALIDATION_ERROR":
+      return "Re-run stellar_swap_quote with corrected stroops amount, allowlisted symbols, and trade_type.";
+    case "SOROSWAP_UNAUTHORIZED":
+      return "Operator misconfiguration — do not retry in a loop. Suggest trying again later.";
+    case "SOROSWAP_RATE_LIMITED":
+      return "Wait a few seconds, then retry stellar_swap_quote once.";
+    case "SOROSWAP_UNAVAILABLE":
+      return "Retry shortly; if persistent, stop and explain the Stellar swap service is unavailable.";
+    case "SOROSWAP_QUOTE_EXPIRED":
+      return "Re-run stellar_swap_quote before stellar_swap; never reuse a stale quote_id.";
     case "APPROVAL_FAILED":
       return "Explain the ERC-20 approval transaction failed. Suggest checking gas and retrying lifi_approve or cross_chain_swap.";
     case "CHAIN_NOT_ENABLED":

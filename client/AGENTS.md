@@ -196,6 +196,21 @@ Before adding `useEffect` + async:
 - Agent chat: `postChat` → `POST /api/v1/chat` (no wallet in body). Large transfers return `pending_transaction` → `TransactionApprovalModal`.
 - Personal wallet: never used for agent automation; only user-initiated deposits in `AgentWalletSection`.
 
+### Stellar routing fallback + timeline
+
+When the backend returns `approval_outcome: "stellar_routing_fallback_offered"`, show **`StellarRoutingFallbackDialog`** (not the standard swap approval modal). Wired in `ChatView.tsx` via `isStellarRoutingFallbackPending()` from `lib/stellar-routing-fallback.ts`.
+
+| Step | Module |
+|------|--------|
+| Detect pending fallback | `lib/stellar-routing-fallback.ts` |
+| Consent dialog UI | `components/app/StellarRoutingFallbackDialog.tsx` |
+| Accept / reject API | `POST /api/v1/agent/transactions/stellar-routing-fallback/:id/accept\|reject` via `lib/stellar-routing-fallback.ts` |
+| Stream → timeline mapping | `lib/chat-execution-steps.ts` — `stellar_routing_fallback_offered` → `stellar-routing-offer` |
+| Soroswap quote / submit labels | `lib/stellar-execution-tracking.ts` |
+| Status category | `lib/agent-status-category.ts` |
+
+**UX rules:** On **No**, dismiss without a Soroswap call. On **Yes**, accept API → open Soroswap approval modal with fresh quote. Prevent double-submit while quote loading (`useChatSession.ts`). After success, invalidate wallet assets for `stellar`.
+
 ---
 
 ## Environment

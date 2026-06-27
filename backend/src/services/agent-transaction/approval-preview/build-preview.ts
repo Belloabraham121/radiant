@@ -1,6 +1,7 @@
 import { getDeepBookEnv } from "../../../config/deepbook.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import { isLifiExecuteAction } from "../../agent/chains/evm/lifi/execute-actions.js";
+import { isSoroswapExecuteAction } from "../../agent/chains/stellar/soroswap/execute-actions.js";
 import { isSquidCrossChainRoute } from "./enrichers/squid.js";
 import {
   isDeepBookSwapAction,
@@ -90,6 +91,62 @@ function buildDeepBookSwapPreview(
           symbol: receiveSymbol,
           amount_display: receiveAmount,
           chain_label: "Sui",
+        }
+      : undefined,
+    quote_expires_at: readDeFiQuoteExpiresAt(params),
+    slippage: readNumberParam(params, "slippage"),
+    fiat_preview,
+  };
+}
+
+function buildSoroswapSwapPreview(
+  display: TransactionDisplay,
+  input: ExecuteTransactionInput,
+  fiat_preview: TransactionFiatPreview | null,
+): DeFiApprovalPreview {
+  const params = input.params;
+  const paySymbol =
+    readStringParam(params, "token_in") ??
+    readStringParam(params, "input_coin") ??
+    readStringParam(params, "from_token") ??
+    "token";
+  const receiveSymbol =
+    readStringParam(params, "token_out") ??
+    readStringParam(params, "output_coin") ??
+    readStringParam(params, "to_token") ??
+    "token";
+  const payAmount =
+    readStringParam(params, "from_amount_display") ??
+    readStringParam(params, "input_amount_display") ??
+    "";
+  const receiveAmount =
+    readStringParam(params, "to_amount_display") ??
+    readStringParam(params, "output_amount_display") ??
+    (typeof params.estimated_out_display === "number"
+      ? fmtDisplayNumber(params.estimated_out_display)
+      : "");
+  const minOut =
+    typeof params.min_out_display === "number"
+      ? fmtDisplayNumber(params.min_out_display)
+      : null;
+
+  return {
+    kind: "swap",
+    provider_id: "stellar-soroswap",
+    title: display.title,
+    amount_display: display.amount_display,
+    pay: payAmount
+      ? {
+          symbol: paySymbol,
+          amount_display: payAmount,
+          chain_label: "Stellar",
+        }
+      : undefined,
+    receive: receiveAmount
+      ? {
+          symbol: receiveSymbol,
+          amount_display: minOut ? `≥${minOut}` : receiveAmount,
+          chain_label: "Stellar",
         }
       : undefined,
     quote_expires_at: readDeFiQuoteExpiresAt(params),
@@ -226,6 +283,10 @@ export function buildDeFiApprovalPreview(
 ): DeFiApprovalPreview | null {
   if (isDeepBookSwapAction(input.action)) {
     return buildDeepBookSwapPreview(display, input, fiat_preview);
+  }
+
+  if (isSoroswapExecuteAction(input.action) && input.chain_id === "stellar") {
+    return buildSoroswapSwapPreview(display, input, fiat_preview);
   }
 
   if (input.action === "cross_chain_swap") {

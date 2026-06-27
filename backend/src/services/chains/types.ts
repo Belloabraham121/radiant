@@ -71,6 +71,13 @@ export type TxResult = {
       bridge_type: "chainflip" | "chainflipmultihop";
     } | null;
   };
+  soroswap?: {
+    tx_hash: string;
+    quote_id?: string;
+    route_id?: string;
+    tracking_status: "pending" | "success" | "failed" | null;
+    ledger?: number | null;
+  };
   deepbook?: {
     coin_key?: string;
     amount_display?: number;

@@ -21,6 +21,18 @@ export type SwapQuote = {
   price: number | null;
   fee_deep: number | null;
   expires_at: string | null;
+  /** Soroswap quote id (Stellar same-chain swaps). */
+  quote_id?: string;
+  /** Internal route id, e.g. `soroswap:{quoteId}`. */
+  route_id?: string;
+  /** Full provider quote blob for build/execute. */
+  provider_payload?: Record<string, unknown>;
+};
+
+/** Stellar same-chain swap quote from Soroswap. */
+export type StellarSwapQuote = SwapQuote & {
+  provider_id: "stellar-soroswap";
+  quote_id: string;
 };
 
 export type RouteStepType = "swap" | "bridge" | "approve";

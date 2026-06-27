@@ -1,4 +1,5 @@
 import type { LifiTrackJobInput } from "../services/defi/lifi/lifi-tracking.types.js";
+import type { SoroswapTrackJobInput } from "../services/defi/soroswap/soroswap-tracking.types.js";
 import type { SquidTrackJobInput } from "../services/defi/squid/squid-tracking.types.js";
 
 /** Deploy pipeline job queued from POST /api/v1/deploy. */
@@ -63,4 +64,12 @@ export const SQUID_TRACK_CROSS_CHAIN_EVENT = "radiant/squid.track.cross_chain" a
 export type SquidTrackCrossChainEvent = {
   name: typeof SQUID_TRACK_CROSS_CHAIN_EVENT;
   data: SquidTrackJobInput;
+};
+
+/** Durable Soroswap Stellar swap status polling after broadcast. */
+export const SOROSWAP_TRACK_SWAP_EVENT = "radiant/soroswap.track.swap" as const;
+
+export type SoroswapTrackSwapEvent = {
+  name: typeof SOROSWAP_TRACK_SWAP_EVENT;
+  data: SoroswapTrackJobInput;
 };

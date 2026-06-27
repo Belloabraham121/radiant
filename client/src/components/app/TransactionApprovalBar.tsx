@@ -9,6 +9,7 @@ import {
 } from "@/hooks/useSwapQuoteCountdown";
 import { formatAmountDisplayText, formatDisplayNumber } from "@/lib/format-display-amount";
 import { FiatPreviewLines } from "@/components/app/defi/FiatPreviewLines";
+import { QuoteExpiryCountdownLabel } from "@/components/app/RouteCountdownLabel";
 import {
   DeFiApprovalPreviewCard,
   useDeFiApprovalState,
@@ -65,7 +66,9 @@ export function TransactionApprovalBar({
 
   const isLegacySwap =
     !defiState.preview &&
-    (pending.action === "swap" || pending.action === "deepbook_swap");
+    (pending.action === "swap" ||
+      pending.action === "deepbook_swap" ||
+      pending.action === "stellar_swap");
   const legacyQuoteExpiresAt = isLegacySwap ? resolveQuoteExpiresAt(pending) : null;
   const legacyQuoteCountdown = useSwapQuoteCountdown(legacyQuoteExpiresAt);
   const legacyQuoteExpired = isLegacySwap && legacyQuoteCountdown.status === "expired";
@@ -79,8 +82,10 @@ export function TransactionApprovalBar({
     !isLifiContinuation &&
     (defiState.preview?.kind === "bridge" ||
       defiState.preview?.kind === "swap" ||
+      defiState.preview?.provider_id === "stellar-soroswap" ||
       isLegacySwap ||
-      pending.action === "cross_chain_swap");
+      pending.action === "cross_chain_swap" ||
+      pending.action === "stellar_swap");
   const showFreshQuote =
     canRefreshQuote &&
     Boolean(onFreshQuote) &&
@@ -229,6 +234,7 @@ export function TransactionApprovalBar({
             preview={defiState.preview}
             quoteCountdown={defiState.quoteCountdown}
             quoteExpired={defiState.quoteExpired}
+            quoteExpiresAt={defiState.quoteExpiresAt}
           />
         ) : isLegacySwap ? (
           <>
@@ -244,9 +250,9 @@ export function TransactionApprovalBar({
             {pending.fiat_preview ? (
               <FiatPreviewLines fiat={pending.fiat_preview} />
             ) : null}
-            {legacyQuoteCountdown.status === "active" ? (
+            {legacyQuoteCountdown.status === "active" && legacyQuoteExpiresAt ? (
               <p className="mt-2 text-[10px] font-semibold tabular-nums text-[var(--hero-blue)]">
-                Quote valid for {legacyQuoteCountdown.label}
+                <QuoteExpiryCountdownLabel label={legacyQuoteCountdown.label} />
               </p>
             ) : null}
             {legacyQuoteExpired ? (

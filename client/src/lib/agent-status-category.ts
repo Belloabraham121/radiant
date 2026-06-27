@@ -19,6 +19,16 @@ export function inferStatusCategoryFromStep(
   }
 
   if (
+    step.id === "stellar_routing_fallback_offered" ||
+    step.id === "soroswap_quote" ||
+    step.id === "stellar-routing-offer" ||
+    step.id === "soroswap-quote" ||
+    step.id.startsWith("stellar-")
+  ) {
+    return "defi";
+  }
+
+  if (
     step.status === "warning" &&
     /approval|confirm|waiting|preview/i.test(`${step.detail ?? ""} ${step.label}`)
   ) {

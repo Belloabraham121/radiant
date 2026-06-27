@@ -28,5 +28,21 @@ describe("cross-chain stream step mapping", () => {
       }),
       "defi",
     );
+    assert.equal(
+      inferStatusCategoryFromStep({
+        id: "stellar_routing_fallback_offered",
+        status: "running",
+        label: "Checking Stellar option…",
+      }),
+      "defi",
+    );
+    assert.equal(
+      inferStatusCategoryFromStep({
+        id: "soroswap_quote",
+        status: "running",
+        label: "Getting Stellar quote…",
+      }),
+      "defi",
+    );
   });
 });

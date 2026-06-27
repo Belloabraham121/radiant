@@ -28,4 +28,19 @@ export function RouteCountdownLabel({
   );
 }
 
+/** Quote expiry countdown for DeFi approval bars (Soroswap, Li-Fi, Squid). */
+export function QuoteExpiryCountdownLabel({
+  label,
+  prefix = "Quote valid for",
+}: {
+  label: string;
+  prefix?: string;
+}) {
+  return (
+    <>
+      {prefix} {label}
+    </>
+  );
+}
+
 export { formatLifiCountdownRemaining as formatRouteCountdownRemaining };

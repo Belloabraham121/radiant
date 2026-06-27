@@ -1,6 +1,7 @@
 import type { TransactionFiatPreview } from "../market/valuation.types.js";
 import type { DeFiApprovalPreview } from "../agent-transaction/approval-preview/approval-preview.types.js";
 import type { LiquidityFallbackOffer } from "../defi/cross-chain/cross-chain.types.js";
+import type { StellarRoutingFallbackOffer } from "../defi/stellar-routing/stellar-routing.types.js";
 import { z } from "zod";
 import { chainIdSchema } from "../chains/types.js";
 import type { BalanceResult, ChainId, TxResult } from "../chains/types.js";
@@ -106,7 +107,10 @@ export type ToolCallRecord = {
 
 export type { TransactionFiatPreview } from "../market/valuation.types.js";
 
-export type PendingTransactionApprovalOutcome = "approval_required" | "liquidity_fallback_offered";
+export type PendingTransactionApprovalOutcome =
+  | "approval_required"
+  | "liquidity_fallback_offered"
+  | "stellar_routing_fallback_offered";
 
 export type PendingTransaction = {
   id: string;
@@ -125,6 +129,8 @@ export type PendingTransaction = {
   approval_outcome?: PendingTransactionApprovalOutcome;
   /** Offered when Li-Fi has no liquidity and Squid fallback is available. */
   liquidity_fallback_offer?: LiquidityFallbackOffer;
+  /** Offered when tokens are Stellar-only but user selected another chain. */
+  stellar_routing_fallback_offer?: StellarRoutingFallbackOffer;
 };
 
 export type ChatResponse = {
@@ -304,6 +310,12 @@ export type ExecuteToolOutcome =
       pending: PendingTransaction;
       liquidity_fallback_offer: LiquidityFallbackOffer;
       agent_transaction_id?: string;
+    }
+  | {
+      status: "stellar_routing_fallback_offered";
+      pending: PendingTransaction;
+      stellar_routing_fallback_offer: StellarRoutingFallbackOffer;
+      agent_transaction_id?: string;
     };
 
 export function isExecutePendingUserAction(
@@ -315,16 +327,28 @@ export function isExecutePendingUserAction(
       pending: PendingTransaction;
       liquidity_fallback_offer: LiquidityFallbackOffer;
       agent_transaction_id?: string;
+    }
+  | {
+      status: "stellar_routing_fallback_offered";
+      pending: PendingTransaction;
+      stellar_routing_fallback_offer: StellarRoutingFallbackOffer;
+      agent_transaction_id?: string;
     } {
   return (
-    outcome.status === "approval_required" || outcome.status === "liquidity_fallback_offered"
+    outcome.status === "approval_required" ||
+    outcome.status === "liquidity_fallback_offered" ||
+    outcome.status === "stellar_routing_fallback_offered"
   );
 }
 
 export function pendingTransactionFromExecuteOutcome(
   outcome: ExecuteToolOutcome,
 ): PendingTransaction | undefined {
-  if (outcome.status === "approval_required" || outcome.status === "liquidity_fallback_offered") {
+  if (
+    outcome.status === "approval_required" ||
+    outcome.status === "liquidity_fallback_offered" ||
+    outcome.status === "stellar_routing_fallback_offered"
+  ) {
     return outcome.pending;
   }
   return undefined;

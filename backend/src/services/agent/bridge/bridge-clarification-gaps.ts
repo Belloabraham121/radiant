@@ -15,6 +15,7 @@ import {
   getBridgeReceiveTokenOptions,
   getBridgeSourceTokenOptions,
 } from "../../../config/token-capabilities.js";
+import { getChainsForToken } from "../swap/token-chain-affinity.js";
 import type { BridgeIntentField, PartialBridgeIntent } from "./bridge-intent.types.js";
 import {
   isBridgeIntentComplete,
@@ -72,6 +73,48 @@ function formatChainLabel(chainId?: ChainId, evmChainId?: number): string {
     return "Solana";
   }
   return chainId;
+}
+
+export const STELLAR_BRIDGE_UNSUPPORTED_MESSAGE =
+  "Cross-ecosystem bridging to or from Stellar isn't available in v1. " +
+  "Use swap on Stellar (Soroswap) for XLM/USDC on the Stellar network, " +
+  "or bridge between enabled Sui, Solana, and EVM networks only.";
+
+function tokenOnlyOnStellar(symbol: string): boolean {
+  const chains = getChainsForToken(symbol);
+  return chains.length === 1 && chains[0]?.chainId === "stellar";
+}
+
+function involvesUnsupportedStellarBridge(intent: PartialBridgeIntent): boolean {
+  if (intent.fromChainId === "stellar" || intent.toChainId === "stellar") {
+    return true;
+  }
+
+  const fromToken = intent.fromToken?.trim().toUpperCase();
+  const toToken = intent.toToken?.trim().toUpperCase();
+
+  if (fromToken && tokenOnlyOnStellar(fromToken) && intent.toChainId) {
+    return true;
+  }
+
+  if (toToken && tokenOnlyOnStellar(toToken) && intent.fromChainId) {
+    return true;
+  }
+
+  return false;
+}
+
+function buildStellarBridgeUnsupportedGap(): ClarificationGap {
+  return {
+    gap_id: "bridge.stellar_unsupported",
+    interaction_type: "confirm",
+    question: STELLAR_BRIDGE_UNSUPPORTED_MESSAGE,
+    hint: "Stellar is not on the Li-Fi bridge allowlist for this deployment.",
+    step_index: 0,
+    field: "stellar_unsupported",
+    action: "bridge",
+    kind: "intent",
+  };
 }
 
 function formatAmountSnippet(intent: PartialBridgeIntent): string | null {
@@ -239,6 +282,10 @@ function applyChainSelection(
 /** First missing or ambiguous bridge slot to clarify. */
 export function collectBridgeClarificationGap(intent: PartialBridgeIntent): ClarificationGap | null {
   const filled = withDefaultBridgeChains(intent);
+
+  if (involvesUnsupportedStellarBridge(filled)) {
+    return buildStellarBridgeUnsupportedGap();
+  }
 
   if (!filled.fromChainId || needsEvmChainChoice(filled.fromChainId, filled.fromEvmChainId)) {
     const options = buildBridgeChainOptions();

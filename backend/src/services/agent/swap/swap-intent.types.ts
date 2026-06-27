@@ -35,6 +35,7 @@ export const SWAP_KNOWN_COINS = [
   "WAL",
   "ETH",
   "SOL",
+  "XLM",
   "DBUSDC",
   "DBUSDT",
 ] as const;

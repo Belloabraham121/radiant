@@ -59,3 +59,42 @@ export type SquidQuoteStreamInput = {
   detail?: string;
   fallback_offer_id?: string;
 };
+
+/** Stellar / Soroswap execution timeline step ids (SSE `execution_step.id`). */
+export const STELLAR_STREAM_STEP_IDS = [
+  "stellar_routing_fallback_offered",
+  "soroswap_quote",
+  "stellar_build",
+  "stellar_sign",
+  "stellar_submit",
+  "stellar_confirm",
+] as const;
+
+export type StellarStreamStepId = (typeof STELLAR_STREAM_STEP_IDS)[number];
+
+export type StellarRoutingFallbackOfferedStreamInput = {
+  fallback_offer_id: string;
+  token_in: string;
+  token_out: string;
+  selected_chain_id?: string;
+};
+
+export type SoroswapQuoteStreamInput = {
+  status: "running" | "ok" | "failed";
+  token_in?: string;
+  token_out?: string;
+  detail?: string;
+  fallback_offer_id?: string;
+};
+
+export type SoroswapExecutionStreamMeta = {
+  transaction_id?: string;
+  digest?: string;
+  token_in?: string;
+  token_out?: string;
+  quote_id?: string;
+};
+
+export type SoroswapTrackingStreamInput = SoroswapExecutionStreamMeta & {
+  tracking_status: "pending" | "success" | "failed";
+};

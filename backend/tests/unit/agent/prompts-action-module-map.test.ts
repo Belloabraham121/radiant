@@ -97,9 +97,9 @@ describe("prompt action-module-map", () => {
 
 describe("prompt module registry triggers (Phase 3)", () => {
   it("exports CORE_MODULE_IDS and ALL_MODULE_IDS from registry", () => {
-    assert.equal(CORE_MODULE_IDS.length, 7);
+    assert.equal(CORE_MODULE_IDS.length, 8);
     assert.equal(ALL_MODULE_IDS.length, ALL_PROMPT_MODULES.length);
-    assert.equal(ALL_MODULE_IDS.length, 24);
+    assert.equal(ALL_MODULE_IDS.length, 32);
   });
 
   it("attaches triggers to optional protocol, artifact, and platform modules", () => {

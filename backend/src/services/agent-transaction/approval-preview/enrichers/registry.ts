@@ -1,10 +1,15 @@
 import type { ExecuteTransactionInput } from "../../../chains/types.js";
 import type { LiquidityFallbackOffer } from "../../../defi/cross-chain/cross-chain.types.js";
+import type { StellarRoutingFallbackOffer } from "../../../defi/stellar-routing/stellar-routing.types.js";
 import { enrichDeepBookSwapExecuteInputForApproval } from "./deepbook.js";
 import {
   enrichCrossChainExecuteInputForApproval,
   matchCrossChainExecuteInput,
 } from "./cross-chain.js";
+import {
+  enrichSoroswapExecuteInputForApproval,
+  matchSoroswapExecuteInput,
+} from "./soroswap.js";
 
 export type EnrichExecuteInputForApprovalResult =
   | { kind: "enriched"; input: ExecuteTransactionInput }
@@ -12,6 +17,11 @@ export type EnrichExecuteInputForApprovalResult =
       kind: "liquidity_fallback_offered";
       input: ExecuteTransactionInput;
       liquidity_fallback_offer: LiquidityFallbackOffer;
+    }
+  | {
+      kind: "stellar_routing_fallback_offered";
+      input: ExecuteTransactionInput;
+      stellar_routing_fallback_offer: StellarRoutingFallbackOffer;
     };
 
 type ApprovalEnricher = {
@@ -19,7 +29,7 @@ type ApprovalEnricher = {
   enrich: (
     privyUserId: string,
     input: ExecuteTransactionInput,
-    options?: import("./enrichers/cross-chain.js").CrossChainEnrichOptions,
+    options?: import("./cross-chain.js").CrossChainEnrichOptions,
   ) => Promise<EnrichExecuteInputForApprovalResult>;
 };
 
@@ -27,6 +37,10 @@ const APPROVAL_ENRICHERS: readonly ApprovalEnricher[] = [
   {
     match: matchCrossChainExecuteInput,
     enrich: enrichCrossChainExecuteInputForApproval,
+  },
+  {
+    match: matchSoroswapExecuteInput,
+    enrich: enrichSoroswapExecuteInputForApproval,
   },
   {
     match: () => true,
@@ -41,7 +55,7 @@ const APPROVAL_ENRICHERS: readonly ApprovalEnricher[] = [
 export async function enrichExecuteInputForApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
-  options?: import("./enrichers/cross-chain.js").CrossChainEnrichOptions,
+  options?: import("./cross-chain.js").CrossChainEnrichOptions,
 ): Promise<EnrichExecuteInputForApprovalResult> {
   for (const { match, enrich } of APPROVAL_ENRICHERS) {
     if (match(input)) {

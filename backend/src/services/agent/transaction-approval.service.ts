@@ -29,6 +29,7 @@ import type { AppActionSource } from "../projects/app-action.types.js";
 import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import type { LiquidityFallbackOffer } from "../defi/cross-chain/cross-chain.types.js";
+import type { StellarRoutingFallbackOffer } from "../defi/stellar-routing/stellar-routing.types.js";
 import { AppError } from "../../errors/app-error.js";
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { mapLifiExecuteError } from "../defi/lifi/lifi.errors.js";
@@ -65,6 +66,9 @@ import {
 } from "../defi/lifi/lifi-continuation-pending.js";
 import { previewExecuteTransactionFiat } from "../market/valuation.service.js";
 import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
+import { isSoroswapExecuteAction } from "./chains/stellar/soroswap/execute-actions.js";
+import { isSoroswapApprovalDisplayComplete } from "../agent-transaction/approval-preview/enrichers/soroswap-route-params.js";
+import { runWithSoroswapExecuteContext } from "../defi/soroswap/soroswap-execute-context.js";
 import { preflightLifiExecuteBalance } from "./chains/evm/lifi/approval-preflight.js";
 import { enqueueLifiCrossChainTrackingJob, enqueueLifiSwapTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
 import { enqueueSquidCrossChainTrackingJob } from "../../infrastructure/inngest/enqueue-squid-tracking.js";
@@ -82,6 +86,10 @@ import {
 import type { LifiTrackingMeta } from "../defi/lifi/lifi-tracking.types.js";
 import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
 import { emitLiquidityFallbackOfferedStep } from "./agent-stream-cross-chain.js";
+import {
+  emitStellarRoutingFallbackOfferedStep,
+  emitStellarSignAwaitingStep,
+} from "./agent-stream-stellar.js";
 import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
 import { runWithLifiExecuteContext } from "../defi/lifi/lifi-execute-context.js";
 import {
@@ -136,6 +144,7 @@ const MUTATING_EXECUTE_ACTIONS = new Set([
   "deepbook_vote",
   "cross_chain_swap",
   "lifi_approve",
+  "stellar_swap",
   "execute_bytes",
 ]);
 
@@ -179,6 +188,32 @@ export function buildLiquidityFallbackPendingFromOffer(
     defi_preview: null,
     approval_outcome: "liquidity_fallback_offered",
     liquidity_fallback_offer: offer,
+  };
+}
+
+export function buildStellarRoutingFallbackPendingFromOffer(
+  input: ExecuteTransactionInput,
+  offer: StellarRoutingFallbackOffer,
+  id = randomUUID(),
+): PendingTransaction {
+  const fromSymbol = offer.token_in;
+  const toSymbol = offer.token_out;
+  return {
+    id,
+    chain_id: input.chain_id,
+    action: input.action,
+    params: {
+      ...input.params,
+      approval_outcome: "stellar_routing_fallback_offered",
+      stellar_routing_fallback_offer: offer,
+    },
+    summary: `Swap on Stellar available for ${fromSymbol} → ${toSymbol}`,
+    amount_display: `${fromSymbol} → ${toSymbol}`,
+    quote_expires_at: offer.expires_at,
+    fiat_preview: null,
+    defi_preview: null,
+    approval_outcome: "stellar_routing_fallback_offered",
+    stellar_routing_fallback_offer: offer,
   };
 }
 
@@ -241,6 +276,14 @@ export async function buildPendingTransactionPreview(
     return buildLiquidityFallbackPendingFromOffer(enrichResult.input, enrichResult.liquidity_fallback_offer, id);
   }
 
+  if (enrichResult.kind === "stellar_routing_fallback_offered") {
+    return buildStellarRoutingFallbackPendingFromOffer(
+      enrichResult.input,
+      enrichResult.stellar_routing_fallback_offer,
+      id,
+    );
+  }
+
   let enriched = enrichResult.input;
   if (isLifiExecuteAction(enriched.action)) {
     if (isLifiContinuationApproval(enriched.params)) {
@@ -253,6 +296,16 @@ export async function buildPendingTransactionPreview(
       delete enriched.params.quote_expires_at;
     } else {
       const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(enriched.params));
+      enriched.params = {
+        ...enriched.params,
+        expires_at: coalescedExpiry,
+        quote_expires_at: coalescedExpiry,
+      };
+    }
+  } else if (isSoroswapExecuteAction(enriched.action) && enriched.chain_id === "stellar") {
+    const rawExpiry = readDeFiQuoteExpiresAt(enriched.params);
+    if (rawExpiry) {
+      const coalescedExpiry = coalesceDeFiQuoteExpiresAt(rawExpiry);
       enriched.params = {
         ...enriched.params,
         expires_at: coalescedExpiry,
@@ -428,6 +481,10 @@ export function transferRequiresApprovalWithPermissions(
     return bridgeRequiresApprovalWithPermissions(permissions, input);
   }
 
+  if (isSoroswapExecuteAction(input.action) && input.chain_id === "stellar") {
+    return true;
+  }
+
   if (isDeepBookCancelOrderAction(input.action)) {
     return true;
   }
@@ -518,6 +575,31 @@ export async function createPendingTransaction(
     if (offer) {
       emitLiquidityFallbackOfferedStep(context.sessionId, offer);
     }
+  }
+
+  if (context?.sessionId && pending.approval_outcome === "stellar_routing_fallback_offered") {
+    const offer = pending.stellar_routing_fallback_offer;
+    if (offer) {
+      emitStellarRoutingFallbackOfferedStep(context.sessionId, {
+        fallback_offer_id: offer.fallback_offer_id,
+        token_in: offer.token_in,
+        token_out: offer.token_out,
+        selected_chain_id: offer.selected_chain_id,
+      });
+    }
+  }
+
+  if (
+    context?.sessionId &&
+    pending.approval_outcome === "approval_required" &&
+    isSoroswapExecuteAction(pending.action) &&
+    pending.chain_id === "stellar"
+  ) {
+    emitStellarSignAwaitingStep(context.sessionId, {
+      transaction_id: pending.id,
+      token_in: typeof pending.params.token_in === "string" ? pending.params.token_in : undefined,
+      token_out: typeof pending.params.token_out === "string" ? pending.params.token_out : undefined,
+    });
   }
 
   return pending;
@@ -688,15 +770,38 @@ export async function approvePendingTransaction(
   } else if (isDeepBookSwapAction(executeInput.action)) {
     const enrichResult = await enrichExecuteInputForApproval(privyUserId, executeInput);
     executeInput = enrichResult.input;
+  } else if (isSoroswapExecuteAction(executeInput.action) && executeInput.chain_id === "stellar") {
+    const hasQuoteRef = Boolean(
+      executeInput.params.quote_id ?? executeInput.params.route_id ?? executeInput.params.transaction_xdr,
+    );
+    const displayComplete = isSoroswapApprovalDisplayComplete(executeInput.params);
+    if (!hasQuoteRef || !displayComplete) {
+      const enrichResult = await enrichExecuteInputForApproval(privyUserId, executeInput, {
+        requoteOnCacheMiss: true,
+      });
+      if (enrichResult.kind === "enriched") {
+        executeInput = enrichResult.input;
+      }
+    }
+    executeInput = applyNonExpiredQuoteExpiryCoalescing(executeInput);
   }
 
   if (
     (isDeepBookSwapAction(executeInput.action) ||
+      (isSoroswapExecuteAction(executeInput.action) && executeInput.chain_id === "stellar") ||
       (isLifiExecuteAction(executeInput.action) &&
         !isLifiContinuationApproval(executeInput.params))) &&
     isDeFiQuoteExpired(executeInput.params)
   ) {
-    if (isLifiExecuteAction(executeInput.action)) {
+    if (isSoroswapExecuteAction(executeInput.action)) {
+      const enrichResult = await enrichExecuteInputForApproval(privyUserId, executeInput, {
+        requoteOnCacheMiss: true,
+        forceRequote: true,
+      });
+      if (enrichResult.kind === "enriched") {
+        executeInput = applyNonExpiredQuoteExpiryCoalescing(enrichResult.input);
+      }
+    } else if (isLifiExecuteAction(executeInput.action)) {
       const enrichResult = await enrichCrossChainExecuteInputAfterClaim(
         privyUserId,
         transactionId,
@@ -734,10 +839,10 @@ export async function approvePendingTransaction(
       messageId: claimed.message_id ?? undefined,
       workflowStepIndex: claimed.workflow_step_index ?? undefined,
     };
-    const result = await runWithLifiExecuteContext(
-      { sessionId, transactionId },
-      () => runExecuteTransactionTool(privyUserId, executeInput),
-    );
+    const executeApproved = () => runExecuteTransactionTool(privyUserId, executeInput);
+    const result = isSoroswapExecuteAction(executeInput.action)
+      ? await runWithSoroswapExecuteContext({ sessionId, transactionId }, executeApproved)
+      : await runWithLifiExecuteContext({ sessionId, transactionId }, executeApproved);
 
     const tracking = readLifiTrackingFromTxResult(result);
     const squidTracking = readSquidTrackingFromTxResult(result);
