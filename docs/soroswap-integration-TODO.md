@@ -716,9 +716,9 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                               | Owner    | Path                                         |
 | ------ | -------------------------------------------------- | -------- | -------------------------------------------- |
-| [ ]    | `StellarRoutingFallbackOffer` client type          | [Client] | `client/src/lib/stellar-routing-fallback.ts` |
-| [ ]    | `acceptStellarRoutingFallback(offerId)` API helper | [Client] | ↑                                            |
-| [ ]    | `rejectStellarRoutingFallback(offerId)` API helper | [Client] | ↑                                            |
+| [x]    | `StellarRoutingFallbackOffer` client type          | [Client] | `client/src/lib/stellar-routing-fallback.ts` |
+| [x]    | `acceptStellarRoutingFallback(offerId)` API helper | [Client] | ↑                                            |
+| [x]    | `rejectStellarRoutingFallback(offerId)` API helper | [Client] | ↑                                            |
 
 
 #### 8.2 Consent dialog
@@ -726,11 +726,11 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                                           | Owner    | Path                                                         |
 | ------ | ------------------------------------------------------------------------------ | -------- | ------------------------------------------------------------ |
-| [ ]    | `StellarRoutingFallbackDialog` — short wrong-network message, Yes / No         | [Client] | `client/src/components/app/StellarRoutingFallbackDialog.tsx` |
-| [ ]    | Wire to `pending_transaction.stellar_routing_fallback_offer` or stream payload | [Client] | `ChatView.tsx` or approval layer                             |
-| [ ]    | On Yes: accept API → open Soroswap approval modal                              | [Client] | ↑                                                            |
-| [ ]    | On No: dismiss + timeline cancelled/skipped                                    | [Client] | ↑                                                            |
-| [ ]    | Prevent double-submit while quote loading                                      | [Client] | ↑                                                            |
+| [x]    | `StellarRoutingFallbackDialog` — short wrong-network message, Yes / No         | [Client] | `client/src/components/app/StellarRoutingFallbackDialog.tsx` |
+| [x]    | Wire to `pending_transaction.stellar_routing_fallback_offer` or stream payload | [Client] | `ChatView.tsx` or approval layer                             |
+| [x]    | On Yes: accept API → open Soroswap approval modal                              | [Client] | ↑                                                            |
+| [x]    | On No: dismiss + timeline cancelled/skipped                                    | [Client] | ↑                                                            |
+| [x]    | Prevent double-submit while quote loading                                      | [Client] | ↑                                                            |
 
 
 #### 8.3 Execution timeline

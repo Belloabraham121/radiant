@@ -42,6 +42,12 @@ import {
   rejectLiquidityFallback,
 } from "@/lib/cross-chain-fallback";
 import {
+  acceptStellarRoutingFallback,
+  isStellarRoutingFallbackPending,
+  markStellarRoutingOfferDeclinedInMessages,
+  rejectStellarRoutingFallback,
+} from "@/lib/stellar-routing-fallback";
+import {
   applyCrossChainLiveUpdateToMessages,
   applyOptimisticCrossChainApprovalToMessages,
   collectTrackedCrossChainTransactionIds,
@@ -1174,6 +1180,74 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     rejectingFallback,
   ]);
 
+  const acceptStellarRoutingFallbackPending = useCallback(async () => {
+    if (
+      !isStellarRoutingFallbackPending(pendingTx) ||
+      acceptingFallback ||
+      rejectingFallback
+    ) {
+      return;
+    }
+
+    const offerId = pendingTx.stellar_routing_fallback_offer.fallback_offer_id;
+    setAcceptingFallback(true);
+    setChatError(null);
+
+    try {
+      const result = await acceptStellarRoutingFallback(offerId);
+      applyPendingTransaction(result.pending, activeSessionId ?? undefined);
+      setChatError(null);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? (messageForChatStreamError(err.code) ?? err.message)
+          : "Could not fetch a Stellar swap quote. Try again.";
+      setChatError(message);
+    } finally {
+      setAcceptingFallback(false);
+    }
+  }, [
+    acceptingFallback,
+    activeSessionId,
+    applyPendingTransaction,
+    pendingTx,
+    rejectingFallback,
+  ]);
+
+  const rejectStellarRoutingFallbackPending = useCallback(async () => {
+    if (
+      !isStellarRoutingFallbackPending(pendingTx) ||
+      acceptingFallback ||
+      rejectingFallback
+    ) {
+      return;
+    }
+
+    const offerId = pendingTx.stellar_routing_fallback_offer.fallback_offer_id;
+    setRejectingFallback(true);
+    setChatError(null);
+
+    try {
+      await rejectStellarRoutingFallback(offerId);
+      applyPendingTransaction(null);
+      setMessages((current) => markStellarRoutingOfferDeclinedInMessages(current));
+      setChatError(null);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Could not decline the Stellar swap offer. Try again.";
+      setChatError(message);
+    } finally {
+      setRejectingFallback(false);
+    }
+  }, [
+    acceptingFallback,
+    applyPendingTransaction,
+    pendingTx,
+    rejectingFallback,
+  ]);
+
   const rejectPending = useCallback(async () => {
     if (!pendingTx || rejecting || approving) return;
 
@@ -1329,6 +1403,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     rejectPending,
     acceptLiquidityFallbackPending,
     rejectLiquidityFallbackPending,
+    acceptStellarRoutingFallbackPending,
+    rejectStellarRoutingFallbackPending,
     respondClarification,
     dismissPending: () => applyPendingTransaction(null),
     dismissClarification: () => setPendingClarification(null),
