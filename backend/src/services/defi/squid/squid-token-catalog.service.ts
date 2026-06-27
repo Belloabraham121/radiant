@@ -6,10 +6,25 @@ import { squidCachedCatalogFetch, squidTokensCacheKey } from "./squid-cache.js";
 import { consumeSquidOutboundQuota } from "./squid-rate-limit.js";
 import { squidTokenSchema, type SquidTokenEntry } from "./squid.types.js";
 
+type GetSquidTokensFn = (
+  userId: string,
+  chainIds: string[],
+) => Promise<Record<string, SquidTokenEntry[]>>;
+
+let getSquidTokensForTests: GetSquidTokensFn | null = null;
+
+/** Test hook — avoid Squid SDK init in unit tests. */
+export function setGetSquidTokensForTests(fn: GetSquidTokensFn | null): void {
+  getSquidTokensForTests = fn;
+}
+
 export async function getSquidTokens(
   userId: string,
   chainIds: string[],
 ): Promise<Record<string, SquidTokenEntry[]>> {
+  if (getSquidTokensForTests) {
+    return getSquidTokensForTests(userId, chainIds);
+  }
   if (!isSquidEnabled()) {
     throw new AppError(503, "SQUID_UNAVAILABLE", "Squid is not enabled on this deployment.");
   }

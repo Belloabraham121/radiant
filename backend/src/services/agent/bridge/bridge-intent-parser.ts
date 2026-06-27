@@ -125,12 +125,21 @@ function parseChainSegment(
       continue;
     }
 
-    if (preferChain && !chainId) {
-      const chainFirst = resolveChainFromToken(token, true);
-      if (chainFirst) {
-        chainId = chainFirst.chainId;
-        evmChainId = chainFirst.evmChainId;
-        continue;
+    if (preferChain && !chainId && !expectChainAfterOn) {
+      const isKnownCoin = findCoinSymbol(token) !== undefined;
+      const nonEvmChain = resolveNonEvmChainIdFromLabel(token);
+      const chainNativeCoin =
+        isKnownCoin &&
+        (nonEvmChain !== undefined ||
+          token.toUpperCase() === "SUI" ||
+          token.toUpperCase() === "SOL");
+      if (!isKnownCoin || chainNativeCoin) {
+        const chainFirst = resolveChainFromToken(token, chainNativeCoin);
+        if (chainFirst) {
+          chainId = chainFirst.chainId;
+          evmChainId = chainFirst.evmChainId;
+          continue;
+        }
       }
     }
 
@@ -436,4 +445,14 @@ export function isBridgeIntentComplete(intent: PartialBridgeIntent): boolean {
 
 export function withDefaultBridgeChains(intent: PartialBridgeIntent): PartialBridgeIntent {
   return { ...intent };
+}
+
+export function isSameEvmChainBridgeIntent(intent: PartialBridgeIntent): boolean {
+  if (intent.fromChainId !== "ethereum" || intent.toChainId !== "ethereum") {
+    return false;
+  }
+  if (intent.fromEvmChainId === undefined || intent.toEvmChainId === undefined) {
+    return false;
+  }
+  return intent.fromEvmChainId === intent.toEvmChainId;
 }

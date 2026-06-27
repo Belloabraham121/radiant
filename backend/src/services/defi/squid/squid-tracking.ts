@@ -122,6 +122,11 @@ export function buildSquidTrackingMeta(
     chainflipDeposit?.bridge_type ?? executeResult.bridge_type ?? null;
   const txHash = executeResult.tx_hashes[0] ?? null;
   const statusTransactionId = chainflipTrackingId ?? txHash;
+  const sameChainEvm =
+    fromChain === toChain &&
+    fromChain === "ethereum" &&
+    readNumber(params.from_evm_chain_id) !== undefined &&
+    readNumber(params.from_evm_chain_id) === readNumber(params.to_evm_chain_id);
 
   return {
     route_id: executeResult.route_id,
@@ -142,7 +147,12 @@ export function buildSquidTrackingMeta(
       readNumber(params.estimated_duration_seconds) ??
       null,
     bridge_started_at: executeResult.bridge_started_at,
-    tracking_status: executeResult.effects_status === "pending" ? "PENDING" : null,
+    tracking_status:
+      executeResult.effects_status === "success" && sameChainEvm
+        ? "SUCCESS"
+        : executeResult.effects_status === "pending"
+          ? "PENDING"
+          : null,
     substatus: null,
     substatus_message: null,
     receiving_tx_hash: null,

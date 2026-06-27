@@ -9,6 +9,14 @@ type EvmChainStackProps = {
   size?: number;
 };
 
+/** Each icon overlaps the previous by ~50%, left to right on one horizontal line. */
+const ICON_OVERLAP_RATIO = 0.5;
+
+function stackedIconWidth(iconSize: number, count: number): number {
+  if (count <= 1) return iconSize;
+  return iconSize + (count - 1) * iconSize * ICON_OVERLAP_RATIO;
+}
+
 function NetworkIcon({
   chainId,
   label,
@@ -51,24 +59,33 @@ function NetworkIcon({
   );
 }
 
-/** EVM network logos in a row, with hover popup listing supported chains. */
+/** EVM network logos in a horizontal overlapping stack, with hover popup listing supported chains. */
 export function EvmChainStack({ networks, size = 32 }: EvmChainStackProps) {
   if (networks.length === 0) {
     return null;
   }
 
+  const stackWidth = stackedIconWidth(size, networks.length);
+  const overlapOffset = size * ICON_OVERLAP_RATIO;
+
   return (
     <div className="group relative shrink-0">
       <div
-        className="flex flex-wrap items-center gap-1.5"
+        className="flex items-center"
+        style={{ width: stackWidth, height: size }}
         aria-label={`Supported on ${networks.map((n) => n.label).join(", ")}`}
       >
-        {networks.map((network) => (
+        {networks.map((network, index) => (
           <NetworkIcon
             key={network.chainId}
             chainId={network.chainId}
             label={network.label}
             size={size}
+            className="relative shrink-0"
+            style={{
+              marginLeft: index === 0 ? 0 : -overlapOffset,
+              zIndex: networks.length - index,
+            }}
           />
         ))}
       </div>

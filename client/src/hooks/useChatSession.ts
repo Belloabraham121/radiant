@@ -768,6 +768,9 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
               role: "agent",
               text: finalReply,
               streaming: false,
+              ...(liveMessage?.statusCategory
+                ? { statusCategory: liveMessage.statusCategory }
+                : {}),
               ...mapToolCallsToMessageExtras(data.tool_calls, liveSteps),
               ...(data.artifact ? { artifact: data.artifact } : {}),
             },

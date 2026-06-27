@@ -44,7 +44,7 @@ export function squidToRadiantChainRef(squidChainId: string): SquidChainRef {
 export function toSquidTokenAddress(token: SupportedToken, chainRef: SquidChainRef): string {
   if (chainRef.chain_id === "sui") {
     if (token.kind === "native" || token.symbol === "SUI") {
-      return token.address ?? SQUID_SUI_NATIVE_TOKEN_ADDRESS;
+      return SQUID_SUI_NATIVE_TOKEN_ADDRESS;
     }
     if (!token.address) {
       throw new AppError(

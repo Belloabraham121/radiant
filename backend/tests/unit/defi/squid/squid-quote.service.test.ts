@@ -9,6 +9,7 @@ import {
   getSquidRoute,
 } from "../../../../src/services/defi/squid/squid-quote.service.js";
 import { squidSdk, resetSquidClientForTests } from "../../../../src/services/defi/squid/squid.client.js";
+import { setGetSquidTokensForTests } from "../../../../src/services/defi/squid/squid-token-catalog.service.js";
 import { resolveSquidTokens } from "../../../../src/services/defi/squid/squid-input.js";
 
 function enableSquidEnv(): void {
@@ -30,6 +31,7 @@ describe("squid-quote.service", () => {
   afterEach(() => {
     squidSdk.getRoute = originalGetRoute;
     resetSquidClientForTests();
+    setGetSquidTokensForTests(null);
     clearMemoryCacheForTests();
     delete process.env.SQUID_ENABLED;
     delete process.env.SQUID_INTEGRATOR_ID;
@@ -37,6 +39,7 @@ describe("squid-quote.service", () => {
 
   it("fetchSquidRouteQuote returns normalized route with mocked SDK", async () => {
     enableSquidEnv();
+    setGetSquidTokensForTests(async () => ({}));
     originalGetRoute = squidSdk.getRoute;
     squidSdk.getRoute = async () => ({
       route: {
@@ -63,6 +66,7 @@ describe("squid-quote.service", () => {
     });
 
     const route = await fetchSquidRouteQuote({
+      userId: "user-test",
       tokens,
       amountAtomic: "1000000",
       fromAddress: "0x0000000000000000000000000000000000000001",

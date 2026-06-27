@@ -3,8 +3,10 @@ import { Transaction } from "@mysten/sui/transactions";
 import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { SquidDataType, type OnChainExecutionData } from "@0xsquid/squid-types";
 import type { ExecuteRoute } from "@0xsquid/sdk/dist/types/index.js";
+import type { Hex } from "viem";
+import { encodeFunctionData, erc20Abi, maxUint256 } from "viem";
 import { getEvmNetwork } from "../../../config/evm.js";
-import { createEvmWalletClient } from "../../../infrastructure/evm/client.js";
+import { createEvmWalletClient, getEvmPublicClient } from "../../../infrastructure/evm/client.js";
 import { getPrivyClient } from "../../../infrastructure/privy/client.js";
 import { AppError } from "../../../errors/app-error.js";
 import { createPrivyViemAccount } from "../../wallet/evm-signing.service.js";
@@ -20,6 +22,7 @@ import {
 import { buildSignerAuthorizationContext } from "../../../utils/privy-authorization.js";
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
 import type { SquidChainRef } from "../../../config/squid-chains.js";
+import { SQUID_NATIVE_EVM_TOKEN_ADDRESS } from "./squid-chain-map.js";
 import type { ChainId } from "../../chains/types.js";
 import { getSquidChainflipDepositAddress } from "./squid-deposit.service.js";
 import { resolveSquidBridgeType } from "./squid-status.service.js";
@@ -339,4 +342,161 @@ export function readOnChainExecutionTarget(
     return txRequest.target;
   }
   return null;
+}
+
+function readEvmRouteFromToken(route: SquidRouteSnapshot): string | null {
+  const fromToken = route.params?.fromToken;
+  return typeof fromToken === "string" && fromToken.startsWith("0x") ? fromToken : null;
+}
+
+function isNativeEvmSquidToken(tokenAddress: string): boolean {
+  return tokenAddress.toLowerCase() === SQUID_NATIVE_EVM_TOKEN_ADDRESS.toLowerCase();
+}
+
+function readBigIntField(value: unknown): bigint | undefined {
+  if (typeof value === "bigint") {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return BigInt(Math.trunc(value));
+  }
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    return BigInt(value);
+  }
+  return undefined;
+}
+
+function buildViemEvmSendParams(txRequest: OnChainExecutionData): {
+  to: Hex;
+  data?: Hex;
+  value?: bigint;
+  gas?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+  gasPrice?: bigint;
+} {
+  if (typeof txRequest.target !== "string" || !txRequest.target) {
+    throw new AppError(400, "SQUID_VALIDATION_ERROR", "Squid EVM route missing target.");
+  }
+
+  const params: ReturnType<typeof buildViemEvmSendParams> = {
+    to: txRequest.target as Hex,
+  };
+
+  if (typeof txRequest.data === "string" && txRequest.data.length > 0) {
+    params.data = txRequest.data as Hex;
+  }
+
+  const value = readBigIntField(txRequest.value);
+  if (value !== undefined) {
+    params.value = value;
+  }
+
+  const gas = readBigIntField(txRequest.gasLimit);
+  if (gas !== undefined) {
+    params.gas = gas;
+  }
+
+  const maxFeePerGas = readBigIntField(txRequest.maxFeePerGas);
+  const maxPriorityFeePerGas = readBigIntField(txRequest.maxPriorityFeePerGas);
+  if (maxFeePerGas !== undefined) {
+    params.maxFeePerGas = maxFeePerGas;
+    if (maxPriorityFeePerGas !== undefined) {
+      params.maxPriorityFeePerGas = maxPriorityFeePerGas;
+    }
+  } else {
+    const gasPrice = readBigIntField(txRequest.gasPrice);
+    if (gasPrice !== undefined) {
+      params.gasPrice = gasPrice;
+    }
+  }
+
+  return params;
+}
+
+/** Privy + viem ERC-20 approval — avoids Squid SDK ethers signer broadcast issues. */
+export async function executeSquidEvmTokenApproval(input: {
+  route: SquidRouteSnapshot;
+  agentWallet: ResolvedAgentWallet;
+  evmChainId: number;
+  fromAddress: string;
+}): Promise<{ tx_hash: string | null; effects_status: "success" | "failure" | "unknown" }> {
+  const tokenAddress = readEvmRouteFromToken(input.route);
+  if (!tokenAddress || isNativeEvmSquidToken(tokenAddress)) {
+    return { tx_hash: null, effects_status: "unknown" };
+  }
+
+  const spender = readOnChainExecutionTarget(input.route);
+  if (!spender) {
+    throw new AppError(
+      400,
+      "SQUID_VALIDATION_ERROR",
+      "Squid route missing approval spender address.",
+    );
+  }
+
+  const account = createPrivyViemAccount({
+    privyWalletId: input.agentWallet.privy_wallet_id,
+    address: input.agentWallet.address,
+  });
+  const walletClient = createEvmWalletClient(input.evmChainId, account);
+  const publicClient = getEvmPublicClient(input.evmChainId);
+
+  const hash = await walletClient.sendTransaction({
+    account,
+    chain: walletClient.chain,
+    to: tokenAddress as Hex,
+    data: encodeFunctionData({
+      abi: erc20Abi,
+      functionName: "approve",
+      args: [spender as Hex, maxUint256],
+    }),
+  });
+
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  return {
+    tx_hash: hash,
+    effects_status: receipt.status === "success" ? "success" : "failure",
+  };
+}
+
+/** Privy + viem EVM execute — Squid SDK ethers signer produces invalid raw txs with Privy. */
+export async function executeSquidEvmRouteManually(input: {
+  route: SquidRouteSnapshot;
+  agentWallet: ResolvedAgentWallet;
+  evmChainId: number;
+}): Promise<{ hash: string; confirmed: boolean }> {
+  const txRequest = input.route.transactionRequest;
+  if (!isOnChainExecutionData(txRequest)) {
+    throw new AppError(400, "SQUID_VALIDATION_ERROR", "Squid EVM route missing transaction data.");
+  }
+
+  const account = createPrivyViemAccount({
+    privyWalletId: input.agentWallet.privy_wallet_id,
+    address: input.agentWallet.address,
+  });
+  const walletClient = createEvmWalletClient(input.evmChainId, account);
+  const publicClient = getEvmPublicClient(input.evmChainId);
+  const hash = await walletClient.sendTransaction({
+    account,
+    chain: walletClient.chain,
+    ...buildViemEvmSendParams(txRequest),
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  return { hash, confirmed: receipt.status === "success" };
+}
+
+/** True when the route includes on-chain tx data (quoteOnly routes omit target/data). */
+export function squidRouteHasTransactionData(route: SquidRouteSnapshot): boolean {
+  const txRequest = route.transactionRequest;
+  if (!txRequest || typeof txRequest !== "object") {
+    return false;
+  }
+  if (txRequest.type === SquidDataType.ChainflipDepositAddress) {
+    return true;
+  }
+  if (isOnChainExecutionData(txRequest)) {
+    return typeof txRequest.target === "string" && txRequest.target.length > 0;
+  }
+  return false;
 }

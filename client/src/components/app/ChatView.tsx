@@ -149,10 +149,10 @@ function Bubble({
     <div
       data-bubble
       data-message-id={message.id}
-      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+      className={`flex min-w-0 w-full ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`max-w-[78%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-2`}
+        className={`min-w-0 max-w-[78%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-2`}
       >
         {!isUser && (
           <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/40">
@@ -500,7 +500,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
         </div>
       </header>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-8">
         {loadError ? (
           <div
             className={`${chatColumnClass} flex h-full items-center justify-center`}

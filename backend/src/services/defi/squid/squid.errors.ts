@@ -22,7 +22,55 @@ function extractAxiosStatus(err: unknown): number | null {
   return typeof status === "number" ? status : null;
 }
 
+function extractFromResponseData(data: unknown): string {
+  if (typeof data === "string") {
+    return sanitizeMessage(data);
+  }
+  if (typeof data !== "object" || data === null) {
+    return "";
+  }
+  const record = data as Record<string, unknown>;
+  if (typeof record.message === "string") {
+    return sanitizeMessage(record.message);
+  }
+  if (typeof record.error === "string") {
+    return sanitizeMessage(record.error);
+  }
+  if (Array.isArray(record.error)) {
+    const first = record.error[0];
+    if (first && typeof first === "object" && "message" in first) {
+      const message = (first as { message?: string }).message;
+      if (typeof message === "string") {
+        return sanitizeMessage(message);
+      }
+    }
+  }
+  if (Array.isArray(record.errors)) {
+    for (const item of record.errors) {
+      if (typeof item === "string") {
+        return sanitizeMessage(item);
+      }
+      if (item && typeof item === "object" && "message" in item) {
+        const message = (item as { message?: string }).message;
+        if (typeof message === "string") {
+          return sanitizeMessage(message);
+        }
+      }
+    }
+  }
+  return "";
+}
+
 function extractErrorMessage(err: unknown): string {
+  if (typeof err === "object" && err !== null && "response" in err) {
+    const data = (err as { response?: { data?: unknown } }).response?.data;
+    if (data !== undefined) {
+      const fromData = extractFromResponseData(data);
+      if (fromData) {
+        return fromData;
+      }
+    }
+  }
   if (err instanceof Error) {
     return sanitizeMessage(err.message);
   }
@@ -50,7 +98,45 @@ function extractErrorMessage(err: unknown): string {
   return "";
 }
 
-function mapHttpStatus(status: number, message: string): AppError {
+function extractSquidResponseType(err: unknown): string {
+  if (typeof err !== "object" || err === null || !("response" in err)) {
+    return "";
+  }
+  const data = (err as { response?: { data?: unknown } }).response?.data;
+  if (typeof data === "object" && data !== null && "type" in data) {
+    const type = (data as { type?: unknown }).type;
+    return typeof type === "string" ? type : "";
+  }
+  return "";
+}
+
+function isTokenNotSupportedMessage(message: string): boolean {
+  return /token is not supported|not supported for/i.test(message);
+}
+
+/** Squid returns this when swap size exceeds available pool liquidity (see Squid price-impact docs). */
+function isLowLiquidityMessage(message: string): boolean {
+  return /low liquidity|reduce swap amount|price impact/i.test(message);
+}
+
+function tokenNotSupportedUserMessage(message: string): string {
+  return message || "This token is not supported for the selected route.";
+}
+
+function lowLiquidityUserMessage(message: string): string {
+  return (
+    message ||
+    "Low liquidity for this route — try a smaller amount or a different destination token."
+  );
+}
+
+function mapHttpStatus(status: number, message: string, responseType?: string): AppError {
+  if (isTokenNotSupportedMessage(message)) {
+    return new AppError(404, "SQUID_NO_ROUTE", tokenNotSupportedUserMessage(message), { status });
+  }
+  if (isLowLiquidityMessage(message)) {
+    return new AppError(404, "SQUID_NO_ROUTE", lowLiquidityUserMessage(message), { status });
+  }
   if (status === 429) {
     return new AppError(429, "SQUID_RATE_LIMITED", "Squid is rate limiting; retry shortly.", {
       status,
@@ -67,7 +153,15 @@ function mapHttpStatus(status: number, message: string): AppError {
     });
   }
   if (status >= 500) {
-    return new AppError(503, "SQUID_UNAVAILABLE", "Squid is temporarily unavailable.", { status });
+    if (responseType === "BAD_REQUEST" && message) {
+      return new AppError(400, "SQUID_VALIDATION_ERROR", message, { status });
+    }
+    return new AppError(
+      503,
+      "SQUID_UNAVAILABLE",
+      message || "Squid is temporarily unavailable.",
+      { status },
+    );
   }
   return new AppError(502, "SQUID_UNAVAILABLE", message || "Squid request failed.", { status });
 }
@@ -80,14 +174,22 @@ export function mapSquidError(err: unknown): AppError {
 
   const axiosStatus = extractAxiosStatus(err);
   const message = extractErrorMessage(err);
+  const responseType = extractSquidResponseType(err);
 
   if (axiosStatus !== null) {
-    return mapHttpStatus(axiosStatus, message);
+    return mapHttpStatus(axiosStatus, message, responseType);
   }
 
   if (typeof err === "object" && err !== null && "status" in err && "message" in err) {
     const record = err as { status: number; message: string };
-    return mapHttpStatus(record.status, sanitizeMessage(record.message));
+    return mapHttpStatus(record.status, sanitizeMessage(record.message), responseType);
+  }
+
+  if (isTokenNotSupportedMessage(message)) {
+    return new AppError(404, "SQUID_NO_ROUTE", tokenNotSupportedUserMessage(message));
+  }
+  if (isLowLiquidityMessage(message)) {
+    return new AppError(404, "SQUID_NO_ROUTE", lowLiquidityUserMessage(message));
   }
 
   const lower = message.toLowerCase();

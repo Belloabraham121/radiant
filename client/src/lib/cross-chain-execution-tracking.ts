@@ -10,10 +10,12 @@ import {
   executionStepsForPendingApproval as lifiExecutionStepsForPendingApproval,
   executionStepsFromAgentTransaction as lifiExecutionStepsFromAgentTransaction,
   isInFlightLifiTransaction,
+  normalizeLifiExecutionSteps,
 } from "@/lib/lifi-execution-tracking";
 import {
   lifiBridgeStepLabel,
   lifiCountdownKind,
+  isSameChainLifiRoute,
   type LifiCountdownKind,
 } from "@/lib/lifi-countdown";
 
@@ -177,6 +179,29 @@ function isSquidTerminalFailure(status: string | null | undefined): boolean {
   return status === "FAILED" || status === "NOT_FOUND" || status === "REFUNDED";
 }
 
+function isSameChainSquidRoute(tracking: SquidTrackingMeta): boolean {
+  return isSameChainLifiRoute({
+    fromChainId: tracking.from_chain_id,
+    toChainId: tracking.to_chain_id,
+    fromEvmChainId: tracking.from_evm_chain_id,
+    toEvmChainId: tracking.to_evm_chain_id,
+  });
+}
+
+function isSameChainSquidPending(pending: PendingTransaction): boolean {
+  const params = pending.params;
+  return isSameChainLifiRoute({
+    fromChainId:
+      (params?.from_chain_id as AgentChainId | undefined) ??
+      (pending.chain_id as AgentChainId | undefined),
+    toChainId: params?.to_chain_id as AgentChainId | undefined,
+    fromEvmChainId:
+      typeof params?.from_evm_chain_id === "number" ? params.from_evm_chain_id : undefined,
+    toEvmChainId:
+      typeof params?.to_evm_chain_id === "number" ? params.to_evm_chain_id : undefined,
+  });
+}
+
 function executionStepsFromSquidTransaction(
   tx: AgentTransactionDetail | AgentTransactionListItem,
   tracking: SquidTrackingMeta,
@@ -186,6 +211,7 @@ function executionStepsFromSquidTransaction(
   const toChainId = (tracking.to_chain_id ?? chainId) as AgentChainId;
   const evmChainId = tracking.from_evm_chain_id;
   const digest = tx.digest ?? tracking.tx_hashes?.[0];
+  const sameChain = isSameChainSquidRoute(tracking);
   const meta = {
     agentTransactionId: tx.id,
     chainId,
@@ -200,15 +226,15 @@ function executionStepsFromSquidTransaction(
     estimatedDurationSeconds: tracking.estimated_duration_seconds,
     bridgeStartedAt: tracking.bridge_started_at,
   });
-  const countdownKind = countdownMeta.countdownKind ?? "bridge";
+  const countdownKind = countdownMeta.countdownKind ?? (sameChain ? "swap" : "bridge");
   const isChainflip = isChainflipDepositRoute(result, tracking);
 
   const steps: ExecutionStep[] = [
     {
-      id: "squid-quote",
+      id: "lifi-quote",
       status: "ok",
-      label: "Alternate route quoted",
-      detail: "Route ready via alternate provider",
+      label: sameChain ? "Route quoted" : "Alternate route quoted",
+      detail: sameChain ? "Cross-chain route ready" : "Route ready via alternate provider",
       ...meta,
     },
   ];
@@ -246,7 +272,35 @@ function executionStepsFromSquidTransaction(
   });
 
   const trackingStatus = tracking.tracking_status;
-  if (tx.status === "success" || isSquidTerminalSuccess(trackingStatus)) {
+  const swapComplete =
+    tx.status === "success" ||
+    tx.effects_status === "success" ||
+    isSquidTerminalSuccess(trackingStatus) ||
+    (sameChain && Boolean(digest) && tx.status !== "failure");
+
+  if (swapComplete) {
+    if (sameChain) {
+      steps.push(
+        {
+          id: "lifi-bridge",
+          status: "ok",
+          label: "Swapped",
+          detail: digest ? `Tx · ${digest.slice(0, 10)}…` : "Swap confirmed",
+          ...meta,
+          countdownKind: "swap" as const,
+        },
+        {
+          id: "lifi-complete",
+          status: "ok",
+          label: "Complete",
+          detail: digest ? `Tx · ${digest.slice(0, 10)}…` : "Swap complete",
+          ...(digest ? { digest, chainId } : {}),
+          agentTransactionId: tx.id,
+        },
+      );
+      return steps;
+    }
+
     const destDigest =
       tracking.receiving_tx_hash ?? tracking.tx_hashes?.at(-1) ?? digest;
     steps.push(
@@ -324,10 +378,17 @@ export function executionStepsForPendingApproval(
   pending: PendingTransaction,
 ): ExecutionStep[] {
   if (isAlternateCrossChainRoute(pending)) {
+    const sameChain = isSameChainSquidPending(pending);
     const base = lifiExecutionStepsForPendingApproval(pending);
     const mapped = base.map((step) =>
       step.id === "lifi-quote"
-        ? { ...step, label: "Alternate route quoted", detail: step.detail ?? "Route ready" }
+        ? {
+            ...step,
+            label: sameChain ? "Route quoted" : "Alternate route quoted",
+            detail: sameChain
+              ? (step.detail ?? "Cross-chain route ready")
+              : (step.detail ?? "Route ready"),
+          }
         : step,
     );
     if (isChainflipDepositPending(pending)) {
@@ -372,6 +433,9 @@ function isLikelySquidListItem(tx: AgentTransactionListItem): boolean {
 export function isInFlightSquidTransaction(tx: AgentTransactionListItem): boolean {
   if (tx.status === "success" && tx.effects_status === "pending") {
     return true;
+  }
+  if (tx.status === "success" && tx.effects_status === "success") {
+    return false;
   }
   if (tx.status !== "submitted") {
     return false;
@@ -519,7 +583,9 @@ export function mergeCrossChainTransactionStepsIntoMessages<
         (detail?.result as Record<string, unknown> | null | undefined) ?? null,
       );
       if (steps) {
-        executionSteps = mergeExecutionSteps(executionSteps, steps);
+        executionSteps = normalizeLifiExecutionSteps(
+          mergeExecutionSteps(executionSteps, steps),
+        );
       }
     }
 

@@ -6,6 +6,7 @@ import { resetSupportedTokensCacheForTests } from "../../../src/config/supported
 import {
   isHypotheticalBridgeMessage,
   isBridgeIntentComplete,
+  isSameEvmChainBridgeIntent,
   messageLooksLikeBridge,
   parsePartialBridgeIntent,
   withDefaultBridgeChains,
@@ -231,5 +232,30 @@ describe("bridge-clarification-gaps", () => {
     assert.ok(gap);
     assert.equal(gap!.field, "to_token");
     assert.ok(gap!.options?.some((option) => option.id === "ETH"));
+  });
+
+  it("parses bridge $1 usdc to eth on arbitrum as same-chain destination", () => {
+    const intent = parsePartialBridgeIntent("bridge $1 usdc to eth on arbitrum");
+    assert.ok(intent);
+    assert.equal(intent!.amount, 1);
+    assert.equal(intent!.amountUnit, "usd");
+    assert.equal(intent!.fromToken, "USDC");
+    assert.equal(intent!.toToken, "ETH");
+    assert.equal(intent!.toChainId, "ethereum");
+    assert.equal(intent!.toEvmChainId, 42161);
+    assert.equal(intent!.fromChainId, undefined);
+  });
+
+  it("detects same-chain EVM bridge intents", () => {
+    assert.equal(
+      isSameEvmChainBridgeIntent({
+        originalMessage: "test",
+        fromChainId: "ethereum",
+        fromEvmChainId: 42161,
+        toChainId: "ethereum",
+        toEvmChainId: 42161,
+      }),
+      true,
+    );
   });
 });

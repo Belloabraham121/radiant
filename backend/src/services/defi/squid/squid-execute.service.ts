@@ -8,17 +8,17 @@ import {
 import type { ResolvedAgentWallet } from "../../wallet/wallet.types.js";
 import type { ChainId } from "../../chains/types.js";
 import { executeSquidApproval, assertSquidExecuteCorridorSupported } from "./squid-approval.service.js";
-import { squidSdk } from "./squid.client.js";
 import { storeSquidRoute } from "./squid-cache.js";
 import { mapSquidExecuteError } from "./squid.errors.js";
 import {
   assertSquidRouteExecutable,
-  buildSquidExecuteSigner,
   executeSquidChainflipDepositRoute,
+  executeSquidEvmRouteManually,
   executeSquidSolanaRouteManually,
   executeSquidSuiRouteManually,
-  extractSquidTxHash,
   isSquidChainflipDepositRoute,
+  readOnChainExecutionTarget,
+  squidRouteHasTransactionData,
 } from "./squid-execute-providers.service.js";
 import {
   refreshSquidRouteAtExecute,
@@ -78,6 +78,10 @@ async function runSquidCrossChainSwap(
   });
   assertSquidRouteExecutable(stored.route, sourceChain.chain_id);
   const destChain = resolveDestinationChainFromSquidStored(stored);
+  const isSameChainEvm =
+    sourceChain.chain_id === "ethereum" &&
+    destChain.chain_id === "ethereum" &&
+    sourceChain.evm_chain_id === destChain.evm_chain_id;
 
   const { fromAddress, toAddress } = await resolveSquidWalletAddresses(
     privyUserId,
@@ -87,22 +91,28 @@ async function runSquidCrossChainSwap(
 
   await resolveAgentWallet(privyUserId, sourceChain.chain_id);
 
+  const executeParams = input as unknown as Record<string, unknown>;
+  const quoteExpired = isDeFiQuoteExpired(executeParams);
+  const missingTxData = !squidRouteHasTransactionData(stored.route);
   let refreshed = stored;
-  if (isDeFiQuoteExpired(input as unknown as Record<string, unknown>)) {
+  if (quoteExpired || missingTxData) {
     const tokens = resolveSquidTokens({
       from_chain_id: stored.from_chain_id,
       to_chain_id: stored.to_chain_id,
       from_evm_chain_id: stored.from_evm_chain_id,
       to_evm_chain_id: stored.to_evm_chain_id,
-      fromToken: readSnapshotToken(input as unknown as Record<string, unknown>, "from"),
-      toToken: readSnapshotToken(input as unknown as Record<string, unknown>, "to"),
-      amountAtomic: readSnapshotString(input as unknown as Record<string, unknown>, "from_amount_atomic") ?? stored.route.params?.fromAmount,
+      fromToken: readSnapshotToken(executeParams, "from"),
+      toToken: readSnapshotToken(executeParams, "to"),
+      amountAtomic:
+        readSnapshotString(executeParams, "from_amount_atomic") ??
+        stored.route.params?.fromAmount,
       confirmSameToken:
-        typeof (input as Record<string, unknown>).confirm_same_token === "boolean"
-          ? ((input as Record<string, unknown>).confirm_same_token as boolean)
+        typeof executeParams.confirm_same_token === "boolean"
+          ? executeParams.confirm_same_token
           : undefined,
     });
     refreshed = await refreshSquidRouteAtExecute({
+      userId: privyUserId,
       stored,
       tokens,
       fromAddress,
@@ -128,6 +138,7 @@ async function runSquidCrossChainSwap(
 
   const agentWallet = await resolveAgentWallet(privyUserId, sourceChain.chain_id);
   let txHash: string | null = null;
+  let evmSwapConfirmed = false;
   let chainflipDeposit: SquidExecuteResult["chainflip_deposit"] | undefined;
   const bridgeStartedAt = new Date().toISOString();
 
@@ -153,13 +164,13 @@ async function runSquidCrossChainSwap(
         agentWallet,
       });
     } else {
-      const signer = buildSquidExecuteSigner({ sourceChain, agentWallet });
-      const response = await squidSdk.executeRoute({
-        signer,
+      const executed = await executeSquidEvmRouteManually({
         route: refreshed.route,
-        signerAddress: fromAddress,
+        agentWallet,
+        evmChainId: sourceChain.evm_chain_id,
       });
-      txHash = extractSquidTxHash(response, sourceChain);
+      txHash = executed.hash;
+      evmSwapConfirmed = executed.confirmed;
     }
   } catch (err) {
     throw mapSquidExecuteError(err);
@@ -167,13 +178,19 @@ async function runSquidCrossChainSwap(
 
   const txHashes = txHash ? [txHash] : [];
   const duration = refreshed.route.estimate?.estimatedRouteDuration ?? null;
+  const effectsStatus =
+    isSameChainEvm && evmSwapConfirmed
+      ? "success"
+      : txHashes.length > 0
+        ? "pending"
+        : "unknown";
 
   return {
     route_id: routeId,
     quote_id: refreshed.quote_id,
     request_id: refreshed.request_id ?? null,
     tx_hashes: txHashes,
-    effects_status: txHashes.length > 0 ? "pending" : "unknown",
+    effects_status: effectsStatus,
     approval_tx_hash: approvalTxHash,
     bridge_started_at: txHashes.length > 0 ? bridgeStartedAt : null,
     estimated_duration_seconds: duration,

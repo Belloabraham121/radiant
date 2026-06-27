@@ -43,4 +43,65 @@ describe("squid.errors", () => {
     const err = mapSquidError(new Error("Route not found for pair"));
     assert.equal(err.code, "SQUID_NO_ROUTE");
   });
+
+  it("extracts message from axios response.data.message", () => {
+    const err = mapSquidError({
+      response: {
+        status: 400,
+        data: {
+          message:
+            "Token is not supported for toChain: 8453 toToken: 0x833589fcd6edb6e08f4c7c32d6f84b0ae40e2b64",
+        },
+      },
+      message: "Request failed with status code 400",
+    });
+    assert.equal(err.code, "SQUID_NO_ROUTE");
+    assert.equal(err.statusCode, 404);
+    assert.match(err.message, /Token is not supported for toChain: 8453/);
+  });
+
+  it("extracts message from axios response.data.errors array", () => {
+    const err = mapSquidError({
+      response: {
+        status: 500,
+        data: {
+          errors: [{ message: "Upstream routing service unavailable" }],
+        },
+      },
+      message: "Request failed with status code 500",
+    });
+    assert.equal(err.code, "SQUID_UNAVAILABLE");
+    assert.equal(err.message, "Upstream routing service unavailable");
+  });
+
+  it("maps Token is not supported to SQUID_NO_ROUTE", () => {
+    const err = mapSquidError({
+      response: {
+        status: 400,
+        data: {
+          message: "Token is not supported for fromChain: sui-mainnet fromToken: 0x2::sui::SUI",
+        },
+      },
+      message: "Request failed with status code 400",
+    });
+    assert.equal(err.code, "SQUID_NO_ROUTE");
+    assert.match(err.message, /not supported for fromChain/);
+  });
+
+  it("maps Squid low-liquidity 500 BAD_REQUEST to SQUID_NO_ROUTE", () => {
+    const err = mapSquidError({
+      response: {
+        status: 500,
+        data: {
+          message: "Low liquidity, please reduce swap amount and try again",
+          statusCode: 500,
+          type: "BAD_REQUEST",
+        },
+      },
+      message: "Request failed with status code 500",
+    });
+    assert.equal(err.code, "SQUID_NO_ROUTE");
+    assert.equal(err.statusCode, 404);
+    assert.match(err.message, /Low liquidity/);
+  });
 });

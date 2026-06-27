@@ -390,7 +390,46 @@ export function findAgentMessageIndexForLifiTransaction(
       return index;
     }
   }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      message.role === "agent" &&
+      message.executionSteps?.some(
+        (step) => step.id.startsWith("lifi-") || step.id === "fallback-offer",
+      )
+    ) {
+      return index;
+    }
+  }
   return -1;
+}
+
+function resolveLifiStepsTargetMessageIndex<
+  T extends {
+    id: string;
+    role: string;
+    executionSteps?: ExecutionStep[];
+    statusCategory?: string;
+  },
+>(
+  messages: T[],
+  transactionId: string,
+  primaryMessageId?: string | null,
+): number {
+  if (primaryMessageId) {
+    const byPrimary = messages.findIndex((message) => message.id === primaryMessageId);
+    if (byPrimary >= 0) {
+      return byPrimary;
+    }
+  }
+  const byTx = messages.findIndex(
+    (message) =>
+      message.role === "agent" && messageTracksLifiTransaction(message, transactionId),
+  );
+  if (byTx >= 0) {
+    return byTx;
+  }
+  return findAgentMessageIndexForLifiTransaction(messages, transactionId);
 }
 
 /** Transaction ids that still show a running Li-Fi step in the UI. */
@@ -446,7 +485,7 @@ export function reconcileTerminalLifiSteps(
   });
 }
 
-function normalizeLifiExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
+export function normalizeLifiExecutionSteps(steps: ExecutionStep[]): ExecutionStep[] {
   return sortExecutionSteps(
     reconcileTerminalLifiSteps(stripStaleApprovalExecuteStep(steps)),
   );
@@ -464,12 +503,17 @@ export function applyLifiTransactionStepsToMessages<
     return messages;
   }
 
-  return messages.map((message) => {
-    const owns =
-      (options?.primaryMessageId && message.id === options.primaryMessageId) ||
-      (message.role === "agent" &&
-        messageTracksLifiTransaction(message, transactionId));
-    if (!owns) {
+  const targetIndex = resolveLifiStepsTargetMessageIndex(
+    messages,
+    transactionId,
+    options?.primaryMessageId,
+  );
+  if (targetIndex < 0) {
+    return messages;
+  }
+
+  return messages.map((message, index) => {
+    if (index !== targetIndex) {
       return message;
     }
     return {

@@ -28,6 +28,7 @@ import { persistSessionStateSnapshot } from "./workflow/agent-session-state.stor
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
 import { tryHandleSwapIntentFromMessage } from "./swap/swap-clarification.flow.js";
 import { tryHandleBridgeIntentFromMessage } from "./bridge/bridge-clarification.flow.js";
+import { tryHandleSquidTestIntentFromMessage } from "./squid-test/squid-clarification.flow.js";
 import {
   applyScheduledReminderFallback,
   tryCreateScheduledReminderFromMessage,
@@ -111,6 +112,26 @@ export async function runChatTurn(
       });
 
       return persistWorkflowChatResponse(privyUserId, request, workflowOutcome);
+    }
+
+    const squidTestIntentOutcome = await tryHandleSquidTestIntentFromMessage(
+      privyUserId,
+      request.message,
+      session.id,
+    );
+
+    if (squidTestIntentOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, squidTestIntentOutcome);
     }
 
     const swapIntentOutcome = await tryHandleSwapIntentFromMessage(

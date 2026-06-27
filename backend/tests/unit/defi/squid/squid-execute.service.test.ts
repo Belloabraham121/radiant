@@ -3,7 +3,7 @@ import { afterEach, describe, it } from "node:test";
 import { resetChainConfigCacheForTests } from "../../../../src/config/chains.js";
 import { resetEvmConfigCacheForTests } from "../../../../src/config/evm.js";
 import { clearMemoryCacheForTests } from "../../../../src/infrastructure/redis/cache.js";
-import { assertSquidRouteExecutable } from "../../../../src/services/defi/squid/squid-execute-providers.service.js";
+import { assertSquidRouteExecutable, squidRouteHasTransactionData } from "../../../../src/services/defi/squid/squid-execute-providers.service.js";
 import { storeSquidRoute } from "../../../../src/services/defi/squid/squid-cache.js";
 import { resetSquidClientForTests } from "../../../../src/services/defi/squid/squid.client.js";
 import type { SquidStoredRoutePayload } from "../../../../src/services/defi/squid/squid.types.js";
@@ -98,6 +98,31 @@ describe("squid-execute.service", () => {
       }),
       (err: unknown) =>
         err instanceof Error && "code" in err && (err as { code: string }).code === "SQUID_VALIDATION_ERROR",
+    );
+  });
+
+  it("detects quote-only routes missing transaction data", () => {
+    assert.equal(
+      squidRouteHasTransactionData({
+        quoteId: "quote-only",
+        params: { fromChain: "8453", toChain: "8453", fromAmount: "1" },
+        transactionRequest: {},
+      } as SquidStoredRoutePayload["route"]),
+      false,
+    );
+    assert.equal(
+      squidRouteHasTransactionData({
+        quoteId: "executable",
+        params: { fromChain: "8453", toChain: "8453", fromAmount: "1" },
+        transactionRequest: {
+          type: SquidDataType.OnChainExecution,
+          routeType: "SWAP",
+          target: "0xrouter",
+          data: "0x",
+          value: "0",
+        },
+      } as SquidStoredRoutePayload["route"]),
+      true,
     );
   });
 

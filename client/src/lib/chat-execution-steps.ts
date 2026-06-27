@@ -123,7 +123,7 @@ export function mapStreamStepToExecutionStep(
     step.id === "liquidity_fallback_offered"
       ? "fallback-offer"
       : step.id === "squid_quote"
-        ? "squid-quote"
+        ? "lifi-quote"
         : step.id;
   const mappedLabel =
     step.id === "liquidity_fallback_offered"
@@ -273,11 +273,30 @@ function isFlashLoanFlow(steps: ExecutionStep[]): boolean {
   );
 }
 
+/** Collapse duplicate step ids (later updates win per upsertExecutionStep rules). */
+function dedupeExecutionStepsById(steps: ExecutionStep[]): ExecutionStep[] {
+  let deduped: ExecutionStep[] = [];
+  for (const step of steps) {
+    deduped = upsertExecutionStep(deduped, step);
+  }
+  return deduped;
+}
+
 /** Drop noise and fix execute/quote pairing for flash loan turns. */
 export function normalizeExecutionSteps(
   steps: ExecutionStep[],
 ): ExecutionStep[] {
-  let next = [...steps];
+  let next = dedupeExecutionStepsById(steps);
+
+  const squidQuote = next.find((step) => step.id === "squid-quote");
+  const lifiQuote = next.find((step) => step.id === "lifi-quote");
+  if (squidQuote && lifiQuote) {
+    next = next.filter((step) => step.id !== "squid-quote");
+  } else if (squidQuote && !lifiQuote) {
+    next = next.map((step) =>
+      step.id === "squid-quote" ? { ...step, id: "lifi-quote" } : step,
+    );
+  }
 
   if (isFlashLoanFlow(next)) {
     next = next.filter((step) => step.id !== "swap-quote");
