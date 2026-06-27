@@ -40,7 +40,7 @@ describe("executeSquidChainflipDepositRoute validation order", () => {
         agentWallet: {
           privy_wallet_id: "wallet-1",
           address: "SolanaAddress1111111111111111111111111111",
-          chain_id: "solana",
+          chain_type: "solana",
           signer_added: true,
         },
         route: {

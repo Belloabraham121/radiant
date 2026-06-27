@@ -10,6 +10,10 @@ import { listMessagesBySessionId } from "./message.repository.js";
 import { deleteAllAppDataByProjectId } from "../app-data/app-data.repository.js";
 import { drainPendingExecuteInApp } from "../agent/agent-stream-pending-execute.js";
 import {
+  findSessionIdsWithActiveTransactionsForUser,
+  sessionHasActiveTransaction,
+} from "../agent-transaction/agent-transaction.repository.js";
+import {
   createSession,
   deleteSessionById,
   findSessionForUser,
@@ -47,6 +51,7 @@ async function requireOwnedSession(sessionId: string, userId: bigint) {
 
 function toSessionListItem(
   session: Awaited<ReturnType<typeof listSessionsByUserId>>[number],
+  activeSessionIds: Set<string>,
 ): SessionListItem {
   const latest = session.messages[0]?.content ?? null;
   return {
@@ -54,6 +59,7 @@ function toSessionListItem(
     title: session.title,
     updated_at: session.updated_at.toISOString(),
     preview: latest ? truncatePreview(latest) : null,
+    has_active_transaction: activeSessionIds.has(session.id),
   };
 }
 
@@ -70,9 +76,12 @@ function toMessageRecord(message: Awaited<ReturnType<typeof listMessagesBySessio
 
 export async function listUserSessions(privyUserId: string): Promise<{ sessions: SessionListItem[] }> {
   const userId = await requireUserId(privyUserId);
-  const sessions = await listSessionsByUserId(userId);
+  const [sessions, activeSessionIds] = await Promise.all([
+    listSessionsByUserId(userId),
+    findSessionIdsWithActiveTransactionsForUser(userId),
+  ]);
   return {
-    sessions: sessions.map(toSessionListItem),
+    sessions: sessions.map((session) => toSessionListItem(session, activeSessionIds)),
   };
 }
 
@@ -136,6 +145,14 @@ export async function deleteUserSession(
 ): Promise<{ id: string; deleted: true }> {
   const userId = await requireUserId(privyUserId);
   await requireOwnedSession(sessionId, userId);
+
+  if (await sessionHasActiveTransaction(sessionId)) {
+    throw new AppError(
+      409,
+      "TRANSACTION_IN_PROGRESS",
+      "Cannot delete chat while a transaction is in progress.",
+    );
+  }
 
   await deleteAllAppDataByProjectId(sessionAppDataProjectId(sessionId));
   try {

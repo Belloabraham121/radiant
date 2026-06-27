@@ -4,7 +4,7 @@ import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { SquidDataType, type OnChainExecutionData } from "@0xsquid/squid-types";
 import type { ExecuteRoute } from "@0xsquid/sdk/dist/types/index.js";
 import type { Hex } from "viem";
-import { encodeFunctionData, erc20Abi, maxUint256 } from "viem";
+import { encodeFunctionData, erc20Abi } from "viem";
 import { getEvmNetwork } from "../../../config/evm.js";
 import { createEvmWalletClient, getEvmPublicClient } from "../../../infrastructure/evm/client.js";
 import { getPrivyClient } from "../../../infrastructure/privy/client.js";
@@ -366,6 +366,19 @@ function readBigIntField(value: unknown): bigint | undefined {
   return undefined;
 }
 
+function readSquidRouteFromAmount(route: SquidRouteSnapshot): bigint {
+  const fromAmount =
+    readBigIntField(route.estimate?.fromAmount) ?? readBigIntField(route.params?.fromAmount);
+  if (fromAmount === undefined) {
+    throw new AppError(
+      400,
+      "SQUID_VALIDATION_ERROR",
+      "Squid route missing from amount for ERC-20 approval.",
+    );
+  }
+  return fromAmount;
+}
+
 function buildViemEvmSendParams(txRequest: OnChainExecutionData): {
   to: Hex;
   data?: Hex;
@@ -442,6 +455,8 @@ export async function executeSquidEvmTokenApproval(input: {
   const walletClient = createEvmWalletClient(input.evmChainId, account);
   const publicClient = getEvmPublicClient(input.evmChainId);
 
+  const approvalAmount = readSquidRouteFromAmount(input.route);
+
   const hash = await walletClient.sendTransaction({
     account,
     chain: walletClient.chain,
@@ -449,7 +464,7 @@ export async function executeSquidEvmTokenApproval(input: {
     data: encodeFunctionData({
       abi: erc20Abi,
       functionName: "approve",
-      args: [spender as Hex, maxUint256],
+      args: [spender as Hex, approvalAmount],
     }),
   });
 

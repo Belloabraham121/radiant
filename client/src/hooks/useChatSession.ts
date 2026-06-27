@@ -65,6 +65,7 @@ import {
   takeCachedChatSession,
 } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
+import { useChatSessionActivity } from "@/components/app/chat-session-activity-context";
 import { useArtifactContext } from "@/components/app/ArtifactContext";
 import type { ChatAppScope } from "@/lib/chat-app-scope";
 import type { AgentStatusCategory } from "@/lib/agent-status-category";
@@ -77,6 +78,7 @@ import {
   subscribePreviewExecuteResult,
 } from "@/lib/preview-execute-result";
 import { clarificationAnswerDisplayText } from "@/lib/clarification-display";
+import { isChatSessionBusy } from "@/lib/chat-session-busy";
 
 function isLifiDestinationContinuation(
   pending: PendingTransaction | null | undefined,
@@ -128,6 +130,7 @@ function initialChatSessionState(sessionId?: string) {
 export function useChatSession(sessionId?: string, draftResetKey = 0) {
   const router = useRouter();
   const { refreshSessions } = useChatSessions();
+  const { setSessionBusy } = useChatSessionActivity();
   const {
     openArtifact,
     updateArtifact,
@@ -176,6 +179,25 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  const sessionBusy = isChatSessionBusy({
+    pendingTx,
+    approving,
+    streaming,
+    pendingClarification,
+    messages,
+  });
+
+  useEffect(() => {
+    if (!activeSessionId) {
+      return;
+    }
+
+    setSessionBusy(activeSessionId, sessionBusy);
+    return () => {
+      setSessionBusy(activeSessionId, false);
+    };
+  }, [activeSessionId, sessionBusy, setSessionBusy]);
 
   const applyPendingTransaction = useCallback(
     (

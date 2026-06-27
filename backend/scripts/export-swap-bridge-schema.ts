@@ -136,29 +136,24 @@ function buildSchema(useRuntimeEnv: boolean) {
       ).map((option) => option.id);
 
       const sampleFromToken = from.allowed_symbols[0];
-      const capabilities = sampleFromToken
-        ? queryBridgeCapabilities(
-            {
-              chain_id: from.chain_id,
-              evm_chain_id: from.evm_chain_id,
-            },
-            {
-              chain_id: to.chain_id,
-              evm_chain_id: to.evm_chain_id,
-            },
-            sampleFromToken,
-          )
-        : null;
+      const capabilities = queryBridgeCapabilities(
+        {
+          chain_id: from.chain_id,
+          evm_chain_id: from.evm_chain_id,
+        },
+        {
+          chain_id: to.chain_id,
+          evm_chain_id: to.evm_chain_id,
+        },
+        sampleFromToken,
+      );
 
       bridgeRoutes.push({
         from: chainKey(from),
         to: chainKey(to),
         primary_provider: from.bridge_provider,
         fallback_provider: "evm-squid",
-        cross_ecosystem:
-          from.chain_id !== to.chain_id && from.chain_id !== "ethereum" && to.chain_id !== "ethereum"
-            ? true
-            : from.chain_id !== to.chain_id,
+        cross_ecosystem: capabilities.cross_ecosystem,
         receive_tokens: receiveOptions,
         auto_fill_same_symbol_examples: from.allowed_symbols.filter((symbol) =>
           receiveOptions.includes(symbol),

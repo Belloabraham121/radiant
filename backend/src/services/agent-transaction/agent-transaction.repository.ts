@@ -192,6 +192,41 @@ export async function listAgentTransactionsForUser(
   return { items: items.map(toRecord), total };
 }
 
+const ACTIVE_SESSION_TRANSACTION_STATUSES: AgentTransactionStatus[] = [
+  "pending_approval",
+  "submitted",
+];
+
+export async function sessionHasActiveTransaction(sessionId: string): Promise<boolean> {
+  const count = await prisma.agentTransaction.count({
+    where: {
+      session_id: sessionId,
+      status: { in: ACTIVE_SESSION_TRANSACTION_STATUSES },
+    },
+  });
+  return count > 0;
+}
+
+export async function findSessionIdsWithActiveTransactionsForUser(
+  userId: bigint,
+): Promise<Set<string>> {
+  const rows = await prisma.agentTransaction.findMany({
+    where: {
+      user_id: userId,
+      session_id: { not: null },
+      status: { in: ACTIVE_SESSION_TRANSACTION_STATUSES },
+    },
+    select: { session_id: true },
+    distinct: ["session_id"],
+  });
+
+  return new Set(
+    rows
+      .map((row) => row.session_id)
+      .filter((sessionId): sessionId is string => sessionId != null),
+  );
+}
+
 export async function findAgentTransactionsBySessionForUser(
   sessionId: string,
   userId: bigint,

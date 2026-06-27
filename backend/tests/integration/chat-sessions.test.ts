@@ -146,6 +146,8 @@ describe("delete chat session", () => {
   let draftId: string;
   let savedProjectId: string;
   let transactionId: string;
+  let pendingApprovalSessionId: string;
+  let submittedSessionId: string;
 
   before(async () => {
     await initAppDataStorage();
@@ -262,6 +264,54 @@ describe("delete chat session", () => {
       key: "item-1",
       data: { text: "Buy milk" },
     });
+
+    const pendingApprovalSession = await createUserSession(deleteOwnerPrivyId, {
+      title: "Pending approval",
+    });
+    pendingApprovalSessionId = pendingApprovalSession.id;
+    const pendingApprovalMessage = await appendMessage(
+      pendingApprovalSessionId,
+      "user",
+      "Swap please",
+    );
+    await prisma.agentTransaction.create({
+      data: {
+        user_id: ownerUserId,
+        session_id: pendingApprovalSessionId,
+        message_id: pendingApprovalMessage.id,
+        chain_id: "sui",
+        wallet_address: "0x00000000000000000000000000000000000000000000000000000000000000bb",
+        action: "swap",
+        params: { pool_key: "SUI_USDC" },
+        category: "swap",
+        title: "Pending swap",
+        amount_display: "1 SUI",
+        status: "pending_approval",
+      },
+    });
+
+    const submittedSession = await createUserSession(deleteOwnerPrivyId, {
+      title: "Submitted tx",
+    });
+    submittedSessionId = submittedSession.id;
+    const submittedMessage = await appendMessage(submittedSessionId, "user", "Bridge please");
+    await prisma.agentTransaction.create({
+      data: {
+        user_id: ownerUserId,
+        session_id: submittedSessionId,
+        message_id: submittedMessage.id,
+        chain_id: "sui",
+        wallet_address: "0x00000000000000000000000000000000000000000000000000000000000000cc",
+        action: "bridge",
+        params: { from_chain: "sui" },
+        category: "swap",
+        title: "In-flight bridge",
+        amount_display: "1 SUI",
+        status: "submitted",
+        digest: "0xdelete-chat-submitted-digest",
+        submitted_at: new Date(),
+      },
+    });
   });
 
   after(async () => {
@@ -307,6 +357,36 @@ describe("delete chat session", () => {
         return true;
       },
     );
+  });
+
+  it("returns 409 when session has pending_approval transaction", async () => {
+    await assert.rejects(
+      () => deleteUserSession(deleteOwnerPrivyId, pendingApprovalSessionId),
+      (err: unknown) => {
+        assert.ok(err instanceof AppError);
+        assert.equal(err.statusCode, 409);
+        assert.equal(err.code, "TRANSACTION_IN_PROGRESS");
+        return true;
+      },
+    );
+
+    const session = await prisma.chatSession.findUnique({ where: { id: pendingApprovalSessionId } });
+    assert.ok(session);
+  });
+
+  it("returns 409 when session has submitted transaction", async () => {
+    await assert.rejects(
+      () => deleteUserSession(deleteOwnerPrivyId, submittedSessionId),
+      (err: unknown) => {
+        assert.ok(err instanceof AppError);
+        assert.equal(err.statusCode, 409);
+        assert.equal(err.code, "TRANSACTION_IN_PROGRESS");
+        return true;
+      },
+    );
+
+    const session = await prisma.chatSession.findUnique({ where: { id: submittedSessionId } });
+    assert.ok(session);
   });
 
   it("deletes chat, draft, and session app data while keeping saved project and activity", async () => {

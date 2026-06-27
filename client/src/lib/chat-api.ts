@@ -119,6 +119,7 @@ export type ChatSessionListItem = {
   title: string;
   updated_at: string;
   preview: string | null;
+  has_active_transaction?: boolean;
 };
 
 export type ChatSessionDetail = {

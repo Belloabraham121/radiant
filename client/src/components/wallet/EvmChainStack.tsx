@@ -73,6 +73,7 @@ export function EvmChainStack({ networks, size = 32 }: EvmChainStackProps) {
       <div
         className="flex items-center"
         style={{ width: stackWidth, height: size }}
+        role="img"
         aria-label={`Supported on ${networks.map((n) => n.label).join(", ")}`}
       >
         {networks.map((network, index) => (

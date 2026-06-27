@@ -19,6 +19,7 @@ import { UserAvatar } from "@/components/profile/UserAvatar";
 import { DeleteChatDialog } from "@/components/app/DeleteChatDialog";
 import { useNotifications } from "@/components/app/NotificationProvider";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
+import { useChatSessionActivity } from "@/components/app/chat-session-activity-context";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { formatSessionTime } from "@/lib/chat-messages";
 import { deleteChatSession, type ChatSessionListItem } from "@/lib/chat-api";
@@ -39,6 +40,7 @@ export function Sidebar() {
   const { open, setOpen } = useSidebar();
   const { seed, displayName } = useUserProfile();
   const { sessions, loading, error, refreshSessions, startNewChat } = useChatSessions();
+  const { isSessionBusy } = useChatSessionActivity();
   const { unreadCount } = useNotifications();
   const [deleteTarget, setDeleteTarget] = useState<ChatSessionListItem | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -166,6 +168,8 @@ export function Sidebar() {
 
             {sessions.map((chat) => {
               const active = activeSessionId === chat.id;
+              const deleteBlocked =
+                isSessionBusy(chat.id) || chat.has_active_transaction === true;
               return (
                 <div
                   key={chat.id}
@@ -192,19 +196,21 @@ export function Sidebar() {
                       </p>
                     ) : null}
                   </Link>
-                  <button
-                    type="button"
-                    aria-label={`Delete ${chat.title}`}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setDeleteError(null);
-                      setDeleteTarget(chat);
-                    }}
-                    className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border-2 border-transparent text-[var(--hero-ink)]/35 opacity-0 transition-all hover:border-[var(--hero-ink)] hover:bg-white hover:text-[var(--hero-coral)] group-hover:opacity-100"
-                  >
-                    <Trash2 className="size-3.5" strokeWidth={2.5} />
-                  </button>
+                  {!deleteBlocked ? (
+                    <button
+                      type="button"
+                      aria-label={`Delete ${chat.title}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDeleteError(null);
+                        setDeleteTarget(chat);
+                      }}
+                      className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full border-2 border-transparent text-[var(--hero-ink)]/35 opacity-0 transition-all hover:border-[var(--hero-ink)] hover:bg-white hover:text-[var(--hero-coral)] group-hover:opacity-100"
+                    >
+                      <Trash2 className="size-3.5" strokeWidth={2.5} />
+                    </button>
+                  ) : null}
                 </div>
               );
             })}
