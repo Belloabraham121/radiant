@@ -53,6 +53,11 @@ import {
 import { txResultFromLifiExecute } from "../../defi/lifi/lifi-tracking.js";
 import type { LifiExecuteResult } from "../../defi/lifi/lifi.types.js";
 import {
+  isSquidCrossChainExecuteParams,
+  txResultFromSquidExecute,
+} from "../../defi/squid/squid-tracking.js";
+import type { SquidExecuteResult } from "../../defi/squid/squid.types.js";
+import {
   executeDeepBookSubmitProposal,
   executeDeepBookVote,
   isDeepBookGovernanceAction,
@@ -443,14 +448,23 @@ export const suiAdapter: ChainAdapter = {
       const lifiParams = { ...params, from_chain_id: "sui" };
       const result = await executeLifiAction(privyUserId, action, lifiParams);
       if (action === "cross_chain_swap" && "tx_hashes" in result) {
-        const lifiResult = result as LifiExecuteResult;
-        const txHash = lifiResult.tx_hashes[0] ?? "unknown";
+        const txHash =
+          (result as SquidExecuteResult | LifiExecuteResult).tx_hashes[0] ?? "unknown";
+        if (isSquidCrossChainExecuteParams(lifiParams)) {
+          return txResultFromSquidExecute({
+            chain_id: "sui",
+            address: agentWallet.address,
+            digest: txHash,
+            params: lifiParams,
+            executeResult: result as SquidExecuteResult,
+          });
+        }
         return txResultFromLifiExecute({
           chain_id: "sui",
           address: agentWallet.address,
           digest: txHash,
           params: lifiParams,
-          executeResult: lifiResult,
+          executeResult: result as LifiExecuteResult,
         });
       }
       const txHash =

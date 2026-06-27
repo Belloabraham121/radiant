@@ -7,6 +7,8 @@ import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
 import { TransactionApprovalBar } from "@/components/app/TransactionApprovalBar";
+import { LiquidityFallbackDialog } from "@/components/app/LiquidityFallbackDialog";
+import { isLiquidityFallbackPending } from "@/lib/cross-chain-fallback";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
 import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
@@ -147,10 +149,10 @@ function Bubble({
     <div
       data-bubble
       data-message-id={message.id}
-      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+      className={`flex min-w-0 w-full ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`max-w-[78%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-2`}
+        className={`min-w-0 max-w-[78%] ${isUser ? "items-end" : "items-start"} flex flex-col gap-2`}
       >
         {!isUser && (
           <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/40">
@@ -282,11 +284,17 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
     pendingClarification,
     approving,
     rejecting,
+    refreshingQuote,
+    acceptingFallback,
+    rejectingFallback,
     respondingClarification,
     sendMessage,
     stopExecution,
     approvePending,
+    refreshPendingQuote,
     rejectPending,
+    acceptLiquidityFallbackPending,
+    rejectLiquidityFallbackPending,
     respondClarification,
     dismissClarification,
   } = useChatSession(sessionId, draftResetKey);
@@ -492,7 +500,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
         </div>
       </header>
 
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-8">
         {loadError ? (
           <div
             className={`${chatColumnClass} flex h-full items-center justify-center`}
@@ -571,17 +579,29 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
             pending={pendingClarification}
             busy={respondingClarification}
             onRespond={(answer) => void respondClarification(answer)}
+            onDismiss={dismissClarification}
           />
         ) : null}
 
-        {pendingTx && !pendingTxRelayedToPreview ? (
+        {pendingTx && isLiquidityFallbackPending(pendingTx) ? (
+          <LiquidityFallbackDialog
+            className={`${chatColumnClass} mb-3`}
+            offer={pendingTx.liquidity_fallback_offer}
+            busy={acceptingFallback || rejectingFallback}
+            error={chatError}
+            onAccept={() => void acceptLiquidityFallbackPending()}
+            onReject={() => void rejectLiquidityFallbackPending()}
+          />
+        ) : pendingTx && !pendingTxRelayedToPreview ? (
           <TransactionApprovalBar
             className={`${chatColumnClass} mb-3`}
             pending={pendingTx}
             busy={approving || rejecting}
+            refreshingQuote={refreshingQuote}
             statusMessage={chatError}
             onApprove={() => void approvePending()}
             onCancel={() => void rejectPending()}
+            onFreshQuote={() => void refreshPendingQuote()}
           />
         ) : null}
 

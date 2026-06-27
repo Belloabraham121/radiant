@@ -2,6 +2,7 @@
 
 import { Loader2, ShieldAlert } from "lucide-react";
 import type { PendingTransaction } from "@/lib/chat-api";
+import { isAlternateCrossChainRoute } from "@/lib/cross-chain-fallback";
 import {
   resolveQuoteExpiresAt,
   useSwapQuoteCountdown,
@@ -16,16 +17,20 @@ import {
 export function TransactionApprovalBar({
   pending,
   busy,
+  refreshingQuote,
   statusMessage,
   onApprove,
   onCancel,
+  onFreshQuote,
   className = "",
 }: {
   pending: PendingTransaction;
   busy?: boolean;
+  refreshingQuote?: boolean;
   statusMessage?: string | null;
   onApprove: () => void;
   onCancel: () => void;
+  onFreshQuote?: () => void;
   className?: string;
 }) {
   const defiState = useDeFiApprovalState(pending);
@@ -69,7 +74,18 @@ export function TransactionApprovalBar({
     pending.params.lifi_continuation === true ||
     pending.params.approval_kind === "lifi_continue" ||
     defiState.preview?.kind === "lifi_continue";
-  const approveDisabled = busy || (quoteExpired && !isLifiContinuation);
+  const approveDisabled = busy || refreshingQuote || (quoteExpired && !isLifiContinuation);
+  const canRefreshQuote =
+    !isLifiContinuation &&
+    (defiState.preview?.kind === "bridge" ||
+      defiState.preview?.kind === "swap" ||
+      isLegacySwap ||
+      pending.action === "cross_chain_swap");
+  const showFreshQuote =
+    canRefreshQuote &&
+    Boolean(onFreshQuote) &&
+    (quoteExpired ||
+      /fresh quote|quote expired/i.test(statusMessage ?? ""));
 
   const title = defiState.preview
     ? defiState.title
@@ -138,8 +154,12 @@ export function TransactionApprovalBar({
   const isLifi =
     pending.action === "cross_chain_swap" ||
     pending.defi_preview?.provider_id === "evm-lifi" ||
+    pending.defi_preview?.provider_id === "evm-squid" ||
     defiState.preview?.kind === "bridge" ||
     defiState.preview?.kind === "lifi_continue";
+  const isAlternateRoute = isAlternateCrossChainRoute(pending);
+  const alternateRouteLabel =
+    pending.defi_preview?.route_provider_label ?? "Alternate route";
 
   const displayTitle = busy
     ? isLifi
@@ -176,6 +196,8 @@ export function TransactionApprovalBar({
               ? "bg-[var(--hero-coral)]/15 text-[var(--hero-coral)]"
               : busy
                 ? "bg-[var(--hero-blue)]/15 text-[var(--hero-blue)]"
+                : isAlternateRoute
+                  ? "bg-[var(--hero-mint)]/15 text-[var(--hero-mint)]"
                 : "bg-[var(--hero-amber)]/15 text-[var(--hero-amber)]"
           }`}
         >
@@ -183,6 +205,8 @@ export function TransactionApprovalBar({
             ? "Executing"
             : quoteExpired && !isLifiContinuation
             ? "Quote expired"
+            : isAlternateRoute
+              ? alternateRouteLabel
             : isLifiContinuation
               ? "Action required"
               : "Pending"}
@@ -227,8 +251,8 @@ export function TransactionApprovalBar({
             ) : null}
             {legacyQuoteExpired ? (
               <p className="mt-2 text-[10px] font-semibold text-[var(--hero-coral)]">
-                This quote expired. Cancel and ask again to get a fresh rate — approval is blocked
-                until you refresh.
+                This quote expired. Tap <span className="font-bold">Fresh quote</span> to update
+                the rate, then approve.
               </p>
             ) : (
               <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">
@@ -283,7 +307,7 @@ export function TransactionApprovalBar({
         </p>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
           disabled={approveDisabled}
@@ -293,6 +317,8 @@ export function TransactionApprovalBar({
           {busy ? <Loader2 className="size-4 animate-spin" /> : null}
           {busy
             ? "Submitting…"
+            : refreshingQuote
+              ? "Refreshing…"
             : quoteExpired && !isLifiContinuation
             ? "Quote expired"
             : isLifiContinuation
@@ -301,12 +327,23 @@ export function TransactionApprovalBar({
         </button>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || refreshingQuote}
           onClick={onCancel}
           className="inline-flex flex-1 items-center justify-center rounded-full border-2 border-[var(--hero-ink)] bg-white px-4 py-2.5 text-sm font-bold shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Cancel
         </button>
+        {showFreshQuote ? (
+          <button
+            type="button"
+            disabled={busy || refreshingQuote}
+            onClick={onFreshQuote}
+            className="inline-flex w-full items-center justify-center rounded-full border-2 border-[var(--hero-blue)] bg-[var(--hero-blue)]/10 px-4 py-2.5 text-sm font-bold text-[var(--hero-blue)] shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 sm:ml-auto sm:w-auto"
+          >
+            {refreshingQuote ? <Loader2 className="size-4 animate-spin" /> : null}
+            Fresh quote
+          </button>
+        ) : null}
       </div>
     </div>
   );

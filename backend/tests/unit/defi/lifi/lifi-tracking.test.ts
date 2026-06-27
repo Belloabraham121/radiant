@@ -124,6 +124,28 @@ describe("lifi-tracking", () => {
     assert.equal(isSameChainLifiRoute(crossChain), false);
   });
 
+  it("rejects incomplete ethereum refs without evm_chain_id", () => {
+    const incompleteFrom = buildLifiTrackingMeta(
+      {
+        from_chain_id: "ethereum",
+        to_chain_id: "ethereum",
+        to_evm_chain_id: 8453,
+      },
+      executeResult,
+    );
+    const incompleteTo = buildLifiTrackingMeta(
+      {
+        from_chain_id: "ethereum",
+        to_chain_id: "ethereum",
+        from_evm_chain_id: 8453,
+      },
+      executeResult,
+    );
+
+    assert.equal(isSameChainLifiRoute(incompleteFrom), false);
+    assert.equal(isSameChainLifiRoute(incompleteTo), false);
+  });
+
   it("routes swap vs cross-chain enqueue explicitly", () => {
     const sameChainParams = {
       from_chain_id: "ethereum",
@@ -141,7 +163,7 @@ describe("lifi-tracking", () => {
       executeResult,
     });
 
-    assert.equal(shouldEnqueueLifiSwapTracking(pendingTx, tracking), true);
+    assert.equal(shouldEnqueueLifiSwapTracking(pendingTx, tracking), false);
     assert.equal(shouldEnqueueLifiCrossChainTracking(pendingTx, tracking), false);
 
     const successResult = txResultFromLifiExecute({
@@ -152,7 +174,7 @@ describe("lifi-tracking", () => {
       params: sameChainParams,
       executeResult: { ...executeResult, effects_status: "success" },
     });
-    assert.equal(shouldEnqueueLifiSwapTracking(successResult, tracking), true);
+    assert.equal(shouldEnqueueLifiSwapTracking(successResult, tracking), false);
     assert.equal(shouldEnqueueLifiCrossChainTracking(successResult, tracking), false);
 
     const crossChainTracking = buildLifiTrackingMeta(params, executeResult);

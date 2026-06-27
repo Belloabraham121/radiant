@@ -3,6 +3,7 @@ import { toolErrorToModelContent } from "../../../utils/agent-tool-errors.js";
 import { summarizeQueryChainResult, summarizeQueryChainResultAsync } from "./summarize-query-chain.js";
 import type { AgentToolErrorResult } from "../tools.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
+import { isExecutePendingUserAction, pendingTransactionFromExecuteOutcome } from "../agent.types.js";
 import { formatRadiantClientApiReminderForToolResult } from "../../projects/radiant-client-api-catalog.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
@@ -319,14 +320,25 @@ export function summarizeToolResult(name: string, result: unknown): string {
   }
 
   const outcome = result as ExecuteToolOutcome;
-  if (outcome.status === "approval_required") {
-    const fiat = outcome.pending.fiat_preview;
+  if (isExecutePendingUserAction(outcome)) {
+    const pending = pendingTransactionFromExecuteOutcome(outcome);
+    if (!pending) {
+      return "Waiting for your response in the dialog.";
+    }
+    if (outcome.status === "liquidity_fallback_offered") {
+      return `Alternate liquidity route available for ${pending.summary}. Review and accept or decline in the dialog.`;
+    }
+    const fiat = pending.fiat_preview;
     const fiatLine =
       fiat?.total_pay_usd != null && fiat.total_receive_usd != null
         ? ` (~$${fiat.total_pay_usd.toFixed(2)} → ~$${fiat.total_receive_usd.toFixed(2)})`
         : "";
-    return `Approval required: ${outcome.pending.summary}${fiatLine}`;
+    return `Approval required: ${pending.summary}${fiatLine}`;
   }
 
-  return formatExecutedTxSummary(outcome.result);
+  if (outcome.status === "executed") {
+    return formatExecutedTxSummary(outcome.result);
+  }
+
+  return "Done.";
 }

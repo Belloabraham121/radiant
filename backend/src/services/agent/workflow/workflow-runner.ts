@@ -6,6 +6,7 @@ import type { TxResult } from "../../chains/types.js";
 import type { ExecuteTransactionInput } from "../../chains/types.js";
 import type { AgentPermissions } from "../agent-permissions.types.js";
 import type { ChatRequest, ChatResponse, ExecuteToolOutcome, ToolCallRecord } from "../agent.types.js";
+import { isExecutePendingUserAction, pendingTransactionFromExecuteOutcome } from "../agent.types.js";
 import { resolveOrCreateSession } from "../../conversation/conversation.service.js";
 import { appendMessage } from "../../conversation/message.repository.js";
 import { touchSession } from "../../conversation/session.repository.js";
@@ -60,8 +61,8 @@ function isExecuteOutcome(result: unknown): result is ExecuteToolOutcome {
     typeof result === "object" &&
     result !== null &&
     "status" in result &&
-    ((result as ExecuteToolOutcome).status === "executed" ||
-      (result as ExecuteToolOutcome).status === "approval_required")
+    (isExecutePendingUserAction(result as ExecuteToolOutcome) ||
+      (result as ExecuteToolOutcome).status === "executed")
   );
 }
 
@@ -217,17 +218,23 @@ async function runAgentWorkflowStep(
   }
 
   if (executeCall && isExecuteOutcome(executeCall.result)) {
-    if (executeCall.result.status === "approval_required") {
+    if (isExecutePendingUserAction(executeCall.result)) {
       return {
         status: "approval_required",
         tool_calls: result.tool_calls,
-        pendingId: executeCall.result.pending.id,
+        pendingId: pendingTransactionFromExecuteOutcome(executeCall.result)!.id,
+      };
+    }
+    if (executeCall.result.status === "executed") {
+      return {
+        status: "executed",
+        tool_calls: result.tool_calls,
+        txResult: executeCall.result.result,
       };
     }
     return {
       status: "executed",
       tool_calls: result.tool_calls,
-      txResult: executeCall.result.result,
     };
   }
 
@@ -432,14 +439,17 @@ async function executeWorkflowStep(
         error: { code: "WORKFLOW_ERROR", message: "Unexpected execute_transaction outcome" },
       };
     }
-    if (result.status === "approval_required") {
+    if (isExecutePendingUserAction(result)) {
       return {
         status: "approval_required",
         tool_calls,
-        pendingId: result.pending.id,
+        pendingId: pendingTransactionFromExecuteOutcome(result)!.id,
       };
     }
-    return { status: "executed", tool_calls, txResult: result.result };
+    if (result.status === "executed") {
+      return { status: "executed", tool_calls, txResult: result.result };
+    }
+    return { status: "executed", tool_calls };
   }
 
   return runAgentWorkflowStep(
@@ -710,9 +720,12 @@ async function resolvePendingFromOutcome(
   if (
     executeCall &&
     isExecuteOutcome(executeCall.result) &&
-    executeCall.result.status === "approval_required"
+    isExecutePendingUserAction(executeCall.result)
   ) {
-    return executeCall.result.pending;
+    const pending = pendingTransactionFromExecuteOutcome(executeCall.result);
+    if (pending) {
+      return pending;
+    }
   }
 
   throw new Error("Workflow approval_required without pending transaction");

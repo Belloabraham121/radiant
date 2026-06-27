@@ -2,7 +2,7 @@
 
 import { Check, Circle, ExternalLink, Loader2, Minus, X } from "lucide-react";
 import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
-import { LifiCountdownLabel } from "@/components/app/LifiCountdownLabel";
+import { RouteCountdownLabel } from "@/components/app/RouteCountdownLabel";
 import type { ExecutionStep } from "@/lib/chat-execution-steps";
 import { executionStepHasLifiCountdown } from "@/lib/lifi-countdown";
 import { inferStatusCategoryFromExecutionSteps } from "@/lib/agent-status-category";
@@ -64,7 +64,7 @@ export function ExecutionTimeline({
     (live ? inferStatusCategoryFromExecutionSteps(steps) : undefined);
 
   return (
-    <div className="w-full max-w-full rounded-2xl border-2 border-[var(--hero-ink)]/15 bg-[var(--hero-bg)]/60 px-4 py-3">
+    <div className="min-w-0 w-full max-w-full overflow-hidden rounded-2xl border-2 border-[var(--hero-ink)]/15 bg-[var(--hero-bg)]/60 px-4 py-3">
       {live && liveCategory ? (
         <div className="mb-3 border-b border-[var(--hero-ink)]/10 pb-2">
           <AgentWorkingIndicator active size="compact" category={liveCategory} />
@@ -104,7 +104,7 @@ export function ExecutionTimeline({
                   className={`text-xs font-bold ${isActive ? "text-[var(--hero-blue)]" : "text-[var(--hero-ink)]"}`}
                 >
                   {executionStepHasLifiCountdown(step) ? (
-                    <LifiCountdownLabel
+                    <RouteCountdownLabel
                       kind={step.countdownKind ?? "bridge"}
                       startedAt={step.bridgeStartedAt!}
                       durationSeconds={step.estimatedDurationSeconds!}
@@ -115,7 +115,7 @@ export function ExecutionTimeline({
                   )}
                 </p>
                 {step.detail ? (
-                  <p className="mt-0.5 text-[11px] font-medium leading-relaxed text-[var(--hero-ink)]/55">
+                  <p className="mt-0.5 break-all text-[11px] font-medium leading-relaxed text-[var(--hero-ink)]/55">
                     {step.detail}
                   </p>
                 ) : null}

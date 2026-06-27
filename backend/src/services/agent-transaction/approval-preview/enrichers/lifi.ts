@@ -40,7 +40,7 @@ function hasNoTokenInfo(params: Record<string, unknown>): boolean {
 export async function enrichLifiExecuteInputForApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
-  options?: { requoteOnCacheMiss?: boolean },
+  options?: { requoteOnCacheMiss?: boolean; forceRequote?: boolean },
 ): Promise<ExecuteTransactionInput> {
   if (!matchLifiExecuteInput(input)) {
     return input;
@@ -66,6 +66,7 @@ export async function enrichLifiExecuteInputForApproval(
     };
   }
   if (
+    !options?.forceRequote &&
     hasStoredRoute &&
     isDeFiQuoteFresh(input.params) &&
     isLifiApprovalDisplayComplete(input.params)
@@ -82,6 +83,7 @@ export async function enrichLifiExecuteInputForApproval(
   const params = await resolveLifiApprovalParams(input.params, {
     privyUserId,
     requoteOnCacheMiss: options?.requoteOnCacheMiss ?? true,
+    forceRequote: options?.forceRequote,
   });
   return { ...input, params };
 }

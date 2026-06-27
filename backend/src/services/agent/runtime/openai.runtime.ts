@@ -3,6 +3,7 @@ import type { ChatCompletionMessageParam } from "openai/resources/chat/completio
 import { getOpenAiConfig, getAgentOutputLimitsConfig } from "../../../config/agent.js";
 import { AppError } from "../../../errors/app-error.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
+import { isExecutePendingUserAction, pendingTransactionFromExecuteOutcome } from "../agent.types.js";
 import {
   buildDepositExecuteNudge,
   extractDepositIntent,
@@ -188,16 +189,20 @@ function emitExecuteProgressFromResult(
   }
 
   const outcome = result as ExecuteToolOutcome;
-  if (outcome.status === "approval_required") {
+  if (isExecutePendingUserAction(outcome)) {
+    const pending = pendingTransactionFromExecuteOutcome(outcome);
     emitAgentStatusCategory("waiting");
     emitExecutionProgress({
       step: {
         id: "execute",
         status: "warning",
         label: executeLabel,
-        detail: "Waiting for your approval in the dialog",
-        agent_transaction_id: outcome.pending?.id,
-        chain_id: outcome.pending?.chain_id,
+        detail:
+          outcome.status === "liquidity_fallback_offered"
+            ? "Alternate liquidity route available — review in the dialog"
+            : "Waiting for your approval in the dialog",
+        agent_transaction_id: pending?.id,
+        chain_id: pending?.chain_id,
       },
     });
     return;
@@ -988,12 +993,8 @@ export const openaiRuntime: AgentRuntime = {
 
         if (toolCall.function.name === "execute_transaction") {
           const outcome = result as ExecuteToolOutcome;
-          if (
-            typeof outcome === "object" &&
-            outcome !== null &&
-            outcome.status === "approval_required"
-          ) {
-            pending_transaction = outcome.pending;
+          if (isExecutePendingUserAction(outcome)) {
+            pending_transaction = pendingTransactionFromExecuteOutcome(outcome) ?? null;
           }
         }
 

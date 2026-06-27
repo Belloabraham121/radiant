@@ -33,6 +33,7 @@ export type PromptModuleId =
   | "protocol:lifi:env"
   | "protocol:lifi:swap"
   | "protocol:lifi:bridge"
+  | "protocol:cross-chain:fallback"
   | "artifact:build"
   | "artifact:build:swap-vs-build"
   | "artifact:edit"

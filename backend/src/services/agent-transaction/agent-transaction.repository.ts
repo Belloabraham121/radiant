@@ -32,6 +32,8 @@ export type CreateAgentTransactionData = {
 
 export type UpdateAgentTransactionData = {
   status?: AgentTransactionStatus;
+  title?: string;
+  params?: Record<string, unknown>;
   amount_display?: string;
   digest?: string | null;
   effects_status?: string | null;
@@ -190,6 +192,41 @@ export async function listAgentTransactionsForUser(
   return { items: items.map(toRecord), total };
 }
 
+const ACTIVE_SESSION_TRANSACTION_STATUSES: AgentTransactionStatus[] = [
+  "pending_approval",
+  "submitted",
+];
+
+export async function sessionHasActiveTransaction(sessionId: string): Promise<boolean> {
+  const count = await prisma.agentTransaction.count({
+    where: {
+      session_id: sessionId,
+      status: { in: ACTIVE_SESSION_TRANSACTION_STATUSES },
+    },
+  });
+  return count > 0;
+}
+
+export async function findSessionIdsWithActiveTransactionsForUser(
+  userId: bigint,
+): Promise<Set<string>> {
+  const rows = await prisma.agentTransaction.findMany({
+    where: {
+      user_id: userId,
+      session_id: { not: null },
+      status: { in: ACTIVE_SESSION_TRANSACTION_STATUSES },
+    },
+    select: { session_id: true },
+    distinct: ["session_id"],
+  });
+
+  return new Set(
+    rows
+      .map((row) => row.session_id)
+      .filter((sessionId): sessionId is string => sessionId != null),
+  );
+}
+
 export async function findAgentTransactionsBySessionForUser(
   sessionId: string,
   userId: bigint,
@@ -199,6 +236,25 @@ export async function findAgentTransactionsBySessionForUser(
     orderBy: { created_at: "asc" },
   });
   return rows.map(toRecord);
+}
+
+export async function findPendingApprovalSessionIdByFallbackOfferId(
+  privyUserId: string,
+  fallbackOfferId: string,
+): Promise<string | null> {
+  const row = await prisma.agentTransaction.findFirst({
+    where: {
+      status: "pending_approval",
+      user: { privy_user_id: privyUserId },
+      params: {
+        path: ["liquidity_fallback_offer", "fallback_offer_id"],
+        equals: fallbackOfferId,
+      },
+    },
+    select: { session_id: true },
+    orderBy: { created_at: "desc" },
+  });
+  return row?.session_id ?? null;
 }
 
 export async function findPendingApprovalByIdForPrivyUser(

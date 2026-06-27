@@ -29,6 +29,7 @@ import {
 } from "./workflow-runner.js";
 import { continueSwapClarification } from "../swap/swap-clarification.flow.js";
 import { continueBridgeClarification } from "../bridge/bridge-clarification.flow.js";
+import { continueSquidTestClarification } from "../squid-test/squid-clarification.flow.js";
 import { getSessionWorkflow, updateSessionWorkflow } from "./session-workflow.store.js";
 import type { WorkflowPlan, WorkflowRunOutcome } from "./workflow.types.js";
 
@@ -209,6 +210,10 @@ export async function continueWorkflowAfterClarification(
 
   if (state.context === "bridge_intent") {
     return continueBridgeClarification(privyUserId, sessionId, clarificationId, answer);
+  }
+
+  if (state.context === "squid_test_intent") {
+    return continueSquidTestClarification(privyUserId, sessionId, clarificationId, answer);
   }
 
   const workflowState = getSessionWorkflow(sessionId);

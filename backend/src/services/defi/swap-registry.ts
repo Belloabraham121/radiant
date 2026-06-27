@@ -20,6 +20,11 @@ const PROVIDERS: Record<DeFiProviderId, SwapProvider> = {
     chain_id: "ethereum",
     label: "Li-Fi",
   },
+  "evm-squid": {
+    id: "evm-squid",
+    chain_id: "ethereum",
+    label: "Squid",
+  },
   "evm-sushiswap": {
     id: "evm-sushiswap",
     chain_id: "ethereum",

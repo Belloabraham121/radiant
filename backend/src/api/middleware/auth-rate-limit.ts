@@ -39,6 +39,12 @@ const PROXY_LIMIT: RateLimitConfig = {
   refillIntervalMs: 60_000,
 };
 
+const AGENT_TRANSACTION_MUTATION_LIMIT: RateLimitConfig = {
+  prefix: "agent-transaction-mutation",
+  capacity: 20,
+  refillIntervalMs: 60_000,
+};
+
 function clientIp(req: Request): string {
   return req.ip ?? "unknown";
 }
@@ -128,6 +134,18 @@ export async function proxyRateLimitMiddleware(
 ): Promise<void> {
   const suffix = req.user?.privyUserId ?? "anonymous";
   if (!(await enforceRateLimit(req, res, PROXY_LIMIT, suffix))) {
+    return;
+  }
+  next();
+}
+
+export async function agentTransactionMutationRateLimitMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  const suffix = req.user?.privyUserId ?? "anonymous";
+  if (!(await enforceRateLimit(req, res, AGENT_TRANSACTION_MUTATION_LIMIT, suffix))) {
     return;
   }
   next();

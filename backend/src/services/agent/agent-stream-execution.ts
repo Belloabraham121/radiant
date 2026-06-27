@@ -125,6 +125,16 @@ export function emitAgentStreamExecutionOutcome(
       pending: outcome.pending as unknown as Record<string, unknown>,
     });
     emitAgentEvent(ctx.sessionId, "agent_thinking", { active: false, action });
+    return;
+  }
+
+  if (outcome.status === "liquidity_fallback_offered" && outcome.liquidity_fallback_offer) {
+    emitAgentEvent(ctx.sessionId, "agent_action", {
+      action,
+      step: "liquidity_fallback_offered",
+      pending: outcome.pending as unknown as Record<string, unknown>,
+    });
+    emitAgentEvent(ctx.sessionId, "agent_thinking", { active: false, action });
   }
 }
 

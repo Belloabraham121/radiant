@@ -28,6 +28,7 @@ import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { AppActionSource } from "../projects/app-action.types.js";
 import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 import type { PendingTransaction } from "./agent.types.js";
+import type { LiquidityFallbackOffer } from "../defi/cross-chain/cross-chain.types.js";
 import { AppError } from "../../errors/app-error.js";
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import { mapLifiExecuteError } from "../defi/lifi/lifi.errors.js";
@@ -46,8 +47,10 @@ import {
 import { buildTransactionDisplay } from "../agent-transaction/deepbook/build-display.js";
 import { buildDeFiApprovalPreview } from "../agent-transaction/approval-preview/build-preview.js";
 import { enrichExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/registry.js";
-import { enrichLifiExecuteInputForApproval } from "../agent-transaction/approval-preview/enrichers/lifi.js";
+import { enrichCrossChainExecuteInput } from "../agent-transaction/approval-preview/enrichers/cross-chain.js";
+import { isSquidCrossChainRoute } from "../agent-transaction/approval-preview/enrichers/squid.js";
 import { isLifiApprovalDisplayComplete } from "../agent-transaction/approval-preview/enrichers/lifi-route-params.js";
+import { isSquidApprovalDisplayComplete } from "../agent-transaction/approval-preview/enrichers/squid-route-params.js";
 import { isExecutableLifiRoute } from "../defi/lifi/lifi-normalize.js";
 import {
   coalesceDeFiQuoteExpiresAt,
@@ -64,13 +67,21 @@ import { previewExecuteTransactionFiat } from "../market/valuation.service.js";
 import { isLifiExecuteAction } from "./chains/evm/lifi/execute-actions.js";
 import { preflightLifiExecuteBalance } from "./chains/evm/lifi/approval-preflight.js";
 import { enqueueLifiCrossChainTrackingJob, enqueueLifiSwapTrackingJob } from "../../infrastructure/inngest/enqueue-lifi-tracking.js";
+import { enqueueSquidCrossChainTrackingJob } from "../../infrastructure/inngest/enqueue-squid-tracking.js";
 import {
   attachLifiMetaToTxResult,
   readLifiTrackingFromTxResult,
   shouldEnqueueLifiCrossChainTracking,
   shouldEnqueueLifiSwapTracking,
 } from "../defi/lifi/lifi-tracking.js";
+import {
+  attachSquidMetaToTxResult,
+  readSquidTrackingFromTxResult,
+  shouldEnqueueSquidCrossChainTracking,
+} from "../defi/squid/squid-tracking.js";
+import type { LifiTrackingMeta } from "../defi/lifi/lifi-tracking.types.js";
 import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
+import { emitLiquidityFallbackOfferedStep } from "./agent-stream-cross-chain.js";
 import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
 import { runWithLifiExecuteContext } from "../defi/lifi/lifi-execute-context.js";
 import {
@@ -84,7 +95,9 @@ import {
   pendingTransactionFromRecord,
   recordPendingApproval,
   revertPendingApprovalToClaimable,
+  loadPendingApprovalForUser,
 } from "../agent-transaction/agent-transaction.service.js";
+import { updateAgentTransactionById } from "../agent-transaction/agent-transaction.repository.js";
 import type { ExecuteTransactionContext } from "./execute-transaction-context.js";
 
 const TRANSFER_ACTIONS = new Set([
@@ -143,12 +156,92 @@ async function pruneExpired(): Promise<void> {
   await expireStalePendingApprovals();
 }
 
+export function buildLiquidityFallbackPendingFromOffer(
+  input: ExecuteTransactionInput,
+  offer: LiquidityFallbackOffer,
+  id = randomUUID(),
+): PendingTransaction {
+  const fromSymbol = offer.from_token;
+  const toSymbol = offer.to_token;
+  return {
+    id,
+    chain_id: input.chain_id,
+    action: input.action,
+    params: {
+      ...input.params,
+      approval_outcome: "liquidity_fallback_offered",
+      liquidity_fallback_offer: offer,
+    },
+    summary: `Alternate route available for ${fromSymbol} → ${toSymbol}`,
+    amount_display: `${fromSymbol} → ${toSymbol}`,
+    quote_expires_at: offer.expires_at,
+    fiat_preview: null,
+    defi_preview: null,
+    approval_outcome: "liquidity_fallback_offered",
+    liquidity_fallback_offer: offer,
+  };
+}
+
+type CreateLiquidityFallbackPendingFn = (
+  privyUserId: string,
+  input: ExecuteTransactionInput,
+  offer: LiquidityFallbackOffer,
+  context?: ExecuteTransactionContext,
+) => Promise<PendingTransaction>;
+
+let createLiquidityFallbackPendingForTests: CreateLiquidityFallbackPendingFn | null = null;
+
+export function setCreateLiquidityFallbackPendingForTests(
+  fn: CreateLiquidityFallbackPendingFn | null,
+): void {
+  createLiquidityFallbackPendingForTests = fn;
+}
+
+export async function createLiquidityFallbackPendingTransaction(
+  privyUserId: string,
+  input: ExecuteTransactionInput,
+  offer: LiquidityFallbackOffer,
+  context?: ExecuteTransactionContext,
+): Promise<PendingTransaction> {
+  if (createLiquidityFallbackPendingForTests) {
+    return createLiquidityFallbackPendingForTests(privyUserId, input, offer, context);
+  }
+
+  await pruneExpired();
+  const pending = buildLiquidityFallbackPendingFromOffer(input, offer);
+
+  await recordPendingApproval({
+    privyUserId,
+    sessionId: context?.sessionId,
+    messageId: context?.messageId,
+    workflowStepIndex: context?.workflowStepIndex,
+    input: {
+      chain_id: pending.chain_id,
+      action: pending.action,
+      params: pending.params,
+    },
+    pending,
+  });
+
+  if (context?.sessionId && pending.liquidity_fallback_offer) {
+    emitLiquidityFallbackOfferedStep(context.sessionId, pending.liquidity_fallback_offer);
+  }
+
+  return pending;
+}
+
 export async function buildPendingTransactionPreview(
   privyUserId: string,
   input: ExecuteTransactionInput,
   id = randomUUID(),
 ): Promise<PendingTransaction> {
-  const enriched = await enrichExecuteInputForApproval(privyUserId, input);
+  const enrichResult = await enrichExecuteInputForApproval(privyUserId, input);
+
+  if (enrichResult.kind === "liquidity_fallback_offered") {
+    return buildLiquidityFallbackPendingFromOffer(enrichResult.input, enrichResult.liquidity_fallback_offer, id);
+  }
+
+  let enriched = enrichResult.input;
   if (isLifiExecuteAction(enriched.action)) {
     if (isLifiContinuationApproval(enriched.params)) {
       enriched.params = {
@@ -192,6 +285,7 @@ export async function buildPendingTransactionPreview(
       : readDeFiQuoteExpiresAt(enriched.params),
     fiat_preview,
     defi_preview,
+    approval_outcome: "approval_required",
   };
 }
 
@@ -419,12 +513,107 @@ export async function createPendingTransaction(
     pending,
   });
 
+  if (context?.sessionId && pending.approval_outcome === "liquidity_fallback_offered") {
+    const offer = pending.liquidity_fallback_offer;
+    if (offer) {
+      emitLiquidityFallbackOfferedStep(context.sessionId, offer);
+    }
+  }
+
   return pending;
 }
 
 export type ApprovalResult =
   | { ok: true; pending: PendingTransaction; result: TxResult; continuation_pending?: PendingTransaction }
   | { ok: false; pending: PendingTransaction; error: AppError; retryable?: boolean };
+
+function mapPostClaimEnrichError(err: unknown): AppError {
+  if (err instanceof AppError) {
+    return err;
+  }
+  return mapLifiExecuteError(err);
+}
+
+async function enrichCrossChainExecuteInputAfterClaim(
+  privyUserId: string,
+  transactionId: string,
+  userId: bigint,
+  pending: PendingTransaction,
+  executeInput: ExecuteTransactionInput,
+  options?: Parameters<typeof enrichCrossChainExecuteInput>[2],
+): Promise<
+  | { ok: true; executeInput: ExecuteTransactionInput }
+  | { ok: false; result: ApprovalResult }
+> {
+  try {
+    const enriched = await enrichCrossChainExecuteInput(privyUserId, executeInput, options);
+    return { ok: true, executeInput: enriched };
+  } catch (err) {
+    const error = mapPostClaimEnrichError(err);
+    if (isRetryablePreBroadcastError(error.code)) {
+      await revertPendingApprovalToClaimable(transactionId, userId);
+    } else {
+      await markCompleted(transactionId, {
+        kind: "failure",
+        error: { code: error.code, message: error.message },
+      });
+    }
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        pending,
+        error,
+        retryable: isRetryablePreBroadcastError(error.code),
+      },
+    };
+  }
+}
+
+/** @internal Exported for unit tests — coalesce quote TTL only when the quote is still fresh. */
+export function applyNonExpiredQuoteExpiryCoalescing(
+  executeInput: ExecuteTransactionInput,
+): ExecuteTransactionInput {
+  const currentExpiry = readDeFiQuoteExpiresAt(executeInput.params);
+  const coalescedExpiry = isDeFiQuoteExpired(executeInput.params)
+    ? currentExpiry
+    : coalesceDeFiQuoteExpiresAt(currentExpiry);
+  return {
+    ...executeInput,
+    params: {
+      ...executeInput.params,
+      ...(coalescedExpiry
+        ? { expires_at: coalescedExpiry, quote_expires_at: coalescedExpiry }
+        : {}),
+    },
+  };
+}
+
+type UpdateAgentTransactionByIdFn = typeof updateAgentTransactionById;
+
+let updateAgentTransactionByIdForTests: UpdateAgentTransactionByIdFn | null = null;
+
+export function setUpdateAgentTransactionByIdForTests(
+  fn: UpdateAgentTransactionByIdFn | null,
+): void {
+  updateAgentTransactionByIdForTests = fn;
+}
+
+/** @internal Exported for unit tests — persist refreshed approval params or throw. */
+export async function persistRefreshedPendingQuote(
+  transactionId: string,
+  pending: PendingTransaction,
+): Promise<void> {
+  const updateFn = updateAgentTransactionByIdForTests ?? updateAgentTransactionById;
+  const updated = await updateFn(transactionId, {
+    params: pending.params,
+    title: pending.summary,
+    amount_display: pending.amount_display,
+  });
+  if (!updated) {
+    throw new AppError(500, "APPROVAL_UPDATE_FAILED", "Failed to persist refreshed quote.");
+  }
+}
 
 export async function maybeCreateLifiContinuationFromTracking(
   input: MaybeCreateLifiContinuationInput,
@@ -459,14 +648,28 @@ export async function approvePendingTransaction(
   let executeInput = executeInputFromRecord(claimed);
 
   if (isLifiExecuteAction(executeInput.action)) {
-    const hasStoredRoute = isExecutableLifiRoute(
-      executeInput.params.lifi_route ?? executeInput.params.route,
-    );
-    const displayComplete = isLifiApprovalDisplayComplete(executeInput.params);
+    const isSquid = isSquidCrossChainRoute(executeInput.params);
+    const hasStoredRoute = isSquid
+      ? Boolean(executeInput.params.squid_route)
+      : isExecutableLifiRoute(
+          executeInput.params.lifi_route ?? executeInput.params.route,
+        );
+    const displayComplete = isSquid
+      ? isSquidApprovalDisplayComplete(executeInput.params)
+      : isLifiApprovalDisplayComplete(executeInput.params);
     if (!hasStoredRoute || !displayComplete) {
-      executeInput = await enrichLifiExecuteInputForApproval(privyUserId, executeInput, {
-        requoteOnCacheMiss: !isLifiContinuationApproval(executeInput.params),
-      });
+      const enrichResult = await enrichCrossChainExecuteInputAfterClaim(
+        privyUserId,
+        transactionId,
+        claimed.user_id,
+        pending,
+        executeInput,
+        { requoteOnCacheMiss: !isLifiContinuationApproval(executeInput.params) },
+      );
+      if (!enrichResult.ok) {
+        return enrichResult.result;
+      }
+      executeInput = enrichResult.executeInput;
     }
     if (isLifiContinuationApproval(executeInput.params)) {
       executeInput = {
@@ -480,18 +683,11 @@ export async function approvePendingTransaction(
       delete executeInput.params.expires_at;
       delete executeInput.params.quote_expires_at;
     } else {
-      const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(executeInput.params));
-      executeInput = {
-        ...executeInput,
-        params: {
-          ...executeInput.params,
-          expires_at: coalescedExpiry,
-          quote_expires_at: coalescedExpiry,
-        },
-      };
+      executeInput = applyNonExpiredQuoteExpiryCoalescing(executeInput);
     }
   } else if (isDeepBookSwapAction(executeInput.action)) {
-    executeInput = await enrichExecuteInputForApproval(privyUserId, executeInput);
+    const enrichResult = await enrichExecuteInputForApproval(privyUserId, executeInput);
+    executeInput = enrichResult.input;
   }
 
   if (
@@ -500,18 +696,31 @@ export async function approvePendingTransaction(
         !isLifiContinuationApproval(executeInput.params))) &&
     isDeFiQuoteExpired(executeInput.params)
   ) {
-    const error = new AppError(
-      400,
-      "QUOTE_EXPIRED",
-      isLifiExecuteAction(executeInput.action)
-        ? "This bridge quote expired. Cancel and ask again to get a fresh rate before approving."
-        : "This swap quote expired. Cancel and ask again to get a fresh rate before approving.",
-    );
-    await markCompleted(transactionId, {
-      kind: "failure",
-      error: { code: error.code, message: error.message },
-    });
-    return { ok: false, pending, error };
+    if (isLifiExecuteAction(executeInput.action)) {
+      const enrichResult = await enrichCrossChainExecuteInputAfterClaim(
+        privyUserId,
+        transactionId,
+        claimed.user_id,
+        pending,
+        executeInput,
+        { requoteOnCacheMiss: true, forceRequote: true },
+      );
+      if (!enrichResult.ok) {
+        return enrichResult.result;
+      }
+      executeInput = applyNonExpiredQuoteExpiryCoalescing(enrichResult.executeInput);
+    }
+    if (isDeFiQuoteExpired(executeInput.params)) {
+      await revertPendingApprovalToClaimable(transactionId, claimed.user_id);
+      const error = new AppError(
+        400,
+        "QUOTE_EXPIRED",
+        isLifiExecuteAction(executeInput.action)
+          ? "This bridge quote expired. Tap Fresh quote to update the rate, then approve."
+          : "This swap quote expired. Tap Fresh quote to update the rate, then approve.",
+      );
+      return { ok: false, pending, error, retryable: true };
+    }
   }
 
   try {
@@ -531,12 +740,73 @@ export async function approvePendingTransaction(
     );
 
     const tracking = readLifiTrackingFromTxResult(result);
+    const squidTracking = readSquidTrackingFromTxResult(result);
+    const needsSquidTracking =
+      isLifiExecuteAction(executeInput.action) &&
+      isSquidCrossChainRoute(executeInput.params) &&
+      shouldEnqueueSquidCrossChainTracking(result, squidTracking);
     const needsCrossChainTracking =
+      !needsSquidTracking &&
       isLifiExecuteAction(executeInput.action) &&
       shouldEnqueueLifiCrossChainTracking(result, tracking);
     const needsSwapTracking =
-      isLifiExecuteAction(executeInput.action) && shouldEnqueueLifiSwapTracking(result, tracking);
+      !needsSquidTracking &&
+      isLifiExecuteAction(executeInput.action) &&
+      shouldEnqueueLifiSwapTracking(result, tracking);
     const needsLifiTracking = needsCrossChainTracking || needsSwapTracking;
+
+    if (needsSquidTracking) {
+      const enriched = attachSquidMetaToTxResult(result, squidTracking);
+      await markLifiSubmitted(transactionId, {
+        digest: enriched.digest || squidTracking.tx_hashes[0] || null,
+        effects_status: "pending",
+        result: enriched,
+      });
+
+      if (sessionId) {
+        const streamTracking: LifiTrackingMeta = {
+          route_id: squidTracking.route_id,
+          tx_hashes: squidTracking.tx_hashes,
+          from_chain_id: squidTracking.from_chain_id,
+          to_chain_id: squidTracking.to_chain_id,
+          ...(squidTracking.from_evm_chain_id !== undefined
+            ? { from_evm_chain_id: squidTracking.from_evm_chain_id }
+            : {}),
+          ...(squidTracking.to_evm_chain_id !== undefined
+            ? { to_evm_chain_id: squidTracking.to_evm_chain_id }
+            : {}),
+          bridge_tool: null,
+          estimated_duration_seconds: squidTracking.estimated_duration_seconds,
+          bridge_started_at: squidTracking.bridge_started_at,
+          tracking_status: squidTracking.tracking_status,
+          substatus: squidTracking.substatus,
+          substatus_message: squidTracking.substatus_message,
+          receiving_tx_hash: squidTracking.receiving_tx_hash,
+        };
+        for (const step of buildInitialLifiExecutionSteps({
+          tracking: streamTracking,
+          transactionId,
+          chainId: enriched.chain_id,
+          digest: enriched.digest || squidTracking.tx_hashes[0] || null,
+          evmChainId: enriched.evm_chain_id ?? squidTracking.from_evm_chain_id,
+        })) {
+          emitAgentStreamExecutionStep(sessionId, step);
+        }
+      }
+
+      void enqueueSquidCrossChainTrackingJob({
+        transactionId,
+        privyUserId,
+        sessionId: sessionId ?? null,
+        tracking: squidTracking,
+      }).catch(() => undefined);
+
+      return {
+        ok: true,
+        pending,
+        result: enriched,
+      };
+    }
 
     if (needsLifiTracking) {
       const enriched = attachLifiMetaToTxResult(result, tracking);
@@ -623,6 +893,7 @@ const RETRYABLE_PRE_BROADCAST_ERROR_CODES = new Set([
   "LIFI_UNAVAILABLE",
   "LIFI_VALIDATION_ERROR",
   "LIFI_NO_ROUTE",
+  "QUOTE_EXPIRED",
   "INSUFFICIENT_BALANCE",
   "WALLET_NOT_FOUND",
   "WALLET_SIGNER_NOT_CONFIGURED",
@@ -649,6 +920,49 @@ export async function rejectPendingTransaction(
   }
 
   return pendingTransactionFromRecord(rejected);
+}
+
+/** Re-fetch Li-Fi/Squid quote for a pending approval and update stored params + UI fields. */
+export async function refreshPendingTransactionQuote(
+  privyUserId: string,
+  transactionId: string,
+): Promise<PendingTransaction | null> {
+  await pruneExpired();
+
+  const row = await loadPendingApprovalForUser(privyUserId, transactionId);
+  if (!row) {
+    return null;
+  }
+
+  const executeInput = executeInputFromRecord(row);
+  if (isLifiContinuationApproval(executeInput.params)) {
+    return pendingTransactionFromRecord(row);
+  }
+
+  const enrichResult = await enrichExecuteInputForApproval(privyUserId, executeInput, {
+    requoteOnCacheMiss: true,
+    forceRequote: true,
+  });
+
+  if (enrichResult.kind === "liquidity_fallback_offered") {
+    const fallbackPending = buildLiquidityFallbackPendingFromOffer(
+      enrichResult.input,
+      enrichResult.liquidity_fallback_offer,
+      transactionId,
+    );
+    await persistRefreshedPendingQuote(transactionId, fallbackPending);
+    return fallbackPending;
+  }
+
+  const pending = await buildPendingTransactionPreview(
+    privyUserId,
+    enrichResult.input,
+    transactionId,
+  );
+
+  await persistRefreshedPendingQuote(transactionId, pending);
+
+  return pending;
 }
 
 /** Test hook — clear pending approval rows from the database. */

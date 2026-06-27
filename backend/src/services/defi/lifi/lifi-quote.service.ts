@@ -26,6 +26,7 @@ import type { CrossChainQuote, LifiQuoteInput } from "./lifi.types.js";
 export async function getLifiQuote(
   privyUserId: string,
   input: LifiQuoteInput,
+  options?: { skipCache?: boolean },
 ): Promise<CrossChainQuote> {
   if (!isLifiEnabled()) {
     throw new AppError(503, "LIFI_UNAVAILABLE", "Li-Fi is not enabled on this deployment.");
@@ -71,9 +72,12 @@ export async function getLifiQuote(
     from_address: fromAddress,
     to_address: toAddress,
     slippage: input.slippage ?? config.defaultSlippage,
+    waive_integrator_fee: input.waive_integrator_fee ?? false,
   };
 
-  return lifiCachedQuoteFetch(cacheParams, async () => {
+  return lifiCachedQuoteFetch(
+    cacheParams,
+    async () => {
     const fromTokenAddr = toLifiTokenAddress(tokens.fromToken, tokens.from);
     const toTokenAddr = toLifiTokenAddress(tokens.toToken, tokens.to);
     const step = await lifiSdk.getQuote({
@@ -85,7 +89,9 @@ export async function getLifiQuote(
       toAddress,
       fromAmount: amountAtomic,
       slippage: input.slippage ?? config.defaultSlippage,
-      ...lifiIntegratorSdkFields(config, input.integrator),
+      ...lifiIntegratorSdkFields(config, input.integrator, {
+        waiveFee: input.waive_integrator_fee,
+      }),
     });
 
     const routeId = createRouteId(JSON.stringify(cacheParams));
@@ -101,7 +107,9 @@ export async function getLifiQuote(
       routeId,
       route,
     });
-  });
+  },
+    options?.skipCache ? { skipCache: true } : undefined,
+  );
 }
 
 export async function resolveLifiRouteForExecute(input: {
@@ -167,10 +175,34 @@ function readSnapshotChainId(
 }
 
 /** Re-fetch a Li-Fi quote from execute/approval snapshot fields when route cache expired. */
-export async function requoteLifiFromSnapshot(
+type RequoteLifiFromSnapshotFn = (
   privyUserId: string,
   params: Record<string, unknown>,
   options?: { onError?: (err: unknown) => void },
+) => Promise<CrossChainQuote | null>;
+
+let requoteLifiFromSnapshotOverride: RequoteLifiFromSnapshotFn | null = null;
+
+export function setRequoteLifiFromSnapshotForTests(fn: RequoteLifiFromSnapshotFn | null): void {
+  requoteLifiFromSnapshotOverride = fn;
+}
+
+export async function requoteLifiFromSnapshot(
+  privyUserId: string,
+  params: Record<string, unknown>,
+  options?: { onError?: (err: unknown) => void; skipCache?: boolean },
+): Promise<CrossChainQuote | null> {
+  if (requoteLifiFromSnapshotOverride) {
+    return requoteLifiFromSnapshotOverride(privyUserId, params, options);
+  }
+
+  return requoteLifiFromSnapshotLive(privyUserId, params, options);
+}
+
+async function requoteLifiFromSnapshotLive(
+  privyUserId: string,
+  params: Record<string, unknown>,
+  options?: { onError?: (err: unknown) => void; skipCache?: boolean },
 ): Promise<CrossChainQuote | null> {
   const fromToken =
     readSnapshotString(params, "from_token_symbol") ??
@@ -191,17 +223,26 @@ export async function requoteLifiFromSnapshot(
     typeof params.to_evm_chain_id === "number" ? params.to_evm_chain_id : undefined;
 
   try {
-    return await getLifiQuote(privyUserId, {
-      from_chain_id: fromChainId,
-      to_chain_id: toChainId,
-      from_evm_chain_id: fromEvmChainId,
-      to_evm_chain_id: toEvmChainId,
-      from_token: fromToken,
-      to_token: toToken,
-      amount_atomic: amountAtomic,
-      confirm_same_token:
-        typeof params.confirm_same_token === "boolean" ? params.confirm_same_token : undefined,
-    });
+    return await getLifiQuote(
+      privyUserId,
+      {
+        from_chain_id: fromChainId,
+        to_chain_id: toChainId,
+        from_evm_chain_id: fromEvmChainId,
+        to_evm_chain_id: toEvmChainId,
+        from_token: fromToken,
+        to_token: toToken,
+        amount_atomic: amountAtomic,
+        confirm_same_token:
+          typeof params.confirm_same_token === "boolean" ? params.confirm_same_token : undefined,
+        slippage: typeof params.slippage === "number" ? params.slippage : undefined,
+        waive_integrator_fee:
+          typeof params.waive_integrator_fee === "boolean"
+            ? params.waive_integrator_fee
+            : undefined, 
+      },
+      options?.skipCache ? { skipCache: true } : undefined,
+    );
   } catch (err) {
     // Callers that just want display fallback ignore this; the execute path uses
     // it to surface the real Li-Fi reason (e.g. "no route can generate a tx")
@@ -209,6 +250,21 @@ export async function requoteLifiFromSnapshot(
     options?.onError?.(err);
     return null;
   }
+}
+
+/** Routes from getRoutes need per-step refresh; getQuote routes can use getQuote refresh. */
+export function routeNeedsStepTransactionRefresh(route: Route): boolean {
+  if (!Array.isArray(route.steps) || route.steps.length === 0) {
+    return false;
+  }
+  if (route.steps.length > 1) {
+    return true;
+  }
+  const first = route.steps[0];
+  if ((first.includedSteps?.length ?? 0) > 0) {
+    return true;
+  }
+  return !first.transactionRequest?.to;
 }
 
 export function buildQuoteRefreshParams(

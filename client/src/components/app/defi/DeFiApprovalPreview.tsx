@@ -114,8 +114,8 @@ export function DeFiApprovalPreviewCard({
       ) : null}
       {showQuoteUi && quoteExpired ? (
         <p className="mt-2 text-[10px] font-semibold text-[var(--hero-coral)]">
-          This quote expired. Cancel and ask again to get a fresh rate — approval is blocked until
-          you refresh.
+          This quote expired. Tap <span className="font-bold">Fresh quote</span> to update the
+          rate, then approve.
         </p>
       ) : showContinuationHint ? (
         <p className="mt-2 text-[10px] font-medium text-[var(--hero-ink)]/45">

@@ -2,7 +2,11 @@ import type { PartialBridgeIntent } from "../bridge/bridge-intent.types.js";
 import type { PartialSwapIntent } from "../swap/swap-intent.types.js";
 import type { WorkflowPlan } from "./workflow.types.js";
 
-export type ClarificationContext = "workflow" | "swap_intent" | "bridge_intent";
+export type ClarificationContext =
+  | "workflow"
+  | "swap_intent"
+  | "bridge_intent"
+  | "squid_test_intent";
 
 export type ClarificationKind = "intent" | "amount_ref" | "constraint_skip";
 
@@ -68,6 +72,8 @@ export type SessionClarificationState = {
   gap: ClarificationGap;
   plan: WorkflowPlan;
   context?: ClarificationContext;
+  /** Active mode when context is squid_test_intent. */
+  squidTestMode?: "bridge" | "swap";
   swapIntent?: PartialSwapIntent;
   bridgeIntent?: PartialBridgeIntent;
   createdAt: number;

@@ -30,6 +30,7 @@ import { buildDeepBookPredictLines } from "./protocols/deepbook/predict.js";
 import { buildLifiEnvLines } from "./protocols/lifi/env.js";
 import { buildLifiSwapLines } from "./protocols/lifi/swap.js";
 import { buildLifiBridgeLines } from "./protocols/lifi/bridge.js";
+import { buildCrossChainFallbackLines } from "./protocols/cross-chain/fallback.js";
 import { buildPlatformBrowsingLines } from "./platform/browsing.js";
 import { buildPlatformStorageLines } from "./platform/storage.js";
 import { buildPlatformNotificationsLines } from "./platform/notifications.js";
@@ -212,6 +213,13 @@ const BASE_PROMPT_MODULES: PromptModule[] = [
     order: 128,
     build: () => buildLifiBridgeLines(),
     triggers: PROMPT_MODULE_TRIGGERS["protocol:lifi:bridge"],
+  },
+  {
+    id: "protocol:cross-chain:fallback",
+    layer: "protocol",
+    order: 129,
+    build: () => buildCrossChainFallbackLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:cross-chain:fallback"],
   },
 ];
 

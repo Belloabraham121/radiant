@@ -248,6 +248,8 @@ export function swapIntentToBridgeIntent(
       fromToken: filled.inputCoin,
       toToken: filled.outputCoin,
       amount: filled.amount,
+      amountUnit: filled.amountUnit,
+      amountUnitConfirmed: filled.amountUnitConfirmed,
     };
   }
 
@@ -263,5 +265,7 @@ export function swapIntentToBridgeIntent(
     fromToken: filled.inputCoin,
     toToken: filled.outputCoin,
     amount: filled.amount,
+    amountUnit: filled.amountUnit,
+    amountUnitConfirmed: filled.amountUnitConfirmed,
   };
 }

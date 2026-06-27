@@ -1,0 +1,554 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-06-27T04:50:30.219Z",
+  "description": "Radiant v1 swap and bridge routing matrix derived from supported-tokens, token-capabilities, lifi-chains, and squid-chains.",
+  "export_mode": "full_v1_defaults",
+  "env_assumptions": {
+    "ENABLED_CHAINS": "sui,ethereum,solana,stellar",
+    "EVM_CHAIN_IDS": "1,42161,8453",
+    "note": "Full v1 defaults (all ecosystems). Pass --use-env to reflect runtime ENABLED_CHAINS."
+  },
+  "providers": {
+    "swap": {
+      "sui-deepbook": "Sui same-chain swaps (DeepBook)",
+      "evm-lifi": "EVM same-chain swaps and cross-chain routes (primary)",
+      "evm-squid": "Cross-chain fallback when Li-Fi has no route (dev/test: squid prefix)",
+      "evm-sushiswap": "EVM same-chain fallback when configured",
+      "stellar-soroswap": "Stellar same-chain swaps (Soroswap)"
+    },
+    "bridge": {
+      "evm-lifi": "Primary bridge for all chains with bridge_provider set",
+      "evm-squid": "Alternate route after Li-Fi failure or squid test intent"
+    }
+  },
+  "chains": [
+    {
+      "key": "sui",
+      "chain_id": "sui",
+      "name": "Sui",
+      "native_symbol": "SUI",
+      "allowed_symbols": [
+        "SUI",
+        "USDC",
+        "DEEP",
+        "WAL"
+      ],
+      "swap_provider": "sui-deepbook",
+      "bridge_provider": "evm-lifi",
+      "capabilities": {
+        "same_chain_swap": true,
+        "agent_bridge_source": true,
+        "agent_bridge_destination": true
+      }
+    },
+    {
+      "key": "ethereum:1",
+      "chain_id": "ethereum",
+      "evm_chain_id": 1,
+      "name": "Ethereum",
+      "native_symbol": "ETH",
+      "allowed_symbols": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "swap_provider": "evm-sushiswap",
+      "bridge_provider": "evm-lifi",
+      "capabilities": {
+        "same_chain_swap": true,
+        "agent_bridge_source": true,
+        "agent_bridge_destination": true
+      }
+    },
+    {
+      "key": "ethereum:42161",
+      "chain_id": "ethereum",
+      "evm_chain_id": 42161,
+      "name": "Arbitrum One",
+      "native_symbol": "ETH",
+      "allowed_symbols": [
+        "ETH",
+        "WETH",
+        "USDC",
+        "ARB"
+      ],
+      "swap_provider": "evm-sushiswap",
+      "bridge_provider": "evm-lifi",
+      "capabilities": {
+        "same_chain_swap": true,
+        "agent_bridge_source": true,
+        "agent_bridge_destination": true
+      }
+    },
+    {
+      "key": "ethereum:8453",
+      "chain_id": "ethereum",
+      "evm_chain_id": 8453,
+      "name": "Base",
+      "native_symbol": "ETH",
+      "allowed_symbols": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "swap_provider": "evm-sushiswap",
+      "bridge_provider": "evm-lifi",
+      "capabilities": {
+        "same_chain_swap": true,
+        "agent_bridge_source": true,
+        "agent_bridge_destination": true
+      }
+    },
+    {
+      "key": "solana",
+      "chain_id": "solana",
+      "name": "Solana",
+      "native_symbol": "SOL",
+      "allowed_symbols": [
+        "SOL",
+        "USDC"
+      ],
+      "swap_provider": null,
+      "bridge_provider": "evm-lifi",
+      "capabilities": {
+        "same_chain_swap": false,
+        "agent_bridge_source": true,
+        "agent_bridge_destination": true
+      }
+    },
+    {
+      "key": "stellar",
+      "chain_id": "stellar",
+      "name": "Stellar",
+      "native_symbol": "XLM",
+      "allowed_symbols": [
+        "XLM",
+        "USDC"
+      ],
+      "swap_provider": "stellar-soroswap",
+      "bridge_provider": null,
+      "capabilities": {
+        "same_chain_swap": true,
+        "agent_bridge_source": false,
+        "agent_bridge_destination": false
+      }
+    }
+  ],
+  "same_chain_swaps": [
+    {
+      "chain": "sui",
+      "provider": "sui-deepbook",
+      "tokens": [
+        "SUI",
+        "USDC",
+        "DEEP",
+        "WAL"
+      ],
+      "description": "Any allowlisted token pair on this network (same-chain swap)."
+    },
+    {
+      "chain": "ethereum:1",
+      "provider": "evm-sushiswap",
+      "tokens": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "description": "Any allowlisted token pair on this network (same-chain swap)."
+    },
+    {
+      "chain": "ethereum:42161",
+      "provider": "evm-sushiswap",
+      "tokens": [
+        "ETH",
+        "WETH",
+        "USDC",
+        "ARB"
+      ],
+      "description": "Any allowlisted token pair on this network (same-chain swap)."
+    },
+    {
+      "chain": "ethereum:8453",
+      "provider": "evm-sushiswap",
+      "tokens": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "description": "Any allowlisted token pair on this network (same-chain swap)."
+    },
+    {
+      "chain": "stellar",
+      "provider": "stellar-soroswap",
+      "tokens": [
+        "XLM",
+        "USDC"
+      ],
+      "description": "Any allowlisted token pair on this network (same-chain swap)."
+    }
+  ],
+  "cross_chain_bridges": [
+    {
+      "from": "sui",
+      "to": "ethereum:1",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [
+        "SUI"
+      ],
+      "squid_note": null
+    },
+    {
+      "from": "sui",
+      "to": "ethereum:42161",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [
+        "SUI"
+      ],
+      "squid_note": null
+    },
+    {
+      "from": "sui",
+      "to": "ethereum:8453",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [
+        "SUI"
+      ],
+      "squid_note": null
+    },
+    {
+      "from": "sui",
+      "to": "solana",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [
+        "SUI"
+      ],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:1",
+      "to": "sui",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:1",
+      "to": "ethereum:42161",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": false,
+      "receive_tokens": [
+        "ETH",
+        "USDC",
+        "WETH"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:1",
+      "to": "ethereum:8453",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": false,
+      "receive_tokens": [
+        "ETH",
+        "USDC",
+        "WETH"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:1",
+      "to": "solana",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:42161",
+      "to": "sui",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:42161",
+      "to": "ethereum:1",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": false,
+      "receive_tokens": [
+        "ETH",
+        "USDC",
+        "WETH"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:42161",
+      "to": "ethereum:8453",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": false,
+      "receive_tokens": [
+        "ETH",
+        "USDC",
+        "WETH"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:42161",
+      "to": "solana",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:8453",
+      "to": "sui",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:8453",
+      "to": "ethereum:1",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": false,
+      "receive_tokens": [
+        "ETH",
+        "USDC",
+        "WETH"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:8453",
+      "to": "ethereum:42161",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": false,
+      "receive_tokens": [
+        "ETH",
+        "USDC",
+        "WETH"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "ETH",
+        "WETH",
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "ethereum:8453",
+      "to": "solana",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [],
+      "squid_note": null
+    },
+    {
+      "from": "solana",
+      "to": "sui",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [
+        "SOL"
+      ],
+      "squid_note": null
+    },
+    {
+      "from": "solana",
+      "to": "ethereum:1",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [
+        "SOL"
+      ],
+      "squid_note": null
+    },
+    {
+      "from": "solana",
+      "to": "ethereum:42161",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [
+        "SOL"
+      ],
+      "squid_note": null
+    },
+    {
+      "from": "solana",
+      "to": "ethereum:8453",
+      "primary_provider": "evm-lifi",
+      "fallback_provider": "evm-squid",
+      "cross_ecosystem": true,
+      "receive_tokens": [
+        "USDC"
+      ],
+      "auto_fill_same_symbol_examples": [
+        "USDC"
+      ],
+      "requires_same_token_confirmation_for": [
+        "SOL"
+      ],
+      "squid_note": null
+    }
+  ],
+  "stellar_setup": {
+    "status": "swap_only_v1",
+    "swap_provider": "stellar-soroswap",
+    "bridge_provider": null,
+    "allowed_symbols": [
+      "XLM",
+      "USDC"
+    ],
+    "gaps_for_agent_bridge": [
+      "Set bridge_provider on stellar in supported-tokens.ts (currently null).",
+      "Li-Fi cross-ecosystem pairs exclude Stellar (lifi-chains.ts).",
+      "Squid includes stellar-mainnet for quotes but executeRoute blocks Stellar (squid-chains.ts isSquidSdkExecuteSupported).",
+      "Destination account must exist on Stellar ledger (fund with XLM reserve) before receiving bridged assets; USDC requires trustline."
+    ],
+    "planned_bridge_targets": []
+  },
+  "rules": {
+    "bridge_receive_tokens": "Intersection of allowlisted symbols on source and destination.",
+    "evm_native_eth": "ETH/WETH/USDC auto-fill same-symbol receive on EVM L2↔L2 bridges.",
+    "cross_ecosystem_confirmation": "SUI and SOL same-symbol bridges require explicit user confirmation.",
+    "stellar_cross_ecosystem": "Not supported via Li-Fi in v1; Squid Stellar execute not wired."
+  }
+}

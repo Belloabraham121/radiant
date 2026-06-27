@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { resetChainConfigCacheForTests } from "../../../src/config/chains.js";
 import { resetEvmConfigCacheForTests } from "../../../src/config/evm.js";
+import { resetSupportedTokensCacheForTests } from "../../../src/config/supported-tokens.js";
 import {
   isHypotheticalBridgeMessage,
   isBridgeIntentComplete,
+  isSameEvmChainBridgeIntent,
   messageLooksLikeBridge,
   parsePartialBridgeIntent,
   withDefaultBridgeChains,
@@ -24,6 +26,7 @@ function enableBridgeTestChains(): void {
   process.env.EVM_RPC_URL_8453 = "http://localhost:8547";
   resetChainConfigCacheForTests();
   resetEvmConfigCacheForTests();
+  resetSupportedTokensCacheForTests();
 }
 
 function clearBridgeTestChains(): void {
@@ -36,6 +39,7 @@ function clearBridgeTestChains(): void {
   delete process.env.EVM_RPC_URL_8453;
   resetChainConfigCacheForTests();
   resetEvmConfigCacheForTests();
+  resetSupportedTokensCacheForTests();
 }
 
 describe("bridge-intent-parser", () => {
@@ -189,13 +193,69 @@ describe("bridge-clarification-gaps", () => {
     assert.equal(isBridgeIntentComplete(intent!), true);
   });
 
-  it("still asks destination token for native-token bridges", () => {
+  it("asks same-token confirmation for cross-ecosystem native bridges", () => {
     const intent = parsePartialBridgeIntent("bridge 2 sui to base");
     assert.ok(intent);
+    assert.equal(intent!.toToken, "SUI");
     const gap = collectBridgeClarificationGap(intent!);
     assert.ok(gap);
     assert.equal(gap!.field, "to_token");
+    assert.equal(gap!.gap_id, "bridge.confirm_same_token");
     assert.match(gap!.question, /Base/i);
     assert.match(gap!.question, /SUI/i);
+  });
+
+  it("parses ETH Base→Arbitrum with same-symbol receive", () => {
+    const intent = parsePartialBridgeIntent("bridge eth from base to arbitrum");
+    assert.ok(intent);
+    assert.equal(intent!.fromChainId, "ethereum");
+    assert.equal(intent!.fromEvmChainId, 8453);
+    assert.equal(intent!.toChainId, "ethereum");
+    assert.equal(intent!.toEvmChainId, 42161);
+    assert.equal(intent!.fromToken, "ETH");
+    assert.equal(intent!.toToken, "ETH");
+    assert.equal(intent!.confirmSameToken, true);
+    const gap = collectBridgeClarificationGap(intent!);
+    assert.ok(gap);
+    assert.equal(gap!.field, "amount");
+  });
+
+  it("includes ETH in Base→Arbitrum to_token clarification options", () => {
+    const gap = collectBridgeClarificationGap({
+      originalMessage: "bridge from base to arbitrum",
+      fromChainId: "ethereum",
+      fromEvmChainId: 8453,
+      toChainId: "ethereum",
+      toEvmChainId: 42161,
+      fromToken: "ETH",
+    });
+    assert.ok(gap);
+    assert.equal(gap!.field, "to_token");
+    assert.ok(gap!.options?.some((option) => option.id === "ETH"));
+  });
+
+  it("parses bridge $1 usdc to eth on arbitrum as same-chain destination", () => {
+    const intent = parsePartialBridgeIntent("bridge $1 usdc to eth on arbitrum");
+    assert.ok(intent);
+    assert.equal(intent!.amount, 1);
+    assert.equal(intent!.amountUnit, "usd");
+    assert.equal(intent!.fromToken, "USDC");
+    assert.equal(intent!.toToken, "ETH");
+    assert.equal(intent!.toChainId, "ethereum");
+    assert.equal(intent!.toEvmChainId, 42161);
+    assert.equal(intent!.fromChainId, undefined);
+  });
+
+  it("detects same-chain EVM bridge intents", () => {
+    assert.equal(
+      isSameEvmChainBridgeIntent({
+        originalMessage: "test",
+        fromChainId: "ethereum",
+        fromEvmChainId: 42161,
+        toChainId: "ethereum",
+        toEvmChainId: 42161,
+      }),
+      true,
+    );
   });
 });

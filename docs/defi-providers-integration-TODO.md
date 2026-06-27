@@ -10,6 +10,7 @@ Composable cross-chain and multi-venue DeFi for Radiant's AI agent. One doc for 
 - Li-Fi Intents: [docs.li.fi/lifi-intents/introduction](https://docs.li.fi/lifi-intents/introduction)
 - Soroswap API: [api.soroswap.finance/docs](https://api.soroswap.finance/docs)
 - SushiSwap API: [docs.sushi.com/api/examples/quote](https://docs.sushi.com/api/examples/quote)
+- Squid fallback (Li-Fi liquidity): [squid-protocol-integration-TODO.md](./squid-protocol-integration-TODO.md)
 
 **MVP principle:** Agent tools stay **chain-agnostic** (`query_chain`, `execute_transaction`). Provider specifics live in `services/defi/<provider>/` and are invoked by chain adapters — not new top-level agent tools per venue.
 
@@ -107,7 +108,9 @@ services/defi/                               composable DeFi layer (plug-and-pla
     ├── types.ts                               shared SwapQuote, RouteQuote, ProviderId
     ├── swap-registry.ts                       route quote/build by provider + chain
     ├── deepbook/                              existing Sui venue (reference)
-    ├── lifi/                                  cross-chain + EVM aggregator fallback
+    ├── lifi/                                  cross-chain + EVM aggregator (primary)
+    ├── squid/                                 cross-chain fallback via @0xsquid/sdk (user consent)
+    ├── cross-chain/                           Li-Fi → Squid fallback orchestration
     ├── soroswap/                              Stellar / Soroban aggregator
     └── sushiswap/                             same-chain EVM aggregator
             │
@@ -190,6 +193,17 @@ Radiant Phase 1 uses **`@lifi/sdk`** with **`@lifi/sdk-provider-ethereum`**, **`
 | **Rate limits** | 200 / 2 h (no key); 200 / min (with `x-lifi-api-key`) |
 | **Radiant chain mapping** | `chain_id: ethereum` + `evm_chain_id`; **v1 enabled:** `1`, `42161`, `8453` only |
 | **Radiant v1 scope** | Bridge/swap between Ethereum, Arbitrum, Base; Sui via separate Li-Fi path if needed later — **not** Stellar |
+
+### Squid (cross-chain fallback — user consent)
+
+| Capability | Details |
+| ---------- | ------- |
+| **Role in Radiant** | **Secondary** liquidity fallback when Li-Fi returns no route; user must opt in before any Squid API call |
+| **SDK** | `@0xsquid/sdk` in `backend/src/services/defi/squid/` only |
+| **Supported corridors (v1)** | EVM `1`, `42161`, `8453`; Sui `sui-mainnet`; Solana `solana-mainnet-beta` (intersected with Radiant allowlist) |
+| **Env** | `SQUID_ENABLED`, `SQUID_INTEGRATOR_ID`, `SQUID_DEFAULT_SLIPPAGE`, optional `SQUID_ENABLED_CHAIN_IDS` |
+| **Rate limits** | Per-integrator RPS (exact thresholds not published); Radiant defaults: 10 tokens / 2s refill |
+| **Docs** | [squid-protocol-integration-TODO.md](./squid-protocol-integration-TODO.md) |
 
 ### SushiSwap (EVM aggregator)
 

@@ -136,6 +136,19 @@ describe("token-chain-affinity", () => {
     assert.equal(bridge.amount, 1);
   });
 
+  it("swapIntentToBridgeIntent preserves USD amount metadata", () => {
+    const intent = withDefaultChain({
+      ...parsePartialSwapIntent("swap $1.5 eth to sui")!,
+      chainId: "ethereum",
+      evmChainId: 8453,
+    });
+    const mismatch = detectCrossChainSwapIntent(intent)!;
+    const bridge = swapIntentToBridgeIntent(intent, mismatch);
+    assert.equal(bridge.amount, 1.5);
+    assert.equal(bridge.amountUnit, "usd");
+    assert.equal(bridge.amountUnitConfirmed, true);
+  });
+
   it("isLifiSameChainSwapEligible rejects ETH to SUI on Base", () => {
     const intent = withDefaultChain(parsePartialSwapIntent("swap 1 ETH to SUI on base")!);
     assert.equal(isLifiSameChainSwapEligible(intent), false);

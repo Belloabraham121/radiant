@@ -11,20 +11,16 @@ import {
 import type { ClarificationKnownFacts } from "../clarification/clarification-question-context.js";
 import type { ClarificationQuestionContext } from "../clarification/clarification-question-context.js";
 import type { ClarificationAnswer, ClarificationGap } from "../workflow/clarification.types.js";
+import {
+  getBridgeReceiveTokenOptions,
+  getBridgeSourceTokenOptions,
+} from "../../../config/token-capabilities.js";
 import type { BridgeIntentField, PartialBridgeIntent } from "./bridge-intent.types.js";
-import { BRIDGE_KNOWN_TOKENS } from "./bridge-intent.types.js";
 import {
   isBridgeIntentComplete,
   needsSameTokenConfirmation,
   withDefaultBridgeChains,
 } from "./bridge-intent-parser.js";
-
-function tokenOptions(exclude?: string) {
-  return BRIDGE_KNOWN_TOKENS.filter((symbol) => symbol !== exclude).map((symbol) => ({
-    id: symbol,
-    label: symbol,
-  }));
-}
 
 function buildBridgeChainOptions(): Array<{ id: string; label: string }> {
   const options: Array<{ id: string; label: string }> = [];
@@ -281,6 +277,10 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
   }
 
   if (!filled.fromToken) {
+    const options = getBridgeSourceTokenOptions(filled.fromChainId, filled.fromEvmChainId);
+    if (options.length === 0) {
+      return null;
+    }
     return {
       gap_id: "bridge.from_token",
       interaction_type: "single_choice",
@@ -289,25 +289,42 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
       field: "from_token",
       action: "bridge",
       kind: "intent",
-      options: tokenOptions(filled.toToken),
+      options,
     };
   }
 
   if (!filled.toToken) {
+    const options = getBridgeReceiveTokenOptions(
+      filled.fromChainId,
+      filled.fromEvmChainId,
+      filled.toChainId,
+      filled.toEvmChainId,
+      filled.fromToken,
+    );
+    if (options.length === 0) {
+      return null;
+    }
     return {
       gap_id: "bridge.to_token",
       interaction_type: "single_choice",
       question: formatBridgeClarificationQuestion(filled, "to_token"),
-      hint: "Pick the destination token — don't assume it matches the source.",
+      hint: "Pick the token to receive on the destination chain.",
       step_index: 0,
       field: "to_token",
       action: "bridge",
       kind: "intent",
-      options: tokenOptions(filled.fromToken),
+      options,
     };
   }
 
   if (needsSameTokenConfirmation(filled)) {
+    const receiveOptions = getBridgeReceiveTokenOptions(
+      filled.fromChainId,
+      filled.fromEvmChainId,
+      filled.toChainId,
+      filled.toEvmChainId,
+      filled.fromToken,
+    );
     return {
       gap_id: "bridge.confirm_same_token",
       interaction_type: "single_choice",
@@ -318,7 +335,7 @@ export function collectBridgeClarificationGap(intent: PartialBridgeIntent): Clar
       kind: "intent",
       options: [
         { id: filled.fromToken, label: `Receive ${filled.fromToken} on destination` },
-        ...tokenOptions(filled.fromToken).filter((option) => option.id !== filled.fromToken),
+        ...receiveOptions.filter((option) => option.id !== filled.fromToken),
       ],
     };
   }

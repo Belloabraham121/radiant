@@ -1,5 +1,6 @@
 import type { TransactionFiatPreview } from "../market/valuation.types.js";
 import type { DeFiApprovalPreview } from "../agent-transaction/approval-preview/approval-preview.types.js";
+import type { LiquidityFallbackOffer } from "../defi/cross-chain/cross-chain.types.js";
 import { z } from "zod";
 import { chainIdSchema } from "../chains/types.js";
 import type { BalanceResult, ChainId, TxResult } from "../chains/types.js";
@@ -105,6 +106,8 @@ export type ToolCallRecord = {
 
 export type { TransactionFiatPreview } from "../market/valuation.types.js";
 
+export type PendingTransactionApprovalOutcome = "approval_required" | "liquidity_fallback_offered";
+
 export type PendingTransaction = {
   id: string;
   chain_id: ChainId;
@@ -118,6 +121,10 @@ export type PendingTransaction = {
   fiat_preview?: TransactionFiatPreview | null;
   /** Provider-agnostic DeFi approval card payload (swap, bridge, etc.). */
   defi_preview?: DeFiApprovalPreview | null;
+  /** Distinguishes normal approval dialog vs Squid liquidity fallback consent. */
+  approval_outcome?: PendingTransactionApprovalOutcome;
+  /** Offered when Li-Fi has no liquidity and Squid fallback is available. */
+  liquidity_fallback_offer?: LiquidityFallbackOffer;
 };
 
 export type ChatResponse = {
@@ -291,4 +298,34 @@ export type QueryChainResult =
 
 export type ExecuteToolOutcome =
   | { status: "executed"; result: TxResult; agent_transaction_id?: string }
-  | { status: "approval_required"; pending: PendingTransaction; agent_transaction_id?: string };
+  | { status: "approval_required"; pending: PendingTransaction; agent_transaction_id?: string }
+  | {
+      status: "liquidity_fallback_offered";
+      pending: PendingTransaction;
+      liquidity_fallback_offer: LiquidityFallbackOffer;
+      agent_transaction_id?: string;
+    };
+
+export function isExecutePendingUserAction(
+  outcome: ExecuteToolOutcome,
+): outcome is
+  | { status: "approval_required"; pending: PendingTransaction; agent_transaction_id?: string }
+  | {
+      status: "liquidity_fallback_offered";
+      pending: PendingTransaction;
+      liquidity_fallback_offer: LiquidityFallbackOffer;
+      agent_transaction_id?: string;
+    } {
+  return (
+    outcome.status === "approval_required" || outcome.status === "liquidity_fallback_offered"
+  );
+}
+
+export function pendingTransactionFromExecuteOutcome(
+  outcome: ExecuteToolOutcome,
+): PendingTransaction | undefined {
+  if (outcome.status === "approval_required" || outcome.status === "liquidity_fallback_offered") {
+    return outcome.pending;
+  }
+  return undefined;
+}

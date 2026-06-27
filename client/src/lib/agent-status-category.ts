@@ -14,6 +14,10 @@ export function inferStatusCategoryFromStep(
     return step.status_category;
   }
 
+  if (step.id === "liquidity_fallback_offered" || step.id === "squid_quote" || step.id === "fallback-offer") {
+    return "defi";
+  }
+
   if (
     step.status === "warning" &&
     /approval|confirm|waiting|preview/i.test(`${step.detail ?? ""} ${step.label}`)

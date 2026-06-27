@@ -4,6 +4,12 @@ import {
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  createTransferInstruction,
+  getAssociatedTokenAddressSync,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { getSolanaConnection } from "../../infrastructure/solana/client.js";
 import { AppError } from "../../errors/app-error.js";
 import { signAndSendSolanaTransaction } from "./solana-signing.service.js";
@@ -89,6 +95,136 @@ export async function sendSolanaTransfer(input: SolanaTransferInput): Promise<So
     from: input.from,
     to: input.to,
     amountLamports: input.amountLamports,
+  });
+
+  const { hash } = await signAndSendSolanaTransaction({
+    privyWalletId: input.privyWalletId,
+    transaction: serialized,
+    caip2: input.caip2,
+  });
+
+  const connection = getSolanaConnection();
+  let effectsStatus: SolanaTxResult["effects_status"] = "unknown";
+  try {
+    const confirmation = await connection.confirmTransaction(hash, "confirmed");
+    effectsStatus = confirmation.value.err ? "failure" : "success";
+  } catch {
+    effectsStatus = "unknown";
+  }
+
+  return {
+    hash,
+    solana_address: input.from,
+    effects_status: effectsStatus,
+  };
+}
+
+const NATIVE_SOL_TOKEN_MARKERS = new Set([
+  "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "11111111111111111111111111111111",
+  "sol",
+]);
+
+export function isSolanaNativeTokenAddress(tokenAddress: string): boolean {
+  return NATIVE_SOL_TOKEN_MARKERS.has(tokenAddress.trim().toLowerCase());
+}
+
+function parseSplAmount(amountAtomic: bigint, field: string): bigint {
+  if (amountAtomic <= 0n) {
+    throw new AppError(400, "VALIDATION_ERROR", `${field} must be a positive integer string`);
+  }
+  return amountAtomic;
+}
+
+export async function buildSolanaSplTransferTransaction(input: {
+  from: string;
+  to: string;
+  mint: string;
+  amountAtomic: bigint;
+}): Promise<Uint8Array> {
+  const connection = getSolanaConnection();
+  const { blockhash } = await connection.getLatestBlockhash();
+  const fromPubkey = new PublicKey(input.from);
+  const toOwner = new PublicKey(input.to);
+  const mint = new PublicKey(input.mint);
+  const sourceAta = getAssociatedTokenAddressSync(mint, fromPubkey);
+  const destinationAta = getAssociatedTokenAddressSync(mint, toOwner);
+
+  const instructions = [
+    createAssociatedTokenAccountIdempotentInstruction(
+      fromPubkey,
+      destinationAta,
+      toOwner,
+      mint,
+    ),
+    createTransferInstruction(
+      sourceAta,
+      destinationAta,
+      fromPubkey,
+      parseSplAmount(input.amountAtomic, "amount"),
+      [],
+      TOKEN_PROGRAM_ID,
+    ),
+  ];
+
+  const message = new TransactionMessage({
+    payerKey: fromPubkey,
+    recentBlockhash: blockhash,
+    instructions,
+  }).compileToV0Message();
+
+  return new VersionedTransaction(message).serialize();
+}
+
+export type SendSolanaChainflipDepositInput = {
+  privyWalletId: string;
+  from: string;
+  to: string;
+  amountAtomic: bigint;
+  fromTokenAddress: string;
+  caip2?: string;
+};
+
+type SendSolanaChainflipDepositFn = (
+  input: SendSolanaChainflipDepositInput,
+) => Promise<SolanaTxResult>;
+
+let sendSolanaChainflipDepositForTests: SendSolanaChainflipDepositFn | null = null;
+
+export function setSendSolanaChainflipDepositForTests(
+  fn: SendSolanaChainflipDepositFn | null,
+): void {
+  sendSolanaChainflipDepositForTests = fn;
+}
+
+/** Native SOL or SPL transfer to a Chainflip deposit address (Privy sign + broadcast). */
+export async function sendSolanaChainflipDeposit(
+  input: SendSolanaChainflipDepositInput,
+): Promise<SolanaTxResult> {
+  if (sendSolanaChainflipDepositForTests) {
+    return sendSolanaChainflipDepositForTests(input);
+  }
+  return sendSolanaChainflipDepositLive(input);
+}
+
+async function sendSolanaChainflipDepositLive(
+  input: SendSolanaChainflipDepositInput,
+): Promise<SolanaTxResult> {
+  if (isSolanaNativeTokenAddress(input.fromTokenAddress)) {
+    return sendSolanaTransfer({
+      privyWalletId: input.privyWalletId,
+      from: input.from,
+      to: input.to,
+      amountLamports: input.amountAtomic,
+      caip2: input.caip2,
+    });
+  }
+
+  const serialized = await buildSolanaSplTransferTransaction({
+    from: input.from,
+    to: input.to,
+    mint: input.fromTokenAddress,
+    amountAtomic: input.amountAtomic,
   });
 
   const { hash } = await signAndSendSolanaTransaction({

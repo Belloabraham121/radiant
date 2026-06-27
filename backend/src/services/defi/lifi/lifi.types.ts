@@ -79,6 +79,8 @@ const lifiCrossChainBaseSchema = z
     integrator: z.string().optional(),
     /** Set true only when the user explicitly asked to receive the same symbol on the destination chain. */
     confirm_same_token: z.boolean().optional(),
+    /** Omit integrator fee (and feeCollection step) — used for small same-chain swaps. */
+    waive_integrator_fee: z.boolean().optional(),
   })
   .superRefine((input, ctx) => {
     const from = resolveEndpointChainId(input, "from");

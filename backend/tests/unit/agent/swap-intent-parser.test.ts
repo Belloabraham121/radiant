@@ -134,4 +134,24 @@ describe("swap-clarification-gaps", () => {
     assert.equal(intent!.inputCoin, "ETH");
     assert.equal(intent!.outputCoin, "SUI");
   });
+
+  it("parses $1.5 in initial swap message as USD", () => {
+    const intent = parsePartialSwapIntent("swap $1.5 eth to sui");
+    assert.ok(intent);
+    assert.equal(intent!.amount, 1.5);
+    assert.equal(intent!.amountUnit, "usd");
+    assert.equal(intent!.amountUnitConfirmed, true);
+    assert.equal(intent!.inputCoin, "ETH");
+    assert.equal(intent!.outputCoin, "SUI");
+  });
+
+  it("flags 1.5 eth without dollar sign as ambiguous amount unit", () => {
+    const intent = parsePartialSwapIntent("swap 1.5 eth to sui");
+    assert.ok(intent);
+    assert.equal(intent!.amount, 1.5);
+    assert.equal(intent!.amountUnit, "token");
+    const gap = collectSwapClarificationGap(withDefaultChain(intent!));
+    assert.ok(gap);
+    assert.equal(gap!.field, "amount_unit");
+  });
 });

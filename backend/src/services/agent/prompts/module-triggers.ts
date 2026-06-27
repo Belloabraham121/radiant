@@ -154,4 +154,14 @@ export const PROMPT_MODULE_TRIGGERS: Partial<Record<PromptModuleId, PromptTrigge
     keywords: [/\bbridge\b/i, /arbitrum/i, /\bbase\b/i, /ethereum.*arbitrum/i],
     chains: ["ethereum"],
   },
+  "protocol:cross-chain:fallback": {
+    queryTypes: ["cross_chain_quote", "cross_chain_routes"],
+    keywords: [
+      /\bliquidity\b/i,
+      /alternate route/i,
+      /fallback.?offer/i,
+      /liquidity.?fallback/i,
+    ],
+    chains: ["ethereum"],
+  },
 };
