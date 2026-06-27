@@ -6,12 +6,18 @@ import type { ExecutionStep } from "@/lib/chat-execution-steps";
 import { mergeExecutionSteps, sortExecutionSteps, upsertExecutionStep } from "@/lib/chat-execution-steps";
 import {
   applyLifiLiveUpdateToMessages,
-  collectTrackedLifiTransactionIds,
   executionStepsForPendingApproval as lifiExecutionStepsForPendingApproval,
   executionStepsFromAgentTransaction as lifiExecutionStepsFromAgentTransaction,
   isInFlightLifiTransaction,
   normalizeLifiExecutionSteps,
 } from "@/lib/lifi-execution-tracking";
+import {
+  collectTrackedInFlightTransactionIds,
+  executionStepsForPendingApproval as stellarExecutionStepsForPendingApproval,
+  executionStepsFromAgentTransaction as stellarExecutionStepsFromAgentTransaction,
+  isInFlightStellarTransaction,
+  isStellarPending,
+} from "@/lib/stellar-execution-tracking";
 import {
   lifiBridgeStepLabel,
   lifiCountdownKind,
@@ -377,6 +383,9 @@ function executionStepsFromSquidTransaction(
 export function executionStepsForPendingApproval(
   pending: PendingTransaction,
 ): ExecutionStep[] {
+  if (isStellarPending(pending)) {
+    return stellarExecutionStepsForPendingApproval(pending);
+  }
   if (isAlternateCrossChainRoute(pending)) {
     const sameChain = isSameChainSquidPending(pending);
     const base = lifiExecutionStepsForPendingApproval(pending);
@@ -416,6 +425,10 @@ export function executionStepsFromAgentTransaction(
   tx: AgentTransactionDetail | AgentTransactionListItem,
   result: Record<string, unknown> | null | undefined,
 ): ExecutionStep[] | undefined {
+  const stellar = stellarExecutionStepsFromAgentTransaction(tx, result);
+  if (stellar) {
+    return stellar;
+  }
   const squid = readSquidTracking(result);
   if (squid) {
     return executionStepsFromSquidTransaction(tx, squid, result);
@@ -451,13 +464,17 @@ export function isInFlightSquidTransaction(tx: AgentTransactionListItem): boolea
 }
 
 export function isInFlightCrossChainTransaction(tx: AgentTransactionListItem): boolean {
-  return isInFlightLifiTransaction(tx) || isInFlightSquidTransaction(tx);
+  return (
+    isInFlightLifiTransaction(tx) ||
+    isInFlightSquidTransaction(tx) ||
+    isInFlightStellarTransaction(tx)
+  );
 }
 
 export function collectTrackedCrossChainTransactionIds(
   messages: Array<{ executionSteps?: ExecutionStep[] }>,
 ): string[] {
-  return collectTrackedLifiTransactionIds(messages);
+  return collectTrackedInFlightTransactionIds(messages);
 }
 
 export function applyCrossChainLiveUpdateToMessages<
@@ -593,8 +610,11 @@ export function mergeCrossChainTransactionStepsIntoMessages<
   });
 }
 
+export { isStellarPending, shouldInvalidateStellarWalletAssets } from "@/lib/stellar-execution-tracking";
+
 export function isCrossChainPending(pending: PendingTransaction): boolean {
   return (
+    isStellarPending(pending) ||
     pending.action === "cross_chain_swap" ||
     pending.defi_preview?.provider_id === "evm-lifi" ||
     pending.defi_preview?.provider_id === "evm-squid" ||

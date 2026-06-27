@@ -738,11 +738,11 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                                  | Owner    | Path                                                 |
 | ------ | --------------------------------------------------------------------- | -------- | ---------------------------------------------------- |
-| [ ]    | Map `stellar_routing_fallback_offered` → `stellar-routing-offer` step | [Client] | `client/src/lib/chat-execution-steps.ts`             |
-| [ ]    | Map `soroswap_quote` → “Getting Stellar quote…”                       | [Client] | ↑                                                    |
-| [ ]    | Stellar submit/confirm step labels                                    | [Client] | `client/src/lib/stellar-execution-tracking.ts` (new) |
-| [ ]    | Reuse or extend `RouteCountdownLabel` for Soroswap quote expiry       | [Client] | `client/src/components/app/`                         |
-| [ ]    | Invalidate wallet assets for `stellar` after success                  | [Client] | existing `invalidateWalletAssetsForChain`            |
+| [x]    | Map `stellar_routing_fallback_offered` → `stellar-routing-offer` step | [Client] | `client/src/lib/chat-execution-steps.ts`             |
+| [x]    | Map `soroswap_quote` → “Getting Stellar quote…”                       | [Client] | ↑                                                    |
+| [x]    | Stellar submit/confirm step labels                                    | [Client] | `client/src/lib/stellar-execution-tracking.ts` (new) |
+| [x]    | Reuse or extend `RouteCountdownLabel` for Soroswap quote expiry       | [Client] | `client/src/components/app/`                         |
+| [x]    | Invalidate wallet assets for `stellar` after success                  | [Client] | existing `invalidateWalletAssetsForChain`            |
 
 
 #### 8.4 Error sanitization
@@ -750,8 +750,8 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                  | Owner    | Path                                    |
 | ------ | ----------------------------------------------------- | -------- | --------------------------------------- |
-| [ ]    | Strip Soroswap API noise in client tool error display | [Client] | `client/src/lib/sanitize-tool-error.ts` |
-| [ ]    | User-facing copy for trustline / reserve errors       | [Client] | ↑                                       |
+| [x]    | Strip Soroswap API noise in client tool error display | [Client] | `client/src/lib/sanitize-tool-error.ts` |
+| [x]    | User-facing copy for trustline / reserve errors       | [Client] | ↑                                       |
 
 
 ---

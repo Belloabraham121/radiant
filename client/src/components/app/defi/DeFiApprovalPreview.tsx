@@ -9,6 +9,7 @@ import {
 } from "@/hooks/useSwapQuoteCountdown";
 import { formatDisplayNumber } from "@/lib/format-display-amount";
 import { FiatPreviewLines } from "@/components/app/defi/FiatPreviewLines";
+import { QuoteExpiryCountdownLabel } from "@/components/app/RouteCountdownLabel";
 
 function formatUsd(value: number | null | undefined): string | null {
   if (value === null || value === undefined || !Number.isFinite(value)) {
@@ -61,11 +62,13 @@ export function DeFiApprovalPreviewCard({
   preview,
   quoteCountdown,
   quoteExpired,
+  quoteExpiresAt,
 }: {
   pending: PendingTransaction;
   preview: DeFiApprovalPreview;
   quoteCountdown: QuoteCountdownState;
   quoteExpired: boolean;
+  quoteExpiresAt?: string | null;
 }) {
   const fiat = preview.fiat_preview ?? pending.fiat_preview ?? null;
   const showQuoteUi =
@@ -107,9 +110,9 @@ export function DeFiApprovalPreviewCard({
         </p>
       ) : null}
       {fiat ? <FiatPreviewLines fiat={fiat} /> : null}
-      {showQuoteUi && quoteCountdown.status === "active" ? (
+      {showQuoteUi && quoteCountdown.status === "active" && quoteExpiresAt ? (
         <p className="mt-2 text-[10px] font-semibold tabular-nums text-[var(--hero-blue)]">
-          Quote valid for {quoteCountdown.label}
+          <QuoteExpiryCountdownLabel expiresAt={quoteExpiresAt} />
         </p>
       ) : null}
       {showQuoteUi && quoteExpired ? (
@@ -136,6 +139,7 @@ export function useDeFiApprovalState(pending: PendingTransaction): {
   subtitle: string;
   quoteCountdown: QuoteCountdownState;
   quoteExpired: boolean;
+  quoteExpiresAt: string | null;
 } {
   const preview = resolveDeFiPreview(pending);
   const isBridge =
@@ -144,13 +148,17 @@ export function useDeFiApprovalState(pending: PendingTransaction): {
     pending.params.lifi_continuation === true ||
     pending.params.approval_kind === "lifi_continue" ||
     preview?.kind === "lifi_continue";
-  const isLegacySwap = pending.action === "swap" || pending.action === "deepbook_swap";
+  const isLegacySwap =
+    pending.action === "swap" ||
+    pending.action === "deepbook_swap" ||
+    pending.action === "stellar_swap";
   const quoteDriven =
     !isLifiContinuation &&
     (preview?.kind === "swap" ||
       preview?.kind === "bridge" ||
       isLegacySwap ||
-      isBridge);
+      isBridge ||
+      preview?.provider_id === "stellar-soroswap");
 
   const quoteExpiresAt = preview?.quote_expires_at ?? resolveQuoteExpiresAt(pending);
   const quoteCountdown = useSwapQuoteCountdown(quoteDriven ? quoteExpiresAt : null);
@@ -181,5 +189,6 @@ export function useDeFiApprovalState(pending: PendingTransaction): {
     subtitle,
     quoteCountdown,
     quoteExpired,
+    quoteExpiresAt,
   };
 }

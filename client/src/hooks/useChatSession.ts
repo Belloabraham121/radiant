@@ -57,7 +57,9 @@ import {
   isInFlightCrossChainTransaction,
   markFallbackOfferDeclinedInMessages,
   mergeCrossChainTransactionStepsIntoMessages,
+  shouldInvalidateStellarWalletAssets,
 } from "@/lib/cross-chain-execution-tracking";
+import { invalidateWalletAssetsForChain } from "@/lib/wallet-assets-events";
 import {
   isApproveRequestTimeout,
   isLifiAgentTransaction,
@@ -131,6 +133,14 @@ function initialChatSessionState(sessionId?: string) {
     pending_transaction: null as PendingTransaction | null,
     pending_clarification: null as PendingClarification | null,
   };
+}
+
+function maybeInvalidateStellarWalletAssets(
+  steps: import("@/lib/chat-execution-steps").ExecutionStep[] | undefined,
+): void {
+  if (steps && shouldInvalidateStellarWalletAssets(steps)) {
+    invalidateWalletAssetsForChain("stellar");
+  }
 }
 
 export function useChatSession(sessionId?: string, draftResetKey = 0) {
@@ -510,6 +520,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
             continue;
           }
 
+          maybeInvalidateStellarWalletAssets(steps);
+
           setMessages((current) =>
             applyCrossChainLiveUpdateToMessages(current, txId, steps, {
               primaryMessageId: detail.message_id,
@@ -570,6 +582,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
 
       setMessages((current) => {
         if (incoming.agentTransactionId) {
+          maybeInvalidateStellarWalletAssets([incoming]);
           return applyCrossChainLiveUpdateToMessages(
             current,
             incoming.agentTransactionId,
@@ -585,7 +598,9 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
               message.executionSteps?.some(
                 (step) =>
                   step.agentTransactionId === incoming.agentTransactionId ||
-                  step.id.startsWith("lifi-"),
+                  step.id.startsWith("lifi-") ||
+                  step.id.startsWith("stellar-") ||
+                  step.id.startsWith("soroswap-"),
               ),
           );
         if (targetIndex === -1) {
@@ -603,6 +618,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           const executionSteps = sortExecutionSteps(
             upsertExecutionStep(messageRow.executionSteps ?? [], incoming),
           );
+          maybeInvalidateStellarWalletAssets(executionSteps);
           const receipts = mergeReceiptsFromExecutionStep(
             messageRow.receipts,
             incoming,
@@ -626,6 +642,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
         const executionSteps = sortExecutionSteps(
           upsertExecutionStep(messageRow.executionSteps ?? [], incoming),
         );
+        maybeInvalidateStellarWalletAssets(executionSteps);
         const receipts = mergeReceiptsFromExecutionStep(messageRow.receipts, incoming);
         return current.map((row, i) =>
           i === index
@@ -1013,6 +1030,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
             if (!steps?.length) {
               return;
             }
+            maybeInvalidateStellarWalletAssets(steps);
             setMessages((current) =>
               applyCrossChainLiveUpdateToMessages(current, snapshot.id, steps, {
                 primaryMessageId: detail.message_id,

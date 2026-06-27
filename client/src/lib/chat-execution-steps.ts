@@ -1,6 +1,7 @@
 import type { ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
 import { sanitizeToolErrorMessage } from "@/lib/sanitize-tool-error";
+import { applyStellarStreamStepPresentation } from "@/lib/stellar-execution-tracking";
 import {
   lifiBridgeStepLabel,
   lifiCountdownKind,
@@ -142,17 +143,11 @@ export function mapStreamStepToExecutionStep(
       ? "Finding another route…"
       : step.id === "squid_quote" && step.status === "running"
         ? "Getting alternate route…"
-        : step.id === "stellar_routing_fallback_offered"
-          ? "Checking Stellar option…"
-          : step.id === "soroswap_quote" && step.status === "running"
-            ? "Getting Stellar quote…"
-            : step.label;
+        : applyStellarStreamStepPresentation(step)?.label ?? step.label;
   const mappedStatus =
     step.id === "liquidity_fallback_offered" && step.status === "running"
       ? "pending"
-      : step.id === "stellar_routing_fallback_offered" && step.status === "running"
-        ? "pending"
-        : step.status;
+      : applyStellarStreamStepPresentation(step)?.status ?? step.status;
 
   const chainId = step.chain_id as AgentChainId | undefined;
   return {
