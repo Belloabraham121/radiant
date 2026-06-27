@@ -1,0 +1,201 @@
+import { isSoroswapEnabled } from "../../../config/soroswap.js";
+import { AppError } from "../../../errors/app-error.js";
+import { invalidateDefiBalanceCache } from "../cache.js";
+import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
+import {
+  executeSignedStellarTransaction,
+  parseTransactionXdr,
+  type StellarTxResult,
+} from "../../wallet/stellar-transaction.service.js";
+import { buildSoroswapTransaction } from "./soroswap-build.service.js";
+import { mapSoroswapExecuteError } from "./soroswap.errors.js";
+import {
+  normalizeSoroswapEffectsStatus,
+  normalizeSoroswapTrackingStatus,
+} from "./soroswap-normalize.js";
+import { resolveSoroswapQuoteForExecute } from "./soroswap-quote-store.service.js";
+import { consumeSoroswapExecuteQuota } from "./soroswap-rate-limit.js";
+import { getSoroswapSwapStatus } from "./soroswap-status.service.js";
+import {
+  soroswapExecuteInputSchema,
+  type SoroswapExecuteInput,
+  type SoroswapExecuteResult,
+} from "./soroswap.types.js";
+import { resolveSoroswapWalletAddress } from "./soroswap-wallet-addresses.js";
+
+type ParseXdrFn = (xdr: string) => Awaited<ReturnType<typeof parseTransactionXdr>>;
+
+type ResolveSigningWalletFn = (
+  privyUserId: string,
+) => Promise<{ privy_wallet_id: string; address: string; signer_added: boolean }>;
+
+type ExecuteSignedFn = (input: {
+  privyWalletId: string;
+  stellarAddress: string;
+  transaction: Awaited<ReturnType<typeof parseTransactionXdr>>;
+  simulate?: boolean;
+}) => Promise<StellarTxResult>;
+
+type InvalidateBalanceFn = (
+  chainId: "stellar",
+  address: string,
+) => Promise<void>;
+
+type FetchSwapStatusFn = (txHash: string) => Promise<Awaited<ReturnType<typeof getSoroswapSwapStatus>>>;
+
+let executeSignedForTests: ExecuteSignedFn | null = null;
+let invalidateBalanceForTests: InvalidateBalanceFn | null = null;
+let fetchSwapStatusForTests: FetchSwapStatusFn | null = null;
+let resolveSigningWalletForTests: ResolveSigningWalletFn | null = null;
+let parseXdrForTests: ParseXdrFn | null = null;
+
+/** Test hooks — bypass Privy signing, cache invalidation, and Horizon polling. */
+export function setSoroswapExecuteHooksForTests(hooks: {
+  executeSigned?: ExecuteSignedFn | null;
+  invalidateBalance?: InvalidateBalanceFn | null;
+  fetchSwapStatus?: FetchSwapStatusFn | null;
+  resolveSigningWallet?: ResolveSigningWalletFn | null;
+  parseXdr?: ParseXdrFn | null;
+} | null): void {
+  executeSignedForTests = hooks?.executeSigned ?? null;
+  invalidateBalanceForTests = hooks?.invalidateBalance ?? null;
+  fetchSwapStatusForTests = hooks?.fetchSwapStatus ?? null;
+  resolveSigningWalletForTests = hooks?.resolveSigningWallet ?? null;
+  parseXdrForTests = hooks?.parseXdr ?? null;
+}
+
+function snapshotParamsFromExecuteInput(input: SoroswapExecuteInput): Record<string, unknown> {
+  return {
+    ...(input.token_in ? { token_in: input.token_in } : {}),
+    ...(input.token_out ? { token_out: input.token_out } : {}),
+    ...(input.amount ? { amount: input.amount } : {}),
+    ...(input.trade_type ? { trade_type: input.trade_type } : {}),
+    ...(input.slippage !== undefined ? { slippage: input.slippage } : {}),
+    ...(input.from_address ? { from_address: input.from_address } : {}),
+  };
+}
+
+async function resolveSigningWallet(privyUserId: string) {
+  if (resolveSigningWalletForTests) {
+    const wallet = await resolveSigningWalletForTests(privyUserId);
+    if (!wallet.signer_added) {
+      throw new AppError(403, "WALLET_SIGNER_NOT_CONFIGURED", "Session signer not configured.");
+    }
+    return wallet;
+  }
+
+  const agentWallet = await resolveAgentWalletByPrivyUserId(privyUserId, "stellar");
+  if (!agentWallet) {
+    throw new AppError(404, "WALLET_NOT_FOUND", "Agent wallet not registered for chain stellar.");
+  }
+  if (!agentWallet.signer_added) {
+    throw new AppError(403, "WALLET_SIGNER_NOT_CONFIGURED", "Session signer not configured.");
+  }
+  return agentWallet;
+}
+
+async function executeSignedTransaction(input: {
+  privyWalletId: string;
+  stellarAddress: string;
+  transaction: Awaited<ReturnType<typeof parseTransactionXdr>>;
+}): Promise<StellarTxResult> {
+  if (executeSignedForTests) {
+    return executeSignedForTests({ ...input, simulate: false });
+  }
+  return executeSignedStellarTransaction({
+    privyWalletId: input.privyWalletId,
+    stellarAddress: input.stellarAddress,
+    transaction: input.transaction,
+    simulate: false,
+  });
+}
+
+async function invalidateStellarBalance(address: string): Promise<void> {
+  if (invalidateBalanceForTests) {
+    await invalidateBalanceForTests("stellar", address);
+    return;
+  }
+  await invalidateDefiBalanceCache("stellar", address);
+}
+
+async function parseBuiltXdr(xdr: string) {
+  if (parseXdrForTests) {
+    return parseXdrForTests(xdr);
+  }
+  return parseTransactionXdr(xdr);
+}
+
+async function fetchSwapStatus(txHash: string) {
+  if (fetchSwapStatusForTests) {
+    return fetchSwapStatusForTests(txHash);
+  }
+  return getSoroswapSwapStatus(txHash);
+}
+
+/** Build, sign, and broadcast a Soroswap Stellar swap. */
+export async function executeSoroswapSwap(
+  privyUserId: string,
+  input: SoroswapExecuteInput,
+): Promise<SoroswapExecuteResult> {
+  if (!isSoroswapEnabled()) {
+    throw new AppError(503, "SOROSWAP_UNAVAILABLE", "Stellar swap service is temporarily unavailable.");
+  }
+
+  const parsed = soroswapExecuteInputSchema.parse(input);
+  const quoteRef = parsed.quote_id ?? parsed.route_id;
+  if (!quoteRef?.trim()) {
+    throw new AppError(400, "VALIDATION_ERROR", "quote_id or route_id is required.", {
+      field: "quote_id",
+    });
+  }
+
+  await consumeSoroswapExecuteQuota(privyUserId);
+
+  const snapshotParams = snapshotParamsFromExecuteInput(parsed);
+  const hasSnapshot = Object.keys(snapshotParams).length > 0;
+
+  try {
+    const stored = await resolveSoroswapQuoteForExecute({
+      quoteId: quoteRef,
+      routeId: parsed.route_id,
+      ...(hasSnapshot ? { snapshotParams, privyUserId } : { privyUserId }),
+    });
+
+    const quoteId = stored.quote_id;
+    const agentWallet = await resolveSigningWallet(privyUserId);
+    const walletAddress = await resolveSoroswapWalletAddress(privyUserId, parsed.from_address);
+
+    const built = await buildSoroswapTransaction(privyUserId, {
+      quoteId,
+      routeId: parsed.route_id ?? quoteId,
+      fromAddress: parsed.from_address,
+      ...(hasSnapshot ? { snapshotParams } : {}),
+    });
+
+    const transaction = await parseBuiltXdr(built.xdr);
+    const submitted = await executeSignedTransaction({
+      privyWalletId: agentWallet.privy_wallet_id,
+      stellarAddress: walletAddress,
+      transaction,
+    });
+
+    const statusResult = await fetchSwapStatus(submitted.hash);
+    const trackingStatus = normalizeSoroswapTrackingStatus(statusResult.status);
+    const effectsStatus = normalizeSoroswapEffectsStatus(trackingStatus);
+
+    if (trackingStatus === "success") {
+      await invalidateStellarBalance(walletAddress);
+    }
+
+    return {
+      quote_id: quoteId,
+      route_id: parsed.route_id ?? quoteId,
+      tx_hash: submitted.hash,
+      ...(typeof statusResult.ledger === "number" ? { ledger: statusResult.ledger } : {}),
+      effects_status: effectsStatus,
+      tracking_status: trackingStatus,
+    };
+  } catch (err) {
+    throw mapSoroswapExecuteError(err);
+  }
+}

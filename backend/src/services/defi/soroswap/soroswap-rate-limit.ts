@@ -36,3 +36,24 @@ export async function consumeSoroswapOutboundQuota(userId: string, cost = 1): Pr
 export async function consumeSoroswapQuoteQuota(userId: string): Promise<void> {
   await consumeSoroswapOutboundQuota(userId, 2);
 }
+
+/** Stellar swap execute — relaxed outside production (mirror Squid/Li-Fi). */
+export async function consumeSoroswapExecuteQuota(userId: string): Promise<void> {
+  const strict =
+    process.env.SOROSWAP_EXECUTE_RATE_LIMIT_STRICT?.trim() === "true" ||
+    process.env.NODE_ENV === "production";
+  if (!strict) {
+    return;
+  }
+
+  const config = outboundBucketConfig();
+  const key = `soroswap:execute:${userId}:c${config.capacity}:r${config.refillIntervalMs}`;
+  const allowed = await tryConsumeTokenBucket(key, config);
+  if (!allowed) {
+    throw new AppError(
+      429,
+      "SOROSWAP_RATE_LIMITED",
+      "Stellar swap execution rate limit exceeded. Try again later.",
+    );
+  }
+}

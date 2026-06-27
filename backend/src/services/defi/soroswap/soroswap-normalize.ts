@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { resolveTokenSymbol } from "../../../config/supported-tokens.js";
 import { atomicToDisplay } from "../deepbook/asset-scalars.js";
 import type { StellarSwapQuote } from "../types.js";
-import type { SoroswapQuoteResponse } from "./soroswap.types.js";
+import type { SoroswapQuoteResponse, SoroswapSwapTrackingStatus } from "./soroswap.types.js";
 
 /** Quote store TTL — align approval countdown (~60s). */
 export const SOROSWAP_QUOTE_TTL_MS = 60_000;
@@ -74,4 +74,46 @@ export function normalizeSoroswapQuote(input: {
       quote: input.quote,
     },
   };
+}
+
+export type SoroswapHorizonTxSnapshot = {
+  successful?: boolean;
+  ledger?: number;
+};
+
+/** Map Horizon transaction fields to Soroswap tracking status. */
+export function normalizeSoroswapTxStatus(
+  tx: SoroswapHorizonTxSnapshot | null | undefined,
+): SoroswapSwapTrackingStatus {
+  if (!tx) {
+    return "pending";
+  }
+  if (tx.successful === true) {
+    return "success";
+  }
+  if (tx.successful === false) {
+    return "failed";
+  }
+  return "pending";
+}
+
+export function normalizeSoroswapEffectsStatus(
+  status: SoroswapSwapTrackingStatus,
+): "success" | "failure" | "pending" | "unknown" {
+  switch (status) {
+    case "success":
+      return "success";
+    case "failed":
+      return "failure";
+    case "pending":
+      return "pending";
+    default:
+      return "unknown";
+  }
+}
+
+export function normalizeSoroswapTrackingStatus(
+  status: SoroswapSwapTrackingStatus,
+): SoroswapSwapTrackingStatus {
+  return status;
 }

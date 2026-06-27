@@ -101,3 +101,33 @@ export type SoroswapStoredQuotePayload = {
   expires_at: string | null;
   raw_request: SoroswapQuoteRequest;
 };
+
+export const soroswapExecuteInputSchema = z.object({
+  quote_id: z.string().min(1).optional(),
+  route_id: z.string().min(1).optional(),
+  from_address: z.string().min(1).optional(),
+  token_in: z.string().min(1).optional(),
+  token_out: z.string().min(1).optional(),
+  amount: z.string().min(1).optional(),
+  trade_type: soroswapTradeTypeSchema.optional(),
+  slippage: z.number().min(0).max(1).optional(),
+});
+export type SoroswapExecuteInput = z.infer<typeof soroswapExecuteInputSchema>;
+
+export type SoroswapSwapTrackingStatus = "pending" | "success" | "failed";
+
+export type SoroswapExecuteResult = {
+  quote_id: string;
+  route_id: string;
+  tx_hash: string;
+  ledger?: number;
+  effects_status: "success" | "failure" | "pending" | "unknown";
+  tracking_status?: SoroswapSwapTrackingStatus;
+};
+
+export type SoroswapSwapStatusResult = {
+  tx_hash: string;
+  status: SoroswapSwapTrackingStatus;
+  ledger?: number;
+  successful?: boolean;
+};

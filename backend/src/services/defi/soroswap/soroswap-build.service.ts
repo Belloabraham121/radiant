@@ -13,6 +13,7 @@ export type SoroswapBuildInput = {
   quoteId: string;
   routeId?: string;
   fromAddress?: string;
+  snapshotParams?: Record<string, unknown>;
 };
 
 export type SoroswapBuildResult = {
@@ -70,6 +71,8 @@ export async function buildSoroswapTransaction(
   const stored = await resolveSoroswapQuoteForExecute({
     quoteId,
     routeId: input.routeId,
+    snapshotParams: input.snapshotParams,
+    privyUserId,
   });
 
   const fromAddress = await resolveSoroswapWalletAddress(privyUserId, input.fromAddress);
