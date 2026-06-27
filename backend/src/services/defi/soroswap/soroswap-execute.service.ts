@@ -229,6 +229,7 @@ export async function executeSoroswapSwap(
       quote_id: quoteId,
       route_id: parsed.route_id ?? quoteId,
       tx_hash: submitted.hash,
+      stellar_address: walletAddress,
       ...(typeof statusResult.ledger === "number" ? { ledger: statusResult.ledger } : {}),
       effects_status: effectsStatus,
       tracking_status: trackingStatus,

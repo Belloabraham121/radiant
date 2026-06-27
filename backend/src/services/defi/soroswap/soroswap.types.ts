@@ -120,6 +120,7 @@ export type SoroswapExecuteResult = {
   quote_id: string;
   route_id: string;
   tx_hash: string;
+  stellar_address: string;
   ledger?: number;
   effects_status: "success" | "failure" | "pending" | "unknown";
   tracking_status?: SoroswapSwapTrackingStatus;

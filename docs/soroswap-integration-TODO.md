@@ -654,16 +654,16 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                                                        | Owner     | Path                                                                     |
 | ------ | ------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------ |
-| [ ]    | `stellar_swap` execute action in Stellar adapter                                            | [Backend] | `services/chains/adapters/stellar.ts`                                    |
-| [ ]    | Dispatch: `quote_id` / `route_id` / `transaction_xdr` paths                                 | [Backend] | `chains/stellar/soroswap/execute-actions.ts`                             |
-| [ ]    | `matchSoroswapExecuteInput` + `enrichSoroswapExecuteInputForApproval`                       | [Backend] | `approval-preview/enrichers/soroswap.ts`                                 |
-| [ ]    | Register enricher in `approval-preview/enrichers/registry.ts` **before** DeepBook catch-all | [Backend] | `registry.ts`                                                            |
-| [ ]    | Re-quote on stale params at enrich time                                                     | [Backend] | enricher                                                                 |
-| [ ]    | `applySoroswapQuoteToExecuteParams` (mirror `lifi-route-params.ts`)                         | [Backend] | `enrichers/soroswap-route-params.ts`                                     |
-| [ ]    | Approval dialog: pay/receive, slippage min, stroops→display, countdown                      | [Backend] | `build-preview.ts`, `build-display.ts`                                   |
-| [ ]    | `transaction-approval.service.ts` — outcome `stellar_routing_fallback_offered`              | [Backend] | mirror `liquidity_fallback_offered`                                      |
-| [ ]    | Valuation / USD notional for Stellar swaps                                                  | [Backend] | `market/valuation.service.ts`                                            |
-| [ ]    | Unit tests: approval enricher Soroswap path                                                 | [Tests]   | `backend/tests/unit/agent-transaction/approval-preview-soroswap.test.ts` |
+| [x]    | `stellar_swap` execute action in Stellar adapter                                            | [Backend] | `services/chains/adapters/stellar.ts`                                    |
+| [x]    | Dispatch: `quote_id` / `route_id` / `transaction_xdr` paths                                 | [Backend] | `chains/stellar/soroswap/execute-actions.ts`                             |
+| [x]    | `matchSoroswapExecuteInput` + `enrichSoroswapExecuteInputForApproval`                       | [Backend] | `approval-preview/enrichers/soroswap.ts`                                 |
+| [x]    | Register enricher in `approval-preview/enrichers/registry.ts` **before** DeepBook catch-all | [Backend] | `registry.ts`                                                            |
+| [x]    | Re-quote on stale params at enrich time                                                     | [Backend] | enricher                                                                 |
+| [x]    | `applySoroswapQuoteToExecuteParams` (mirror `lifi-route-params.ts`)                         | [Backend] | `enrichers/soroswap-route-params.ts`                                     |
+| [x]    | Approval dialog: pay/receive, slippage min, stroops→display, countdown                      | [Backend] | `build-preview.ts`, `build-display.ts`                                   |
+| [x]    | `transaction-approval.service.ts` — outcome `stellar_routing_fallback_offered`              | [Backend] | mirror `liquidity_fallback_offered`                                      |
+| [x]    | Valuation / USD notional for Stellar swaps                                                  | [Backend] | `market/valuation.service.ts`                                            |
+| [x]    | Unit tests: approval enricher Soroswap path                                                 | [Tests]   | `backend/tests/unit/agent-transaction/approval-preview-soroswap.test.ts` |
 
 
 ---

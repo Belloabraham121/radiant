@@ -14,10 +14,9 @@ export {
   STELLAR_SOROSWAP_QUERY_HANDLERS,
 } from "./query-handlers.js";
 
-export const STELLAR_SOROSWAP_EXECUTE_ACTIONS = ["stellar_swap"] as const;
-
-export const STELLAR_SOROSWAP_EXECUTE_SCHEMA = {
-  actionDescription: "stellar_swap (Soroswap — Phase 1).",
-  paramsDescription:
-    "stellar_swap: { transaction_xdr } or quote reference — Phase 1; use stellar_swap_quote first.",
-};
+export {
+  STELLAR_SOROSWAP_EXECUTE_ACTIONS,
+  STELLAR_SOROSWAP_EXECUTE_SCHEMA,
+  executeStellarSoroswapAction,
+  isSoroswapExecuteAction,
+} from "./execute-actions.js";

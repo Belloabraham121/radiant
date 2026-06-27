@@ -147,8 +147,15 @@ export async function executeStellarTransaction(
         simulate: params.simulate !== false,
       });
     }
-    default:
+    default: {
+      const { executeStellarSoroswapAction, isSoroswapExecuteAction } = await import(
+        "../../agent/chains/stellar/soroswap/execute-actions.js"
+      );
+      if (isSoroswapExecuteAction(action)) {
+        return executeStellarSoroswapAction(privyUserId, action, params);
+      }
       throw new AppError(400, "UNSUPPORTED_ACTION", `Unsupported Stellar action: ${action}`);
+    }
   }
 }
 
