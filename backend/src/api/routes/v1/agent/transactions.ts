@@ -3,6 +3,8 @@ import { ZodError } from "zod";
 import { z } from "zod";
 import { AppError } from "../../../../errors/app-error.js";
 import { requireAuth } from "../../../middleware/auth.js";
+import { agentTransactionMutationRateLimitMiddleware } from "../../../middleware/auth-rate-limit.js";
+import { auditAgentTransactionMutation } from "../../../middleware/agent-transaction-audit.js";
 import {
   getTransaction,
   listTransactions,
@@ -143,9 +145,16 @@ agentTransactionsRouter.get(
 agentTransactionsRouter.post(
   "/api/v1/agent/transactions/:id/refresh-quote",
   requireAuth,
+  agentTransactionMutationRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const transactionId = transactionIdSchema.parse(req.params.id);
+      auditAgentTransactionMutation(
+        "refresh_quote",
+        req.user.privyUserId,
+        transactionId,
+        req.correlationId,
+      );
       const result = await refreshAgentTransactionQuoteForUi(
         req.user.privyUserId,
         transactionId,
@@ -162,6 +171,9 @@ agentTransactionsRouter.post(
       if (err instanceof AppError && err.code === "APPROVAL_NOT_FOUND") {
         return fail(req, res, 404, { code: err.code, message: err.message });
       }
+      if (err instanceof AppError && err.code === "APPROVAL_UPDATE_FAILED") {
+        return fail(req, res, 500, { code: err.code, message: err.message });
+      }
       next(err);
     }
   },
@@ -170,9 +182,16 @@ agentTransactionsRouter.post(
 agentTransactionsRouter.post(
   "/api/v1/agent/transactions/:id/approve",
   requireAuth,
+  agentTransactionMutationRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const transactionId = transactionIdSchema.parse(req.params.id);
+      auditAgentTransactionMutation(
+        "approve",
+        req.user.privyUserId,
+        transactionId,
+        req.correlationId,
+      );
       const result = await approveAgentTransactionForUi(req.user.privyUserId, transactionId);
       return ok(req, res, result);
     } catch (err) {
@@ -194,9 +213,16 @@ agentTransactionsRouter.post(
 agentTransactionsRouter.post(
   "/api/v1/agent/transactions/:id/reject",
   requireAuth,
+  agentTransactionMutationRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const transactionId = transactionIdSchema.parse(req.params.id);
+      auditAgentTransactionMutation(
+        "reject",
+        req.user.privyUserId,
+        transactionId,
+        req.correlationId,
+      );
       const result = await rejectAgentTransactionForUi(req.user.privyUserId, transactionId);
       return ok(req, res, result);
     } catch (err) {

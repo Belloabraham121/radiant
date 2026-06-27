@@ -14,14 +14,38 @@ export type SquidChainflipDepositAddressResponse = z.infer<
   typeof squidChainflipDepositAddressResponseSchema
 >;
 
-/** POST /v2/deposit-address for CHAINFLIP_DEPOSIT_ADDRESS routes (Squid SDK wrapper). */
+export type GetSquidChainflipDepositAddressInput = {
+  transactionRequest: SquidRouteSnapshot["transactionRequest"];
+  quoteId: string;
+  route: SquidRouteSnapshot;
+};
+
+type GetSquidChainflipDepositAddressFn = (
+  privyUserId: string,
+  input: GetSquidChainflipDepositAddressInput,
+) => Promise<SquidChainflipDepositAddressResponse>;
+
+let getSquidChainflipDepositAddressForTests: GetSquidChainflipDepositAddressFn | null = null;
+
+export function setGetSquidChainflipDepositAddressForTests(
+  fn: GetSquidChainflipDepositAddressFn | null,
+): void {
+  getSquidChainflipDepositAddressForTests = fn;
+}
+
 export async function getSquidChainflipDepositAddress(
   privyUserId: string,
-  input: {
-    transactionRequest: SquidRouteSnapshot["transactionRequest"];
-    quoteId: string;
-    route: SquidRouteSnapshot;
-  },
+  input: GetSquidChainflipDepositAddressInput,
+): Promise<SquidChainflipDepositAddressResponse> {
+  if (getSquidChainflipDepositAddressForTests) {
+    return getSquidChainflipDepositAddressForTests(privyUserId, input);
+  }
+  return getSquidChainflipDepositAddressLive(privyUserId, input);
+}
+
+async function getSquidChainflipDepositAddressLive(
+  privyUserId: string,
+  input: GetSquidChainflipDepositAddressInput,
 ): Promise<SquidChainflipDepositAddressResponse> {
   void input.quoteId;
   await consumeSquidOutboundQuota(privyUserId);

@@ -527,6 +527,94 @@ export type ApprovalResult =
   | { ok: true; pending: PendingTransaction; result: TxResult; continuation_pending?: PendingTransaction }
   | { ok: false; pending: PendingTransaction; error: AppError; retryable?: boolean };
 
+function mapPostClaimEnrichError(err: unknown): AppError {
+  if (err instanceof AppError) {
+    return err;
+  }
+  return mapLifiExecuteError(err);
+}
+
+async function enrichCrossChainExecuteInputAfterClaim(
+  privyUserId: string,
+  transactionId: string,
+  userId: bigint,
+  pending: PendingTransaction,
+  executeInput: ExecuteTransactionInput,
+  options?: Parameters<typeof enrichCrossChainExecuteInput>[2],
+): Promise<
+  | { ok: true; executeInput: ExecuteTransactionInput }
+  | { ok: false; result: ApprovalResult }
+> {
+  try {
+    const enriched = await enrichCrossChainExecuteInput(privyUserId, executeInput, options);
+    return { ok: true, executeInput: enriched };
+  } catch (err) {
+    const error = mapPostClaimEnrichError(err);
+    if (isRetryablePreBroadcastError(error.code)) {
+      await revertPendingApprovalToClaimable(transactionId, userId);
+    } else {
+      await markCompleted(transactionId, {
+        kind: "failure",
+        error: { code: error.code, message: error.message },
+      });
+    }
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        pending,
+        error,
+        retryable: isRetryablePreBroadcastError(error.code),
+      },
+    };
+  }
+}
+
+/** @internal Exported for unit tests — coalesce quote TTL only when the quote is still fresh. */
+export function applyNonExpiredQuoteExpiryCoalescing(
+  executeInput: ExecuteTransactionInput,
+): ExecuteTransactionInput {
+  const currentExpiry = readDeFiQuoteExpiresAt(executeInput.params);
+  const coalescedExpiry = isDeFiQuoteExpired(executeInput.params)
+    ? currentExpiry
+    : coalesceDeFiQuoteExpiresAt(currentExpiry);
+  return {
+    ...executeInput,
+    params: {
+      ...executeInput.params,
+      ...(coalescedExpiry
+        ? { expires_at: coalescedExpiry, quote_expires_at: coalescedExpiry }
+        : {}),
+    },
+  };
+}
+
+type UpdateAgentTransactionByIdFn = typeof updateAgentTransactionById;
+
+let updateAgentTransactionByIdForTests: UpdateAgentTransactionByIdFn | null = null;
+
+export function setUpdateAgentTransactionByIdForTests(
+  fn: UpdateAgentTransactionByIdFn | null,
+): void {
+  updateAgentTransactionByIdForTests = fn;
+}
+
+/** @internal Exported for unit tests — persist refreshed approval params or throw. */
+export async function persistRefreshedPendingQuote(
+  transactionId: string,
+  pending: PendingTransaction,
+): Promise<void> {
+  const updateFn = updateAgentTransactionByIdForTests ?? updateAgentTransactionById;
+  const updated = await updateFn(transactionId, {
+    params: pending.params,
+    title: pending.summary,
+    amount_display: pending.amount_display,
+  });
+  if (!updated) {
+    throw new AppError(500, "APPROVAL_UPDATE_FAILED", "Failed to persist refreshed quote.");
+  }
+}
+
 export async function maybeCreateLifiContinuationFromTracking(
   input: MaybeCreateLifiContinuationInput,
 ): Promise<PendingTransaction | null> {
@@ -570,9 +658,18 @@ export async function approvePendingTransaction(
       ? isSquidApprovalDisplayComplete(executeInput.params)
       : isLifiApprovalDisplayComplete(executeInput.params);
     if (!hasStoredRoute || !displayComplete) {
-      executeInput = await enrichCrossChainExecuteInput(privyUserId, executeInput, {
-        requoteOnCacheMiss: !isLifiContinuationApproval(executeInput.params),
-      });
+      const enrichResult = await enrichCrossChainExecuteInputAfterClaim(
+        privyUserId,
+        transactionId,
+        claimed.user_id,
+        pending,
+        executeInput,
+        { requoteOnCacheMiss: !isLifiContinuationApproval(executeInput.params) },
+      );
+      if (!enrichResult.ok) {
+        return enrichResult.result;
+      }
+      executeInput = enrichResult.executeInput;
     }
     if (isLifiContinuationApproval(executeInput.params)) {
       executeInput = {
@@ -586,15 +683,7 @@ export async function approvePendingTransaction(
       delete executeInput.params.expires_at;
       delete executeInput.params.quote_expires_at;
     } else {
-      const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(executeInput.params));
-      executeInput = {
-        ...executeInput,
-        params: {
-          ...executeInput.params,
-          expires_at: coalescedExpiry,
-          quote_expires_at: coalescedExpiry,
-        },
-      };
+      executeInput = applyNonExpiredQuoteExpiryCoalescing(executeInput);
     }
   } else if (isDeepBookSwapAction(executeInput.action)) {
     const enrichResult = await enrichExecuteInputForApproval(privyUserId, executeInput);
@@ -608,21 +697,18 @@ export async function approvePendingTransaction(
     isDeFiQuoteExpired(executeInput.params)
   ) {
     if (isLifiExecuteAction(executeInput.action)) {
-      executeInput = await enrichCrossChainExecuteInput(privyUserId, executeInput, {
-        requoteOnCacheMiss: true,
-        forceRequote: true,
-      });
-      const coalescedExpiry = coalesceDeFiQuoteExpiresAt(
-        readDeFiQuoteExpiresAt(executeInput.params),
+      const enrichResult = await enrichCrossChainExecuteInputAfterClaim(
+        privyUserId,
+        transactionId,
+        claimed.user_id,
+        pending,
+        executeInput,
+        { requoteOnCacheMiss: true, forceRequote: true },
       );
-      executeInput = {
-        ...executeInput,
-        params: {
-          ...executeInput.params,
-          expires_at: coalescedExpiry,
-          quote_expires_at: coalescedExpiry,
-        },
-      };
+      if (!enrichResult.ok) {
+        return enrichResult.result;
+      }
+      executeInput = applyNonExpiredQuoteExpiryCoalescing(enrichResult.executeInput);
     }
     if (isDeFiQuoteExpired(executeInput.params)) {
       await revertPendingApprovalToClaimable(transactionId, claimed.user_id);
@@ -864,11 +950,7 @@ export async function refreshPendingTransactionQuote(
       enrichResult.liquidity_fallback_offer,
       transactionId,
     );
-    await updateAgentTransactionById(transactionId, {
-      params: fallbackPending.params,
-      title: fallbackPending.summary,
-      amount_display: fallbackPending.amount_display,
-    });
+    await persistRefreshedPendingQuote(transactionId, fallbackPending);
     return fallbackPending;
   }
 
@@ -878,11 +960,7 @@ export async function refreshPendingTransactionQuote(
     transactionId,
   );
 
-  await updateAgentTransactionById(transactionId, {
-    params: pending.params,
-    title: pending.summary,
-    amount_display: pending.amount_display,
-  });
+  await persistRefreshedPendingQuote(transactionId, pending);
 
   return pending;
 }

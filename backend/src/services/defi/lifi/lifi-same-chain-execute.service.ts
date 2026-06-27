@@ -13,13 +13,14 @@ export function isSameChainEvmLifiRoute(sourceChain: LifiChainRef, route: Route)
   if (sourceChain.chain_id !== "ethereum" || sourceChain.evm_chain_id === undefined) {
     return false;
   }
-  const first = route.steps?.[0];
-  const last = route.steps?.at(-1);
-  if (!first || !last) {
+  if (!route.steps?.length) {
     return false;
   }
   const evmChainId = radiantToLifiChainId(sourceChain);
-  return first.action.fromChainId === evmChainId && last.action.toChainId === evmChainId;
+  return route.steps.every(
+    (step) =>
+      step.action.fromChainId === evmChainId && step.action.toChainId === evmChainId,
+  );
 }
 
 function readBigInt(value: string | undefined | null): bigint | undefined {
@@ -95,6 +96,16 @@ export async function executeSameChainEvmLifiRoute(
     }
 
     const txValue = readBigInt(tx.value) ?? 0n;
+    const maxFeePerGas = readBigInt(tx.maxFeePerGas);
+    const feeFields =
+      maxFeePerGas !== undefined
+        ? {
+            maxFeePerGas,
+            maxPriorityFeePerGas: readBigInt(tx.maxPriorityFeePerGas),
+          }
+        : readBigInt(tx.gasPrice) !== undefined
+          ? { gasPrice: readBigInt(tx.gasPrice) }
+          : {};
 
     const hash = await walletClient.sendTransaction({
       account,
@@ -103,13 +114,7 @@ export async function executeSameChainEvmLifiRoute(
       data: (tx.data ?? "0x") as Hex,
       value: txValue,
       ...(readBigInt(tx.gasLimit) !== undefined ? { gas: readBigInt(tx.gasLimit) } : {}),
-      ...(readBigInt(tx.gasPrice) !== undefined ? { gasPrice: readBigInt(tx.gasPrice) } : {}),
-      ...(readBigInt(tx.maxFeePerGas) !== undefined
-        ? {
-            maxFeePerGas: readBigInt(tx.maxFeePerGas),
-            maxPriorityFeePerGas: readBigInt(tx.maxPriorityFeePerGas),
-          }
-        : {}),
+      ...feeFields,
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash });

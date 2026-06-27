@@ -129,14 +129,11 @@ export function isSolanaNativeTokenAddress(tokenAddress: string): boolean {
   return NATIVE_SOL_TOKEN_MARKERS.has(tokenAddress.trim().toLowerCase());
 }
 
-function parseSplAmount(amountAtomic: bigint, field: string): number {
+function parseSplAmount(amountAtomic: bigint, field: string): bigint {
   if (amountAtomic <= 0n) {
     throw new AppError(400, "VALIDATION_ERROR", `${field} must be a positive integer string`);
   }
-  if (amountAtomic > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new AppError(400, "VALIDATION_ERROR", `${field} exceeds the maximum safe transfer amount`);
-  }
-  return Number(amountAtomic);
+  return amountAtomic;
 }
 
 export async function buildSolanaSplTransferTransaction(input: {
@@ -179,15 +176,40 @@ export async function buildSolanaSplTransferTransaction(input: {
   return new VersionedTransaction(message).serialize();
 }
 
-/** Native SOL or SPL transfer to a Chainflip deposit address (Privy sign + broadcast). */
-export async function sendSolanaChainflipDeposit(input: {
+export type SendSolanaChainflipDepositInput = {
   privyWalletId: string;
   from: string;
   to: string;
   amountAtomic: bigint;
   fromTokenAddress: string;
   caip2?: string;
-}): Promise<SolanaTxResult> {
+};
+
+type SendSolanaChainflipDepositFn = (
+  input: SendSolanaChainflipDepositInput,
+) => Promise<SolanaTxResult>;
+
+let sendSolanaChainflipDepositForTests: SendSolanaChainflipDepositFn | null = null;
+
+export function setSendSolanaChainflipDepositForTests(
+  fn: SendSolanaChainflipDepositFn | null,
+): void {
+  sendSolanaChainflipDepositForTests = fn;
+}
+
+/** Native SOL or SPL transfer to a Chainflip deposit address (Privy sign + broadcast). */
+export async function sendSolanaChainflipDeposit(
+  input: SendSolanaChainflipDepositInput,
+): Promise<SolanaTxResult> {
+  if (sendSolanaChainflipDepositForTests) {
+    return sendSolanaChainflipDepositForTests(input);
+  }
+  return sendSolanaChainflipDepositLive(input);
+}
+
+async function sendSolanaChainflipDepositLive(
+  input: SendSolanaChainflipDepositInput,
+): Promise<SolanaTxResult> {
   if (isSolanaNativeTokenAddress(input.fromTokenAddress)) {
     return sendSolanaTransfer({
       privyWalletId: input.privyWalletId,

@@ -17,8 +17,18 @@ export function isLifiPendingEffectsStatus(
   return effectsStatus === "pending" || effectsStatus === "unknown";
 }
 
+function hasCompleteEthereumRef(chainId: ChainId, evmChainId: number | undefined): boolean {
+  return chainId !== "ethereum" || evmChainId !== undefined;
+}
+
 /** Same-chain Li-Fi route (EVM network or Solana/Sui family). */
 export function isSameChainLifiRoute(tracking: LifiTrackingMeta): boolean {
+  if (
+    !hasCompleteEthereumRef(tracking.from_chain_id, tracking.from_evm_chain_id) ||
+    !hasCompleteEthereumRef(tracking.to_chain_id, tracking.to_evm_chain_id)
+  ) {
+    return false;
+  }
   return isSameChainLifiChainRefs(
     {
       chain_id: tracking.from_chain_id,

@@ -91,7 +91,7 @@ async function postSquidDepositAddress(transactionRequest: unknown): Promise<unk
       body: JSON.stringify(transactionRequest),
       signal: controller.signal,
     });
-    const data: unknown = await response.json();
+    const data: unknown = await response.json().catch(() => null);
     if (!response.ok) {
       throw {
         response: {

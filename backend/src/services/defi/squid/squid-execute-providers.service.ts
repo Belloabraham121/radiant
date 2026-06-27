@@ -245,15 +245,6 @@ export async function executeSquidChainflipDepositRoute(input: {
     route: input.route,
   });
 
-  const amountAtomic = BigInt(deposit.amount);
-  const transfer = await sendSolanaChainflipDeposit({
-    privyWalletId: input.agentWallet.privy_wallet_id,
-    from: input.agentWallet.address,
-    to: deposit.depositAddress,
-    amountAtomic,
-    fromTokenAddress: readRouteFromToken(input.route),
-  });
-
   const bridgeType = resolveSquidBridgeType(input.toEvmChainId);
   if (!bridgeType) {
     throw new AppError(
@@ -262,6 +253,15 @@ export async function executeSquidChainflipDepositRoute(input: {
       "CHAINFLIP routes require an EVM destination chain id.",
     );
   }
+
+  const amountAtomic = BigInt(deposit.amount);
+  const transfer = await sendSolanaChainflipDeposit({
+    privyWalletId: input.agentWallet.privy_wallet_id,
+    from: input.agentWallet.address,
+    to: deposit.depositAddress,
+    amountAtomic,
+    fromTokenAddress: readRouteFromToken(input.route),
+  });
 
   return {
     txHash: transfer.hash,

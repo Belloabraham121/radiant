@@ -12,6 +12,7 @@ import {
   normalizeLifiRouteToRouteQuote,
 } from "../../../defi/lifi/lifi-normalize.js";
 import { requoteLifiFromSnapshot, resolveLifiRouteForExecute } from "../../../defi/lifi/lifi-quote.service.js";
+import type { CrossChainQuote } from "../../../defi/lifi/lifi.types.js";
 
 function sumUsd(costs: Array<{ amountUSD?: string }> | undefined): number | null {
   if (!costs || costs.length === 0) {
@@ -288,6 +289,33 @@ export function applyLifiRouteToExecuteParams(
   };
 }
 
+function applyRequotedSnapshot(
+  params: Record<string, unknown>,
+  requoted: CrossChainQuote,
+  refreshedRoute: Route,
+): Record<string, unknown> {
+  return applyLifiRouteToExecuteParams(
+    {
+      ...params,
+      route_id: requoted.route_id,
+      from_token_symbol: requoted.from_token_symbol,
+      to_token_symbol: requoted.to_token_symbol,
+      from_token: requoted.from_token,
+      to_token: requoted.to_token,
+      from_amount_atomic: requoted.from_amount_atomic,
+      to_amount_atomic: requoted.to_amount_atomic,
+      from_chain_id: requoted.from_chain_id,
+      to_chain_id: requoted.to_chain_id,
+      from_evm_chain_id: requoted.from_evm_chain_id,
+      to_evm_chain_id: requoted.to_evm_chain_id,
+      bridges: requoted.bridges,
+      fee_cost_usd: requoted.fee_cost_usd,
+      expires_at: requoted.expires_at,
+    },
+    refreshedRoute,
+  );
+}
+
 /** Resolve Li-Fi route + display fields for approval UI. */
 export async function resolveLifiApprovalParams(
   params: Record<string, unknown>,
@@ -299,26 +327,7 @@ export async function resolveLifiApprovalParams(
     });
     const refreshedRoute = requoted?.lifi_route;
     if (requoted && refreshedRoute) {
-      return applyLifiRouteToExecuteParams(
-        {
-          ...params,
-          route_id: requoted.route_id,
-          from_token_symbol: requoted.from_token_symbol,
-          to_token_symbol: requoted.to_token_symbol,
-          from_token: requoted.from_token,
-          to_token: requoted.to_token,
-          from_amount_atomic: requoted.from_amount_atomic,
-          to_amount_atomic: requoted.to_amount_atomic,
-          from_chain_id: requoted.from_chain_id,
-          to_chain_id: requoted.to_chain_id,
-          from_evm_chain_id: requoted.from_evm_chain_id,
-          to_evm_chain_id: requoted.to_evm_chain_id,
-          bridges: requoted.bridges,
-          fee_cost_usd: requoted.fee_cost_usd,
-          expires_at: requoted.expires_at,
-        },
-        refreshedRoute,
-      );
+      return applyRequotedSnapshot(params, requoted, refreshedRoute);
     }
   }
 
@@ -346,26 +355,7 @@ export async function resolveLifiApprovalParams(
         const requoted = await requoteLifiFromSnapshot(options.privyUserId, params);
         const refreshedRoute = requoted?.lifi_route;
         if (requoted && refreshedRoute) {
-          return applyLifiRouteToExecuteParams(
-            {
-              ...params,
-              route_id: requoted.route_id,
-              from_token_symbol: requoted.from_token_symbol,
-              to_token_symbol: requoted.to_token_symbol,
-              from_token: requoted.from_token,
-              to_token: requoted.to_token,
-              from_amount_atomic: requoted.from_amount_atomic,
-              to_amount_atomic: requoted.to_amount_atomic,
-              from_chain_id: requoted.from_chain_id,
-              to_chain_id: requoted.to_chain_id,
-              from_evm_chain_id: requoted.from_evm_chain_id,
-              to_evm_chain_id: requoted.to_evm_chain_id,
-              bridges: requoted.bridges,
-              fee_cost_usd: requoted.fee_cost_usd,
-              expires_at: requoted.expires_at,
-            },
-            refreshedRoute,
-          );
+          return applyRequotedSnapshot(params, requoted, refreshedRoute);
         }
       }
       // Fall through to quote snapshot fields from cross_chain_quote.

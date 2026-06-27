@@ -29,6 +29,26 @@ function routeWithChains(fromChainId: number, toChainId: number): Route {
   } as Route;
 }
 
+function routeWithMixedSteps(evmChainId: number, detourChainId: number): Route {
+  const baseStep = routeWithChains(evmChainId, evmChainId).steps[0];
+  return {
+    ...routeWithChains(evmChainId, evmChainId),
+    steps: [
+      { ...baseStep, action: { ...baseStep.action, fromChainId: evmChainId, toChainId: evmChainId } },
+      {
+        ...baseStep,
+        id: "step-2",
+        action: {
+          ...baseStep.action,
+          fromChainId: evmChainId,
+          toChainId: detourChainId,
+        },
+      },
+      { ...baseStep, id: "step-3", action: { ...baseStep.action, fromChainId: detourChainId, toChainId: evmChainId } },
+    ],
+  } as Route;
+}
+
 describe("lifi-same-chain-execute", () => {
   it("detects same-chain EVM routes", () => {
     const route = routeWithChains(8453, 8453);
@@ -44,6 +64,14 @@ describe("lifi-same-chain-execute", () => {
 
   it("rejects cross-chain routes", () => {
     const route = routeWithChains(8453, 1);
+    assert.equal(
+      isSameChainEvmLifiRoute({ chain_id: "ethereum", evm_chain_id: 8453 }, route),
+      false,
+    );
+  });
+
+  it("rejects routes that leave and return to the same EVM chain", () => {
+    const route = routeWithMixedSteps(8453, 1);
     assert.equal(
       isSameChainEvmLifiRoute({ chain_id: "ethereum", evm_chain_id: 8453 }, route),
       false,
