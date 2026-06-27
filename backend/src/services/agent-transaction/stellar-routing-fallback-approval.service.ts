@@ -9,6 +9,7 @@ import {
 import { getStellarRoutingFallbackOffer } from "../defi/stellar-routing/stellar-routing-fallback-cache.js";
 import type { StellarRoutingFallbackQuoteParams } from "../defi/stellar-routing/stellar-routing.types.js";
 import { findPendingApprovalSessionIdByStellarRoutingFallbackOfferId } from "./agent-transaction.repository.js";
+import { emitSoroswapQuoteStep } from "../agent/agent-stream-stellar.js";
 
 function stellarRoutingQuoteToExecuteInput(
   quote: Awaited<ReturnType<typeof acceptStellarRoutingFallback>>,
@@ -51,10 +52,17 @@ export async function acceptStellarRoutingFallbackForApproval(
     fallbackOfferId,
   );
 
+  emitSoroswapQuoteStep(sessionId, { status: "running", fallback_offer_id: fallbackOfferId });
+
   let quoteResult: Awaited<ReturnType<typeof acceptStellarRoutingFallback>>;
   try {
     quoteResult = await acceptStellarRoutingFallback(privyUserId, fallbackOfferId);
   } catch (err) {
+    emitSoroswapQuoteStep(sessionId, {
+      status: "failed",
+      fallback_offer_id: fallbackOfferId,
+      detail: err instanceof AppError ? err.message : "Could not fetch Stellar swap quote",
+    });
     throw err instanceof AppError
       ? err
       : new AppError(500, "INTERNAL_ERROR", "Could not fetch Stellar swap quote.");
@@ -62,12 +70,24 @@ export async function acceptStellarRoutingFallbackForApproval(
 
   const stored = await getStellarRoutingFallbackOffer(fallbackOfferId);
   if (!stored) {
+    emitSoroswapQuoteStep(sessionId, {
+      status: "failed",
+      fallback_offer_id: fallbackOfferId,
+      detail: "Stellar routing fallback offer expired or was not found",
+    });
     throw new AppError(
       404,
       "FALLBACK_OFFER_NOT_FOUND",
       "Stellar routing fallback offer expired or was not found.",
     );
   }
+
+  emitSoroswapQuoteStep(sessionId, {
+    status: "ok",
+    token_in: stored.quoteParams.token_in,
+    token_out: stored.quoteParams.token_out,
+    fallback_offer_id: fallbackOfferId,
+  });
 
   const executeInput = stellarRoutingQuoteToExecuteInput(quoteResult, stored.quoteParams);
 

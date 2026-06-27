@@ -688,14 +688,14 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                          | Owner     | Path                                                       |
 | ------ | ------------------------------------------------------------- | --------- | ---------------------------------------------------------- |
-| [ ]    | Stream step type: `stellar_routing_fallback_offered`          | [Backend] | `agent-stream.types.ts`                                    |
-| [ ]    | Stream step type: `soroswap_quote`                            | [Backend] | ↑                                                          |
-| [ ]    | Emit steps from swap execute + fallback accept                | [Backend] | `agent-stream-stellar.ts` (new) or extend execution stream |
-| [ ]    | `inferStatusCategoryFromStep` — map to `defi` category        | [Client]  | `client/src/lib/chat-execution-steps.ts`                   |
-| [ ]    | Prompt module `protocol:soroswap:env`                         | [Backend] | `prompts/protocols/soroswap/env.ts`                        |
-| [ ]    | Prompt module `protocol:soroswap:swap`                        | [Backend] | `prompts/protocols/soroswap/swap.ts`                       |
-| [ ]    | Prompt module `protocol:stellar:routing-fallback`             | [Backend] | mirror `protocols/cross-chain/fallback.ts`                 |
-| [ ]    | Register triggers — keywords: stellar, soroswap, soroban, XLM | [Backend] | `module-triggers.ts`                                       |
+| [x]    | Stream step type: `stellar_routing_fallback_offered`          | [Backend] | `agent-stream.types.ts`                                    |
+| [x]    | Stream step type: `soroswap_quote`                            | [Backend] | ↑                                                          |
+| [x]    | Emit steps from swap execute + fallback accept                | [Backend] | `agent-stream-stellar.ts` (new) or extend execution stream |
+| [x]    | `inferStatusCategoryFromStep` — map to `defi` category        | [Client]  | `client/src/lib/chat-execution-steps.ts`                   |
+| [x]    | Prompt module `protocol:soroswap:env`                         | [Backend] | `prompts/protocols/soroswap/env.ts`                        |
+| [x]    | Prompt module `protocol:soroswap:swap`                        | [Backend] | `prompts/protocols/soroswap/swap.ts`                       |
+| [x]    | Prompt module `protocol:stellar:routing-fallback`             | [Backend] | mirror `protocols/cross-chain/fallback.ts`                 |
+| [x]    | Register triggers — keywords: stellar, soroswap, soroban, XLM | [Backend] | `module-triggers.ts`                                       |
 
 
 **Prompt content (`soroswap/swap.ts`) must include**

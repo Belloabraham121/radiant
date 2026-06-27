@@ -164,4 +164,25 @@ export const PROMPT_MODULE_TRIGGERS: Partial<Record<PromptModuleId, PromptTrigge
     ],
     chains: ["ethereum"],
   },
+  "protocol:soroswap:env": {
+    queryTypes: ["stellar_swap_quote"],
+    keywords: [/\bstellar\b/i, /\bsoroswap\b/i, /\bsoroban\b/i, /\bXLM\b/i],
+    chains: ["stellar"],
+  },
+  "protocol:soroswap:swap": {
+    executeActions: ["stellar_swap"],
+    queryTypes: ["stellar_swap_quote"],
+    keywords: [/\bswap\b/i, /\bXLM\b/i, /\bUSDC\b/i, /stellar_swap/i],
+    chains: ["stellar"],
+  },
+  "protocol:stellar:routing-fallback": {
+    queryTypes: ["stellar_swap_quote"],
+    keywords: [
+      /swap on stellar/i,
+      /stellar routing/i,
+      /wrong network/i,
+      /stellar_routing_fallback/i,
+    ],
+    chains: ["stellar", "ethereum"],
+  },
 };

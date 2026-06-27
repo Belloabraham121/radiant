@@ -31,6 +31,9 @@ import { buildLifiEnvLines } from "./protocols/lifi/env.js";
 import { buildLifiSwapLines } from "./protocols/lifi/swap.js";
 import { buildLifiBridgeLines } from "./protocols/lifi/bridge.js";
 import { buildCrossChainFallbackLines } from "./protocols/cross-chain/fallback.js";
+import { buildSoroswapEnvLines } from "./protocols/soroswap/env.js";
+import { buildSoroswapSwapLines } from "./protocols/soroswap/swap.js";
+import { buildStellarRoutingFallbackLines } from "./protocols/stellar/routing-fallback.js";
 import { buildPlatformBrowsingLines } from "./platform/browsing.js";
 import { buildPlatformStorageLines } from "./platform/storage.js";
 import { buildPlatformNotificationsLines } from "./platform/notifications.js";
@@ -220,6 +223,27 @@ const BASE_PROMPT_MODULES: PromptModule[] = [
     order: 129,
     build: () => buildCrossChainFallbackLines(),
     triggers: PROMPT_MODULE_TRIGGERS["protocol:cross-chain:fallback"],
+  },
+  {
+    id: "protocol:soroswap:env",
+    layer: "protocol",
+    order: 106,
+    build: () => buildSoroswapEnvLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:soroswap:env"],
+  },
+  {
+    id: "protocol:soroswap:swap",
+    layer: "protocol",
+    order: 126,
+    build: () => buildSoroswapSwapLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:soroswap:swap"],
+  },
+  {
+    id: "protocol:stellar:routing-fallback",
+    layer: "protocol",
+    order: 127,
+    build: () => buildStellarRoutingFallbackLines(),
+    triggers: PROMPT_MODULE_TRIGGERS["protocol:stellar:routing-fallback"],
   },
 ];
 

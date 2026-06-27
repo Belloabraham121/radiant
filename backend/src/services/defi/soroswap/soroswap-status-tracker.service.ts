@@ -11,6 +11,10 @@ import {
 import { getSoroswapSwapStatus } from "./soroswap-status.service.js";
 import type { SoroswapTrackJobInput } from "./soroswap-tracking.types.js";
 import type { SoroswapSwapStatusResult } from "./soroswap.types.js";
+import {
+  buildInitialSoroswapExecutionSteps,
+  emitSoroswapExecutionSteps,
+} from "../../agent/agent-stream-stellar.js";
 
 const MAX_LOCAL_POLL_ATTEMPTS = 120;
 
@@ -95,6 +99,25 @@ export async function applySoroswapStatusUpdate(input: {
     quoteId: input.quoteId,
     routeId: input.routeId,
   });
+
+  const trackingStatus =
+    input.status.status === "success"
+      ? "success"
+      : input.status.status === "failed"
+        ? "failed"
+        : "pending";
+
+  emitSoroswapExecutionSteps(
+    input.sessionId,
+    buildInitialSoroswapExecutionSteps({
+      transaction_id: input.transactionId,
+      digest,
+      token_in: undefined,
+      token_out: undefined,
+      quote_id: input.quoteId,
+      tracking_status: trackingStatus,
+    }),
+  );
 
   if (!isTerminalSoroswapStatus(input.status.status)) {
     const updateProgress = testHooks?.updateProgress ?? updateLifiTrackingProgress;

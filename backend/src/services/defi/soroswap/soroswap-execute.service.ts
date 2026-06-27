@@ -24,6 +24,14 @@ import {
 } from "./soroswap.types.js";
 import type { SoroswapTrackJobInput } from "./soroswap-tracking.types.js";
 import { resolveSoroswapWalletAddress } from "./soroswap-wallet-addresses.js";
+import { getSoroswapExecuteContext } from "./soroswap-execute-context.js";
+import {
+  buildStellarBuildStep,
+  buildStellarConfirmStep,
+  buildStellarSignStep,
+  buildStellarSubmitStep,
+  emitSoroswapExecutionSteps,
+} from "../../agent/agent-stream-stellar.js";
 
 export type SoroswapExecuteOptions = {
   transactionId?: string;
@@ -200,6 +208,19 @@ export async function executeSoroswapSwap(
     const quoteId = stored.quote_id;
     const agentWallet = await resolveSigningWallet(privyUserId);
     const walletAddress = await resolveSoroswapWalletAddress(privyUserId, parsed.from_address);
+    const streamCtx = getSoroswapExecuteContext();
+    const streamMeta = {
+      transaction_id: options?.transactionId,
+      token_in: parsed.token_in,
+      token_out: parsed.token_out,
+      quote_id: quoteId,
+    };
+
+    if (streamCtx?.sessionId) {
+      emitSoroswapExecutionSteps(streamCtx.sessionId, [
+        buildStellarBuildStep("running", streamMeta),
+      ]);
+    }
 
     const built = await buildSoroswapTransaction(privyUserId, {
       quoteId,
@@ -208,7 +229,19 @@ export async function executeSoroswapSwap(
       ...(hasSnapshot ? { snapshotParams } : {}),
     });
 
+    if (streamCtx?.sessionId) {
+      emitSoroswapExecutionSteps(streamCtx.sessionId, [
+        buildStellarBuildStep("ok", streamMeta),
+        buildStellarSignStep("running", streamMeta),
+      ]);
+    }
+
     const transaction = await parseBuiltXdr(built.xdr);
+
+    if (streamCtx?.sessionId) {
+      emitSoroswapExecutionSteps(streamCtx.sessionId, [buildStellarSignStep("ok", streamMeta)]);
+    }
+
     const submitted = await executeSignedTransaction({
       privyWalletId: agentWallet.privy_wallet_id,
       stellarAddress: walletAddress,
@@ -218,6 +251,17 @@ export async function executeSoroswapSwap(
     const statusResult = await fetchSwapStatus(submitted.hash);
     const trackingStatus = normalizeSoroswapTrackingStatus(statusResult.status);
     const effectsStatus = normalizeSoroswapEffectsStatus(trackingStatus);
+
+    const submitMeta = { ...streamMeta, digest: submitted.hash };
+    if (streamCtx?.sessionId) {
+      emitSoroswapExecutionSteps(streamCtx.sessionId, [
+        buildStellarSubmitStep("ok", submitMeta),
+        buildStellarConfirmStep(
+          trackingStatus === "success" ? "ok" : trackingStatus === "failed" ? "failed" : "running",
+          submitMeta,
+        ),
+      ]);
+    }
 
     if (trackingStatus === "success") {
       await invalidateStellarBalance(walletAddress);

@@ -124,17 +124,35 @@ export function mapStreamStepToExecutionStep(
       ? "fallback-offer"
       : step.id === "squid_quote"
         ? "lifi-quote"
-        : step.id;
+        : step.id === "stellar_routing_fallback_offered"
+          ? "stellar-routing-offer"
+          : step.id === "soroswap_quote"
+            ? "soroswap-quote"
+            : step.id === "stellar_build"
+              ? "stellar-build"
+              : step.id === "stellar_sign"
+                ? "stellar-sign"
+                : step.id === "stellar_submit"
+                  ? "stellar-submit"
+                  : step.id === "stellar_confirm"
+                    ? "stellar-confirm"
+                    : step.id;
   const mappedLabel =
     step.id === "liquidity_fallback_offered"
       ? "Finding another route…"
       : step.id === "squid_quote" && step.status === "running"
         ? "Getting alternate route…"
-        : step.label;
+        : step.id === "stellar_routing_fallback_offered"
+          ? "Checking Stellar option…"
+          : step.id === "soroswap_quote" && step.status === "running"
+            ? "Getting Stellar quote…"
+            : step.label;
   const mappedStatus =
     step.id === "liquidity_fallback_offered" && step.status === "running"
       ? "pending"
-      : step.status;
+      : step.id === "stellar_routing_fallback_offered" && step.status === "running"
+        ? "pending"
+        : step.status;
 
   const chainId = step.chain_id as AgentChainId | undefined;
   return {
@@ -201,6 +219,12 @@ export const EXECUTION_STEP_ORDER = [
   "swap-quote",
   "fallback-offer",
   "squid-quote",
+  "stellar-routing-offer",
+  "soroswap-quote",
+  "stellar-build",
+  "stellar-sign",
+  "stellar-submit",
+  "stellar-confirm",
   "lifi-quote",
   "lifi-submit",
   "lifi-bridge",

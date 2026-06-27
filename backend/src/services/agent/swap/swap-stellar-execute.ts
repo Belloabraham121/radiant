@@ -17,6 +17,10 @@ import { AppError } from "../../../errors/app-error.js";
 import { mapAgentToolError } from "../../../utils/agent-tool-errors.js";
 import type { ExecuteToolOutcome, PendingTransaction, ToolCallRecord } from "../agent.types.js";
 import { buildStellarRoutingFallbackPendingFromOffer } from "../transaction-approval.service.js";
+import {
+  emitSoroswapQuoteStep,
+  emitStellarRoutingFallbackOfferedStep,
+} from "../agent-stream-stellar.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { runExecuteTransactionToolWithApproval } from "../tools.js";
@@ -213,6 +217,15 @@ export async function executeStellarRoutingFallbackOffer(
     sessionId,
   });
 
+  if (sessionId) {
+    emitStellarRoutingFallbackOfferedStep(sessionId, {
+      fallback_offer_id: offer.fallback_offer_id,
+      token_in: offer.token_in,
+      token_out: offer.token_out,
+      selected_chain_id: offer.selected_chain_id,
+    });
+  }
+
   return {
     reply: STELLAR_ROUTING_FALLBACK_SWAP_REPLY,
     tool_calls: [],
@@ -253,10 +266,26 @@ export async function executeResolvedStellarSwap(
   const tool_calls: ToolCallRecord[] = [];
   let quoteResult: Awaited<ReturnType<typeof getSoroswapQuote>>;
 
+  if (sessionId) {
+    emitSoroswapQuoteStep(sessionId, {
+      status: "running",
+      token_in: quoteParams.token_in,
+      token_out: quoteParams.token_out,
+    });
+  }
+
   try {
     quoteResult = await callGetSoroswapQuote(privyUserId, quoteParams);
   } catch (err) {
     const mapped = mapAgentToolError(err);
+    if (sessionId) {
+      emitSoroswapQuoteStep(sessionId, {
+        status: "failed",
+        token_in: quoteParams.token_in,
+        token_out: quoteParams.token_out,
+        detail: mapped instanceof AppError ? mapped.message : "Quote failed",
+      });
+    }
     return {
       reply:
         mapped instanceof AppError
@@ -294,6 +323,14 @@ export async function executeResolvedStellarSwap(
       expires_at: quote.expires_at ?? quoteResult.expires_at,
     },
   });
+
+  if (sessionId) {
+    emitSoroswapQuoteStep(sessionId, {
+      status: "ok",
+      token_in: quoteParams.token_in,
+      token_out: quoteParams.token_out,
+    });
+  }
 
   const executeParams = applySoroswapQuoteToExecuteParams(
     {

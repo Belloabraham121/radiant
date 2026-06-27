@@ -86,6 +86,10 @@ import {
 import type { LifiTrackingMeta } from "../defi/lifi/lifi-tracking.types.js";
 import { buildInitialLifiExecutionSteps } from "../defi/lifi/lifi-status-tracker.service.js";
 import { emitLiquidityFallbackOfferedStep } from "./agent-stream-cross-chain.js";
+import {
+  emitStellarRoutingFallbackOfferedStep,
+  emitStellarSignAwaitingStep,
+} from "./agent-stream-stellar.js";
 import { emitAgentStreamExecutionStep } from "./agent-stream-lifi.js";
 import { runWithLifiExecuteContext } from "../defi/lifi/lifi-execute-context.js";
 import {
@@ -568,6 +572,31 @@ export async function createPendingTransaction(
     if (offer) {
       emitLiquidityFallbackOfferedStep(context.sessionId, offer);
     }
+  }
+
+  if (context?.sessionId && pending.approval_outcome === "stellar_routing_fallback_offered") {
+    const offer = pending.stellar_routing_fallback_offer;
+    if (offer) {
+      emitStellarRoutingFallbackOfferedStep(context.sessionId, {
+        fallback_offer_id: offer.fallback_offer_id,
+        token_in: offer.token_in,
+        token_out: offer.token_out,
+        selected_chain_id: offer.selected_chain_id,
+      });
+    }
+  }
+
+  if (
+    context?.sessionId &&
+    pending.approval_outcome === "approval_required" &&
+    isSoroswapExecuteAction(pending.action) &&
+    pending.chain_id === "stellar"
+  ) {
+    emitStellarSignAwaitingStep(context.sessionId, {
+      transaction_id: pending.id,
+      token_in: typeof pending.params.token_in === "string" ? pending.params.token_in : undefined,
+      token_out: typeof pending.params.token_out === "string" ? pending.params.token_out : undefined,
+    });
   }
 
   return pending;
