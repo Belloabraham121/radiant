@@ -145,4 +145,19 @@ describe("supported-tokens", () => {
         err instanceof AppError && err.code === "CROSS_ECOSYSTEM_NOT_SUPPORTED",
     );
   });
+
+  it("resolveTokenSymbol returns Stellar USDC with classic issuer and Soroban contract", () => {
+    process.env.ENABLED_CHAINS = "stellar";
+    resetChainConfigCacheForTests();
+    resetSupportedTokensCacheForTests();
+
+    const result = resolveTokenSymbol("stellar", "USDC");
+    assert.equal(result.match, "exact");
+    if (result.match === "exact") {
+      assert.equal(result.token.kind, "stellar_classic");
+      assert.equal(result.token.stellar_asset_code, "USDC");
+      assert.ok(result.token.stellar_issuer?.startsWith("G"));
+      assert.ok(result.token.address?.startsWith("C"));
+    }
+  });
 });

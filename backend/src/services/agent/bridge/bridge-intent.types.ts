@@ -28,7 +28,8 @@ export type BridgeIntentField =
   | "to_token"
   | "amount"
   | "amount_unit"
-  | "confirm_same_token";
+  | "confirm_same_token"
+  | "stellar_unsupported";
 
 /** Tokens commonly bridged via Li-Fi on this product. */
 export const BRIDGE_KNOWN_TOKENS = [

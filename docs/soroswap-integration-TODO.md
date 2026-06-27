@@ -761,12 +761,12 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                                                    | Owner     | Path                                               |
 | ------ | --------------------------------------------------------------------------------------- | --------- | -------------------------------------------------- |
-| [ ]    | Swap clarification: Stellar chain option label “Stellar (Soroswap)”                     | [Backend] | `swap-clarification-gaps.ts` (exists)              |
-| [ ]    | When only Stellar supports both tokens, suggest Stellar in chain gap                    | [Backend] | `token-chain-affinity.ts`                          |
-| [ ]    | `core:defi-guardrails` — never call Soroswap when destination is EVM                    | [Backend] | `prompts/core/defi-guardrails.ts`                  |
-| [ ]    | Bridge clarification: Stellar bridge requests → helpful `CROSS_ECOSYSTEM_NOT_SUPPORTED` | [Backend] | `bridge-clarification-gaps.ts`                     |
-| [ ]    | `token_resolve` returns Stellar USDC classic + Soroban metadata                         | [Backend] | uses `supported-tokens.ts`                         |
-| [ ]    | Acceptance tests: “swap XLM to USDC on Base” → fallback offer                           | [Tests]   | `backend/tests/unit/agent/defi-guardrails.test.ts` |
+| [x]    | Swap clarification: Stellar chain option label “Stellar (Soroswap)”                     | [Backend] | `swap-clarification-gaps.ts` (exists)              |
+| [x]    | When only Stellar supports both tokens, suggest Stellar in chain gap                    | [Backend] | `token-chain-affinity.ts`                          |
+| [x]    | `core:defi-guardrails` — never call Soroswap when destination is EVM                    | [Backend] | `prompts/core/defi-guardrails.ts`                  |
+| [x]    | Bridge clarification: Stellar bridge requests → helpful `CROSS_ECOSYSTEM_NOT_SUPPORTED` | [Backend] | `bridge-clarification-gaps.ts`                     |
+| [x]    | `token_resolve` returns Stellar USDC classic + Soroban metadata                         | [Backend] | uses `supported-tokens.ts`                         |
+| [x]    | Acceptance tests: “swap XLM to USDC on Base” → fallback offer                           | [Tests]   | `backend/tests/unit/agent/defi-guardrails.test.ts` |
 
 
 ---

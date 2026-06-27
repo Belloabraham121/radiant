@@ -20,6 +20,7 @@ export type PromptModuleId =
   | "core:tool-routing:overview"
   | "core:tool-routing:workflow"
   | "core:permissions"
+  | "core:defi-guardrails"
   | "core:errors"
   | "protocol:deepbook:env"
   | "protocol:deepbook:balance"

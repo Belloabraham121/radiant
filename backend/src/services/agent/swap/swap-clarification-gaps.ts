@@ -15,6 +15,8 @@ import { isSwapIntentComplete, withDefaultChain } from "./swap-intent-parser.js"
 import {
   detectCrossChainSwapIntent,
   formatCrossChainBridgeConfirmQuestion,
+  isSwapPairOnlyOnStellar,
+  STELLAR_SWAP_CHAIN_LABEL,
 } from "./token-chain-affinity.js";
 
 function coinOptions(exclude?: string) {
@@ -44,7 +46,7 @@ function buildChainOptions(): Array<{ id: string; label: string }> {
     } else if (config.id === "solana") {
       options.push({ id: "chain:solana", label: "Solana" });
     } else if (config.id === "stellar") {
-      options.push({ id: "chain:stellar", label: "Stellar" });
+      options.push({ id: "chain:stellar", label: STELLAR_SWAP_CHAIN_LABEL });
     }
   }
 
@@ -258,15 +260,33 @@ export function collectSwapClarificationGap(intent: PartialSwapIntent): Clarific
   }
 
   if (needsChainChoice(filled)) {
-    const options = buildChainOptions();
+    let options = buildChainOptions();
     if (options.length === 0) {
       return null;
     }
+
+    let question = "Which network should I use for this swap?";
+    let hint =
+      "Pick where you want to receive the output token, or where your input token is held for a same-chain swap.";
+
+    if (
+      filled.inputCoin &&
+      filled.outputCoin &&
+      isSwapPairOnlyOnStellar(filled.inputCoin, filled.outputCoin)
+    ) {
+      options = [
+        ...options.filter((option) => option.id === "chain:stellar"),
+        ...options.filter((option) => option.id !== "chain:stellar"),
+      ];
+      question = `Both ${filled.inputCoin} and ${filled.outputCoin} are available together on ${STELLAR_SWAP_CHAIN_LABEL}. Which network should I use?`;
+      hint = `${filled.inputCoin} and ${filled.outputCoin} can only be swapped together on Stellar — pick ${STELLAR_SWAP_CHAIN_LABEL} unless you meant a cross-chain bridge.`;
+    }
+
     return {
       gap_id: "swap.chain_id",
       interaction_type: "single_choice",
-      question: "Which network should I use for this swap?",
-      hint: "Pick where you want to receive the output token, or where your input token is held for a same-chain swap.",
+      question,
+      hint,
       step_index: 0,
       field: "chain_id",
       action: "swap",

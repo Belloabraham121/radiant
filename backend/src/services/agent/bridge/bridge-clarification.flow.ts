@@ -155,6 +155,17 @@ export async function continueBridgeClarification(
     return null;
   }
 
+  if (state.gap.field === "stellar_unsupported") {
+    clearSessionClarification(sessionId);
+    return {
+      reply: state.gap.question,
+      tool_calls: [],
+      pending_transaction: null,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
   const applied = applyBridgeClarificationAnswer(state.bridgeIntent, state.gap, answer);
   if (!applied) {
     const retry = startSessionClarification({
