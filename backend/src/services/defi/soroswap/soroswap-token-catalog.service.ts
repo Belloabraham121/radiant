@@ -6,7 +6,19 @@ import { soroswapCachedCatalogFetch, soroswapTokensCacheKey } from "./soroswap-c
 import { consumeSoroswapOutboundQuota } from "./soroswap-rate-limit.js";
 import { soroswapTokensResponseSchema, type SoroswapToken } from "./soroswap.types.js";
 
+type GetSoroswapTokensFn = (privyUserId?: string) => Promise<SoroswapToken[]>;
+
+let getSoroswapTokensForTests: GetSoroswapTokensFn | null = null;
+
+/** Test hook — avoid Soroswap HTTP in unit tests. */
+export function setGetSoroswapTokensForTests(fn: GetSoroswapTokensFn | null): void {
+  getSoroswapTokensForTests = fn;
+}
+
 export async function getSoroswapTokens(privyUserId?: string): Promise<SoroswapToken[]> {
+  if (getSoroswapTokensForTests) {
+    return getSoroswapTokensForTests(privyUserId);
+  }
   if (!isSoroswapEnabled()) {
     throw new AppError(503, "SOROSWAP_UNAVAILABLE", "Stellar swap service is temporarily unavailable.");
   }

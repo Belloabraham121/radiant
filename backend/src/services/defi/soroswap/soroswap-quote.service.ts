@@ -1,10 +1,9 @@
 import { getSoroswapConfig, isSoroswapEnabled } from "../../../config/soroswap.js";
 import { assertSoroswapTokenPair } from "../../../config/soroswap-chains.js";
-import { resolveTokenSymbol } from "../../../config/supported-tokens.js";
 import { AppError } from "../../../errors/app-error.js";
+import { resolveSoroswapAsset } from "./soroswap-asset-resolve.js";
 import { soroswapRestFetch } from "./soroswap.client.js";
 import {
-  getStoredSoroswapQuote,
   soroswapCachedQuoteFetch,
   storeSoroswapQuote,
 } from "./soroswap-cache.js";
@@ -13,8 +12,8 @@ import {
   createSoroswapQuoteId,
   readSoroswapQuoteExpiresAt,
 } from "./soroswap-normalize.js";
+import { resolveSoroswapQuoteForExecute } from "./soroswap-quote-store.service.js";
 import { consumeSoroswapQuoteQuota } from "./soroswap-rate-limit.js";
-import { getSoroswapTokens } from "./soroswap-token-catalog.service.js";
 import {
   soroswapQuoteResponseSchema,
   type SoroswapQuoteInput,
@@ -22,6 +21,7 @@ import {
   type SoroswapQuoteResponse,
   type SoroswapStoredQuotePayload,
 } from "./soroswap.types.js";
+import { resolveSoroswapWalletAddress } from "./soroswap-wallet-addresses.js";
 
 export type SoroswapQuoteResult = {
   quote_id: string;
@@ -31,29 +31,6 @@ export type SoroswapQuoteResult = {
 
 function slippageBpsFromFraction(fraction: number): number {
   return Math.round(fraction * 10_000);
-}
-
-function normalizeSymbol(symbol: string): string {
-  return symbol.trim().toUpperCase();
-}
-
-async function resolveSoroswapAssetAddress(symbol: string): Promise<string> {
-  const normalized = normalizeSymbol(symbol);
-  const tokens = await getSoroswapTokens();
-  const fromCatalog = tokens.find((entry) => normalizeSymbol(entry.symbol) === normalized);
-  if (fromCatalog?.address) {
-    return fromCatalog.address;
-  }
-
-  const supported = resolveTokenSymbol("stellar", normalized);
-  if (supported.match === "exact" && supported.token.address) {
-    return supported.token.address;
-  }
-
-  throw new AppError(400, "VALIDATION_ERROR", `Unable to resolve Stellar asset for "${normalized}".`, {
-    symbol: normalized,
-    chain_id: "stellar",
-  });
 }
 
 function buildQuoteCacheParams(input: {
@@ -95,9 +72,11 @@ export async function getSoroswapQuote(
   await consumeSoroswapQuoteQuota(privyUserId);
 
   const config = getSoroswapConfig();
+  const fromAddress = await resolveSoroswapWalletAddress(privyUserId, input.from_address);
+
   const [assetIn, assetOut, health] = await Promise.all([
-    resolveSoroswapAssetAddress(input.token_in),
-    resolveSoroswapAssetAddress(input.token_out),
+    resolveSoroswapAsset(input.token_in),
+    resolveSoroswapAsset(input.token_out),
     getSoroswapHealth(),
   ]);
 
@@ -112,7 +91,7 @@ export async function getSoroswapQuote(
     tradeType,
     slippageBps,
     protocols,
-    ...(input.from_address ? { from: input.from_address } : {}),
+    from: fromAddress,
   };
 
   const cacheParams = buildQuoteCacheParams({
@@ -122,7 +101,7 @@ export async function getSoroswapQuote(
     tradeType,
     slippageBps,
     protocols,
-    from: input.from_address,
+    from: fromAddress,
   });
 
   const skipCache = options?.skipCache ?? input.skip_cache ?? false;
@@ -163,33 +142,4 @@ export async function getSoroswapQuote(
   };
 }
 
-/** Resolve stored quote for execute — Phase 2.7 adds re-quote when expired. */
-export async function resolveSoroswapQuoteForExecute(input: {
-  quoteId: string;
-  routeId?: string;
-}): Promise<SoroswapStoredQuotePayload> {
-  const quoteId = input.routeId?.startsWith("soroswap:")
-    ? input.routeId
-    : input.quoteId.startsWith("soroswap:")
-      ? input.quoteId
-      : input.quoteId;
-
-  const stored = await getStoredSoroswapQuote(quoteId);
-  if (!stored) {
-    throw new AppError(400, "SOROSWAP_QUOTE_EXPIRED", "This quote expired. Getting a fresh quote…", {
-      quote_id: quoteId,
-    });
-  }
-
-  if (stored.expires_at && Date.parse(stored.expires_at) <= Date.now()) {
-    throw new AppError(400, "SOROSWAP_QUOTE_EXPIRED", "This quote expired. Getting a fresh quote…", {
-      quote_id: quoteId,
-      expires_at: stored.expires_at,
-    });
-  }
-
-  // TODO(Phase 2.7): re-quote via getSoroswapQuote(..., { skipCache: true }) when expired at approval.
-  // TODO(Phase 2.7): invalidateDefiBalanceCache("stellar", address) after confirmed swap in execute service.
-
-  return stored;
-}
+export { resolveSoroswapQuoteForExecute };

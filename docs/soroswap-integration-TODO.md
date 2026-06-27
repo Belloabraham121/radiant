@@ -505,32 +505,32 @@ Mirror `deepbook/` + `squid/` layout. Cache helpers exist: `soroswap-cache.ts`.
 
 | Status | Task | Owner | Path |
 | ------ | ---- | ----- | ---- |
-| [ ] | `getSoroswapTokens(network)` — `GET /api/tokens`, filter to allowlist | [Backend] | `backend/src/services/defi/soroswap/soroswap-token-catalog.service.ts` |
-| [ ] | `resolveSoroswapAsset(symbol)` — map `supported-tokens.ts` → API asset id | [Backend] | `backend/src/services/defi/soroswap/soroswap-asset-resolve.ts` |
-| [ ] | Prefer Soroban contract address for USDC when API expects contract | [Backend] | ↑ |
-| [ ] | `getSoroswapHealth()` — protocols list for quote `protocols` param | [Backend] | `backend/src/services/defi/soroswap/soroswap-health.service.ts` |
-| [ ] | Unit tests: XLM native + USDC issuer/contract round-trip | [Tests] | `soroswap-asset-resolve.test.ts` |
+| [x] | `getSoroswapTokens(network)` — `GET /api/tokens`, filter to allowlist | [Backend] | `backend/src/services/defi/soroswap/soroswap-token-catalog.service.ts` |
+| [x] | `resolveSoroswapAsset(symbol)` — map `supported-tokens.ts` → API asset id | [Backend] | `backend/src/services/defi/soroswap/soroswap-asset-resolve.ts` |
+| [x] | Prefer Soroban contract address for USDC when API expects contract | [Backend] | ↑ |
+| [x] | `getSoroswapHealth()` — protocols list for quote `protocols` param | [Backend] | `backend/src/services/defi/soroswap/soroswap-health.service.ts` |
+| [x] | Unit tests: XLM native + USDC issuer/contract round-trip | [Tests] | `soroswap-asset-resolve.test.ts` |
 
 #### 2.5 Quote
 
 | Status | Task | Owner | Path |
 | ------ | ---- | ----- | ---- |
-| [ ] | Zod input: `soroswapQuoteInputSchema` | [Backend] | `soroswap.types.ts` |
-| [ ] | `getSoroswapQuote(privyUserId, input)` — `POST /quote` | [Backend] | `backend/src/services/defi/soroswap/soroswap-quote.service.ts` |
-| [ ] | Resolve wallet: Stellar agent address from Privy | [Backend] | `soroswap-wallet-addresses.ts` |
-| [ ] | `normalizeSoroswapQuote()` → `SwapQuote` + `quote_id` + `route_id` prefix `soroswap:` | [Backend] | `backend/src/services/defi/soroswap/soroswap-normalize.ts` |
-| [ ] | Persist full quote blob for build step | [Backend] | cache store |
-| [ ] | Unit tests: normalize fixture | [Tests] | `soroswap-normalize.test.ts` |
+| [x] | Zod input: `soroswapQuoteInputSchema` | [Backend] | `soroswap.types.ts` |
+| [x] | `getSoroswapQuote(privyUserId, input)` — `POST /quote` | [Backend] | `backend/src/services/defi/soroswap/soroswap-quote.service.ts` |
+| [x] | Resolve wallet: Stellar agent address from Privy | [Backend] | `soroswap-wallet-addresses.ts` |
+| [x] | `normalizeSoroswapQuote()` → `SwapQuote` + `quote_id` + `route_id` prefix `soroswap:` | [Backend] | `backend/src/services/defi/soroswap/soroswap-normalize.ts` |
+| [x] | Persist full quote blob for build step | [Backend] | cache store |
+| [x] | Unit tests: normalize fixture | [Tests] | `soroswap-normalize.test.ts` |
 
 #### 2.6 Build
 
 | Status | Task | Owner | Path |
 | ------ | ---- | ----- | ---- |
-| [ ] | `buildSoroswapTransaction(quoteId, …)` — `POST /quote/build` → unsigned XDR | [Backend] | `backend/src/services/defi/soroswap/soroswap-build.service.ts` |
-| [ ] | Simulate via Soroban RPC before returning to agent | [Backend] | use `stellar-transaction.service.ts` |
-| [ ] | Map simulation failures → trustline / reserve / slippage errors | [Backend] | `soroswap.errors.ts` + `stellar.errors.ts` |
-| [ ] | Optional: `gaslessTrustline` when sponsor configured | [Backend] | `soroswap-trustline.service.ts` |
-| [ ] | Unit tests: build input validation | [Tests] | `soroswap-build.service.test.ts` |
+| [x] | `buildSoroswapTransaction(quoteId, …)` — `POST /quote/build` → unsigned XDR | [Backend] | `backend/src/services/defi/soroswap/soroswap-build.service.ts` |
+| [x] | Simulate via Soroban RPC before returning to agent | [Backend] | use `stellar-transaction.service.ts` |
+| [x] | Map simulation failures → trustline / reserve / slippage errors | [Backend] | `soroswap.errors.ts` + `stellar.errors.ts` |
+| [x] | Optional: `gaslessTrustline` when sponsor configured | [Backend] | `soroswap-trustline.service.ts` |
+| [x] | Unit tests: build input validation | [Tests] | `soroswap-build.service.test.ts` |
 
 #### 2.7 Execute
 
