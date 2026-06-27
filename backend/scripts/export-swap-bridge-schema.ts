@@ -21,6 +21,7 @@ import {
 import { resetChainConfigCacheForTests } from "../src/config/chains.js";
 import { resetEvmConfigCacheForTests } from "../src/config/evm.js";
 import { isSquidCrossEcosystemPair, isSquidSdkExecuteSupported } from "../src/config/squid-chains.js";
+import { STELLAR_ROUTING_FALLBACK_TTL_SECONDS } from "../src/services/defi/stellar-routing/stellar-routing-fallback-cache.js";
 import type { ChainId } from "../src/services/chains/types.js";
 
 type ChainKey = string;
@@ -173,21 +174,57 @@ function buildSchema(useRuntimeEnv: boolean) {
     bridge_provider: stellarEntry?.bridge_provider ?? null,
     allowed_symbols: stellarEntry?.allowed_symbols ?? ["XLM", "USDC"],
     gaps_for_agent_bridge: [
-      "Set bridge_provider on stellar in supported-tokens.ts (currently null).",
-      "Li-Fi cross-ecosystem pairs exclude Stellar (lifi-chains.ts).",
+      "Set bridge_provider on stellar in supported-tokens.ts (currently null) — no agent bridge source/destination in v1.",
+      "Li-Fi cross-ecosystem pairs exclude Stellar (lifi-chains.ts); stellar ↔ EVM bridge routes are not exported.",
       "Squid includes stellar-mainnet for quotes but executeRoute blocks Stellar (squid-chains.ts isSquidSdkExecuteSupported).",
-      "Destination account must exist on Stellar ledger (fund with XLM reserve) before receiving bridged assets; USDC requires trustline.",
+      "Wrong-chain swap intent (e.g. XLM/USDC on Base) uses stellar_routing_fallback — same-chain Soroswap swap after user consent, not a bridge.",
+      "Destination account must exist on Stellar ledger (fund with XLM reserve) before receiving assets; USDC requires trustline.",
     ],
     planned_bridge_targets: bridgeRoutes
       .filter((route) => String(route.to).startsWith("stellar") || String(route.from).startsWith("stellar"))
       .map((route) => route),
   };
 
+  const stellarRoutingFallback = {
+    description:
+      "When both tokens exist on Stellar but the user selected a non-Stellar chain, offer a same-chain Soroswap swap after explicit consent (mirrors Squid liquidity_fallback_offered).",
+    approval_outcome: "stellar_routing_fallback_offered",
+    provider_after_accept: "stellar-soroswap",
+    ttl_seconds: STELLAR_ROUTING_FALLBACK_TTL_SECONDS,
+    statuses: ["offered", "accepted", "rejected", "expired"],
+    triggers: [
+      "detectStellarRoutingFallback(partialSwapIntent) — both tokens on Stellar, selected chain is not stellar.",
+      "isStellarRoutingFallbackEligible(AppError) — CROSS_ECOSYSTEM_NOT_SUPPORTED with Stellar-eligible tokens.",
+    ],
+    no_soroswap_http_until: "User accepts the fallback offer (POST accept API or approval Yes).",
+    stream_step_id: "stellar_routing_fallback_offered",
+    client_timeline_step: "stellar-routing-offer",
+    client_dialog: "StellarRoutingFallbackDialog",
+    eligible_primary_error_codes: ["CROSS_ECOSYSTEM_NOT_SUPPORTED"],
+    ineligible_error_codes: [
+      "SOROSWAP_RATE_LIMITED",
+      "SOROSWAP_UNAUTHORIZED",
+      "SOROSWAP_VALIDATION_ERROR",
+      "INSUFFICIENT_BALANCE",
+      "SLIPPAGE_EXCEEDED",
+      "WALLET_NOT_FOUND",
+      "CHAIN_DISABLED",
+    ],
+    example: {
+      user_intent: "swap 10 XLM to USDC on Base",
+      selected_chain_id: "ethereum" as ChainId,
+      selected_evm_chain_id: 8453,
+      fallback_chain_id: "stellar" as ChainId,
+      token_in: "XLM",
+      token_out: "USDC",
+    },
+  };
+
   return {
     schema_version: "1.0.0",
     generated_at: generatedAt,
     description:
-      "Radiant v1 swap and bridge routing matrix derived from supported-tokens, token-capabilities, lifi-chains, and squid-chains.",
+      "Radiant v1 swap and bridge routing matrix derived from supported-tokens, token-capabilities, lifi-chains, squid-chains, and stellar-routing fallback.",
     export_mode: useRuntimeEnv ? "runtime_env" : "full_v1_defaults",
     env_assumptions: {
       ENABLED_CHAINS: process.env.ENABLED_CHAINS ?? "sui,ethereum,solana,stellar",
@@ -213,11 +250,14 @@ function buildSchema(useRuntimeEnv: boolean) {
     same_chain_swaps: swapRoutes,
     cross_chain_bridges: bridgeRoutes,
     stellar_setup: stellarSetup,
+    stellar_routing_fallback: stellarRoutingFallback,
     rules: {
       bridge_receive_tokens: "Intersection of allowlisted symbols on source and destination.",
       evm_native_eth: "ETH/WETH/USDC auto-fill same-symbol receive on EVM L2↔L2 bridges.",
       cross_ecosystem_confirmation: "SUI and SOL same-symbol bridges require explicit user confirmation.",
       stellar_cross_ecosystem: "Not supported via Li-Fi in v1; Squid Stellar execute not wired.",
+      stellar_routing_fallback:
+        "Wrong-chain Stellar token pairs offer same-chain Soroswap swap after consent; no bridge or cross-ecosystem route.",
     },
   };
 }

@@ -21,6 +21,7 @@ import {
   type SoroswapQuoteResponse,
   type SoroswapStoredQuotePayload,
 } from "./soroswap.types.js";
+import { logStellarSwapQuoteTotal } from "./soroswap-observability.service.js";
 import { resolveSoroswapWalletAddress } from "./soroswap-wallet-addresses.js";
 
 export type SoroswapQuoteResult = {
@@ -62,8 +63,12 @@ function buildQuoteCacheParams(input: {
 export async function getSoroswapQuote(
   privyUserId: string,
   input: SoroswapQuoteInput,
-  options?: { skipCache?: boolean },
+  options?: { skipCache?: boolean; source?: "direct" | "routing_fallback" },
 ): Promise<SoroswapQuoteResult> {
+  const startedAt = Date.now();
+  const quoteSource = options?.source ?? "direct";
+
+  try {
   if (!isSoroswapEnabled()) {
     throw new AppError(503, "SOROSWAP_UNAVAILABLE", "Stellar swap service is temporarily unavailable.");
   }
@@ -135,11 +140,33 @@ export async function getSoroswapQuote(
   };
   await storeSoroswapQuote(quoteId, stored);
 
-  return {
+  const result = {
     quote_id: quoteId,
     quote,
     expires_at: expiresAt,
   };
+
+  logStellarSwapQuoteTotal({
+    outcome: "success",
+    quote_id: quoteId,
+    token_in: input.token_in,
+    token_out: input.token_out,
+    duration_ms: Date.now() - startedAt,
+    source: quoteSource,
+  });
+
+  return result;
+  } catch (err) {
+    logStellarSwapQuoteTotal({
+      outcome: "error",
+      token_in: input.token_in,
+      token_out: input.token_out,
+      error_code: err instanceof AppError ? err.code : "UNKNOWN",
+      duration_ms: Date.now() - startedAt,
+      source: quoteSource,
+    });
+    throw err;
+  }
 }
 
 export { resolveSoroswapQuoteForExecute };

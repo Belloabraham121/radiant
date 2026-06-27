@@ -5,6 +5,7 @@ import { getChainsForToken, isTokenOnChain } from "../../agent/swap/token-chain-
 import type { PartialSwapIntent } from "../../agent/swap/swap-intent.types.js";
 import type { ChainId } from "../../chains/types.js";
 import { getSoroswapQuote } from "../soroswap/soroswap-quote.service.js";
+import { logStellarRoutingFallbackAcceptedTotal } from "../soroswap/soroswap-observability.service.js";
 import {
   STELLAR_ROUTING_FALLBACK_TTL_SECONDS,
   getStellarRoutingFallbackOffer,
@@ -30,14 +31,14 @@ export function setGetSoroswapQuoteForTests(fn: GetSoroswapQuoteFn | null): void
   getSoroswapQuoteOverride = fn;
 }
 
-function callGetSoroswapQuote(
+function callGetSoroswapQuoteForFallback(
   privyUserId: string,
   input: StellarRoutingFallbackQuoteParams,
 ): Promise<Awaited<ReturnType<typeof getSoroswapQuote>>> {
   if (getSoroswapQuoteOverride) {
     return getSoroswapQuoteOverride(privyUserId, input);
   }
-  return getSoroswapQuote(privyUserId, input);
+  return getSoroswapQuote(privyUserId, input, { source: "routing_fallback" });
 }
 
 function tokenOnlyOnStellar(symbol: string): boolean {
@@ -163,8 +164,17 @@ export async function acceptStellarRoutingFallback(
     );
   }
 
-  const quoteResult = await callGetSoroswapQuote(privyUserId, stored.quoteParams);
+  const quoteResult = await callGetSoroswapQuoteForFallback(privyUserId, stored.quoteParams);
   await markStellarRoutingFallbackAccepted(fallbackOfferId);
+
+  logStellarRoutingFallbackAcceptedTotal({
+    fallback_offer_id: fallbackOfferId,
+    selected_chain_id: stored.selected_chain_id,
+    selected_evm_chain_id: stored.selected_evm_chain_id,
+    token_in: stored.token_in,
+    token_out: stored.token_out,
+    primary_error_code: stored.primary_error_code,
+  });
 
   return {
     ...quoteResult,

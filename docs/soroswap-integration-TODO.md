@@ -117,7 +117,7 @@ Radiant routing is derived from these modules — Soroswap must use them consist
 | `token-capabilities.ts`                | Add `XLM` to `TOKEN_IDENTITIES` (`chain_native`, `default_receive: "prompt"`); USDC already `fungible_by_symbol`. Stellar excluded from `getBridgeKnownSymbols()` because `bridge_provider` is null              |
 | `token-chain-affinity.ts`              | `getChainsForToken("XLM")` → `[{ chainId: "stellar", … }]`. Extend `detectCrossChainSwapIntent` **or** add `detectStellarRoutingFallback()` when tokens are Stellar-only but selected chain is not Stellar       |
 | `swap-registry.ts`                     | `getProviderForSwap({ chain_id: "stellar" })` → `stellar-soroswap`; cross-chain with Stellar → `CROSS_ECOSYSTEM_NOT_SUPPORTED` unless Li-Fi pair (Stellar never is)                                              |
-| `docs/swap-bridge-routing-schema.json` | `stellar` entry: `same_chain_swaps` with `stellar-soroswap`; `stellar_setup.gaps_for_agent_bridge` documents bridge null; re-export after token/schema changes                                                   |
+| `docs/swap-bridge-routing-schema.json` | `stellar` entry: `same_chain_swaps` with `stellar-soroswap`; `stellar_setup.gaps_for_agent_bridge` documents bridge null; `stellar_routing_fallback` section documents wrong-chain consent flow; re-export after token/schema changes |
 
 
 **Validation rules before Soroswap HTTP:**
@@ -776,12 +776,12 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                                               | Owner     | Path                                   |
 | ------ | ---------------------------------------------------------------------------------- | --------- | -------------------------------------- |
-| [ ]    | Re-run `npx tsx scripts/export-swap-bridge-schema.ts` after Stellar fallback types | [Backend] | `docs/swap-bridge-routing-schema.json` |
-| [ ]    | Add `stellar_routing_fallback` section to exported schema (optional)               | [Backend] | export script                          |
-| [ ]    | Update `stellar_setup.gaps_for_agent_bridge` when bridge still null                | [Docs]    | JSON + this doc                        |
-| [ ]    | `backend/AGENTS.md` — Soroswap + Stellar signing pattern                           | [Docs]    | backend                                |
-| [ ]    | `client/AGENTS.md` — Stellar fallback dialog + timeline                            | [Docs]    | client                                 |
-| [ ]    | Metrics: `stellar_swap_quote_total`, `stellar_routing_fallback_accepted_total`     | [Backend] | logger spans                           |
+| [x]    | Re-run `npx tsx scripts/export-swap-bridge-schema.ts` after Stellar fallback types | [Backend] | `docs/swap-bridge-routing-schema.json` |
+| [x]    | Add `stellar_routing_fallback` section to exported schema (optional)               | [Backend] | export script                          |
+| [x]    | Update `stellar_setup.gaps_for_agent_bridge` when bridge still null                | [Docs]    | JSON + this doc                        |
+| [x]    | `backend/AGENTS.md` — Soroswap + Stellar signing pattern                           | [Docs]    | backend                                |
+| [x]    | `client/AGENTS.md` — Stellar fallback dialog + timeline                            | [Docs]    | client                                 |
+| [x]    | Metrics: `stellar_swap_quote_total`, `stellar_routing_fallback_accepted_total`     | [Backend] | logger spans                           |
 
 
 ---
