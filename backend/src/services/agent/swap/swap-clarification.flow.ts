@@ -38,6 +38,11 @@ import {
   isLifiSameChainSwapEligible,
 } from "./swap-lifi-execute.js";
 import {
+  executeResolvedStellarSwap,
+  executeStellarRoutingFallbackOffer,
+  isStellarSwapEligible,
+} from "./swap-stellar-execute.js";
+import {
   bridgeIntentPreview,
   bridgeIntentReadyForExecute,
   collectBridgeClarificationGap,
@@ -251,9 +256,45 @@ async function finishResolvedSwapIntent(
     };
   }
 
+  if (isStellarSwapEligible(resolved)) {
+    const outcome = await executeResolvedStellarSwap(privyUserId, resolved, sessionId);
+    if (!outcome) {
+      return {
+        reply: "I couldn't run that swap — check the tokens, network, and amount, then try again.",
+        tool_calls: [],
+        pending_transaction: null,
+        pending_clarification: null,
+        workflowCompleted: true,
+      };
+    }
+
+    return {
+      reply: outcome.reply,
+      tool_calls: outcome.tool_calls,
+      pending_transaction: outcome.pending_transaction,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
+  }
+
   const crossChainGap = collectSwapClarificationGap(resolved);
   if (crossChainGap) {
     return startSwapClarification(sessionId, resolved, crossChainGap);
+  }
+
+  const stellarFallbackOutcome = await executeStellarRoutingFallbackOffer(
+    privyUserId,
+    resolved,
+    sessionId,
+  );
+  if (stellarFallbackOutcome) {
+    return {
+      reply: stellarFallbackOutcome.reply,
+      tool_calls: stellarFallbackOutcome.tool_calls,
+      pending_transaction: stellarFallbackOutcome.pending_transaction,
+      pending_clarification: null,
+      workflowCompleted: true,
+    };
   }
 
   if (resolved.chainId !== "sui") {

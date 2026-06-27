@@ -673,12 +673,12 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                                                    | Owner     | Path                                                    |
 | ------ | --------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------- |
-| [ ]    | `isStellarSwapEligible(intent)` — `chainId: stellar`, both tokens on Stellar            | [Backend] | `swap-stellar-execute.ts`                               |
-| [ ]    | `executeResolvedStellarSwap(privyUserId, intent, sessionId)` — mirror `swap-execute.ts` | [Backend] | ↑                                                       |
-| [ ]    | Wire into `finishResolvedSwapIntent` **before** non-sui stub message                    | [Backend] | `swap-clarification.flow.ts`                            |
-| [ ]    | On `SOROSWAP_ROUTE_NOT_FOUND` → user message (no Squid/Li-Fi fallback)                  | [Backend] | ↑                                                       |
-| [ ]    | On wrong-chain detection → `buildStellarRoutingFallbackOffer` in outcome                | [Backend] | ↑                                                       |
-| [ ]    | Integration test: “swap 50 XLM to USDC on Stellar” → quote → pending approval           | [Tests]   | `backend/tests/unit/agent/swap-stellar-execute.test.ts` |
+| [x]    | `isStellarSwapEligible(intent)` — `chainId: stellar`, both tokens on Stellar            | [Backend] | `swap-stellar-execute.ts`                               |
+| [x]    | `executeResolvedStellarSwap(privyUserId, intent, sessionId)` — mirror `swap-execute.ts` | [Backend] | ↑                                                       |
+| [x]    | Wire into `finishResolvedSwapIntent` **before** non-sui stub message                    | [Backend] | `swap-clarification.flow.ts`                            |
+| [x]    | On `SOROSWAP_ROUTE_NOT_FOUND` → user message (no Squid/Li-Fi fallback)                  | [Backend] | ↑                                                       |
+| [x]    | On wrong-chain detection → `buildStellarRoutingFallbackOffer` in outcome                | [Backend] | ↑                                                       |
+| [x]    | Integration test: “swap 50 XLM to USDC on Stellar” → quote → pending approval           | [Tests]   | `backend/tests/unit/agent/swap-stellar-execute.test.ts` |
 
 
 ---
