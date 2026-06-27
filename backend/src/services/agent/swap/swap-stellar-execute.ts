@@ -193,7 +193,11 @@ export async function executeStellarRoutingFallbackOffer(
     return null;
   }
 
-  const routingIntent = partialSwapIntentToStellarRoutingIntent(resolvedIntent, quoteParams.amount);
+  const routingIntent = partialSwapIntentToStellarRoutingIntent(resolvedIntent, quoteParams.amount, {
+    trade_type: quoteParams.trade_type,
+    slippage: quoteParams.slippage,
+    from_address: quoteParams.from_address,
+  });
   if (!routingIntent) {
     return null;
   }

@@ -73,6 +73,20 @@ describe("soroswap.client", () => {
     );
   });
 
+  it("preserves base URL path segments when building request URLs", async () => {
+    process.env.SOROSWAP_API_KEY = "sk_test_key";
+    process.env.SOROSWAP_API_BASE_URL = "https://api.example.com/v1/soroswap";
+
+    let capturedUrl = "";
+    setSoroswapFetchImplForTests(async (url) => {
+      capturedUrl = String(url);
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+
+    await soroswapRestFetch("/quote");
+    assert.match(capturedUrl, /https:\/\/api\.example\.com\/v1\/soroswap\/quote/);
+  });
+
   it("maps network failures to SOROSWAP_UNAVAILABLE", async () => {
     process.env.SOROSWAP_API_KEY = "sk_test_key";
 

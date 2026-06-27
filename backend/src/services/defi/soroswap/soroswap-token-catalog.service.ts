@@ -1,5 +1,5 @@
 import { isSoroswapEnabled } from "../../../config/soroswap.js";
-import { isSoroswapAllowedSymbol } from "../../../config/soroswap-chains.js";
+import { isSoroswapAllowedToken } from "../../../config/soroswap-chains.js";
 import { AppError } from "../../../errors/app-error.js";
 import { soroswapRestFetch } from "./soroswap.client.js";
 import { soroswapCachedCatalogFetch, soroswapTokensCacheKey } from "./soroswap-cache.js";
@@ -32,5 +32,5 @@ export async function getSoroswapTokens(privyUserId?: string): Promise<SoroswapT
     return soroswapTokensResponseSchema.parse(raw);
   });
 
-  return tokens.filter((token) => isSoroswapAllowedSymbol(token.symbol));
+  return tokens.filter((token) => isSoroswapAllowedToken(token));
 }

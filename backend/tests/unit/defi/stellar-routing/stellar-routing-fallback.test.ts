@@ -93,6 +93,14 @@ describe("stellar-routing-fallback.service", () => {
     );
     assert.equal(
       fallbackService.detectStellarRoutingFallback({
+        originalMessage: "swap XLM to USDC",
+        inputCoin: "XLM",
+        outputCoin: "USDC",
+      }),
+      false,
+    );
+    assert.equal(
+      fallbackService.detectStellarRoutingFallback({
         originalMessage: "swap SUI to USDC",
         inputCoin: "SUI",
         outputCoin: "USDC",

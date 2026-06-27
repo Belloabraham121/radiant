@@ -91,7 +91,7 @@ export function applyStellarStreamStepPresentation(
 
 export function isStellarPending(pending: PendingTransaction): boolean {
   return (
-    pending.chain_id === STELLAR_CHAIN_ID ||
+    pending.approval_outcome === "stellar_routing_fallback_offered" ||
     pending.action === "stellar_swap" ||
     pending.defi_preview?.provider_id === "stellar-soroswap" ||
     pending.params?.provider_id === "stellar-soroswap" ||
@@ -151,6 +151,7 @@ function executionStepsFromSoroswapTransaction(
   const digest = tx.digest ?? tracking.tx_hash;
   const meta = stellarMeta({ agentTransactionId: tx.id, digest });
   const trackingStatus = tracking.tracking_status ?? null;
+  const effectsStatus = tx.effects_status ?? null;
 
   const steps: ExecutionStep[] = [
     {
@@ -180,10 +181,33 @@ function executionStepsFromSoroswapTransaction(
     },
   ];
 
+  const swapFailed =
+    trackingStatus === "failed" ||
+    effectsStatus === "failure" ||
+    tx.status === "failure" ||
+    isTerminalSoroswapFailure(trackingStatus);
+
+  if (swapFailed) {
+    steps.push({
+      id: "stellar-confirm",
+      status: "failed",
+      label: "Failed",
+      detail: "Stellar swap did not confirm on-chain",
+      ...meta,
+    });
+    return steps;
+  }
+
   const swapComplete =
-    tx.status === "success" ||
-    tx.effects_status === "success" ||
-    isTerminalSoroswapSuccess(trackingStatus);
+    (trackingStatus === "success" || isTerminalSoroswapSuccess(trackingStatus)) &&
+    effectsStatus !== "pending" &&
+    effectsStatus !== "failure"
+      ? true
+      : effectsStatus === "success"
+        ? true
+        : trackingStatus === null &&
+            effectsStatus === null &&
+            tx.status === "success";
 
   if (swapComplete) {
     steps.push({
@@ -191,17 +215,6 @@ function executionStepsFromSoroswapTransaction(
       status: "ok",
       label: "Complete",
       detail: digest ? `Confirmed · ${digest.slice(0, 10)}…` : "Swap complete",
-      ...meta,
-    });
-    return steps;
-  }
-
-  if (tx.status === "failure" || isTerminalSoroswapFailure(trackingStatus)) {
-    steps.push({
-      id: "stellar-confirm",
-      status: "failed",
-      label: "Failed",
-      detail: "Stellar swap did not confirm on-chain",
       ...meta,
     });
     return steps;

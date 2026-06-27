@@ -54,8 +54,8 @@ export const soroswapQuoteResponseSchema = z
   .object({
     assetIn: z.string().optional(),
     assetOut: z.string().optional(),
-    amountIn: z.string().optional(),
-    amountOut: z.string().optional(),
+    amountIn: z.string().regex(/^\d+$/).optional(),
+    amountOut: z.string().regex(/^\d+$/).optional(),
     tradeType: soroswapTradeTypeSchema.optional(),
     expiresAt: z.string().optional(),
     expires_at: z.string().optional(),

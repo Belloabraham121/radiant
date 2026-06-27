@@ -60,9 +60,16 @@ agentTransactionsRouter.get("/api/v1/agent/transactions", requireAuth, async (re
 agentTransactionsRouter.post(
   "/api/v1/agent/transactions/liquidity-fallback/:offerId/accept",
   requireAuth,
+  agentTransactionMutationRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const fallbackOfferId = fallbackOfferIdSchema.parse(req.params.offerId);
+      auditAgentTransactionMutation(
+        "accept_liquidity_fallback",
+        req.user.privyUserId,
+        fallbackOfferId,
+        req.correlationId,
+      );
       const result = await acceptLiquidityFallbackForApproval(
         req.user.privyUserId,
         fallbackOfferId,
@@ -84,7 +91,7 @@ agentTransactionsRouter.post(
               ? 403
               : err.code === "SQUID_NO_ROUTE"
                 ? 404
-                : 400;
+                : err.statusCode;
         return fail(req, res, status, { code: err.code, message: err.message });
       }
       next(err);
@@ -95,9 +102,16 @@ agentTransactionsRouter.post(
 agentTransactionsRouter.post(
   "/api/v1/agent/transactions/liquidity-fallback/:offerId/reject",
   requireAuth,
+  agentTransactionMutationRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const fallbackOfferId = fallbackOfferIdSchema.parse(req.params.offerId);
+      auditAgentTransactionMutation(
+        "reject_liquidity_fallback",
+        req.user.privyUserId,
+        fallbackOfferId,
+        req.correlationId,
+      );
       const result = await rejectLiquidityFallbackForApproval(
         req.user.privyUserId,
         fallbackOfferId,
@@ -117,7 +131,7 @@ agentTransactionsRouter.post(
             ? 404
             : err.code === "FALLBACK_OFFER_FORBIDDEN"
               ? 403
-              : 400;
+              : err.statusCode;
         return fail(req, res, status, { code: err.code, message: err.message });
       }
       next(err);
@@ -128,9 +142,16 @@ agentTransactionsRouter.post(
 agentTransactionsRouter.post(
   "/api/v1/agent/transactions/stellar-routing-fallback/:offerId/accept",
   requireAuth,
+  agentTransactionMutationRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const fallbackOfferId = fallbackOfferIdSchema.parse(req.params.offerId);
+      auditAgentTransactionMutation(
+        "accept_stellar_routing_fallback",
+        req.user.privyUserId,
+        fallbackOfferId,
+        req.correlationId,
+      );
       const result = await acceptStellarRoutingFallbackForApproval(
         req.user.privyUserId,
         fallbackOfferId,
@@ -152,7 +173,7 @@ agentTransactionsRouter.post(
               ? 403
               : err.code === "SOROSWAP_ROUTE_NOT_FOUND"
                 ? 404
-                : 400;
+                : err.statusCode;
         return fail(req, res, status, { code: err.code, message: err.message });
       }
       next(err);
@@ -163,9 +184,16 @@ agentTransactionsRouter.post(
 agentTransactionsRouter.post(
   "/api/v1/agent/transactions/stellar-routing-fallback/:offerId/reject",
   requireAuth,
+  agentTransactionMutationRateLimitMiddleware,
   async (req, res, next) => {
     try {
       const fallbackOfferId = fallbackOfferIdSchema.parse(req.params.offerId);
+      auditAgentTransactionMutation(
+        "reject_stellar_routing_fallback",
+        req.user.privyUserId,
+        fallbackOfferId,
+        req.correlationId,
+      );
       const result = await rejectStellarRoutingFallbackForApproval(
         req.user.privyUserId,
         fallbackOfferId,
@@ -185,7 +213,7 @@ agentTransactionsRouter.post(
             ? 404
             : err.code === "FALLBACK_OFFER_FORBIDDEN"
               ? 403
-              : 400;
+              : err.statusCode;
         return fail(req, res, status, { code: err.code, message: err.message });
       }
       next(err);

@@ -1,4 +1,4 @@
-import { getSupportedChains } from "./supported-tokens.js";
+import { getSupportedChains, resolveTokenSymbol } from "./supported-tokens.js";
 import { AppError } from "../errors/app-error.js";
 
 function normalizeSymbol(symbol: string): string {
@@ -14,6 +14,36 @@ export function getSoroswapAllowedSymbols(): readonly string[] {
 export function isSoroswapAllowedSymbol(symbol: string): boolean {
   const normalized = normalizeSymbol(symbol);
   return getSoroswapAllowedSymbols().includes(normalized);
+}
+
+/** Gate catalog entries by canonical Stellar asset identity (code + issuer), with XLM native exception. */
+export function isSoroswapAllowedToken(token: {
+  symbol: string;
+  issuer?: string;
+  type?: string;
+  address?: string;
+}): boolean {
+  const symbol = normalizeSymbol(token.symbol);
+  if (!isSoroswapAllowedSymbol(symbol)) {
+    return false;
+  }
+
+  if (symbol === "XLM") {
+    return true;
+  }
+
+  const resolved = resolveTokenSymbol("stellar", symbol);
+  if (resolved.match !== "exact" || resolved.token.kind !== "stellar_classic") {
+    return false;
+  }
+
+  const expectedIssuer = resolved.token.stellar_issuer?.trim();
+  const tokenIssuer = token.issuer?.trim();
+  if (!expectedIssuer || !tokenIssuer) {
+    return false;
+  }
+
+  return tokenIssuer === expectedIssuer;
 }
 
 /** Both symbols must be on the Stellar v1 allowlist and must differ. */

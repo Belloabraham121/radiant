@@ -51,4 +51,14 @@ describe("soroswap config", () => {
     process.env.SOROSWAP_DEFAULT_TRADE_TYPE = "INVALID";
     assert.equal(getSoroswapConfig().defaultTradeType, "EXACT_IN");
   });
+
+  it("falls back when numeric env vars are malformed", () => {
+    process.env.SOROSWAP_DEFAULT_SLIPPAGE = "not-a-number";
+    process.env.SOROSWAP_RATE_LIMIT_CAPACITY = "bad";
+    process.env.SOROSWAP_RATE_LIMIT_REFILL_MS = "nope";
+    const config = getSoroswapConfig();
+    assert.equal(config.defaultSlippage, 0.01);
+    assert.equal(config.rateLimitCapacity, 30);
+    assert.equal(config.rateLimitRefillIntervalMs, 2000);
+  });
 });

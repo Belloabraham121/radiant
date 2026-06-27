@@ -9,9 +9,8 @@ import { logStellarRoutingFallbackAcceptedTotal } from "../soroswap/soroswap-obs
 import {
   STELLAR_ROUTING_FALLBACK_TTL_SECONDS,
   getStellarRoutingFallbackOffer,
-  markStellarRoutingFallbackAccepted,
-  markStellarRoutingFallbackRejected,
   storeStellarRoutingFallbackOffer,
+  transitionStellarRoutingFallbackOfferStatus,
 } from "./stellar-routing-fallback-cache.js";
 import type {
   StellarRoutingFallbackIntent,
@@ -54,7 +53,10 @@ export function detectStellarRoutingFallback(intent: PartialSwapIntent): boolean
     return false;
   }
 
-  const selectedChain = intent.chainId ?? "sui";
+  const selectedChain = intent.chainId;
+  if (!selectedChain) {
+    return false;
+  }
   const selectedEvm = intent.evmChainId;
   if (selectedChain === "stellar") {
     return false;
@@ -87,6 +89,7 @@ function snapshotQuoteParams(intent: StellarRoutingFallbackIntent): StellarRouti
 export function partialSwapIntentToStellarRoutingIntent(
   intent: PartialSwapIntent,
   amount: string,
+  extras?: Pick<StellarRoutingFallbackIntent, "trade_type" | "slippage" | "from_address">,
 ): StellarRoutingFallbackIntent | null {
   const inputCoin = intent.inputCoin?.trim();
   const outputCoin = intent.outputCoin?.trim();
@@ -95,12 +98,19 @@ export function partialSwapIntentToStellarRoutingIntent(
     return null;
   }
 
+  const side = intent.amountSide ?? "pay";
+  const tradeType =
+    extras?.trade_type ?? (side === "receive" ? "EXACT_OUT" : "EXACT_IN");
+
   return {
     token_in: inputCoin,
     token_out: outputCoin,
     amount,
     chain_id: chainId,
     ...(intent.evmChainId !== undefined ? { evm_chain_id: intent.evmChainId } : {}),
+    trade_type: tradeType,
+    ...(extras?.slippage !== undefined ? { slippage: extras.slippage } : {}),
+    ...(extras?.from_address ? { from_address: extras.from_address } : {}),
   };
 }
 
@@ -141,6 +151,14 @@ export async function buildStellarRoutingFallbackOffer(
   return publicOffer;
 }
 
+function fallbackOfferInvalidError(status: string): AppError {
+  return new AppError(
+    400,
+    "FALLBACK_OFFER_INVALID",
+    `Stellar routing fallback offer is no longer available (${status}).`,
+  );
+}
+
 export async function acceptStellarRoutingFallback(
   privyUserId: string,
   fallbackOfferId: string,
@@ -157,23 +175,33 @@ export async function acceptStellarRoutingFallback(
     throw new AppError(403, "FALLBACK_OFFER_FORBIDDEN", "This fallback offer belongs to another user.");
   }
   if (stored.status !== "offered") {
-    throw new AppError(
-      400,
-      "FALLBACK_OFFER_INVALID",
-      `Stellar routing fallback offer is no longer available (${stored.status}).`,
-    );
+    throw fallbackOfferInvalidError(stored.status);
   }
 
-  const quoteResult = await callGetSoroswapQuoteForFallback(privyUserId, stored.quoteParams);
-  await markStellarRoutingFallbackAccepted(fallbackOfferId);
+  const transition = await transitionStellarRoutingFallbackOfferStatus(fallbackOfferId, "accepted");
+  if (!transition.ok) {
+    if (transition.reason === "not_found" || transition.reason === "expired") {
+      throw new AppError(
+        404,
+        "FALLBACK_OFFER_NOT_FOUND",
+        "Stellar routing fallback offer expired or was not found.",
+      );
+    }
+    throw fallbackOfferInvalidError(transition.currentStatus ?? "unknown");
+  }
+
+  const quoteResult = await callGetSoroswapQuoteForFallback(
+    privyUserId,
+    transition.offer.quoteParams,
+  );
 
   logStellarRoutingFallbackAcceptedTotal({
     fallback_offer_id: fallbackOfferId,
-    selected_chain_id: stored.selected_chain_id,
-    selected_evm_chain_id: stored.selected_evm_chain_id,
-    token_in: stored.token_in,
-    token_out: stored.token_out,
-    primary_error_code: stored.primary_error_code,
+    selected_chain_id: transition.offer.selected_chain_id,
+    selected_evm_chain_id: transition.offer.selected_evm_chain_id,
+    token_in: transition.offer.token_in,
+    token_out: transition.offer.token_out,
+    primary_error_code: transition.offer.primary_error_code,
   });
 
   return {
@@ -198,13 +226,20 @@ export async function rejectStellarRoutingFallback(
     throw new AppError(403, "FALLBACK_OFFER_FORBIDDEN", "This fallback offer belongs to another user.");
   }
   if (stored.status !== "offered") {
-    throw new AppError(
-      400,
-      "FALLBACK_OFFER_INVALID",
-      `Stellar routing fallback offer is no longer available (${stored.status}).`,
-    );
+    throw fallbackOfferInvalidError(stored.status);
   }
 
-  await markStellarRoutingFallbackRejected(fallbackOfferId);
+  const transition = await transitionStellarRoutingFallbackOfferStatus(fallbackOfferId, "rejected");
+  if (!transition.ok) {
+    if (transition.reason === "not_found" || transition.reason === "expired") {
+      throw new AppError(
+        404,
+        "FALLBACK_OFFER_NOT_FOUND",
+        "Stellar routing fallback offer expired or was not found.",
+      );
+    }
+    throw fallbackOfferInvalidError(transition.currentStatus ?? "unknown");
+  }
+
   return { status: "rejected" };
 }

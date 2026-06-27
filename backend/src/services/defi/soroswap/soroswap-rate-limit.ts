@@ -13,8 +13,8 @@ function outboundBucketConfig() {
 /** Global + per-user Soroswap outbound quota (catalog reads). */
 export async function consumeSoroswapOutboundQuota(userId: string, cost = 1): Promise<void> {
   const config = outboundBucketConfig();
-  const globalAllowed = await tryConsumeTokenBucket("soroswap:outbound:global", config, cost);
-  if (!globalAllowed) {
+  const userAllowed = await tryConsumeTokenBucket(`soroswap:outbound:user:${userId}`, config, cost);
+  if (!userAllowed) {
     throw new AppError(
       429,
       "SOROSWAP_RATE_LIMITED",
@@ -22,8 +22,8 @@ export async function consumeSoroswapOutboundQuota(userId: string, cost = 1): Pr
     );
   }
 
-  const userAllowed = await tryConsumeTokenBucket(`soroswap:outbound:user:${userId}`, config, cost);
-  if (!userAllowed) {
+  const globalAllowed = await tryConsumeTokenBucket("soroswap:outbound:global", config, cost);
+  if (!globalAllowed) {
     throw new AppError(
       429,
       "SOROSWAP_RATE_LIMITED",

@@ -105,18 +105,20 @@ export async function resolveSoroswapQuoteForExecute(input: {
   }
 
   if (input.privyUserId && input.snapshotParams) {
-    let requoteError: unknown = null;
     try {
       const refreshed = await requoteFromSnapshot(input.privyUserId, input.snapshotParams);
       if (refreshed && !isQuoteExpired(refreshed)) {
         return refreshed;
       }
     } catch (err) {
-      requoteError = err;
-    }
-
-    if (requoteError instanceof AppError) {
-      throw requoteError;
+      if (err instanceof AppError) {
+        throw err;
+      }
+      throw new AppError(
+        502,
+        "SOROSWAP_REQUOTE_FAILED",
+        "Couldn't refresh the quote right now. Please try again.",
+      );
     }
   }
 

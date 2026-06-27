@@ -280,13 +280,26 @@ export function mapSoroswapError(err: unknown): AppError {
   );
 }
 
+const STELLAR_SUBMIT_STATUSES = new Set([
+  "PENDING",
+  "ERROR",
+  "TRY_AGAIN_LATER",
+  "DUPLICATE",
+  "SUCCESS",
+]);
+
 function isStellarSubmitResponse(err: unknown): err is rpc.Api.SendTransactionResponse {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "status" in err &&
-    typeof (err as { status?: unknown }).status === "string"
-  );
+  if (typeof err !== "object" || err === null) {
+    return false;
+  }
+  const record = err as Record<string, unknown>;
+  if (typeof record.status !== "string" || !STELLAR_SUBMIT_STATUSES.has(record.status)) {
+    return false;
+  }
+  if ("hash" in record && record.hash !== undefined && typeof record.hash !== "string") {
+    return false;
+  }
+  return true;
 }
 
 function isSoroswapHttpError(err: unknown): boolean {

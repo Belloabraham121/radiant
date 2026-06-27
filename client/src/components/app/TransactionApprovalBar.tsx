@@ -252,7 +252,7 @@ export function TransactionApprovalBar({
             ) : null}
             {legacyQuoteCountdown.status === "active" && legacyQuoteExpiresAt ? (
               <p className="mt-2 text-[10px] font-semibold tabular-nums text-[var(--hero-blue)]">
-                <QuoteExpiryCountdownLabel expiresAt={legacyQuoteExpiresAt} />
+                <QuoteExpiryCountdownLabel label={legacyQuoteCountdown.label} />
               </p>
             ) : null}
             {legacyQuoteExpired ? (

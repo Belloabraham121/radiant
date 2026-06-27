@@ -36,6 +36,7 @@ import {
 import {
   loadClaimableLifiContinuationPending,
 } from "@/lib/lifi-continuation-pending";
+import { loadClaimableStellarContinuationPending } from "@/lib/stellar-continuation-pending";
 import {
   acceptLiquidityFallback,
   isLiquidityFallbackPending,
@@ -288,9 +289,14 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
 
       try {
         const { items } = await listSessionAgentTransactions(sessionKey);
-        const pending = await loadClaimableLifiContinuationPending(items);
-        if (pending) {
-          applyPendingTransaction(pending, sessionKey);
+        const lifiPending = await loadClaimableLifiContinuationPending(items);
+        if (lifiPending) {
+          applyPendingTransaction(lifiPending, sessionKey);
+          return;
+        }
+        const stellarPending = await loadClaimableStellarContinuationPending(items);
+        if (stellarPending) {
+          applyPendingTransaction(stellarPending, sessionKey);
         }
       } catch {
         // Best-effort — poll will retry.

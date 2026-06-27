@@ -10,23 +10,35 @@ import { getStellarRoutingFallbackOffer } from "../defi/stellar-routing/stellar-
 import type { StellarRoutingFallbackQuoteParams } from "../defi/stellar-routing/stellar-routing.types.js";
 import { findPendingApprovalSessionIdByStellarRoutingFallbackOfferId } from "./agent-transaction.repository.js";
 import { emitSoroswapQuoteStep } from "../agent/agent-stream-stellar.js";
+import { applySoroswapQuoteToExecuteParams } from "./approval-preview/enrichers/soroswap-route-params.js";
+import { normalizeSoroswapQuote } from "../defi/soroswap/soroswap-normalize.js";
 
 function stellarRoutingQuoteToExecuteInput(
   quote: Awaited<ReturnType<typeof acceptStellarRoutingFallback>>,
   quoteParams: StellarRoutingFallbackQuoteParams,
 ): ExecuteTransactionInput {
-  return {
-    chain_id: "stellar",
-    action: "stellar_swap",
-    params: {
-      quote_id: quote.quote_id,
-      route_id: quote.quote_id,
+  const normalized = normalizeSoroswapQuote({
+    token_in: quoteParams.token_in,
+    token_out: quoteParams.token_out,
+    quote_id: quote.quote_id,
+    quote: quote.quote,
+  });
+
+  const executeParams = applySoroswapQuoteToExecuteParams(
+    {
       token_in: quoteParams.token_in,
       token_out: quoteParams.token_out,
       amount: quoteParams.amount,
       ...(quoteParams.trade_type ? { trade_type: quoteParams.trade_type } : {}),
       ...(quoteParams.slippage !== undefined ? { slippage: quoteParams.slippage } : {}),
     },
+    normalized,
+  );
+
+  return {
+    chain_id: "stellar",
+    action: "stellar_swap",
+    params: executeParams,
   };
 }
 

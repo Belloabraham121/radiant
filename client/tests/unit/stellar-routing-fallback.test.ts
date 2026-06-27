@@ -1,26 +1,19 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  acceptStellarRoutingFallback,
   isStellarRoutingFallbackPending,
   markStellarRoutingOfferDeclinedInMessages,
+  rejectStellarRoutingFallback,
 } from "../../src/lib/stellar-routing-fallback";
 import type { PendingTransaction } from "../../src/lib/chat-api";
 
-const ACCEPT_PATH = "/api/v1/agent/transactions/stellar-routing-fallback";
-const REJECT_SUFFIX = "/reject";
-const ACCEPT_SUFFIX = "/accept";
-
 describe("stellar-routing-fallback helpers", () => {
-  it("documents accept/reject API paths", () => {
-    const offerId = "offer-123";
-    assert.equal(
-      `${ACCEPT_PATH}/${offerId}${ACCEPT_SUFFIX}`,
-      "/api/v1/agent/transactions/stellar-routing-fallback/offer-123/accept",
-    );
-    assert.equal(
-      `${ACCEPT_PATH}/${offerId}${REJECT_SUFFIX}`,
-      "/api/v1/agent/transactions/stellar-routing-fallback/offer-123/reject",
-    );
+  it("uses exported accept/reject API wrappers", () => {
+    assert.equal(typeof acceptStellarRoutingFallback, "function");
+    assert.equal(typeof rejectStellarRoutingFallback, "function");
+    assert.match(acceptStellarRoutingFallback.toString(), /stellar-routing-fallback/);
+    assert.match(rejectStellarRoutingFallback.toString(), /stellar-routing-fallback/);
   });
 });
 

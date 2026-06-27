@@ -151,7 +151,7 @@ function guidanceForErrorCode(code: string): string {
     case "SOROSWAP_ROUTE_NOT_FOUND":
       return "Explain no Stellar liquidity exists for this pair or amount. Suggest a smaller amount, adjust slippage, or confirm XLM/USDC on Stellar. Do not call Li-Fi or Squid for Stellar same-chain swaps.";
     case "SOROSWAP_VALIDATION_ERROR":
-      return "Re-run stellar_swap_quote with corrected stroops amount, allowlisted symbols, and tradeType.";
+      return "Re-run stellar_swap_quote with corrected stroops amount, allowlisted symbols, and trade_type.";
     case "SOROSWAP_UNAUTHORIZED":
       return "Operator misconfiguration — do not retry in a loop. Suggest trying again later.";
     case "SOROSWAP_RATE_LIMITED":

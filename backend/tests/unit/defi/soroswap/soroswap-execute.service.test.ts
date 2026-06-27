@@ -176,6 +176,37 @@ describe("soroswap-execute.service", () => {
     assert.equal(invalidateCalled, true);
   });
 
+  it("returns tx hash when post-submit status lookup fails", async () => {
+    enableSoroswapEnv();
+    setResolveSoroswapWalletAddressForTests(async () => STELLAR);
+    setSoroswapBuildStellarHooksForTests({
+      parseXdr: () => ({}) as never,
+      simulate: async () => {},
+    });
+    await storeSoroswapQuote(QUOTE_ID, storedQuotePayload());
+
+    mockExecuteHooks({
+      executeSigned: async () => ({
+        hash: TX_HASH,
+        stellar_address: STELLAR,
+        effects_status: "unknown",
+      }),
+      fetchSwapStatus: async () => {
+        throw new Error("Horizon unavailable");
+      },
+    });
+
+    setSoroswapFetchImplForTests(async () =>
+      new Response(JSON.stringify({ xdr: "AAAA-test-xdr" }), { status: 200 }),
+    );
+
+    const result = await executeSoroswapSwap("user-1", { quote_id: QUOTE_ID });
+
+    assert.equal(result.tx_hash, TX_HASH);
+    assert.equal(result.tracking_status, "pending");
+    assert.equal(result.effects_status, "pending");
+  });
+
   it("returns pending effects when Horizon has not indexed the tx yet", async () => {
     enableSoroswapEnv();
     setResolveSoroswapWalletAddressForTests(async () => STELLAR);

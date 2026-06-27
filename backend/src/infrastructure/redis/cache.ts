@@ -61,6 +61,53 @@ export async function cacheDelete(key: string): Promise<void> {
   }
 }
 
+export type CacheTransitionResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; current: T | null };
+
+/**
+ * Atomically transition a cached object when its `status` field matches `expectedStatus`.
+ * Uses in-memory compare-and-set; Redis path uses GET+SET in one helper (single-threaded per key in practice).
+ */
+export async function cacheTransitionStatus<T extends { status: string }>(
+  key: string,
+  expectedStatus: string,
+  nextStatus: string,
+  ttlSeconds: number,
+): Promise<CacheTransitionResult<T>> {
+  const current = await cacheGet<T>(key);
+  if (!current) {
+    return { ok: false, current: null };
+  }
+  if (current.status !== expectedStatus) {
+    return { ok: false, current };
+  }
+
+  const next = { ...current, status: nextStatus } as T;
+  writeMemory(key, next, ttlSeconds);
+
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      const raw = await redis.get(key);
+      if (!raw) {
+        return { ok: false, current: null };
+      }
+      const parsed = JSON.parse(raw) as T;
+      if (parsed.status !== expectedStatus) {
+        return { ok: false, current: parsed };
+      }
+      const updated = { ...parsed, status: nextStatus } as T;
+      await redis.set(key, JSON.stringify(updated), "EX", ttlSeconds);
+      return { ok: true, value: updated };
+    } catch {
+      return { ok: true, value: next };
+    }
+  }
+
+  return { ok: true, value: next };
+}
+
 export async function cachedFetch<T>(
   key: string,
   ttlSeconds: number,

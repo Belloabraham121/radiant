@@ -1,7 +1,14 @@
+import { z } from "zod";
 import { inngest } from "../client.js";
 import { SOROSWAP_TRACK_SWAP_EVENT } from "../events.js";
 import { runSoroswapTrackPollLoop } from "./soroswap-track-poll.js";
-import type { SoroswapTrackJobInput } from "../../services/defi/soroswap/soroswap-tracking.types.js";
+
+const soroswapTrackJobInputSchema = z.object({
+  transactionId: z.string().uuid(),
+  sessionId: z.string().uuid().nullable(),
+  privyUserId: z.string().min(1),
+  txHash: z.string().min(1),
+});
 
 export const soroswapTrackSwapFunction = inngest.createFunction(
   {
@@ -11,7 +18,10 @@ export const soroswapTrackSwapFunction = inngest.createFunction(
     retries: 2,
   },
   async ({ event, step }) => {
-    const input = event.data as SoroswapTrackJobInput;
-    return runSoroswapTrackPollLoop(step, input);
+    const parsed = soroswapTrackJobInputSchema.safeParse(event.data);
+    if (!parsed.success) {
+      throw new Error(`Invalid Soroswap track payload: ${parsed.error.message}`);
+    }
+    return runSoroswapTrackPollLoop(step, parsed.data);
   },
 );

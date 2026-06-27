@@ -248,9 +248,18 @@ export async function executeSoroswapSwap(
       transaction,
     });
 
-    const statusResult = await fetchSwapStatus(submitted.hash);
-    const trackingStatus = normalizeSoroswapTrackingStatus(statusResult.status);
-    const effectsStatus = normalizeSoroswapEffectsStatus(trackingStatus);
+    let statusResult: Awaited<ReturnType<typeof fetchSwapStatus>> | null = null;
+    let trackingStatus: ReturnType<typeof normalizeSoroswapTrackingStatus> = "pending";
+    let effectsStatus: ReturnType<typeof normalizeSoroswapEffectsStatus> = "pending";
+
+    try {
+      statusResult = await fetchSwapStatus(submitted.hash);
+      trackingStatus = normalizeSoroswapTrackingStatus(statusResult.status);
+      effectsStatus = normalizeSoroswapEffectsStatus(trackingStatus);
+    } catch {
+      trackingStatus = "pending";
+      effectsStatus = "pending";
+    }
 
     const submitMeta = { ...streamMeta, digest: submitted.hash };
     if (streamCtx?.sessionId) {
@@ -274,7 +283,9 @@ export async function executeSoroswapSwap(
       route_id: parsed.route_id ?? quoteId,
       tx_hash: submitted.hash,
       stellar_address: walletAddress,
-      ...(typeof statusResult.ledger === "number" ? { ledger: statusResult.ledger } : {}),
+      ...(statusResult && typeof statusResult.ledger === "number"
+        ? { ledger: statusResult.ledger }
+        : {}),
       effects_status: effectsStatus,
       tracking_status: trackingStatus,
     };

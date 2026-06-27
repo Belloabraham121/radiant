@@ -178,10 +178,8 @@ export async function resolveSoroswapApprovalParams(
   params: Record<string, unknown>,
   options?: { privyUserId?: string; requoteOnCacheMiss?: boolean; forceRequote?: boolean },
 ): Promise<Record<string, unknown>> {
-  const tokenIn =
-    readTokenSymbol(params, ["token_in", "input_coin", "from_token"]) ?? "XLM";
-  const tokenOut =
-    readTokenSymbol(params, ["token_out", "output_coin", "to_token"]) ?? "USDC";
+  const tokenIn = readTokenSymbol(params, ["token_in", "input_coin", "from_token"]);
+  const tokenOut = readTokenSymbol(params, ["token_out", "output_coin", "to_token"]);
 
   if (options?.forceRequote && options.privyUserId) {
     const requoted = await requoteFromSnapshot(options.privyUserId, params);
@@ -203,8 +201,10 @@ export async function resolveSoroswapApprovalParams(
           ? { privyUserId: options.privyUserId, snapshotParams: params }
           : {}),
       });
-      const quote = storedPayloadToSwapQuote(stored, tokenIn, tokenOut);
-      return applySoroswapQuoteToExecuteParams(params, quote);
+      if (tokenIn && tokenOut) {
+        const quote = storedPayloadToSwapQuote(stored, tokenIn, tokenOut);
+        return applySoroswapQuoteToExecuteParams(params, quote);
+      }
     } catch {
       if (options?.requoteOnCacheMiss && options.privyUserId) {
         const requoted = await requoteFromSnapshot(options.privyUserId, params);

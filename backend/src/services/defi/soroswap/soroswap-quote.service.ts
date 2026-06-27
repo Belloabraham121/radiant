@@ -124,9 +124,8 @@ export async function getSoroswapQuote(
   );
 
   const quoteSeed = JSON.stringify({
-    ...cacheParams,
-    amountIn: quote.amountIn,
-    amountOut: quote.amountOut,
+    request: cacheParams,
+    quote,
   });
   const quoteId = createSoroswapQuoteId(quoteSeed);
   const expiresAt = readSoroswapQuoteExpiresAt(quote);

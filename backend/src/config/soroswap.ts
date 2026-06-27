@@ -19,6 +19,8 @@ export type SoroswapConfig = {
 
 const soroswapNetworkSchema = z.enum(["mainnet", "testnet"]);
 const soroswapTradeTypeSchema = z.enum(["EXACT_IN", "EXACT_OUT"]);
+const slippageSchema = z.coerce.number().finite().min(0).max(1);
+const positiveIntSchema = z.coerce.number().int().positive();
 
 export function getSoroswapConfig(): SoroswapConfig {
   const networkRaw = process.env.SOROSWAP_NETWORK?.trim().toLowerCase();
@@ -34,15 +36,19 @@ export function getSoroswapConfig(): SoroswapConfig {
   const baseUrl =
     process.env.SOROSWAP_API_BASE_URL?.trim() || "https://api.soroswap.finance";
 
+  const parsedSlippage = slippageSchema.safeParse(optional("SOROSWAP_DEFAULT_SLIPPAGE", "0.01"));
+  const parsedCapacity = positiveIntSchema.safeParse(optional("SOROSWAP_RATE_LIMIT_CAPACITY", "30"));
+  const parsedRefillMs = positiveIntSchema.safeParse(optional("SOROSWAP_RATE_LIMIT_REFILL_MS", "2000"));
+
   return {
     enabled: process.env.SOROSWAP_ENABLED?.trim() === "true",
     apiBaseUrl: baseUrl.replace(/\/$/, ""),
     apiKey: process.env.SOROSWAP_API_KEY?.trim() ?? "",
     network,
-    defaultSlippage: Number.parseFloat(optional("SOROSWAP_DEFAULT_SLIPPAGE", "0.01")),
+    defaultSlippage: parsedSlippage.success ? parsedSlippage.data : 0.01,
     defaultTradeType,
-    rateLimitCapacity: Number.parseInt(optional("SOROSWAP_RATE_LIMIT_CAPACITY", "30"), 10),
-    rateLimitRefillIntervalMs: Number.parseInt(optional("SOROSWAP_RATE_LIMIT_REFILL_MS", "2000"), 10),
+    rateLimitCapacity: parsedCapacity.success ? parsedCapacity.data : 30,
+    rateLimitRefillIntervalMs: parsedRefillMs.success ? parsedRefillMs.data : 2000,
   };
 }
 

@@ -33,8 +33,9 @@ export async function soroswapRestFetch<T>(
   init?: SoroswapRestFetchInit,
 ): Promise<T> {
   const config = getSoroswapConfig();
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const url = new URL(normalizedPath, `${config.apiBaseUrl}/`);
+  const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
+  const base = new URL(config.apiBaseUrl.endsWith("/") ? config.apiBaseUrl : `${config.apiBaseUrl}/`);
+  const url = new URL(normalizedPath, base);
   url.searchParams.set("network", config.network);
 
   const headers: Record<string, string> = {

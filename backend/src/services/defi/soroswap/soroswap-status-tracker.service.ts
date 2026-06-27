@@ -182,15 +182,39 @@ export async function runSoroswapTrackingPollCycle(input: SoroswapTrackJobInput)
 export function startLocalSoroswapTrackingPoll(input: SoroswapTrackJobInput): void {
   let attempt = 0;
 
+  const finalizeOnExhaustion = async (): Promise<void> => {
+    const row = await loadSoroswapTrackTransaction(input.transactionId);
+    if (!row || row.status === "success" || row.status === "failure") {
+      return;
+    }
+
+    const meta = readSoroswapMetaFromTxResult(row.result as TxResult | null);
+    await applySoroswapStatusUpdate({
+      transactionId: input.transactionId,
+      sessionId: input.sessionId,
+      chainId: row.chain_id as ChainId,
+      digest: row.digest ?? input.txHash,
+      txHash: input.txHash,
+      status: { tx_hash: input.txHash, status: "failed" },
+      quoteId: meta.quote_id,
+      routeId: meta.route_id,
+    });
+  };
+
   const tick = async (): Promise<void> => {
     attempt += 1;
     try {
       const outcome = await runSoroswapTrackingPollCycle(input);
-      if (outcome.terminal || attempt >= MAX_LOCAL_POLL_ATTEMPTS) {
+      if (outcome.terminal) {
+        return;
+      }
+      if (attempt >= MAX_LOCAL_POLL_ATTEMPTS) {
+        await finalizeOnExhaustion();
         return;
       }
     } catch {
       if (attempt >= MAX_LOCAL_POLL_ATTEMPTS) {
+        await finalizeOnExhaustion();
         return;
       }
     }

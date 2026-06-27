@@ -144,11 +144,13 @@ export async function buildTransactionDisplay(
     const inputCoin =
       (typeof input.params.token_in === "string" && input.params.token_in) ||
       (typeof input.params.input_coin === "string" && input.params.input_coin) ||
-      "XLM";
+      (typeof input.params.from_token === "string" && input.params.from_token) ||
+      "token";
     const outputCoin =
       (typeof input.params.token_out === "string" && input.params.token_out) ||
       (typeof input.params.output_coin === "string" && input.params.output_coin) ||
-      "USDC";
+      (typeof input.params.to_token === "string" && input.params.to_token) ||
+      "token";
     const payAmount =
       typeof input.params.from_amount_display === "string"
         ? input.params.from_amount_display

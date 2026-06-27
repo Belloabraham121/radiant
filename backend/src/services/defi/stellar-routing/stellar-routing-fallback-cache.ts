@@ -1,4 +1,4 @@
-import { cacheGet, cacheSet } from "../../../infrastructure/redis/cache.js";
+import { cacheGet, cacheSet, cacheTransitionStatus } from "../../../infrastructure/redis/cache.js";
 import type {
   StellarRoutingFallbackStatus,
   StoredStellarRoutingFallbackOffer,
@@ -37,6 +37,45 @@ async function updateFallbackOfferStatus(
     return;
   }
   await storeStellarRoutingFallbackOffer({ ...stored, status });
+}
+
+export async function transitionStellarRoutingFallbackOfferStatus(
+  fallbackOfferId: string,
+  nextStatus: Extract<StellarRoutingFallbackStatus, "accepted" | "rejected">,
+): Promise<
+  | { ok: true; offer: StoredStellarRoutingFallbackOffer }
+  | { ok: false; reason: "not_found" | "expired" | "invalid_status"; currentStatus?: StellarRoutingFallbackStatus }
+> {
+  const key = stellarRoutingFallbackCacheKey(fallbackOfferId);
+  const stored = await readStoredOffer(fallbackOfferId);
+  if (!stored) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  if (stored.status === "offered" && new Date(stored.expires_at).getTime() <= Date.now()) {
+    await markStellarRoutingFallbackExpired(fallbackOfferId);
+    return { ok: false, reason: "expired", currentStatus: "expired" };
+  }
+
+  const transition = await cacheTransitionStatus<StoredStellarRoutingFallbackOffer>(
+    key,
+    "offered",
+    nextStatus,
+    STELLAR_ROUTING_FALLBACK_TTL_SECONDS,
+  );
+
+  if (!transition.ok) {
+    if (!transition.current) {
+      return { ok: false, reason: "not_found" };
+    }
+    return {
+      ok: false,
+      reason: "invalid_status",
+      currentStatus: transition.current.status,
+    };
+  }
+
+  return { ok: true, offer: transition.value };
 }
 
 export async function getStellarRoutingFallbackOffer(

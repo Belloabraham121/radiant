@@ -303,12 +303,15 @@ export async function buildPendingTransactionPreview(
       };
     }
   } else if (isSoroswapExecuteAction(enriched.action) && enriched.chain_id === "stellar") {
-    const coalescedExpiry = coalesceDeFiQuoteExpiresAt(readDeFiQuoteExpiresAt(enriched.params));
-    enriched.params = {
-      ...enriched.params,
-      expires_at: coalescedExpiry,
-      quote_expires_at: coalescedExpiry,
-    };
+    const rawExpiry = readDeFiQuoteExpiresAt(enriched.params);
+    if (rawExpiry) {
+      const coalescedExpiry = coalesceDeFiQuoteExpiresAt(rawExpiry);
+      enriched.params = {
+        ...enriched.params,
+        expires_at: coalescedExpiry,
+        quote_expires_at: coalescedExpiry,
+      };
+    }
   }
   validateExecuteTransactionInput(enriched);
   const { title, amount_display: amountDisplay } = await buildTransactionDisplay(

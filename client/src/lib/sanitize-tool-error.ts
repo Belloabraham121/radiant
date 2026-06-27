@@ -15,6 +15,7 @@ const SOROSWAP_API_NOISE_RE =
 const SOROSWAP_ERROR_CODE_RE =
   /SOROSWAP_(?:ROUTE_NOT_FOUND|VALIDATION_ERROR|UNAUTHORIZED|RATE_LIMITED|UNAVAILABLE|QUOTE_EXPIRED)/;
 const SOROSWAP_API_KEY_RE = /sk_[a-zA-Z0-9_-]+/g;
+const SOROSWAP_API_KEY_DETECT_RE = /sk_[a-zA-Z0-9_-]+/;
 const STELLAR_TRUSTLINE_RE = /trustline|op_no_trust|missing trustline/i;
 const STELLAR_RESERVE_RE =
   /(?:minimum reserve|base reserve|op_no_account|fund your stellar wallet|underfunded)/i;
@@ -142,7 +143,7 @@ function parseToolErrorJson(message: string): string | null {
 
 function sanitizeKnownToolErrorMessage(message: string): string {
   let next = message;
-  if (SOROSWAP_API_KEY_RE.test(next) || /Authorization|Bearer\s+/i.test(next)) {
+  if (SOROSWAP_API_KEY_DETECT_RE.test(next) || /Authorization|Bearer\s+/i.test(next)) {
     next = stripSoroswapApiNoise(next);
   }
 

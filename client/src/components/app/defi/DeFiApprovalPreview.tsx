@@ -112,7 +112,7 @@ export function DeFiApprovalPreviewCard({
       {fiat ? <FiatPreviewLines fiat={fiat} /> : null}
       {showQuoteUi && quoteCountdown.status === "active" && quoteExpiresAt ? (
         <p className="mt-2 text-[10px] font-semibold tabular-nums text-[var(--hero-blue)]">
-          <QuoteExpiryCountdownLabel expiresAt={quoteExpiresAt} />
+          <QuoteExpiryCountdownLabel label={quoteCountdown.label} />
         </p>
       ) : null}
       {showQuoteUi && quoteExpired ? (

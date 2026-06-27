@@ -61,7 +61,9 @@ async function tryBuildStellarRoutingFallbackOffer(
     return null;
   }
 
-  const tradeType = input.params.trade_type;
+  const rawTradeType = input.params.trade_type ?? input.params.tradeType;
+  const tradeType =
+    rawTradeType === "EXACT_IN" || rawTradeType === "EXACT_OUT" ? rawTradeType : undefined;
   const slippage = readNumber(input.params, "slippage") ?? undefined;
 
   if (
@@ -86,9 +88,7 @@ async function tryBuildStellarRoutingFallbackOffer(
       ...(readNumber(input.params, "evm_chain_id") !== null
         ? { evm_chain_id: readNumber(input.params, "evm_chain_id")! }
         : {}),
-      ...(tradeType === "EXACT_IN" || tradeType === "EXACT_OUT"
-        ? { trade_type: tradeType }
-        : {}),
+      ...(tradeType ? { trade_type: tradeType } : {}),
       ...(slippage !== undefined ? { slippage } : {}),
     },
     new AppError(400, "CROSS_ECOSYSTEM_NOT_SUPPORTED", "Swap is not available on the selected network."),

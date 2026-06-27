@@ -34,6 +34,19 @@ describe("stellar execution tracking", () => {
     assert.equal(isStellarPending(pending), true);
   });
 
+  it("does not treat generic stellar transfers as soroswap pending", () => {
+    const pending: PendingTransaction = {
+      id: "tx-stellar-transfer",
+      chain_id: "stellar",
+      action: "transfer",
+      params: { amount: "10000000" },
+      summary: "Send XLM",
+      amount_display: "1 XLM",
+    };
+
+    assert.equal(isStellarPending(pending), false);
+  });
+
   it("returns optimistic approval steps for stellar pending", () => {
     const pending: PendingTransaction = {
       id: "tx-stellar",
@@ -56,6 +69,32 @@ describe("stellar execution tracking", () => {
     assert.equal(steps[1]?.id, "stellar-build");
     assert.equal(steps[2]?.id, "stellar-sign");
     assert.equal(steps[2]?.status, "warning");
+  });
+
+  it("keeps confirm running when tx success but effects are pending", () => {
+    const tx: AgentTransactionDetail = {
+      id: "tx-stellar",
+      status: "success",
+      category: "swap",
+      chain_id: "stellar",
+      title: "Swap on Stellar (XLM → USDC)",
+      amount_display: "10 XLM → USDC",
+      digest: "abc123def4567890",
+      effects_status: "pending",
+      params: {},
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    };
+
+    const steps = executionStepsFromAgentTransaction(tx, {
+      soroswap: {
+        tx_hash: "abc123def4567890",
+        tracking_status: "success",
+        quote_id: "soroswap:abc123",
+      },
+    });
+
+    assert.equal(steps!.find((step) => step.id === "stellar-confirm")?.status, "running");
   });
 
   it("builds submit/confirm steps from soroswap agent transaction result", () => {
