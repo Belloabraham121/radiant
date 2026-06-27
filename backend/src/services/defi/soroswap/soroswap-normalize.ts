@@ -117,3 +117,7 @@ export function normalizeSoroswapTrackingStatus(
 ): SoroswapSwapTrackingStatus {
   return status;
 }
+
+export function isTerminalSoroswapStatus(status: SoroswapSwapTrackingStatus): boolean {
+  return status === "success" || status === "failed";
+}

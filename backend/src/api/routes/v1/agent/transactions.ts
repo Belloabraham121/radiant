@@ -15,6 +15,10 @@ import {
   rejectLiquidityFallbackForApproval,
 } from "../../../../services/agent-transaction/liquidity-fallback-approval.service.js";
 import {
+  acceptStellarRoutingFallbackForApproval,
+  rejectStellarRoutingFallbackForApproval,
+} from "../../../../services/agent-transaction/stellar-routing-fallback-approval.service.js";
+import {
   approveAgentTransactionForUi,
   refreshAgentTransactionQuoteForUi,
   rejectAgentTransactionForUi,
@@ -95,6 +99,74 @@ agentTransactionsRouter.post(
     try {
       const fallbackOfferId = fallbackOfferIdSchema.parse(req.params.offerId);
       const result = await rejectLiquidityFallbackForApproval(
+        req.user.privyUserId,
+        fallbackOfferId,
+      );
+      return ok(req, res, result);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "Invalid fallback offer id",
+          details: err.flatten(),
+        });
+      }
+      if (err instanceof AppError) {
+        const status =
+          err.code === "FALLBACK_OFFER_NOT_FOUND"
+            ? 404
+            : err.code === "FALLBACK_OFFER_FORBIDDEN"
+              ? 403
+              : 400;
+        return fail(req, res, status, { code: err.code, message: err.message });
+      }
+      next(err);
+    }
+  },
+);
+
+agentTransactionsRouter.post(
+  "/api/v1/agent/transactions/stellar-routing-fallback/:offerId/accept",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const fallbackOfferId = fallbackOfferIdSchema.parse(req.params.offerId);
+      const result = await acceptStellarRoutingFallbackForApproval(
+        req.user.privyUserId,
+        fallbackOfferId,
+      );
+      return ok(req, res, result);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "Invalid fallback offer id",
+          details: err.flatten(),
+        });
+      }
+      if (err instanceof AppError) {
+        const status =
+          err.code === "FALLBACK_OFFER_NOT_FOUND"
+            ? 404
+            : err.code === "FALLBACK_OFFER_FORBIDDEN"
+              ? 403
+              : err.code === "SOROSWAP_ROUTE_NOT_FOUND"
+                ? 404
+                : 400;
+        return fail(req, res, status, { code: err.code, message: err.message });
+      }
+      next(err);
+    }
+  },
+);
+
+agentTransactionsRouter.post(
+  "/api/v1/agent/transactions/stellar-routing-fallback/:offerId/reject",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const fallbackOfferId = fallbackOfferIdSchema.parse(req.params.offerId);
+      const result = await rejectStellarRoutingFallbackForApproval(
         req.user.privyUserId,
         fallbackOfferId,
       );

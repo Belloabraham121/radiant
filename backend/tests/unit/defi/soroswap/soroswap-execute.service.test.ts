@@ -212,6 +212,46 @@ describe("soroswap-execute.service", () => {
     assert.equal(invalidateCalled, false);
   });
 
+  it("enqueues swap tracking when tx is pending and transactionId provided", async () => {
+    enableSoroswapEnv();
+    setResolveSoroswapWalletAddressForTests(async () => STELLAR);
+    setSoroswapBuildStellarHooksForTests({
+      parseXdr: () => ({}) as never,
+      simulate: async () => {},
+    });
+    await storeSoroswapQuote(QUOTE_ID, storedQuotePayload());
+
+    const enqueued: Array<{ transactionId: string; txHash: string }> = [];
+    mockExecuteHooks({
+      executeSigned: async () => ({
+        hash: TX_HASH,
+        stellar_address: STELLAR,
+        effects_status: "unknown",
+      }),
+      fetchSwapStatus: async () => ({
+        tx_hash: TX_HASH,
+        status: "pending",
+      }),
+      enqueueTracking: async (job) => {
+        enqueued.push({ transactionId: job.transactionId, txHash: job.txHash });
+      },
+    });
+
+    setSoroswapFetchImplForTests(async () =>
+      new Response(JSON.stringify({ xdr: "AAAA-test-xdr" }), { status: 200 }),
+    );
+
+    await executeSoroswapSwap(
+      "user-1",
+      { quote_id: QUOTE_ID },
+      { transactionId: "11111111-1111-4111-8111-111111111111", sessionId: "session-1" },
+    );
+
+    assert.equal(enqueued.length, 1);
+    assert.equal(enqueued[0]?.transactionId, "11111111-1111-4111-8111-111111111111");
+    assert.equal(enqueued[0]?.txHash, TX_HASH);
+  });
+
   it("re-quotes from snapshot when stored quote expired", async () => {
     enableSoroswapEnv();
     enableStellarEnv();

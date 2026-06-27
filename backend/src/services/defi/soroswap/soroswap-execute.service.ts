@@ -1,5 +1,6 @@
 import { isSoroswapEnabled } from "../../../config/soroswap.js";
 import { AppError } from "../../../errors/app-error.js";
+import { enqueueSoroswapSwapTrackingJob } from "../../../infrastructure/inngest/enqueue-soroswap-tracking.js";
 import { invalidateDefiBalanceCache } from "../cache.js";
 import { resolveAgentWalletByPrivyUserId } from "../../wallet/agent-wallet.service.js";
 import {
@@ -21,7 +22,13 @@ import {
   type SoroswapExecuteInput,
   type SoroswapExecuteResult,
 } from "./soroswap.types.js";
+import type { SoroswapTrackJobInput } from "./soroswap-tracking.types.js";
 import { resolveSoroswapWalletAddress } from "./soroswap-wallet-addresses.js";
+
+export type SoroswapExecuteOptions = {
+  transactionId?: string;
+  sessionId?: string | null;
+};
 
 type ParseXdrFn = (xdr: string) => Awaited<ReturnType<typeof parseTransactionXdr>>;
 
@@ -48,6 +55,7 @@ let invalidateBalanceForTests: InvalidateBalanceFn | null = null;
 let fetchSwapStatusForTests: FetchSwapStatusFn | null = null;
 let resolveSigningWalletForTests: ResolveSigningWalletFn | null = null;
 let parseXdrForTests: ParseXdrFn | null = null;
+let enqueueTrackingForTests: ((input: SoroswapTrackJobInput) => Promise<void>) | null = null;
 
 /** Test hooks — bypass Privy signing, cache invalidation, and Horizon polling. */
 export function setSoroswapExecuteHooksForTests(hooks: {
@@ -56,12 +64,14 @@ export function setSoroswapExecuteHooksForTests(hooks: {
   fetchSwapStatus?: FetchSwapStatusFn | null;
   resolveSigningWallet?: ResolveSigningWalletFn | null;
   parseXdr?: ParseXdrFn | null;
+  enqueueTracking?: ((input: SoroswapTrackJobInput) => Promise<void>) | null;
 } | null): void {
   executeSignedForTests = hooks?.executeSigned ?? null;
   invalidateBalanceForTests = hooks?.invalidateBalance ?? null;
   fetchSwapStatusForTests = hooks?.fetchSwapStatus ?? null;
   resolveSigningWalletForTests = hooks?.resolveSigningWallet ?? null;
   parseXdrForTests = hooks?.parseXdr ?? null;
+  enqueueTrackingForTests = hooks?.enqueueTracking ?? null;
 }
 
 function snapshotParamsFromExecuteInput(input: SoroswapExecuteInput): Record<string, unknown> {
@@ -132,10 +142,36 @@ async function fetchSwapStatus(txHash: string) {
   return getSoroswapSwapStatus(txHash);
 }
 
+async function maybeEnqueueSwapTracking(
+  privyUserId: string,
+  txHash: string,
+  trackingStatus: ReturnType<typeof normalizeSoroswapTrackingStatus>,
+  options?: SoroswapExecuteOptions,
+): Promise<void> {
+  if (!options?.transactionId || trackingStatus !== "pending") {
+    return;
+  }
+
+  const job: SoroswapTrackJobInput = {
+    transactionId: options.transactionId,
+    sessionId: options.sessionId ?? null,
+    privyUserId,
+    txHash,
+  };
+
+  if (enqueueTrackingForTests) {
+    await enqueueTrackingForTests(job);
+    return;
+  }
+
+  void enqueueSoroswapSwapTrackingJob(job).catch(() => undefined);
+}
+
 /** Build, sign, and broadcast a Soroswap Stellar swap. */
 export async function executeSoroswapSwap(
   privyUserId: string,
   input: SoroswapExecuteInput,
+  options?: SoroswapExecuteOptions,
 ): Promise<SoroswapExecuteResult> {
   if (!isSoroswapEnabled()) {
     throw new AppError(503, "SOROSWAP_UNAVAILABLE", "Stellar swap service is temporarily unavailable.");
@@ -186,6 +222,8 @@ export async function executeSoroswapSwap(
     if (trackingStatus === "success") {
       await invalidateStellarBalance(walletAddress);
     }
+
+    await maybeEnqueueSwapTracking(privyUserId, submitted.hash, trackingStatus, options);
 
     return {
       quote_id: quoteId,

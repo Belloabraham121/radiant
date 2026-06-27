@@ -526,7 +526,7 @@ Mirror `deepbook/` + `squid/` layout. Cache helpers exist: `soroswap-cache.ts`.
 | [ ]    | `SOROSWAP_QUOTE_EXPIRED` (stale quote at build)                                               | [Backend] | ↑                                                          |
 | [ ]    | `SOROSWAP_UNAVAILABLE` (5xx / timeout / network)                                              | [Backend] | ↑                                                          |
 | [ ]    | `SOROSWAP_RATE_LIMITED` (429)                                                                 | [Backend] | ↑                                                          |
-| [ ]    | `isStellarRoutingFallbackEligible(err)` — mirror `isLiquidityFallbackEligible`                | [Backend] | `stellar-routing-fallback.ts`                              |
+| [x]    | `isStellarRoutingFallbackEligible(err)` — mirror `isLiquidityFallbackEligible`                | [Backend] | `stellar-routing-fallback.ts`                              |
 | [ ]    | Extend `guidanceForErrorCode` for all `SOROSWAP_*` codes                                      | [Backend] | `backend/src/utils/agent-tool-errors.ts`                   |
 | [ ]    | Unit tests: HTTP status map, message heuristics, axios-shaped bodies, pass-through `AppError` | [Tests]   | `backend/tests/unit/defi/soroswap/soroswap.errors.test.ts` |
 | [ ]    | Unit tests: execute path delegates trustline/unfunded to Stellar mappers                      | [Tests]   | ↑ + `stellar/errors` fixtures                              |
@@ -607,7 +607,7 @@ Mirror `deepbook/` + `squid/` layout. Cache helpers exist: `soroswap-cache.ts`.
 | ------ | ------------------------------------------------------------- | --------- | --------------------------------------------------------------- |
 | [x]    | `getSoroswapSwapStatus(txHash)` — Horizon tx + Soroban result | [Backend] | `backend/src/services/defi/soroswap/soroswap-status.service.ts` |
 | [x]    | Map: success, failed, pending                                 | [Backend] | `soroswap-normalize.ts`                                         |
-| [ ]    | Optional Inngest `soroswap-track-swap` for long confirmation  | [Backend] | `inngest/functions/soroswap-track-*.ts` — deferred v1; agents poll `getSoroswapSwapStatus` |
+| [x]    | Optional Inngest `soroswap-track-swap` for long confirmation  | [Backend] | `inngest/functions/soroswap-track-*.ts` |
 | [x]    | Unit tests: status mapping                                    | [Tests]   | `soroswap-status.test.ts`                                       |
 
 
@@ -618,16 +618,16 @@ Mirror `deepbook/` + `squid/` layout. Cache helpers exist: `soroswap-cache.ts`.
 
 | Status | Task                                                                                      | Owner     | Path                                                                 |
 | ------ | ----------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------- |
-| [ ]    | `StellarRoutingFallbackOffer` type (mirror `LiquidityFallbackOffer`)                      | [Backend] | `backend/src/services/defi/stellar-routing/stellar-routing.types.ts` |
-| [ ]    | `StellarRoutingFallbackStatus`: `offered` | `accepted` | `rejected` | `expired`           | [Backend] | ↑                                                                    |
-| [ ]    | `detectStellarRoutingFallback(intent)` — tokens on Stellar only, wrong `chainId`          | [Backend] | `token-chain-affinity.ts` or dedicated detector                      |
-| [ ]    | `isStellarRoutingFallbackEligible(err)` — `CROSS_ECOSYSTEM_NOT_SUPPORTED`, token mismatch | [Backend] | `stellar-routing-fallback.ts`                                        |
-| [ ]    | `buildStellarRoutingFallbackOffer(privyUserId, intent, error?)`                           | [Backend] | `stellar-routing-fallback.service.ts`                                |
-| [ ]    | Redis store + TTL (~10 min)                                                               | [Backend] | `stellar-routing-fallback-cache.ts`                                  |
-| [ ]    | `acceptStellarRoutingFallback` → `getSoroswapQuote` → pending tx                          | [Backend] | ↑                                                                    |
-| [ ]    | `rejectStellarRoutingFallback`                                                            | [Backend] | ↑                                                                    |
-| [ ]    | API: accept/reject on agent transaction (mirror liquidity fallback endpoints)             | [Backend] | `api/v1/agent-transactions/...`                                      |
-| [ ]    | Unit tests: wrong-chain intent → offer; accept → mocked quote                             | [Tests]   | `backend/tests/unit/defi/stellar-routing/`                           |
+| [x]    | `StellarRoutingFallbackOffer` type (mirror `LiquidityFallbackOffer`)                      | [Backend] | `backend/src/services/defi/stellar-routing/stellar-routing.types.ts` |
+| [x]    | `StellarRoutingFallbackStatus`: `offered` | `accepted` | `rejected` | `expired`           | [Backend] | ↑                                                                    |
+| [x]    | `detectStellarRoutingFallback(intent)` — tokens on Stellar only, wrong `chainId`          | [Backend] | `token-chain-affinity.ts` or dedicated detector                      |
+| [x]    | `isStellarRoutingFallbackEligible(err)` — `CROSS_ECOSYSTEM_NOT_SUPPORTED`, token mismatch | [Backend] | `stellar-routing-fallback.ts`                                        |
+| [x]    | `buildStellarRoutingFallbackOffer(privyUserId, intent, error?)`                           | [Backend] | `stellar-routing-fallback.service.ts`                                |
+| [x]    | Redis store + TTL (~10 min)                                                               | [Backend] | `stellar-routing-fallback-cache.ts`                                  |
+| [x]    | `acceptStellarRoutingFallback` → `getSoroswapQuote` → pending tx                          | [Backend] | ↑                                                                    |
+| [x]    | `rejectStellarRoutingFallback`                                                            | [Backend] | ↑                                                                    |
+| [x]    | API: accept/reject on agent transaction (mirror liquidity fallback endpoints)             | [Backend] | `api/v1/agent-transactions/...`                                      |
+| [x]    | Unit tests: wrong-chain intent → offer; accept → mocked quote                             | [Tests]   | `backend/tests/unit/defi/stellar-routing/`                           |
 
 
 ---
@@ -923,7 +923,7 @@ Add to [backend/docs/TODO.md](../backend/docs/TODO.md):
 | Status | Task | Owner |
 | ------ | ---- | ----- |
 | [ ] | Phase 0–2 — Soroswap HTTP module + quote/build/execute | [Backend] |
-| [ ] | Phase 3 — Stellar routing fallback (wrong-chain consent) | [Backend] |
+| [x] | Phase 3 — Stellar routing fallback (wrong-chain consent) | [Backend] |
 | [ ] | Phase 4–6 — Agent plugin + approval + swap fast path | [Backend] |
 | [ ] | Phase 7–8 — Stream, client dialog, timeline | [Both] |
 | [ ] | Phase 9–11 — Guardrails, schema export, tests | [Both] |
