@@ -462,44 +462,44 @@ Mirror `deepbook/` + `squid/` layout. Cache helpers exist: `soroswap-cache.ts`.
 
 | Status | Task | Owner | Path |
 | ------ | ---- | ----- | ---- |
-| [ ] | `soroswap.client.ts` — Bearer auth, `?network=` query param, timeout | [Backend] | `backend/src/services/defi/soroswap/soroswap.client.ts` |
-| [ ] | `soroswapRestFetch(path, init)` — JSON parse, no key in logs | [Backend] | ↑ |
-| [ ] | Timeout + 429 backoff (max 3) before `SOROSWAP_UNAVAILABLE` | [Backend] | ↑ |
-| [ ] | Unit tests with mocked fetch | [Tests] | `backend/tests/unit/defi/soroswap/soroswap.client.test.ts` |
+| [x] | `soroswap.client.ts` — Bearer auth, `?network=` query param, timeout | [Backend] | `backend/src/services/defi/soroswap/soroswap.client.ts` |
+| [x] | `soroswapRestFetch(path, init)` — JSON parse, no key in logs | [Backend] | ↑ |
+| [x] | Timeout + 429 backoff (max 3) before `SOROSWAP_UNAVAILABLE` | [Backend] | ↑ |
+| [x] | Unit tests with mocked fetch | [Tests] | `backend/tests/unit/defi/soroswap/soroswap.client.test.ts` |
 
 #### 2.2 Types & errors
 
 | Status | Task | Owner | Path |
 | ------ | ---- | ----- | ---- |
-| [ ] | Zod schemas: quote, build, send, tokens, health | [Backend] | `backend/src/services/defi/soroswap/soroswap.types.ts` |
-| [ ] | `SOROSWAP_ERROR_CODES` export + `mapSoroswapError(err)` → `AppError` | [Backend] | `backend/src/services/defi/soroswap/soroswap.errors.ts` |
-| [ ] | `mapSoroswapExecuteError(err)` — HTTP + `mapStellarSimulationError` / submit | [Backend] | ↑ |
-| [ ] | `extractSoroswapErrorMessage` + `sanitizeMessage` (no API key in logs) | [Backend] | ↑ |
-| [ ] | `SOROSWAP_UNAUTHORIZED` (401/403) | [Backend] | ↑ |
-| [ ] | `SOROSWAP_ROUTE_NOT_FOUND` (404 / no route / insufficient liquidity heuristics) | [Backend] | ↑ |
-| [ ] | `SOROSWAP_VALIDATION_ERROR` (400 invalid token/params) | [Backend] | ↑ |
-| [ ] | `SOROSWAP_QUOTE_EXPIRED` (stale quote at build) | [Backend] | ↑ |
-| [ ] | `SOROSWAP_UNAVAILABLE` (5xx / timeout / network) | [Backend] | ↑ |
-| [ ] | `SOROSWAP_RATE_LIMITED` (429) | [Backend] | ↑ |
-| [ ] | `isStellarRoutingFallbackEligible(err)` — mirror `isLiquidityFallbackEligible` | [Backend] | `stellar-routing-fallback.ts` |
-| [ ] | Extend `guidanceForErrorCode` for all `SOROSWAP_*` codes | [Backend] | `backend/src/utils/agent-tool-errors.ts` |
-| [ ] | Unit tests: HTTP status map, message heuristics, axios-shaped bodies, pass-through `AppError` | [Tests] | `backend/tests/unit/defi/soroswap/soroswap.errors.test.ts` |
-| [ ] | Unit tests: execute path delegates trustline/unfunded to Stellar mappers | [Tests] | ↑ + `stellar/errors` fixtures |
+| [x] | Zod schemas: quote, build, send, tokens, health | [Backend] | `backend/src/services/defi/soroswap/soroswap.types.ts` |
+| [x] | `SOROSWAP_ERROR_CODES` export + `mapSoroswapError(err)` → `AppError` | [Backend] | `backend/src/services/defi/soroswap/soroswap.errors.ts` |
+| [x] | `mapSoroswapExecuteError(err)` — HTTP + `mapStellarSimulationError` / submit | [Backend] | ↑ |
+| [x] | `extractSoroswapErrorMessage` + `sanitizeMessage` (no API key in logs) | [Backend] | ↑ |
+| [x] | `SOROSWAP_UNAUTHORIZED` (401/403) | [Backend] | ↑ |
+| [x] | `SOROSWAP_ROUTE_NOT_FOUND` (404 / no route / insufficient liquidity heuristics) | [Backend] | ↑ |
+| [x] | `SOROSWAP_VALIDATION_ERROR` (400 invalid token/params) | [Backend] | ↑ |
+| [x] | `SOROSWAP_QUOTE_EXPIRED` (stale quote at build) | [Backend] | ↑ |
+| [x] | `SOROSWAP_UNAVAILABLE` (5xx / timeout / network) | [Backend] | ↑ |
+| [x] | `SOROSWAP_RATE_LIMITED` (429) | [Backend] | ↑ |
+| [x] | `isStellarRoutingFallbackEligible(err)` — mirror `isLiquidityFallbackEligible` | [Backend] | `stellar-routing-fallback.ts` |
+| [x] | Extend `guidanceForErrorCode` for all `SOROSWAP_*` codes | [Backend] | `backend/src/utils/agent-tool-errors.ts` |
+| [x] | Unit tests: HTTP status map, message heuristics, axios-shaped bodies, pass-through `AppError` | [Tests] | `backend/tests/unit/defi/soroswap/soroswap.errors.test.ts` |
+| [x] | Unit tests: execute path delegates trustline/unfunded to Stellar mappers | [Tests] | ↑ + `stellar/errors` fixtures |
 
 #### 2.3 Rate limit & cache
 
 | Status | Task | Owner | Path |
 | ------ | ---- | ----- | ---- |
-| [ ] | `consumeSoroswapQuoteQuota(privyUserId)` — global + per-user bucket (before cache) | [Backend] | `backend/src/services/defi/soroswap/soroswap-rate-limit.ts` |
-| [ ] | Wire `soroswapCachedCatalogFetch` for tokens + health | [Backend] | `soroswap-cache.ts` (exists) |
-| [ ] | Wire `soroswapCachedQuoteFetch` in `getSoroswapQuote` — `hashQuoteParams` stable fields | [Backend] | `soroswap-quote.service.ts` |
-| [ ] | `soroswapQuoteStoreKey` + `storeSoroswapQuote` / `getStoredSoroswapQuote` for execute | [Backend] | `soroswap-cache.ts` |
-| [ ] | Execute / enricher: `skipCache: true` or verify `expires_at`; never cache build XDR | [Backend] | `soroswap-execute.service.ts`, enricher |
-| [ ] | `invalidateDefiBalanceCache("stellar", …)` after confirmed swap | [Backend] | `soroswap-execute.service.ts` |
-| [ ] | `SOROSWAP_QUOTE_TTL_MS` (~60s, align approval countdown) | [Backend] | `soroswap-normalize.ts` |
-| [ ] | Unit tests: catalog + quote keys; quote store get/set TTL | [Tests] | `backend/tests/unit/defi/soroswap/soroswap-cache.test.ts` |
-| [ ] | Unit tests: concurrent `soroswapCachedQuoteFetch` invokes fetcher once (singleflight) | [Tests] | ↑ (mirror `defi-cache.test.ts` stampede test) |
-| [ ] | Unit tests: failed quote fetch not written to cache | [Tests] | ↑ |
+| [x] | `consumeSoroswapQuoteQuota(privyUserId)` — global + per-user bucket (before cache) | [Backend] | `backend/src/services/defi/soroswap/soroswap-rate-limit.ts` |
+| [x] | Wire `soroswapCachedCatalogFetch` for tokens + health | [Backend] | `soroswap-cache.ts` (exists) |
+| [x] | Wire `soroswapCachedQuoteFetch` in `getSoroswapQuote` — `hashQuoteParams` stable fields | [Backend] | `soroswap-quote.service.ts` |
+| [x] | `soroswapQuoteStoreKey` + `storeSoroswapQuote` / `getStoredSoroswapQuote` for execute | [Backend] | `soroswap-cache.ts` |
+| [ ] | Execute / enricher: `skipCache: true` or verify `expires_at`; never cache build XDR | [Backend] | `soroswap-execute.service.ts`, enricher — **partial:** `getSoroswapQuote(..., { skipCache: true })` wired; enricher + execute in Phase 2.7 |
+| [ ] | `invalidateDefiBalanceCache("stellar", …)` after confirmed swap | [Backend] | `soroswap-execute.service.ts` — deferred to Phase 2.7 |
+| [x] | `SOROSWAP_QUOTE_TTL_MS` (~60s, align approval countdown) | [Backend] | `soroswap-normalize.ts` |
+| [x] | Unit tests: catalog + quote keys; quote store get/set TTL | [Tests] | `backend/tests/unit/defi/soroswap/soroswap-cache.test.ts` |
+| [x] | Unit tests: concurrent `soroswapCachedQuoteFetch` invokes fetcher once (singleflight) | [Tests] | ↑ (mirror `defi-cache.test.ts` stampede test) |
+| [x] | Unit tests: failed quote fetch not written to cache | [Tests] | ↑ |
 
 #### 2.4 Token catalog & asset resolve
 
