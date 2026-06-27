@@ -639,12 +639,12 @@ Replace `NOT_IMPLEMENTED` stubs in `chains/stellar/index.ts`.
 
 | Status | Task                                                                                            | Owner     | Path                                                                   |
 | ------ | ----------------------------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------- |
-| [ ]    | `stellar_swap_quote` query handler → `getSoroswapQuote`                                         | [Backend] | `backend/src/services/agent/chains/stellar/soroswap/query-handlers.ts` |
-| [ ]    | Return shape: quote fields + `route_id` + `expires_at`                                          | [Backend] | ↑                                                                      |
-| [ ]    | On `SOROSWAP_ROUTE_NOT_FOUND` at quote time → hard fail user message (**not** routing fallback) | [Backend] | ↑                                                                      |
+| [x]    | `stellar_swap_quote` query handler → `getSoroswapQuote`                                         | [Backend] | `backend/src/services/agent/chains/stellar/soroswap/query-handlers.ts` |
+| [x]    | Return shape: quote fields + `route_id` + `expires_at`                                          | [Backend] | ↑                                                                      |
+| [x]    | On `SOROSWAP_ROUTE_NOT_FOUND` at quote time → hard fail user message (**not** routing fallback) | [Backend] | ↑                                                                      |
 | [ ]    | `stellar_pools` / `stellar_token_price` — defer or thin wrappers                                | [Backend] | optional Phase 4b                                                      |
-| [ ]    | Register handlers in `getStellarQueryHandler`                                                   | [Backend] | `chains/stellar/index.ts`                                              |
-| [ ]    | Unit tests: query handler happy path + no route                                                 | [Tests]   | `backend/tests/unit/agent/chains/stellar-soroswap-query.test.ts`       |
+| [x]    | Register handlers in `getStellarQueryHandler`                                                   | [Backend] | `chains/stellar/index.ts`                                              |
+| [x]    | Unit tests: query handler happy path + no route                                                 | [Tests]   | `backend/tests/unit/agent/chains/stellar-soroswap-query.test.ts`       |
 
 
 ---
