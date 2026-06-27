@@ -9,8 +9,12 @@ import {
   resolveEvmChainIdFromLabel,
   resolveNonEvmChainIdFromLabel,
 } from "../../defi/lifi/lifi-endpoint-params.js";
+import {
+  getBridgeKnownSymbols,
+  requiresSameTokenBridgeConfirmation,
+  shouldAutoFillBridgeReceiveToken,
+} from "../../../config/token-capabilities.js";
 import type { AmountUnit, PartialBridgeIntent } from "./bridge-intent.types.js";
-import { BRIDGE_KNOWN_TOKENS } from "./bridge-intent.types.js";
 import { parseAmountFromTokens } from "../../market/resolve-user-amount.js";
 import { tokenizeMessage } from "../swap/text-tokenize.js";
 
@@ -78,7 +82,7 @@ function stripBridgeVerb(tokens: readonly string[]): string[] {
 
 function findCoinSymbol(token: string): string | undefined {
   const upper = token.toUpperCase();
-  if ((BRIDGE_KNOWN_TOKENS as readonly string[]).includes(upper)) {
+  if (getBridgeKnownSymbols().includes(upper)) {
     return upper;
   }
   return undefined;
@@ -280,10 +284,12 @@ export function parsePartialBridgeIntent(message: string): PartialBridgeIntent |
   const toRemaining = toChainParsed.remaining.filter((token) => findCoinSymbol(token) !== undefined);
   if (toRemaining.length > 0) {
     const candidate = findCoinSymbol(toRemaining[0]);
-    if (candidate && candidate !== fromToken) {
-      toToken = candidate;
-    } else if (candidate && fromToken === undefined) {
-      fromToken = candidate;
+    if (candidate) {
+      if (fromToken === undefined) {
+        fromToken = candidate;
+      } else {
+        toToken = candidate;
+      }
     }
   }
 
@@ -323,34 +329,55 @@ export function parsePartialBridgeIntent(message: string): PartialBridgeIntent |
   return intent;
 }
 
-const STABLECOIN_BRIDGE_SYMBOLS = new Set(["USDC", "USDT"]);
-
-/** When the user names one token and two chains, stablecoins usually bridge 1:1 to the destination. */
+/** When the user names one token and two chains, schema-backed tokens auto-fill receive. */
 export function inferObviousReceiveToken(
   intent: PartialBridgeIntent,
   destinationSegmentRemaining: readonly string[] = [],
 ): void {
-  if (intent.toToken || !intent.fromToken || !intent.fromChainId || !intent.toChainId) {
+  if (!intent.fromToken || !intent.fromChainId || !intent.toChainId) {
     return;
   }
   if (!isBridgeCrossChain(intent)) {
     return;
   }
 
+  const from = {
+    chain_id: intent.fromChainId,
+    evm_chain_id: intent.fromEvmChainId,
+  };
+  const to = {
+    chain_id: intent.toChainId,
+    evm_chain_id: intent.toEvmChainId,
+  };
+  const symbol = intent.fromToken.toUpperCase();
+
   const destTokenMentioned = destinationSegmentRemaining.some(
     (token) => findCoinSymbol(token) !== undefined,
   );
+
+  if (intent.toToken) {
+    if (
+      intent.toToken.toUpperCase() === symbol &&
+      shouldAutoFillBridgeReceiveToken(symbol, from, to)
+    ) {
+      intent.confirmSameToken = true;
+    }
+    return;
+  }
+
   if (destTokenMentioned) {
     return;
   }
 
-  const symbol = intent.fromToken.toUpperCase();
-  if (!STABLECOIN_BRIDGE_SYMBOLS.has(symbol)) {
+  if (shouldAutoFillBridgeReceiveToken(symbol, from, to)) {
+    intent.toToken = symbol;
+    intent.confirmSameToken = true;
     return;
   }
 
-  intent.toToken = symbol;
-  intent.confirmSameToken = true;
+  if (requiresSameTokenBridgeConfirmation(symbol, from, to)) {
+    intent.toToken = symbol;
+  }
 }
 
 function isBridgeCrossChain(intent: PartialBridgeIntent): boolean {

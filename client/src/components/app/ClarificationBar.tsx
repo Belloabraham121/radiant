@@ -33,11 +33,13 @@ export function ClarificationBar({
   pending,
   busy,
   onRespond,
+  onDismiss,
   className = "",
 }: {
   pending: PendingClarification;
   busy?: boolean;
   onRespond: (answer: ClarificationAnswer) => void;
+  onDismiss?: () => void;
   className?: string;
 }) {
   const [inputValue, setInputValue] = useState("");
@@ -264,6 +266,19 @@ export function ClarificationBar({
                 </button>
               </div>
             )
+          ) : null}
+
+          {onDismiss ? (
+            <div className="mt-4">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onDismiss}
+                className="rounded-full border-2 border-[var(--hero-ink)] bg-white px-5 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition hover:translate-y-px hover:shadow-[1px_1px_0_var(--hero-ink)] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
           ) : null}
         </div>
       </div>

@@ -12,6 +12,7 @@ import {
 } from "../../../projects/app-action-catalog.service.js";
 import { resolveAppScope } from "../../../projects/app-scope-resolver.service.js";
 import {
+  queryBridgeCapabilities,
   querySupportedChains,
   queryTokenResolve,
 } from "../../../defi/token-resolve.service.js";
@@ -19,6 +20,7 @@ import type {
   AgentTransactionCategory,
   AgentTransactionStatus,
 } from "../../../agent-transaction/agent-transaction.types.js";
+import type { ChainId } from "../../../chains/types.js";
 import type { ChainQueryHandler, QueryHandlerContext } from "../types.js";
 import { CORE_QUERY_SCHEMA, CORE_QUERY_TYPES } from "./query-schema.js";
 
@@ -64,6 +66,25 @@ async function handleTokenResolve(ctx: QueryHandlerContext) {
     evm_chain_id: ctx.params.evm_chain_id as number | undefined,
     to_chain_id: ctx.params.to_chain_id as typeof ctx.chainId | undefined,
     to_evm_chain_id: ctx.params.to_evm_chain_id as number | undefined,
+  });
+}
+
+async function handleBridgeCapabilities(ctx: QueryHandlerContext) {
+  const fromChainId = ctx.params.from_chain_id as ChainId | undefined;
+  const toChainId = ctx.params.to_chain_id as ChainId | undefined;
+  if (!fromChainId || !toChainId) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "bridge_capabilities requires params.from_chain_id and params.to_chain_id.",
+    );
+  }
+  return queryBridgeCapabilities({
+    from_chain_id: fromChainId,
+    from_evm_chain_id: ctx.params.from_evm_chain_id as number | undefined,
+    to_chain_id: toChainId,
+    to_evm_chain_id: ctx.params.to_evm_chain_id as number | undefined,
+    from_token: ctx.params.from_token as string | undefined,
   });
 }
 
@@ -209,6 +230,7 @@ const CORE_QUERY_HANDLERS: Record<string, ChainQueryHandler> = {
   token_balances: handleTokenBalances,
   agent_transactions: handleAgentTransactions,
   token_resolve: handleTokenResolve,
+  bridge_capabilities: handleBridgeCapabilities,
   supported_chains: async () => querySupportedChains(),
   project_actions: handleProjectOrSessionActions,
   session_actions: handleProjectOrSessionActions,

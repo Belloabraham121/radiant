@@ -579,6 +579,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
             pending={pendingClarification}
             busy={respondingClarification}
             onRespond={(answer) => void respondClarification(answer)}
+            onDismiss={dismissClarification}
           />
         ) : null}
 
