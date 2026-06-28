@@ -7,6 +7,7 @@ import {
 } from "../defi/deepbook/deepbook-orders.service.js";
 import { isLifiExecuteAction } from "../agent/chains/evm/lifi/execute-actions.js";
 import { isSoroswapExecuteAction } from "../agent/chains/stellar/soroswap/execute-actions.js";
+import { resolveTokenSymbol } from "../../config/supported-tokens.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
 import type { WalletAssetsData } from "../wallet/wallet-assets.types.js";
 import { resolveCoingeckoMarketData } from "./coingecko.client.js";
@@ -452,6 +453,57 @@ async function estimateDeepBookOrderPayUsd(
   }
 }
 
+async function estimateCrossChainSwapPayUsd(
+  input: ExecuteTransactionInput,
+): Promise<number | null> {
+  const params = input.params;
+  const paySymbol =
+    typeof params.from_token_symbol === "string"
+      ? params.from_token_symbol
+      : typeof params.from_token === "string"
+        ? params.from_token
+        : null;
+  const atomicRaw = params.from_amount_atomic;
+  if (typeof atomicRaw !== "string" || !/^[1-9]\d*$/.test(atomicRaw)) {
+    return null;
+  }
+
+  const chainId = (typeof params.from_chain_id === "string"
+    ? params.from_chain_id
+    : input.chain_id) as ChainId;
+  const evmChainId =
+    typeof params.from_evm_chain_id === "number"
+      ? params.from_evm_chain_id
+      : input.evm_chain_id;
+
+  if (!paySymbol) {
+    return null;
+  }
+
+  try {
+    const resolved = resolveTokenSymbol(
+      chainId,
+      paySymbol,
+      chainId === "ethereum" ? evmChainId : undefined,
+    );
+    if (resolved.match !== "exact") {
+      return null;
+    }
+    const amountDisplay = Number(BigInt(atomicRaw)) / 10 ** resolved.token.decimals;
+    if (!Number.isFinite(amountDisplay) || amountDisplay <= 0) {
+      return null;
+    }
+    const prices = await resolveSymbolUsdPrices([paySymbol]);
+    const usdPrice = prices.get(paySymbol.toUpperCase())?.usdPrice ?? null;
+    if (usdPrice === null) {
+      return null;
+    }
+    return roundUsd(amountDisplay * usdPrice);
+  } catch {
+    return null;
+  }
+}
+
 /** Estimate pay-side USD notional for auto-approve checks. Returns null when price is unknown. */
 export async function estimateExecuteTransactionUsd(
   input: ExecuteTransactionInput,
@@ -478,7 +530,7 @@ export async function estimateExecuteTransactionUsd(
   }
 
   if (isLifiExecuteAction(input.action) && input.action === "cross_chain_swap") {
-    return null;
+    return estimateCrossChainSwapPayUsd(input);
   }
 
   if (isSoroswapExecuteAction(input.action) && input.chain_id === "stellar") {

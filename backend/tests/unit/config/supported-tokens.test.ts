@@ -60,7 +60,25 @@ describe("supported-tokens", () => {
     if (result.match === "exact") {
       assert.equal(result.symbol, "USDC");
       assert.equal(result.evm_chain_id, 8453);
-      assert.equal(result.token.address, "0x833589fCD6eDb6E08f4c7C32D4f597b90BeA844E");
+      assert.equal(result.token.address, "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+    }
+  });
+
+  it("resolveTokenSymbol exact match for native USDC on Arbitrum One", () => {
+    process.env.ENABLED_CHAINS = "ethereum";
+    process.env.EVM_CHAIN_IDS = "1,42161,8453";
+    resetChainConfigCacheForTests();
+    resetEvmConfigCacheForTests();
+
+    const result = resolveTokenSymbol("ethereum", "USDC", 42161);
+    assert.equal(result.match, "exact");
+    if (result.match === "exact") {
+      assert.equal(result.symbol, "USDC");
+      assert.equal(result.evm_chain_id, 42161);
+      assert.equal(
+        result.token.address?.toLowerCase(),
+        "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+      );
     }
   });
 
@@ -72,7 +90,7 @@ describe("supported-tokens", () => {
 
     const result = resolveTokenSymbol(
       "ethereum",
-      "0x833589fCD6eDb6E08f4c7C32D4f597b90BeA844E",
+      "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
       8453,
     );
     assert.equal(result.match, "exact");

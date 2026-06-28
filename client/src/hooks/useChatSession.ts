@@ -88,6 +88,7 @@ import {
 } from "@/lib/preview-execute-result";
 import { clarificationAnswerDisplayText } from "@/lib/clarification-display";
 import { isChatSessionBusy } from "@/lib/chat-session-busy";
+import { isServerAutoApproveEligible } from "@/lib/auto-approve-pending";
 
 function isLifiDestinationContinuation(
   pending: PendingTransaction | null | undefined,
@@ -179,6 +180,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
   const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] =
     useState(false);
   const streamAbortRef = useRef<AbortController | null>(null);
+  const autoApproveTxIdRef = useRef<string | null>(null);
   const pendingTxRef = useRef<PendingTransaction | null>(boot.pending_transaction);
   const approvingRef = useRef(false);
   const approvingTransactionIdRef = useRef<string | null>(null);
@@ -914,6 +916,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     if (!pendingTx || approving) return;
 
     const snapshot = pendingTx;
+    const silentAutoApprove = isServerAutoApproveEligible(snapshot);
 
     setApproving(true);
     setChatError(null);
@@ -971,7 +974,11 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
       applyPendingTransaction(nextPending, data.session_id);
       setPendingClarification(data.pending_clarification ?? null);
       if (isToolFailure && data.pending_transaction) {
-        setChatError(data.reply);
+        if (!silentAutoApprove) {
+          setChatError(data.reply);
+        } else {
+          setChatError(null);
+        }
       } else if (!isToolFailure) {
         setChatError(null);
       }
@@ -983,6 +990,19 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
 
       setMessages((current) => {
         if (isToolFailure) {
+          if (silentAutoApprove) {
+            const folded = foldApproveOutcomeIntoLifiMessage(current, snapshot.id, {
+              reply: data.reply,
+              steps: approvedSteps,
+              receipts: approveExtras.receipts,
+            });
+            if (folded.folded) {
+              return folded.messages.map((message) => ({
+                ...message,
+                streaming: false,
+              }));
+            }
+          }
           return [
             ...current,
             {
@@ -1116,6 +1136,24 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     refreshSessions,
     rejecting,
   ]);
+
+  useEffect(() => {
+    if (!pendingTx) {
+      autoApproveTxIdRef.current = null;
+      return;
+    }
+    if (approving || pendingTxRelayedToPreview) {
+      return;
+    }
+    if (!isServerAutoApproveEligible(pendingTx)) {
+      return;
+    }
+    if (autoApproveTxIdRef.current === pendingTx.id) {
+      return;
+    }
+    autoApproveTxIdRef.current = pendingTx.id;
+    void approvePending();
+  }, [pendingTx, approving, pendingTxRelayedToPreview, approvePending]);
 
   const refreshPendingQuote = useCallback(async () => {
     if (!pendingTx || approving || refreshingQuote || rejecting) {
@@ -1361,16 +1399,30 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           data.pending_transaction ?? null,
           data.session_id ?? sessionId ?? activeSessionId ?? undefined,
         );
-        setMessages((current) => [
-          ...current,
-          { id: `u-clarify-${Date.now()}`, role: "user", text: userText },
-          {
-            id: data.message_id,
-            role: "agent",
-            text: data.reply,
-            ...mapToolCallsToMessageExtras(data.tool_calls),
-          },
-        ]);
+
+        const pendingAfterClarify = data.pending_transaction;
+        const agentExtras = mapToolCallsToMessageExtras(data.tool_calls);
+        const autoApproveBridge = isServerAutoApproveEligible(pendingAfterClarify);
+
+        setMessages((current) => {
+          const next: ChatMessage[] = [
+            ...current,
+            { id: `u-clarify-${Date.now()}`, role: "user", text: userText },
+            {
+              id: data.message_id,
+              role: "agent",
+              text: data.reply,
+              ...agentExtras,
+              ...(autoApproveBridge && pendingAfterClarify
+                ? { statusCategory: "defi" as const, streaming: true }
+                : {}),
+            },
+          ];
+          if (autoApproveBridge && pendingAfterClarify) {
+            return applyOptimisticCrossChainApprovalToMessages(next, pendingAfterClarify);
+          }
+          return next;
+        });
 
         if (data.artifact) {
           const artifactSessionKey =

@@ -11,6 +11,7 @@ import { LiquidityFallbackDialog } from "@/components/app/LiquidityFallbackDialo
 import { StellarRoutingFallbackDialog } from "@/components/app/StellarRoutingFallbackDialog";
 import { isLiquidityFallbackPending } from "@/lib/cross-chain-fallback";
 import { isStellarRoutingFallbackPending } from "@/lib/stellar-routing-fallback";
+import { isServerAutoApproveEligible } from "@/lib/auto-approve-pending";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
 import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
@@ -605,7 +606,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
             onAccept={() => void acceptStellarRoutingFallbackPending()}
             onReject={() => void rejectStellarRoutingFallbackPending()}
           />
-        ) : pendingTx && !pendingTxRelayedToPreview ? (
+        ) : pendingTx && !isServerAutoApproveEligible(pendingTx) && !pendingTxRelayedToPreview ? (
           <TransactionApprovalBar
             className={`${chatColumnClass} mb-3`}
             pending={pendingTx}

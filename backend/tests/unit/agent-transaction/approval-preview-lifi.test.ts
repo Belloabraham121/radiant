@@ -126,6 +126,26 @@ describe("approval preview — Li-Fi", () => {
     );
   });
 
+  it("auto-approves cross_chain_swap from atomic USDC amount below threshold", async () => {
+    assert.equal(
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+        chain_id: "ethereum",
+        evm_chain_id: 8453,
+        action: "cross_chain_swap",
+        params: {
+          from_chain_id: "ethereum",
+          from_evm_chain_id: 8453,
+          to_chain_id: "ethereum",
+          to_evm_chain_id: 42161,
+          from_token_symbol: "USDC",
+          to_token_symbol: "USDC",
+          from_amount_atomic: "992208",
+        },
+      }),
+      false,
+    );
+  });
+
   it("requires approval for cross_chain_swap when auto-approve is disabled", async () => {
     assert.equal(
       await transferRequiresApprovalWithPermissions(

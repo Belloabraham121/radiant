@@ -51,6 +51,8 @@ export type PendingTransaction = {
   liquidity_fallback_offer?: LiquidityFallbackOffer;
   /** Offered when tokens are Stellar-only but user selected another chain. */
   stellar_routing_fallback_offer?: StellarRoutingFallbackOffer;
+  /** When true, client should approve immediately without showing the approval bar. */
+  auto_approve_eligible?: boolean;
 };
 
 export type ClarificationInteractionType =
