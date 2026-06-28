@@ -13,6 +13,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Workflow,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { UserAvatar } from "@/components/profile/UserAvatar";
@@ -25,13 +26,22 @@ import { formatSessionTime } from "@/lib/chat-messages";
 import { deleteChatSession, type ChatSessionListItem } from "@/lib/chat-api";
 import { clearStoredChatAppScope } from "@/lib/chat-app-scope";
 import { ApiError } from "@/lib/api";
+import {
+  SAMPLE_WORKFLOWS,
+  WORKFLOW_STATUS_META,
+  WORKFLOW_STATUS_ORDER,
+} from "@/components/canvas/sample-workflows";
 import { useSidebar } from "./SidebarContext";
 
-const NAV = [
-  { href: "/app", label: "Chats", Icon: MessageSquare },
-  { href: "/app/activity", label: "Activity", Icon: Activity },
-  { href: "/app/projects", label: "Projects", Icon: FolderKanban },
-  { href: "/app/notifications", label: "Notifications", Icon: Bell },
+const NAV: Array<{
+  href: string;
+  label: string;
+  Icon: typeof Activity;
+  planes: Array<"chat" | "canvas">;
+}> = [
+  { href: "/app/activity", label: "Activity", Icon: Activity, planes: ["chat"] },
+  { href: "/app/projects", label: "Projects", Icon: FolderKanban, planes: ["chat"] },
+  { href: "/app/notifications", label: "Notifications", Icon: Bell, planes: ["chat", "canvas"] },
 ];
 
 export function Sidebar() {
@@ -50,11 +60,22 @@ export function Sidebar() {
     ? pathname.split("/app/chat/")[1]?.split("/")[0]
     : null;
 
+  // Which plane the sidebar list shows — derived from the route so it never
+  // desyncs. The toggle just navigates between the two planes.
+  const plane: "chat" | "canvas" = pathname.startsWith("/app/canvas")
+    ? "canvas"
+    : "chat";
+
   const handleNewChat = () => {
     startNewChat();
     if (pathname !== "/app") {
       router.replace("/app");
     }
+    setOpen(false);
+  };
+
+  const handleNewWorkflow = () => {
+    router.push("/app/canvas");
     setOpen(false);
   };
 
@@ -105,18 +126,44 @@ export function Sidebar() {
               <ChevronsLeft className="size-4" strokeWidth={2.5} />
             </button>
           </div>
+          {/* Chat ⇄ Canvas plane toggle */}
+          <div className="flex items-center gap-1 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] p-1">
+            <Link
+              href="/app"
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                plane === "chat"
+                  ? "bg-[var(--hero-ink)] text-[var(--hero-bg)]"
+                  : "text-[var(--hero-ink)]/55 hover:text-[var(--hero-ink)]"
+              }`}
+            >
+              <MessageSquare className="size-3.5" strokeWidth={2.5} />
+              Chat
+            </Link>
+            <Link
+              href="/app/canvas"
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                plane === "canvas"
+                  ? "bg-[var(--hero-violet)] text-white"
+                  : "text-[var(--hero-ink)]/55 hover:text-[var(--hero-ink)]"
+              }`}
+            >
+              <Workflow className="size-3.5" strokeWidth={2.5} />
+              Canvas
+            </Link>
+          </div>
+
           <button
             type="button"
-            onClick={handleNewChat}
+            onClick={plane === "chat" ? handleNewChat : handleNewWorkflow}
             className="flex w-full items-center justify-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-2 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
           >
             <Plus className="size-3.5" strokeWidth={3} />
-            New chat
+            {plane === "chat" ? "New chat" : "New workflow"}
           </button>
         </div>
 
         <nav className="flex flex-col gap-1.5 border-b-2 border-[var(--hero-ink)] px-4 py-3">
-          {NAV.map(({ href, label, Icon }) => {
+          {NAV.filter((item) => item.planes.includes(plane)).map(({ href, label, Icon }) => {
             const active =
               href === "/app"
                 ? pathname === "/app" || pathname.startsWith("/app/chat/")
@@ -148,6 +195,62 @@ export function Sidebar() {
         </nav>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
+          {plane === "canvas" ? (
+            <>
+              <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--hero-ink)]/35">
+                Your workflows
+              </p>
+              {WORKFLOW_STATUS_ORDER.map((status) => {
+                const items = SAMPLE_WORKFLOWS.filter((w) => w.status === status);
+                if (items.length === 0) return null;
+                const meta = WORKFLOW_STATUS_META[status];
+                return (
+                  <div key={status} className="mb-3">
+                    <p className="mb-1.5 px-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--hero-ink)]/30">
+                      {meta.label}
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {items.map((w) => (
+                        <Link
+                          key={w.id}
+                          href="/app/canvas"
+                          onClick={() => setOpen(false)}
+                          className="group block rounded-2xl border-2 border-transparent px-4 py-2.5 transition-all hover:border-[var(--hero-ink)] hover:bg-[var(--hero-bg)]"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span
+                                className="size-2 shrink-0 rounded-full"
+                                style={{
+                                  background: meta.color,
+                                  opacity: meta.dim ? 0.35 : 1,
+                                }}
+                              />
+                              <span className="truncate text-sm font-bold">{w.name}</span>
+                            </span>
+                            {w.lastRun ? (
+                              <span className="shrink-0 text-[11px] font-bold text-[var(--hero-ink)]/35">
+                                {w.lastRun}
+                              </span>
+                            ) : null}
+                          </div>
+                          {typeof w.runsToday === "number" ? (
+                            <p className="mt-0.5 truncate pl-4 text-xs font-medium text-[var(--hero-ink)]/50">
+                              {w.runsToday} runs today
+                            </p>
+                          ) : null}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="mt-2 px-2 text-[11px] font-medium text-[var(--hero-ink)]/35">
+                Prototype — sample workflows.
+              </p>
+            </>
+          ) : (
+          <>
           <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--hero-ink)]/35">
             Your chats
           </p>
@@ -215,6 +318,8 @@ export function Sidebar() {
               );
             })}
           </div>
+          </>
+          )}
         </div>
 
         <div className="flex items-center gap-3 border-t-2 border-[var(--hero-ink)] px-5 py-4">
