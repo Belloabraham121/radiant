@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it, beforeEach } from "node:test";
+import { describe, it, beforeEach, afterEach } from "node:test";
 import type { Route } from "@lifi/types";
 import { resetChainConfigCacheForTests } from "../../../src/config/chains.js";
 import { resetEvmConfigCacheForTests } from "../../../src/config/evm.js";
@@ -11,6 +11,10 @@ import {
   buildPendingTransactionPreview,
   transferRequiresApprovalWithPermissions,
 } from "../../../src/services/agent/transaction-approval.service.js";
+import {
+  mockUnitUsdPricesForAutoApproveTests,
+  resetAutoApprovePriceMocksForTests,
+} from "../../helpers/auto-approve-prices.js";
 
 const mockRoute = {
   id: "route-test-1",
@@ -70,12 +74,50 @@ function enableEthereumChains(): void {
 
 describe("approval preview — Li-Fi", () => {
   beforeEach(() => {
+    process.env.COINGECKO_API_KEY = "CG-test-key";
+    mockUnitUsdPricesForAutoApproveTests();
     enableEthereumChains();
   });
 
-  it("always requires approval for cross_chain_swap even when auto-approve is enabled", () => {
+  afterEach(() => {
+    resetAutoApprovePriceMocksForTests();
+  });
+
+  it("auto-approves small cross_chain_swap below USD threshold", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+        chain_id: "ethereum",
+        action: "cross_chain_swap",
+        params: {
+          from_token_symbol: "USDC",
+          to_token_symbol: "USDC",
+          from_amount_display: "1",
+          to_amount_display: "0.999",
+        },
+      }),
+      false,
+    );
+  });
+
+  it("requires approval for cross_chain_swap above USD threshold", async () => {
+    assert.equal(
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+        chain_id: "ethereum",
+        action: "cross_chain_swap",
+        params: {
+          from_token_symbol: "USDC",
+          to_token_symbol: "USDC",
+          from_amount_display: "100",
+          to_amount_display: "99",
+        },
+      }),
+      true,
+    );
+  });
+
+  it("requires approval for cross_chain_swap when price is unknown", async () => {
+    assert.equal(
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "ethereum",
         action: "cross_chain_swap",
         params: { route_id: "route-test-1" },
@@ -84,23 +126,49 @@ describe("approval preview — Li-Fi", () => {
     );
   });
 
-  it("requires approval for cross_chain_swap when auto-approve is disabled", () => {
+  it("auto-approves cross_chain_swap from atomic USDC amount below threshold", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(
-        { auto_approve_enabled: false, auto_approve_max_sui: 25 },
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+        chain_id: "ethereum",
+        evm_chain_id: 8453,
+        action: "cross_chain_swap",
+        params: {
+          from_chain_id: "ethereum",
+          from_evm_chain_id: 8453,
+          to_chain_id: "ethereum",
+          to_evm_chain_id: 42161,
+          from_token_symbol: "USDC",
+          to_token_symbol: "USDC",
+          from_amount_atomic: "992208",
+        },
+      }),
+      false,
+    );
+  });
+
+  it("requires approval for cross_chain_swap when auto-approve is disabled", async () => {
+    assert.equal(
+      await transferRequiresApprovalWithPermissions(
+        { ...defaultAgentPermissions(), auto_approve_enabled: false },
         {
           chain_id: "sui",
           action: "cross_chain_swap",
-          params: { route: mockRoute },
+          params: {
+            from_token_symbol: "USDC",
+            to_token_symbol: "USDC",
+            from_amount_display: "1",
+            to_amount_display: "0.999",
+            route: mockRoute,
+          },
         },
       ),
       true,
     );
   });
 
-  it("always requires approval for lifi_approve", () => {
+  it("always requires approval for lifi_approve", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "ethereum",
         action: "lifi_approve",
         params: { route_id: "route-test-1" },

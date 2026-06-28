@@ -48,8 +48,8 @@ model User {
   avatar_style  String   @default("lorelei")
   /// When false, every swap and transfer requires in-app approval.
   agent_auto_approve_enabled Boolean @default(true)
-  /// Max SUI notional for auto-approved swaps/transfers (display units).
-  agent_auto_approve_max_sui Float    @default(25)
+  /// Max USD notional for auto-approved swaps/transfers.
+  agent_auto_approve_max_usd Float    @default(25)
   /// When true, agent may initiate DeepBook flash loans (always require approval).
   agent_allow_flash_loans    Boolean  @default(false)
   /// When true, swap_chain_repay flash loans with swap_output repay may skip approval dialog.

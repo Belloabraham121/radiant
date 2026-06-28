@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, before, describe, it } from "node:test";
 import { AppError } from "../../../src/errors/app-error.js";
 import {
   estimateSwapNotionalSui,
@@ -15,6 +15,10 @@ import {
   swapRequiresApprovalWithPermissions,
   transferRequiresApprovalWithPermissions,
 } from "../../../src/services/agent/transaction-approval.service.js";
+import {
+  mockUnitUsdPricesForAutoApproveTests,
+  resetAutoApprovePriceMocksForTests,
+} from "../../helpers/auto-approve-prices.js";
 
 describe("deepbook-swap.service", () => {
   afterEach(async () => {
@@ -83,13 +87,20 @@ describe("deepbook-swap.service", () => {
 });
 
 describe("swap approval", () => {
+  before(() => {
+    process.env.COINGECKO_API_KEY = "CG-test-key";
+    mockUnitUsdPricesForAutoApproveTests();
+  });
+
   afterEach(async () => {
+    resetAutoApprovePriceMocksForTests();
+    mockUnitUsdPricesForAutoApproveTests();
     await clearPendingTransactionsForTests();
   });
 
-  it("auto-approves small SUI sells at or below threshold", () => {
+  it("auto-approves small SUI sells at or below threshold", async () => {
     assert.equal(
-      swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "swap",
         params: { pool_key: "SUI_USDC", amount: 10, side: "sell" },
@@ -98,9 +109,9 @@ describe("swap approval", () => {
     );
   });
 
-  it("requires approval for large SUI sells", () => {
+  it("requires approval for large SUI sells", async () => {
     assert.equal(
-      swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "deepbook_swap",
         params: { pool_key: "SUI_USDC", amount: 30, side: "sell" },
@@ -109,10 +120,10 @@ describe("swap approval", () => {
     );
   });
 
-  it("requires approval for every swap when auto-approve is disabled", () => {
+  it("requires approval for every swap when auto-approve is disabled", async () => {
     assert.equal(
-      swapRequiresApprovalWithPermissions(
-        { auto_approve_enabled: false, auto_approve_max_sui: 100 },
+      await swapRequiresApprovalWithPermissions(
+        { ...defaultAgentPermissions(), auto_approve_enabled: false },
         {
           chain_id: "sui",
           action: "swap",
@@ -123,9 +134,9 @@ describe("swap approval", () => {
     );
   });
 
-  it("transferRequiresApproval delegates swap actions", () => {
+  it("transferRequiresApproval delegates swap actions", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "swap",
         params: { pool_key: "SUI_USDC", amount: 30, side: "sell" },
@@ -134,7 +145,7 @@ describe("swap approval", () => {
     );
   });
 
-  it("artifact UI source always requires approval for small swaps (auto-approve bypass)", () => {
+  it("artifact UI source always requires approval for small swaps (auto-approve bypass)", async () => {
     assert.equal(
       artifactUiActionRequiresApproval({
         chain_id: "sui",
@@ -144,7 +155,7 @@ describe("swap approval", () => {
       true,
     );
     assert.equal(
-      swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await swapRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "swap",
         params: { pool_key: "SUI_USDC", amount: 1, side: "sell" },

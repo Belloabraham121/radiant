@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getDeepBookEnv } from "../../config/deepbook.js";
 import {
-  estimateSwapNotionalSui,
-  isDeepBookSwapAction,
-  parseDeepBookSwapParams,
-} from "../defi/deepbook/deepbook-swap.service.js";
-import {
-  estimatePlaceOrderNotionalSui,
   isDeepBookCancelOrderAction,
   isDeepBookOrderAction,
   isDeepBookPlaceOrderAction,
@@ -23,6 +16,7 @@ import {
 } from "../defi/deepbook/deepbook-governance.service.js";
 import { isDeepBookMarginAction } from "../defi/deepbook/deepbook-margin.service.js";
 import { isDeepBookPredictAction } from "../defi/deepbook/deepbook-predict.service.js";
+import { isDeepBookSwapAction } from "../defi/deepbook/deepbook-swap.service.js";
 import type { FlashLoanRepaySource } from "../defi/deepbook/deepbook-flash-loan.types.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
 import type { AppActionSource } from "../projects/app-action.types.js";
@@ -36,10 +30,10 @@ import { mapLifiExecuteError } from "../defi/lifi/lifi.errors.js";
 import { runExecuteTransactionTool } from "./execute-transaction.tool.js";
 import {
   getAgentPermissions,
-  resolveAutoApproveMaxAtomic,
-  resolveAutoApproveMaxDisplay,
+  usdValueRequiresApproval,
 } from "./agent-permissions.service.js";
 import type { AgentPermissions } from "./agent-permissions.types.js";
+import { estimateExecuteTransactionUsd } from "../market/valuation.service.js";
 import { getDeepBookManagerInfo } from "../defi/deepbook/deepbook-balance-manager.service.js";
 import {
   isDeepBookProvisionAction,
@@ -342,75 +336,45 @@ export async function buildPendingTransactionPreview(
   };
 }
 
-function parseAmountAtomic(params: Record<string, unknown>): bigint | null {
-  const raw = params.amount_atomic ?? params.amount_mist ?? params.amount_wei ?? params.amount_lamports;
-  if (typeof raw !== "string" || !/^[1-9]\d*$/.test(raw)) {
-    return null;
-  }
-  return BigInt(raw);
-}
-
-export function bridgeRequiresApprovalWithPermissions(
-  _permissions: AgentPermissions,
-  input: ExecuteTransactionInput,
-): boolean {
-  return isLifiExecuteAction(input.action);
-}
-
-export function swapRequiresApprovalWithPermissions(
+async function usdThresholdRequiresApproval(
   permissions: AgentPermissions,
   input: ExecuteTransactionInput,
-): boolean {
+): Promise<boolean> {
+  const usdValue = await estimateExecuteTransactionUsd(input);
+  return usdValueRequiresApproval(permissions, usdValue);
+}
+
+export async function bridgeRequiresApprovalWithPermissions(
+  permissions: AgentPermissions,
+  input: ExecuteTransactionInput,
+): Promise<boolean> {
+  if (!isLifiExecuteAction(input.action)) {
+    return false;
+  }
+  if (input.action === "lifi_approve") {
+    return true;
+  }
+  return usdThresholdRequiresApproval(permissions, input);
+}
+
+export async function swapRequiresApprovalWithPermissions(
+  permissions: AgentPermissions,
+  input: ExecuteTransactionInput,
+): Promise<boolean> {
   if (!isDeepBookSwapAction(input.action) || input.chain_id !== "sui") {
     return false;
   }
-
-  if (!permissions.auto_approve_enabled) {
-    return true;
-  }
-
-  try {
-    const parsed = parseDeepBookSwapParams(input.params);
-    const price =
-      typeof input.params.estimated_price === "number" ? input.params.estimated_price : null;
-    const poolDef = getDeepBookEnv().pools[parsed.pool_key as keyof ReturnType<typeof getDeepBookEnv>["pools"]];
-    const inputCoin =
-      parsed.side === "sell" ? (poolDef?.baseCoin ?? "SUI") : (poolDef?.quoteCoin ?? "USDC");
-
-    let suiPerInput: number | null = null;
-    if (inputCoin.toUpperCase() === "SUI") {
-      suiPerInput = 1;
-    } else if (price && price > 0) {
-      suiPerInput = parsed.side === "sell" ? 1 / price : price;
-    }
-
-    const notionalSui = estimateSwapNotionalSui(inputCoin, parsed.amount, suiPerInput);
-    return notionalSui > resolveAutoApproveMaxDisplay(permissions, "sui");
-  } catch {
-    return true;
-  }
+  return usdThresholdRequiresApproval(permissions, input);
 }
 
-export function orderRequiresApprovalWithPermissions(
+export async function orderRequiresApprovalWithPermissions(
   permissions: AgentPermissions,
   input: ExecuteTransactionInput,
-): boolean {
+): Promise<boolean> {
   if (!isDeepBookPlaceOrderAction(input.action) || input.chain_id !== "sui") {
     return false;
   }
-
-  if (!permissions.auto_approve_enabled) {
-    return true;
-  }
-
-  try {
-    const price =
-      typeof input.params.estimated_price === "number" ? input.params.estimated_price : null;
-    const notionalSui = estimatePlaceOrderNotionalSui(input.action, input.params, price);
-    return notionalSui > resolveAutoApproveMaxDisplay(permissions, "sui");
-  } catch {
-    return true;
-  }
+  return usdThresholdRequiresApproval(permissions, input);
 }
 
 export function flashLoanRequiresApproval(
@@ -433,10 +397,10 @@ export function flashLoanRequiresApproval(
   }
 }
 
-export function transferRequiresApprovalWithPermissions(
+export async function transferRequiresApprovalWithPermissions(
   permissions: AgentPermissions,
   input: ExecuteTransactionInput,
-): boolean {
+): Promise<boolean> {
   if (!permissions.auto_approve_enabled && isMutatingExecuteAction(input.action)) {
     return true;
   }
@@ -482,7 +446,7 @@ export function transferRequiresApprovalWithPermissions(
   }
 
   if (isSoroswapExecuteAction(input.action) && input.chain_id === "stellar") {
-    return true;
+    return usdThresholdRequiresApproval(permissions, input);
   }
 
   if (isDeepBookCancelOrderAction(input.action)) {
@@ -501,16 +465,7 @@ export function transferRequiresApprovalWithPermissions(
     return false;
   }
 
-  if (!permissions.auto_approve_enabled) {
-    return true;
-  }
-
-  const amount = parseAmountAtomic(input.params);
-  if (amount === null) {
-    return true;
-  }
-
-  return amount > resolveAutoApproveMaxAtomic(permissions, input.chain_id);
+  return usdThresholdRequiresApproval(permissions, input);
 }
 
 export type TransferRequiresApprovalOptions = {
@@ -545,7 +500,7 @@ export async function transferRequiresApproval(
   }
 
   const permissions = await getAgentPermissions(privyUserId);
-  return transferRequiresApprovalWithPermissions(permissions, input);
+  return await transferRequiresApprovalWithPermissions(permissions, input);
 }
 
 export async function createPendingTransaction(

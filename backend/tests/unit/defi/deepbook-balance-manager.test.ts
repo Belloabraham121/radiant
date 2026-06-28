@@ -118,9 +118,9 @@ describe("deepbook-balance-manager.service", () => {
     assert.equal(parsed.coin_key, "SUI");
   });
 
-  it("requires approval for deepbook deposit and withdraw actions", () => {
+  it("requires approval for deepbook deposit and withdraw actions", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "deepbook_deposit",
         params: { coin_key: "SUI", amount_display: 1 },
@@ -128,7 +128,7 @@ describe("deepbook-balance-manager.service", () => {
       true,
     );
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "deepbook_withdraw",
         params: { coin_key: "USDC", amount_display: 10 },

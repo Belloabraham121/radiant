@@ -151,9 +151,9 @@ describe("flash loan approval rules", () => {
     );
   });
 
-  it("transferRequiresApprovalWithPermissions delegates flash loans", () => {
+  it("transferRequiresApprovalWithPermissions delegates flash loans", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(
+      await transferRequiresApprovalWithPermissions(
         { ...defaultAgentPermissions(), allow_flash_loans: true, auto_approve_flash_loans: true },
         baseInput,
       ),

@@ -63,11 +63,13 @@ export async function getLifiAdvancedRoutes(
     lifiRoutesListCacheKey(cacheParams),
     getDefiCacheConfig().quoteDedupeTtlSeconds,
     async () => {
+      const fromTokenAddress = toLifiTokenAddress(tokens.fromToken, tokens.from);
+      const toTokenAddress = toLifiTokenAddress(tokens.toToken, tokens.to);
       const response = await lifiSdk.getRoutes({
         fromChainId: radiantToLifiChainId(tokens.from),
         toChainId: radiantToLifiChainId(tokens.to),
-        fromTokenAddress: toLifiTokenAddress(tokens.fromToken, tokens.from),
-        toTokenAddress: toLifiTokenAddress(tokens.toToken, tokens.to),
+        fromTokenAddress,
+        toTokenAddress,
         fromAddress,
         toAddress,
         fromAmount: amountAtomic,

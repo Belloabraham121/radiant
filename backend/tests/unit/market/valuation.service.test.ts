@@ -107,4 +107,33 @@ describe("valuation.service", () => {
     assert.equal(preview.legs[0]?.price_source, "pool_mid");
     assert.equal(preview.legs[1]?.price_source, "stablecoin_peg");
   });
+
+  it("estimateExecuteTransactionUsd prices native transfers", async () => {
+    setCoingeckoFetchForTests(async (input) => {
+      const url = String(input);
+      if (!url.includes("/coins/markets")) {
+        return new Response("[]", { status: 200 });
+      }
+      return new Response(
+        JSON.stringify([{ id: "sui", symbol: "sui", current_price: 2 }]),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const { estimateExecuteTransactionUsd } = await import(
+      "../../../src/services/market/valuation.service.js"
+    );
+
+    const usd = await estimateExecuteTransactionUsd({
+      chain_id: "sui",
+      action: "transfer_native",
+      params: {
+        recipient:
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+        amount_atomic: String(10n * 1_000_000_000n),
+      },
+    });
+
+    assert.equal(usd, 20);
+  });
 });

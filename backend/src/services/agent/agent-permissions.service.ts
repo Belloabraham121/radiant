@@ -1,14 +1,13 @@
-import { getAutoApproveMaxDisplay } from "../../config/agent.js";
+import { getDefaultAutoApproveMaxUsd } from "../../config/agent.js";
 import { AppError } from "../../errors/app-error.js";
 import { prisma } from "../../infrastructure/postgres/client.js";
 import { findUserByPrivyId } from "../auth/user.repository.js";
-import type { ChainId } from "../chains/types.js";
 import type { AgentPermissions } from "./agent-permissions.types.js";
 
 export function defaultAgentPermissions(): AgentPermissions {
   return {
     auto_approve_enabled: true,
-    auto_approve_max_sui: getAutoApproveMaxDisplay("sui"),
+    auto_approve_max_usd: getDefaultAutoApproveMaxUsd(),
     allow_flash_loans: false,
     auto_approve_flash_loans: false,
     allow_governance: false,
@@ -21,7 +20,7 @@ export function defaultAgentPermissions(): AgentPermissions {
 export function denyDefaultAgentPermissions(): AgentPermissions {
   return {
     auto_approve_enabled: false,
-    auto_approve_max_sui: 0,
+    auto_approve_max_usd: 0,
     allow_flash_loans: false,
     auto_approve_flash_loans: false,
     allow_governance: false,
@@ -32,7 +31,7 @@ export function denyDefaultAgentPermissions(): AgentPermissions {
 
 export function agentPermissionsFromUser(user: {
   agent_auto_approve_enabled: boolean;
-  agent_auto_approve_max_sui: number;
+  agent_auto_approve_max_usd: number;
   agent_allow_flash_loans?: boolean;
   agent_auto_approve_flash_loans?: boolean;
   agent_allow_governance?: boolean;
@@ -41,7 +40,7 @@ export function agentPermissionsFromUser(user: {
 }): AgentPermissions {
   return {
     auto_approve_enabled: user.agent_auto_approve_enabled,
-    auto_approve_max_sui: user.agent_auto_approve_max_sui,
+    auto_approve_max_usd: user.agent_auto_approve_max_usd,
     allow_flash_loans: user.agent_allow_flash_loans ?? false,
     auto_approve_flash_loans: user.agent_auto_approve_flash_loans ?? false,
     allow_governance: user.agent_allow_governance ?? false,
@@ -117,8 +116,8 @@ export async function updateAgentPermissions(
       ...(patch.auto_approve_enabled !== undefined
         ? { agent_auto_approve_enabled: patch.auto_approve_enabled }
         : {}),
-      ...(patch.auto_approve_max_sui !== undefined
-        ? { agent_auto_approve_max_sui: patch.auto_approve_max_sui }
+      ...(patch.auto_approve_max_usd !== undefined
+        ? { agent_auto_approve_max_usd: patch.auto_approve_max_usd }
         : {}),
       ...(patch.allow_flash_loans !== undefined
         ? { agent_allow_flash_loans: patch.allow_flash_loans }
@@ -141,50 +140,25 @@ export async function updateAgentPermissions(
   return agentPermissionsFromUser(updated);
 }
 
-export function resolveAutoApproveMaxDisplay(
-  permissions: AgentPermissions,
-  chainId: ChainId,
-): number {
-  if (chainId === "sui") {
-    return permissions.auto_approve_max_sui;
-  }
-  return getAutoApproveMaxDisplay(chainId);
+export function resolveAutoApproveMaxUsd(permissions: AgentPermissions): number {
+  return permissions.auto_approve_max_usd;
 }
 
-export function resolveAutoApproveMaxAtomic(
+/** True when USD value is unknown or above the user's auto-approve threshold. */
+export function usdValueRequiresApproval(
   permissions: AgentPermissions,
-  chainId: ChainId,
-): bigint {
-  const display = resolveAutoApproveMaxDisplay(permissions, chainId);
-  switch (chainId) {
-    case "sui":
-      return BigInt(Math.floor(display * 1_000_000_000));
-    case "ethereum":
-      return BigInt(Math.floor(display * 1e18));
-    case "solana":
-      return BigInt(Math.floor(display * 1_000_000_000));
-    case "stellar":
-      return BigInt(Math.floor(display * 10_000_000));
-    default:
-      return BigInt(0);
+  usdValue: number | null,
+): boolean {
+  if (!permissions.auto_approve_enabled) {
+    return true;
   }
+  if (usdValue === null || !Number.isFinite(usdValue)) {
+    return true;
+  }
+  return usdValue > resolveAutoApproveMaxUsd(permissions);
 }
 
-export function approvalThresholdLabel(
-  chainId: ChainId,
-  permissions: AgentPermissions,
-): string {
-  const max = resolveAutoApproveMaxDisplay(permissions, chainId);
-  switch (chainId) {
-    case "sui":
-      return `${max} SUI`;
-    case "ethereum":
-      return `${max} ETH`;
-    case "solana":
-      return `${max} SOL`;
-    case "stellar":
-      return `${max} XLM`;
-    default:
-      return String(max);
-  }
+export function approvalThresholdLabel(permissions: AgentPermissions): string {
+  const max = resolveAutoApproveMaxUsd(permissions);
+  return `$${max.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }

@@ -1,5 +1,6 @@
 import type { ExecuteTransactionInput } from "../chains/types.js";
 import type { CrossChainRouteOption, LiquidityFallbackOffer } from "../defi/cross-chain/cross-chain.types.js";
+import { resolveTokenSymbol } from "../../config/supported-tokens.js";
 import {
   createLiquidityFallbackPendingTransaction,
 } from "./transaction-approval.service.js";
@@ -88,7 +89,42 @@ export function crossChainRouteNeedsSourceSwap(route: CrossChainRouteOption): bo
   return route.exchanges.some((tool) => tool !== "feeCollection");
 }
 
+function crossChainAmountDisplay(
+  chainId: CrossChainRouteOption["from_chain_id"],
+  evmChainId: number | undefined,
+  symbol: string,
+  amountAtomic: string,
+): number | null {
+  try {
+    const resolved = resolveTokenSymbol(
+      chainId,
+      symbol,
+      chainId === "ethereum" ? evmChainId : undefined,
+    );
+    if (resolved.match !== "exact") {
+      return null;
+    }
+    const display = Number(BigInt(amountAtomic)) / 10 ** resolved.token.decimals;
+    return Number.isFinite(display) && display > 0 ? display : null;
+  } catch {
+    return null;
+  }
+}
+
 export function buildCrossChainSwapParams(route: CrossChainRouteOption): Record<string, unknown> {
+  const fromAmountDisplay = crossChainAmountDisplay(
+    route.from_chain_id,
+    route.from_evm_chain_id,
+    route.from_token_symbol,
+    route.from_amount_atomic,
+  );
+  const toAmountDisplay = crossChainAmountDisplay(
+    route.to_chain_id,
+    route.to_evm_chain_id,
+    route.to_token_symbol,
+    route.to_amount_atomic,
+  );
+
   return {
     route_id: route.route_id,
     provider_id: route.provider_id,
@@ -98,6 +134,8 @@ export function buildCrossChainSwapParams(route: CrossChainRouteOption): Record<
     to_token_symbol: route.to_token_symbol,
     from_amount_atomic: route.from_amount_atomic,
     to_amount_atomic: route.to_amount_atomic,
+    ...(fromAmountDisplay !== null ? { from_amount_display: fromAmountDisplay } : {}),
+    ...(toAmountDisplay !== null ? { to_amount_display: toAmountDisplay } : {}),
     from_chain_id: route.from_chain_id,
     to_chain_id: route.to_chain_id,
     from_evm_chain_id: route.from_evm_chain_id,

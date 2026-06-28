@@ -385,19 +385,7 @@ export function findAgentMessageIndexForLifiTransaction(
     return byTx;
   }
   for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (message.role === "agent" && message.statusCategory === "defi") {
-      return index;
-    }
-  }
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (
-      message.role === "agent" &&
-      message.executionSteps?.some(
-        (step) => step.id.startsWith("lifi-") || step.id === "fallback-offer",
-      )
-    ) {
+    if (messages[index]?.role === "agent") {
       return index;
     }
   }
@@ -526,7 +514,7 @@ export function applyLifiTransactionStepsToMessages<
 }
 
 const STALE_APPROVAL_TEXT_RE =
-  /needs your approval|confirm in the dialog|Review the route/i;
+  /needs your approval|confirm in the dialog|Review the route|Starting bridge|Submitting bridge/i;
 
 const LIFI_SUBMITTING_REPLY = "Submitting transaction…";
 

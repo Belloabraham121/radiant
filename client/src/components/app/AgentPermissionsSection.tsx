@@ -52,7 +52,7 @@ function permissionsSummary(permissions: AgentPermissions): string {
   const parts: string[] = [];
   parts.push(
     permissions.auto_approve_enabled
-      ? `Auto-approve up to ${permissions.auto_approve_max_sui} SUI`
+      ? `Auto-approve under $${permissions.auto_approve_max_usd}`
       : "Manual approval for all txs",
   );
   if (permissions.allow_flash_loans) {
@@ -104,7 +104,7 @@ export function AgentPermissionsSection() {
     controlsDisabled,
     error,
     setAutoApproveEnabled,
-    setAutoApproveMaxSui,
+    setAutoApproveMaxUsd,
     setAllowFlashLoans,
     setAutoApproveFlashLoans,
     setAllowGovernance,
@@ -112,13 +112,13 @@ export function AgentPermissionsSection() {
     setAllowPredict,
   } = useAgentPermissions(authenticated, open);
 
-  const serverMaxSui = String(permissions.auto_approve_max_sui);
-  const [draftMaxSui, setDraftMaxSui] = useState(serverMaxSui);
-  const [editingMaxSui, setEditingMaxSui] = useState(false);
-  const thresholdInputValue = editingMaxSui ? draftMaxSui : serverMaxSui;
+  const serverMaxUsd = String(permissions.auto_approve_max_usd);
+  const [draftMaxUsd, setDraftMaxUsd] = useState(serverMaxUsd);
+  const [editingMaxUsd, setEditingMaxUsd] = useState(false);
+  const thresholdInputValue = editingMaxUsd ? draftMaxUsd : serverMaxUsd;
 
   const thresholdLabel = permissions.auto_approve_enabled
-    ? `Swaps and transfers up to ${permissions.auto_approve_max_sui} SUI go through instantly. Larger amounts pause for your approval.`
+    ? `Swaps and transfers worth up to $${permissions.auto_approve_max_usd} go through instantly on any chain. Larger amounts pause for your approval.`
     : "Every swap and transfer will pause for your approval in chat before signing.";
 
   const summaryText = loaded
@@ -195,15 +195,15 @@ export function AgentPermissionsSection() {
                   }`}
                 >
                   <label
-                    htmlFor="auto-approve-max-sui"
+                    htmlFor="auto-approve-max-usd"
                     className="block text-xs font-bold uppercase tracking-[0.12em] text-[var(--hero-ink)]/45"
                   >
-                    Auto-approve threshold (SUI)
+                    Auto-approve threshold (USD)
                   </label>
                   <div className="mt-2 flex items-center gap-3">
                     <span className="text-sm font-semibold text-[var(--hero-ink)]/55">Under</span>
                     <input
-                      id="auto-approve-max-sui"
+                      id="auto-approve-max-usd"
                       type="number"
                       min={0.01}
                       max={1000000}
@@ -211,28 +211,28 @@ export function AgentPermissionsSection() {
                       disabled={controlsDisabled}
                       value={thresholdInputValue}
                       onFocus={() => {
-                        setEditingMaxSui(true);
-                        setDraftMaxSui(serverMaxSui);
+                        setEditingMaxUsd(true);
+                        setDraftMaxUsd(serverMaxUsd);
                       }}
-                      onChange={(event) => setDraftMaxSui(event.target.value)}
+                      onChange={(event) => setDraftMaxUsd(event.target.value)}
                       onBlur={() => {
-                        setEditingMaxSui(false);
-                        const next = Number(draftMaxSui);
+                        setEditingMaxUsd(false);
+                        const next = Number(draftMaxUsd);
                         if (!Number.isFinite(next) || next <= 0) {
-                          setDraftMaxSui(serverMaxSui);
+                          setDraftMaxUsd(serverMaxUsd);
                           return;
                         }
-                        if (next !== permissions.auto_approve_max_sui) {
-                          void setAutoApproveMaxSui(next);
+                        if (next !== permissions.auto_approve_max_usd) {
+                          void setAutoApproveMaxUsd(next);
                         }
                       }}
                       className="w-28 rounded-xl border-2 border-[var(--hero-ink)] bg-white px-3 py-2 font-mono text-sm font-bold shadow-[2px_2px_0_var(--hero-ink)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     />
-                    <span className="text-sm font-semibold text-[var(--hero-ink)]/55">SUI</span>
+                    <span className="text-sm font-semibold text-[var(--hero-ink)]/55">USD</span>
                   </div>
                   <p className="mt-2 text-xs font-medium text-[var(--hero-ink)]/45">
-                    Set any amount — e.g. 30, 100. Balance manager setup, deposits, and
-                    withdrawals always ask first.
+                    Applies across all chains — e.g. $10, $30, $100. Balance manager setup,
+                    deposits, and withdrawals always ask first.
                   </p>
                 </div>
               ) : null}

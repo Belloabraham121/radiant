@@ -2,7 +2,7 @@ import { approvalThresholdLabel } from "../../agent-permissions.service.js";
 import type { PromptBuildContext } from "../types.js";
 
 export function buildPermissionLines(ctx: PromptBuildContext): string[] {
-  const threshold = approvalThresholdLabel(ctx.chainId, ctx.permissions);
+  const threshold = approvalThresholdLabel(ctx.permissions);
 
   const approvalLines = ctx.permissions.auto_approve_enabled
     ? [

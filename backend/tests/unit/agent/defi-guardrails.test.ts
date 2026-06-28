@@ -33,7 +33,7 @@ import type { AgentPermissions } from "../../../src/services/agent/agent-permiss
 const PRIVY_USER = "did:privy:defi-guardrails-phase9";
 const DEFAULT_PERMISSIONS: AgentPermissions = {
   auto_approve_enabled: false,
-  auto_approve_max_sui: 0,
+  auto_approve_max_usd: 0,
   allow_flash_loans: false,
   auto_approve_flash_loans: false,
   allow_governance: false,

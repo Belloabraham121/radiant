@@ -13,11 +13,16 @@ import {
   LIQUIDITY_FALLBACK_BRIDGE_REPLY,
   pickBestCrossChainRoute,
 } from "../cross-chain-intent-helpers.js";
+import { preflightLifiExecuteBalance } from "../chains/evm/lifi/approval-preflight.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { runExecuteTransactionToolWithApproval } from "../tools.js";
 import type { PartialBridgeIntent } from "./bridge-intent.types.js";
 import { withDefaultBridgeChains } from "./bridge-clarification-gaps.js";
+import {
+  createPendingTransaction,
+  transferRequiresApproval,
+} from "../transaction-approval.service.js";
 
 export type ResolvedBridgeOutcome = {
   reply: string;
@@ -154,10 +159,17 @@ export async function executeResolvedBridgeIntent(
   const bridgeUsdAmount =
     intent.amountUnit === "usd" && intent.amount !== undefined
       ? intent.amount
-      : resolvedIntent.resolvedTokenAmount?.resolvedFromUsd;
+      : resolvedIntent.resolvedTokenAmount?.resolvedFromUsd ??
+        (resolvedIntent.fromToken?.toUpperCase() === "USDC" &&
+        resolvedIntent.amount !== undefined
+          ? resolvedIntent.amount
+          : undefined);
+
+  const isSmallBridge = isSmallCrossChainUsdAmount(bridgeUsdAmount);
 
   const route = pickBestCrossChainRoute(routesResult.routes, {
-    preferDirectRoutes: isSmallCrossChainUsdAmount(bridgeUsdAmount),
+    preferDirectRoutes: isSmallBridge,
+    avoidFeeCollection: isSmallBridge,
   });
   if (!route) {
     const offer = routesResult.liquidity_fallback_offer;
@@ -183,9 +195,36 @@ export async function executeResolvedBridgeIntent(
   const executeInput = {
     chain_id: route.from_chain_id,
     ...(route.from_evm_chain_id !== undefined ? { evm_chain_id: route.from_evm_chain_id } : {}),
-    action: "cross_chain_swap",
+    action: "cross_chain_swap" as const,
     params: buildCrossChainSwapParams(route),
   };
+
+  const needsApproval = await transferRequiresApproval(privyUserId, executeInput, {
+    sessionId,
+  });
+
+  if (!needsApproval) {
+    try {
+      await preflightLifiExecuteBalance(privyUserId, executeInput);
+    } catch (err) {
+      const mapped = mapAgentToolError(err);
+      return {
+        reply:
+          mapped instanceof AppError
+            ? mapped.message
+            : "Could not verify wallet balance for this bridge.",
+        tool_calls,
+        pending_transaction: null,
+      };
+    }
+
+    const pending = await createPendingTransaction(privyUserId, executeInput, { sessionId });
+    return {
+      reply: "Submitting bridge transaction…",
+      tool_calls,
+      pending_transaction: { ...pending, auto_approve_eligible: true },
+    };
+  }
 
   let executeOutcome: ExecuteToolOutcome;
   try {
