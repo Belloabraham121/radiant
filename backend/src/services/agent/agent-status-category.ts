@@ -43,12 +43,7 @@ export function resolveCategoryFromTool(
       return "researching";
     }
     case "execute_transaction":
-    case "call_app_action":
       return "defi";
-    case "generate_app":
-    case "edit_app":
-    case "read_artifact":
-      return "thinking";
     case "web_search":
     case "browse_webpage":
       return "browsing";

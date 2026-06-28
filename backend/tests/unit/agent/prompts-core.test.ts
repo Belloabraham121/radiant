@@ -21,6 +21,7 @@ describe("prompt core modules", () => {
       "core:tool-routing",
       "core:tool-routing:overview",
       "core:permissions",
+      "core:defi-guardrails",
       "core:tool-routing:workflow",
       "core:errors",
       "core:personality:context",
@@ -28,13 +29,12 @@ describe("prompt core modules", () => {
     const coreModules = ALL_PROMPT_MODULES.filter((module) => module.layer === "core");
     assert.equal(coreModules.length, CORE_MODULE_IDS.length);
     assert.equal(ALL_MODULE_IDS.length, ALL_PROMPT_MODULES.length);
-    assert.equal(ALL_MODULE_IDS.length, 24);
   });
 
   it("personality includes Radiant identity and research/execution/build routing", () => {
     const text = buildPersonalityIntroLines().join("\n");
     assert.match(text, /You are Radiant/);
-    assert.match(text, /RESEARCH, EXECUTION, or BUILD/);
+    assert.match(text, /RESEARCH or EXECUTION/);
     assert.match(text, /always write a complete reply/);
     assert.match(text, /Default to concise answers/);
     assert.match(text, /~2000 words/);
@@ -67,8 +67,7 @@ describe("prompt core modules", () => {
   it("tool-routing overview names generic platform tools", () => {
     const text = buildToolRoutingOverviewLines().join("\n");
     assert.match(text, /query_chain/);
-    assert.match(text, /call_app_action/);
-    assert.match(text, /execute_transaction for chat-only/);
+    assert.match(text, /execute_transaction for on-chain wallet trades/);
   });
 
   it("permissions reflect auto-approve when disabled", () => {

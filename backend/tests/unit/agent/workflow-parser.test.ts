@@ -87,15 +87,14 @@ describe("workflow-parser segment classification", () => {
     }
   });
 
-  it("classifies swap through named app as app_action", () => {
+  it("classifies swap through named app as execute (wallet swap)", () => {
     const step = classifyWorkflowSegment(
       "swap 1.6 SUI to USDC in my uniswap app",
     );
-    assert.equal(step.kind, "app_action");
-    if (step.kind === "app_action") {
-      assert.equal(step.action, "swap");
-      assert.equal(step.app_name, "uniswap");
-      assert.equal(step.params.amount, 1.6);
+    assert.equal(step.kind, "execute");
+    if (step.kind === "execute") {
+      assert.equal(step.input.action, "swap");
+      assert.equal(step.input.params.amount, 1.6);
     }
   });
 

@@ -15,7 +15,6 @@ import type { BuildSystemPromptInput, PromptBuildContext, PromptModuleId } from 
 
 export type { AgentPromptContext } from "./prompt-context.js";
 export type { BuildSystemPromptInput, PromptModuleId, PromptScopeMode } from "./types.js";
-export { DEEPBOOK_MARGIN_RADIANT_ID_GUIDE } from "./protocols/deepbook/margin.js";
 export {
   ALL_MODULE_IDS,
   ALL_PROMPT_MODULES,
