@@ -2,7 +2,7 @@ import { apiFetch } from "./api";
 
 export type AgentPermissions = {
   auto_approve_enabled: boolean;
-  auto_approve_max_sui: number;
+  auto_approve_max_usd: number;
   allow_flash_loans: boolean;
   auto_approve_flash_loans: boolean;
   allow_governance: boolean;

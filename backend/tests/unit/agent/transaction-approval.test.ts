@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, before, describe, it } from "node:test";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import {
   buildPendingTransactionPreview,
@@ -7,11 +7,28 @@ import {
   rejectPendingTransaction,
   transferRequiresApprovalWithPermissions,
 } from "../../../src/services/agent/transaction-approval.service.js";
+import {
+  setCoingeckoFetchForTests,
+} from "../../../src/services/market/coingecko.client.js";
+import {
+  mockUnitUsdPricesForAutoApproveTests,
+  resetAutoApprovePriceMocksForTests,
+} from "../../helpers/auto-approve-prices.js";
 
 describe("transaction approval", () => {
-  it("auto-approves transfers at or below default SUI threshold", () => {
+  before(() => {
+    process.env.COINGECKO_API_KEY = "CG-test-key";
+    mockUnitUsdPricesForAutoApproveTests();
+  });
+
+  afterEach(() => {
+    resetAutoApprovePriceMocksForTests();
+    mockUnitUsdPricesForAutoApproveTests();
+  });
+
+  it("auto-approves transfers at or below default USD threshold", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "transfer_native",
         params: {
@@ -24,25 +41,25 @@ describe("transaction approval", () => {
     );
   });
 
-  it("requires approval above default SUI threshold", () => {
+  it("requires approval above default USD threshold", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "transfer_native",
         params: {
           recipient:
             "0x0000000000000000000000000000000000000000000000000000000000000001",
-          amount_atomic: String(25n * 1_000_000_000n + 1n),
+          amount_atomic: String(26n * 1_000_000_000n),
         },
       }),
       true,
     );
   });
 
-  it("requires approval for execute_bytes when auto-approve is disabled", () => {
+  it("requires approval for execute_bytes when auto-approve is disabled", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(
-        { auto_approve_enabled: false, auto_approve_max_sui: 25 },
+      await transferRequiresApprovalWithPermissions(
+        { ...defaultAgentPermissions(), auto_approve_enabled: false },
         {
           chain_id: "sui",
           action: "execute_bytes",
@@ -53,9 +70,9 @@ describe("transaction approval", () => {
     );
   });
 
-  it("always requires approval for execute_bytes when auto-approve is enabled", () => {
+  it("always requires approval for execute_bytes when auto-approve is enabled", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "execute_bytes",
         params: { transaction_bytes: "YWJjZA==" },
@@ -64,10 +81,10 @@ describe("transaction approval", () => {
     );
   });
 
-  it("requires approval for every transfer when auto-approve is disabled", () => {
+  it("requires approval for every transfer when auto-approve is disabled", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(
-        { auto_approve_enabled: false, auto_approve_max_sui: 25 },
+      await transferRequiresApprovalWithPermissions(
+        { ...defaultAgentPermissions(), auto_approve_enabled: false },
         {
           chain_id: "sui",
           action: "transfer_native",
@@ -82,10 +99,10 @@ describe("transaction approval", () => {
     );
   });
 
-  it("uses custom max SUI threshold when auto-approve is enabled", () => {
-    const permissions = { auto_approve_enabled: true, auto_approve_max_sui: 100 };
+  it("uses custom max USD threshold when auto-approve is enabled", async () => {
+    const permissions = { ...defaultAgentPermissions(), auto_approve_max_usd: 100 };
     assert.equal(
-      transferRequiresApprovalWithPermissions(permissions, {
+      await transferRequiresApprovalWithPermissions(permissions, {
         chain_id: "sui",
         action: "transfer_native",
         params: {
@@ -97,7 +114,7 @@ describe("transaction approval", () => {
       false,
     );
     assert.equal(
-      transferRequiresApprovalWithPermissions(permissions, {
+      await transferRequiresApprovalWithPermissions(permissions, {
         chain_id: "sui",
         action: "transfer_native",
         params: {
@@ -108,6 +125,26 @@ describe("transaction approval", () => {
       }),
       true,
     );
+  });
+
+  it("requires approval when USD value is unknown", async () => {
+    resetAutoApprovePriceMocksForTests();
+    setCoingeckoFetchForTests(
+      async () => new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    assert.equal(
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+        chain_id: "sui",
+        action: "transfer_native",
+        params: {
+          recipient:
+            "0x0000000000000000000000000000000000000000000000000000000000000001",
+          amount_atomic: "1000000",
+        },
+      }),
+      true,
+    );
+    mockUnitUsdPricesForAutoApproveTests();
   });
 
   it("creates pending provision manager with gas-only display", async () => {
@@ -121,9 +158,9 @@ describe("transaction approval", () => {
     assert.match(pending.amount_display, /Network fee only/i);
   });
 
-  it("provision manager always requires approval when auto-approve is on", () => {
+  it("provision manager always requires approval when auto-approve is on", async () => {
     assert.equal(
-      transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
+      await transferRequiresApprovalWithPermissions(defaultAgentPermissions(), {
         chain_id: "sui",
         action: "deepbook_provision_manager",
         params: {},
@@ -132,10 +169,10 @@ describe("transaction approval", () => {
     );
   });
 
-  it("always requires approval for stake and governance actions", () => {
+  it("always requires approval for stake and governance actions", async () => {
     const permissions = defaultAgentPermissions();
     assert.equal(
-      transferRequiresApprovalWithPermissions(permissions, {
+      await transferRequiresApprovalWithPermissions(permissions, {
         chain_id: "sui",
         action: "deepbook_stake",
         params: { pool_key: "SUI_USDC", amount: 10 },
@@ -143,7 +180,7 @@ describe("transaction approval", () => {
       true,
     );
     assert.equal(
-      transferRequiresApprovalWithPermissions(permissions, {
+      await transferRequiresApprovalWithPermissions(permissions, {
         chain_id: "sui",
         action: "deepbook_submit_proposal",
         params: {
@@ -156,7 +193,7 @@ describe("transaction approval", () => {
       true,
     );
     assert.equal(
-      transferRequiresApprovalWithPermissions(permissions, {
+      await transferRequiresApprovalWithPermissions(permissions, {
         chain_id: "sui",
         action: "deepbook_vote",
         params: {

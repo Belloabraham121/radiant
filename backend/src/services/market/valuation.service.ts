@@ -1,6 +1,10 @@
 import { isStablecoinSymbol } from "../defi/deepbook/asset-scalars.js";
-import type { ExecuteTransactionInput } from "../chains/types.js";
+import type { ExecuteTransactionInput, ChainId } from "../chains/types.js";
 import { isDeepBookSwapAction, parseDeepBookSwapParams } from "../defi/deepbook/deepbook-swap.service.js";
+import {
+  estimatePlaceOrderNotionalSui,
+  isDeepBookPlaceOrderAction,
+} from "../defi/deepbook/deepbook-orders.service.js";
 import { isLifiExecuteAction } from "../agent/chains/evm/lifi/execute-actions.js";
 import { isSoroswapExecuteAction } from "../agent/chains/stellar/soroswap/execute-actions.js";
 import { getDeepBookEnv } from "../../config/deepbook.js";
@@ -346,4 +350,140 @@ export function formatSwapQuoteSummary(
   }
 
   return summary;
+}
+
+const NATIVE_SYMBOL_BY_CHAIN: Record<ChainId, string> = {
+  sui: "SUI",
+  ethereum: "ETH",
+  solana: "SOL",
+  stellar: "XLM",
+};
+
+const NATIVE_DECIMALS_BY_CHAIN: Record<ChainId, number> = {
+  sui: 9,
+  ethereum: 18,
+  solana: 9,
+  stellar: 7,
+};
+
+const NATIVE_TRANSFER_ACTIONS = new Set([
+  "transfer_native",
+  "transfer_sui",
+  "transfer",
+  "transfer_eth",
+  "transfer_sol",
+]);
+
+function parseTransferAmountAtomic(params: Record<string, unknown>): bigint | null {
+  const raw =
+    params.amount_atomic ?? params.amount_mist ?? params.amount_wei ?? params.amount_lamports;
+  if (typeof raw !== "string" || !/^[1-9]\d*$/.test(raw)) {
+    return null;
+  }
+  return BigInt(raw);
+}
+
+export async function estimateNativeTransferUsd(
+  chainId: ChainId,
+  amountAtomic: bigint,
+): Promise<number | null> {
+  const symbol = NATIVE_SYMBOL_BY_CHAIN[chainId];
+  const decimals = NATIVE_DECIMALS_BY_CHAIN[chainId];
+  if (!symbol || decimals === undefined) {
+    return null;
+  }
+
+  const amountDisplay = Number(amountAtomic) / 10 ** decimals;
+  const prices = await resolveSymbolUsdPrices([symbol]);
+  const usdPrice = prices.get(symbol)?.usdPrice ?? null;
+  if (usdPrice === null) {
+    return null;
+  }
+  return roundUsd(amountDisplay * usdPrice);
+}
+
+async function estimateDeepBookSwapPayUsd(
+  input: ExecuteTransactionInput,
+): Promise<number | null> {
+  try {
+    const parsed = parseDeepBookSwapParams(input.params);
+    const poolDef =
+      getDeepBookEnv().pools[parsed.pool_key as keyof ReturnType<typeof getDeepBookEnv>["pools"]];
+    const inputCoin =
+      parsed.side === "sell" ? (poolDef?.baseCoin ?? "SUI") : (poolDef?.quoteCoin ?? "USDC");
+    const poolPrice =
+      typeof input.params.estimated_price === "number"
+        ? input.params.estimated_price
+        : typeof input.params.price === "number"
+          ? input.params.price
+          : null;
+
+    const priceMap = await resolveSymbolUsdPrices([inputCoin]);
+    const leg = await priceSymbolAmount(
+      { amount_display: parsed.amount, symbol: inputCoin, role: "pay" },
+      priceMap,
+      {
+        pool_price: poolPrice,
+        base_symbol: poolDef?.baseCoin,
+        quote_symbol: poolDef?.quoteCoin,
+      },
+    );
+    return leg.usd_value;
+  } catch {
+    return null;
+  }
+}
+
+async function estimateDeepBookOrderPayUsd(
+  input: ExecuteTransactionInput,
+): Promise<number | null> {
+  try {
+    const price =
+      typeof input.params.estimated_price === "number" ? input.params.estimated_price : null;
+    const notionalSui = estimatePlaceOrderNotionalSui(input.action, input.params, price);
+    const prices = await resolveSymbolUsdPrices(["SUI"]);
+    const suiPrice = prices.get("SUI")?.usdPrice ?? null;
+    if (suiPrice === null) {
+      return null;
+    }
+    return roundUsd(notionalSui * suiPrice);
+  } catch {
+    return null;
+  }
+}
+
+/** Estimate pay-side USD notional for auto-approve checks. Returns null when price is unknown. */
+export async function estimateExecuteTransactionUsd(
+  input: ExecuteTransactionInput,
+): Promise<number | null> {
+  const fiat = await previewExecuteTransactionFiat(input);
+  if (fiat?.total_pay_usd !== null && fiat?.total_pay_usd !== undefined) {
+    return fiat.total_pay_usd;
+  }
+
+  if (isDeepBookSwapAction(input.action) && input.chain_id === "sui") {
+    return estimateDeepBookSwapPayUsd(input);
+  }
+
+  if (isDeepBookPlaceOrderAction(input.action) && input.chain_id === "sui") {
+    return estimateDeepBookOrderPayUsd(input);
+  }
+
+  if (NATIVE_TRANSFER_ACTIONS.has(input.action)) {
+    const amount = parseTransferAmountAtomic(input.params);
+    if (amount === null) {
+      return null;
+    }
+    return estimateNativeTransferUsd(input.chain_id, amount);
+  }
+
+  if (isLifiExecuteAction(input.action) && input.action === "cross_chain_swap") {
+    return null;
+  }
+
+  if (isSoroswapExecuteAction(input.action) && input.chain_id === "stellar") {
+    return null;
+  }
+
+  return null;
 }

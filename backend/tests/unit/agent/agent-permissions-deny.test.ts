@@ -9,7 +9,7 @@ describe("agent-permissions.service deny defaults", () => {
   it("denyDefaultAgentPermissions disables auto-approve", () => {
     const permissions = denyDefaultAgentPermissions();
     assert.equal(permissions.auto_approve_enabled, false);
-    assert.equal(permissions.auto_approve_max_sui, 0);
+    assert.equal(permissions.auto_approve_max_usd, 0);
     assert.equal(permissions.allow_flash_loans, false);
     assert.equal(permissions.allow_governance, false);
   });

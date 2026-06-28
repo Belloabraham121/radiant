@@ -10,7 +10,7 @@ import {
 
 const DEFAULT_PERMISSIONS: AgentPermissions = {
   auto_approve_enabled: true,
-  auto_approve_max_sui: 25,
+  auto_approve_max_usd: 25,
   allow_flash_loans: false,
   auto_approve_flash_loans: false,
   allow_governance: false,
@@ -104,7 +104,7 @@ export function useAgentPermissions(authenticated: boolean, fetchEnabled = false
     controlsDisabled,
     error,
     setAutoApproveEnabled: (enabled: boolean) => savePermissions({ auto_approve_enabled: enabled }),
-    setAutoApproveMaxSui: (maxSui: number) => savePermissions({ auto_approve_max_sui: maxSui }),
+    setAutoApproveMaxUsd: (maxUsd: number) => savePermissions({ auto_approve_max_usd: maxUsd }),
     setAllowFlashLoans: (enabled: boolean) =>
       savePermissions({
         allow_flash_loans: enabled,

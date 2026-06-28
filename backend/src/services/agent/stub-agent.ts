@@ -56,7 +56,7 @@ async function formatExecuteReply(
       return "This transaction needs your approval. Review the details and approve to continue.";
     }
     return (
-      `That transfer is above your auto-approve limit (${approvalThresholdLabel(outcome.pending.chain_id, permissions)}). ` +
+      `That transfer is above your auto-approve limit (${approvalThresholdLabel(permissions)}). ` +
       "Review the details and approve to continue."
     );
   }

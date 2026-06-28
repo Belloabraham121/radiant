@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, before, describe, it } from "node:test";
 import { AppError } from "../../../src/errors/app-error.js";
 import { defaultAgentPermissions } from "../../../src/services/agent/agent-permissions.service.js";
 import {
@@ -24,9 +24,20 @@ import {
   buildUnsupportedCapabilityNudge,
   detectUnsupportedCapability,
 } from "../../../src/services/agent/deepbook/unsupported-capabilities.js";
+import {
+  mockUnitUsdPricesForAutoApproveTests,
+  resetAutoApprovePriceMocksForTests,
+} from "../../helpers/auto-approve-prices.js";
 
 describe("deepbook-orders.service", () => {
+  before(() => {
+    process.env.COINGECKO_API_KEY = "CG-test-key";
+    mockUnitUsdPricesForAutoApproveTests();
+  });
+
   afterEach(async () => {
+    resetAutoApprovePriceMocksForTests();
+    mockUnitUsdPricesForAutoApproveTests();
     resetDeepBookOrdersServiceForTests();
     await clearPendingTransactionsForTests();
   });
@@ -132,14 +143,10 @@ describe("deepbook-orders.service", () => {
     assert.equal(estimateOrderNotionalSui(pool, 5, 2, false, null), 5);
   });
 
-  it("orderRequiresApprovalWithPermissions respects auto-approve threshold", () => {
-    const permissions = {
-      ...defaultAgentPermissions(),
-      auto_approve_enabled: true,
-      auto_approve_max_sui: 25,
-    };
+  it("orderRequiresApprovalWithPermissions respects auto-approve threshold", async () => {
+    const permissions = defaultAgentPermissions();
 
-    const small = orderRequiresApprovalWithPermissions(permissions, {
+    const small = await orderRequiresApprovalWithPermissions(permissions, {
       chain_id: "sui",
       action: "deepbook_place_limit_order",
       params: {
@@ -151,7 +158,7 @@ describe("deepbook-orders.service", () => {
     });
     assert.equal(small, false);
 
-    const large = orderRequiresApprovalWithPermissions(permissions, {
+    const large = await orderRequiresApprovalWithPermissions(permissions, {
       chain_id: "sui",
       action: "deepbook_place_limit_order",
       params: {
@@ -164,13 +171,9 @@ describe("deepbook-orders.service", () => {
     assert.equal(large, true);
   });
 
-  it("cancel order always requires approval", () => {
-    const permissions = {
-      ...defaultAgentPermissions(),
-      auto_approve_enabled: true,
-      auto_approve_max_sui: 25,
-    };
-    const needs = transferRequiresApprovalWithPermissions(permissions, {
+  it("cancel order always requires approval", async () => {
+    const permissions = defaultAgentPermissions();
+    const needs = await transferRequiresApprovalWithPermissions(permissions, {
       chain_id: "sui",
       action: "deepbook_cancel_order",
       params: { pool_key: "SUI_USDC", order_id: "99" },
@@ -178,14 +181,10 @@ describe("deepbook-orders.service", () => {
     assert.equal(needs, true);
   });
 
-  it("batch cancel and modify always require approval", () => {
-    const permissions = {
-      ...defaultAgentPermissions(),
-      auto_approve_enabled: true,
-      auto_approve_max_sui: 25,
-    };
+  it("batch cancel and modify always require approval", async () => {
+    const permissions = defaultAgentPermissions();
     assert.equal(
-      transferRequiresApprovalWithPermissions(permissions, {
+      await transferRequiresApprovalWithPermissions(permissions, {
         chain_id: "sui",
         action: "deepbook_cancel_orders",
         params: { pool_key: "SUI_USDC", order_ids: ["1", "2"] },
@@ -193,7 +192,7 @@ describe("deepbook-orders.service", () => {
       true,
     );
     assert.equal(
-      transferRequiresApprovalWithPermissions(permissions, {
+      await transferRequiresApprovalWithPermissions(permissions, {
         chain_id: "sui",
         action: "deepbook_modify_order",
         params: { pool_key: "SUI_USDC", order_id: "1", quantity: 2 },
@@ -202,14 +201,10 @@ describe("deepbook-orders.service", () => {
     );
   });
 
-  it("withdraw settled always requires approval", () => {
-    const permissions = {
-      ...defaultAgentPermissions(),
-      auto_approve_enabled: true,
-      auto_approve_max_sui: 25,
-    };
+  it("withdraw settled always requires approval", async () => {
+    const permissions = defaultAgentPermissions();
     assert.equal(
-      transferRequiresApprovalWithPermissions(permissions, {
+      await transferRequiresApprovalWithPermissions(permissions, {
         chain_id: "sui",
         action: "deepbook_withdraw_settled_amounts",
         params: { pool_key: "SUI_USDC" },
