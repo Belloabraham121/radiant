@@ -1,15 +1,20 @@
 import { getDefaultAgentChainId } from "./chains.js";
 
-function parsePositiveNumber(name: string, fallback: number): number {
+function parsePositiveNumber(
+  name: string,
+  fallback: number,
+  max = Number.POSITIVE_INFINITY,
+): number {
   const raw = process.env[name];
   if (!raw) return fallback;
   const value = Number(raw);
-  return Number.isFinite(value) && value >= 0 ? value : fallback;
+  if (!Number.isFinite(value) || value < 0) return fallback;
+  return Math.min(value, max);
 }
 
 /** Default USD auto-approve threshold when user row is missing (deny defaults use 0). */
 export function getDefaultAutoApproveMaxUsd(): number {
-  return parsePositiveNumber("AGENT_AUTO_APPROVE_MAX_USD", 25);
+  return parsePositiveNumber("AGENT_AUTO_APPROVE_MAX_USD", 25, 1_000_000);
 }
 
 export type AgentProvider = "openai" | "stub";
