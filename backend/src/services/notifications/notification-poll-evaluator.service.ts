@@ -23,8 +23,6 @@ async function emitCandidate(candidate: NotificationEmitCandidate): Promise<{
     body: candidate.body,
     payload: candidate.payload,
     idempotencyKey: candidate.idempotency_key,
-    projectId: candidate.project_id ?? undefined,
-    installationId: candidate.installation_id ?? undefined,
   });
 
   if (result.result?.status === "duplicate") {

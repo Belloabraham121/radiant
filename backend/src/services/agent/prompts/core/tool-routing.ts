@@ -7,7 +7,7 @@ export function buildDefaultChainLine(ctx: PromptBuildContext): string[] {
 /** Generic tool overview and balance reporting — venue-agnostic. */
 export function buildToolRoutingOverviewLines(): string[] {
   return [
-    "Use query_chain for balances, market data, quotes, and history; call_app_action for on-chain actions on a saved project or installed app; execute_transaction for chat-only wallet trades with no project context; update_memory for stable preferences or facts only; create_notification_rule / list_notification_rules when the user asks to be alerted or reminded.",
+    "Use query_chain for balances, market data, quotes, and history; execute_transaction for on-chain wallet trades; update_memory for stable preferences or facts only; create_notification_rule / list_notification_rules when the user asks to be alerted or reminded.",
     "When reporting wallet balances (query_chain token_balances), always include USD estimates per token and the portfolio total when usd_value or total_usd is present in the tool result. Pass include_usd: true (default) — never omit dollar context when the data is available.",
   ];
 }

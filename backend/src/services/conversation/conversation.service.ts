@@ -7,7 +7,6 @@ import type {
   SessionListItem,
 } from "./conversation.types.js";
 import { listMessagesBySessionId } from "./message.repository.js";
-import { deleteAllAppDataByProjectId } from "../app-data/app-data.repository.js";
 import { drainPendingExecuteInApp } from "../agent/agent-stream-pending-execute.js";
 import {
   findSessionIdsWithActiveTransactionsForUser,
@@ -20,9 +19,6 @@ import {
   listSessionsByUserId,
 } from "./session.repository.js";
 
-export function sessionAppDataProjectId(sessionId: string): string {
-  return sessionId;
-}
 
 const PREVIEW_MAX_LENGTH = 80;
 const SESSION_TITLE_MAX_LENGTH = 60;
@@ -69,7 +65,6 @@ function toMessageRecord(message: Awaited<ReturnType<typeof listMessagesBySessio
     role: message.role,
     content: message.content,
     tool_calls: message.tool_calls,
-    ...(message.app_scope != null ? { app_scope: message.app_scope } : {}),
     created_at: message.created_at.toISOString(),
   };
 }
@@ -154,13 +149,6 @@ export async function deleteUserSession(
     );
   }
 
-  await deleteAllAppDataByProjectId(sessionAppDataProjectId(sessionId));
-  try {
-    // Legacy namespace used before session-scoped app data used the session UUID directly.
-    await deleteAllAppDataByProjectId(`session:${sessionId}`);
-  } catch {
-    // Invalid UUID on Postgres — no legacy rows to remove.
-  }
   drainPendingExecuteInApp(sessionId);
   await deleteSessionById(sessionId);
 

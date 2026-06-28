@@ -1,7 +1,6 @@
 import { ApiError, withMutationSecurityHeaders } from "@/lib/api";
 import { messageForApiFailure, messageForChatStreamError } from "@/lib/api-error-messages";
 import type { ChatRequest, ChatResponse } from "@/lib/chat-api";
-import type { ArtifactPayload } from "@/lib/artifact-types";
 import type { StreamExecutionStepPayload } from "@/lib/chat-execution-steps";
 import type { AgentStatusCategory } from "@/lib/agent-status-category";
 import { isAgentStatusCategory } from "@/lib/agent-status-category";
@@ -9,7 +8,6 @@ import { isAgentStatusCategory } from "@/lib/agent-status-category";
 export type ChatStreamHandlers = {
   onStep?: (step: StreamExecutionStepPayload) => void;
   onStatus?: (category: AgentStatusCategory) => void;
-  onArtifact?: (payload: { artifact: ArtifactPayload; streaming: boolean }) => void;
   onReplyDelta?: (delta: string) => void;
   onReplyClear?: () => void;
   onSession?: (sessionId: string) => void;
@@ -137,9 +135,6 @@ export async function postChatStream(
           }
         } else if (parsed.event === "reply_clear") {
           handlers.onReplyClear?.();
-        } else if (parsed.event === "artifact") {
-          const artifactPayload = payload as { artifact: ArtifactPayload; streaming: boolean };
-          handlers.onArtifact?.(artifactPayload);
         } else if (parsed.event === "session") {
           const sessionId = (payload as { session_id?: string }).session_id;
           if (sessionId) {

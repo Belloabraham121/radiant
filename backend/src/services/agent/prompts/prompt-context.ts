@@ -1,13 +1,11 @@
 import { getDefaultPromptScopeMode, getPromptScopeConfig } from "../../../config/agent.js";
 import type { AgentPermissions } from "../agent-permissions.types.js";
 import type { WorkflowPlan } from "../workflow/workflow.types.js";
-import type { PinnedAppScope } from "../../projects/pinned-app-scope.types.js";
 import type { BuildSystemPromptInput, PromptModuleId, PromptScopeMode } from "./types.js";
 
 export type AgentPromptContext = {
   userMessage?: string;
   activeModuleIds?: PromptModuleId[];
-  knownAppActions?: string[];
   mode?: PromptScopeMode;
   workflowActions?: string[];
   workflowQueries?: string[];
@@ -30,12 +28,6 @@ export function extractWorkflowPromptModules(plan: WorkflowPlan): {
       case "query":
         workflowQueries.push(step.input.query);
         break;
-      case "build":
-        workflowActions.push("build");
-        break;
-      case "app_action":
-        workflowActions.push(step.action);
-        break;
       default:
         break;
     }
@@ -47,8 +39,6 @@ export function extractWorkflowPromptModules(plan: WorkflowPlan): {
 export function buildSystemPromptInputFromContext(input: {
   memoryBlock?: string;
   agentPermissions?: AgentPermissions;
-  pinnedAppScope?: PinnedAppScope | null;
-  artifactContextBlock?: string;
   promptContext?: AgentPromptContext;
 }): BuildSystemPromptInput {
   const mode: PromptScopeMode = input.promptContext?.forceFullMode
@@ -58,11 +48,8 @@ export function buildSystemPromptInputFromContext(input: {
   return {
     memoryBlock: input.memoryBlock,
     agentPermissions: input.agentPermissions,
-    pinnedAppScope: input.pinnedAppScope,
-    artifactContextBlock: input.artifactContextBlock,
     userMessage: input.promptContext?.userMessage,
     activeModuleIds: input.promptContext?.activeModuleIds,
-    knownAppActions: input.promptContext?.knownAppActions,
     workflowActions: input.promptContext?.workflowActions,
     workflowQueries: input.promptContext?.workflowQueries,
     mode,

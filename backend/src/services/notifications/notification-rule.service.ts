@@ -5,19 +5,12 @@ import type {
 } from "@prisma/client";
 import { AppError } from "../../errors/app-error.js";
 import {
-  buildProjectNotificationSchemaResponse,
-  formatNotificationTypeKey,
   resolveNotificationTypeDefinition,
-  resolveStoredProjectNotificationSchema,
   validateNotificationChannels,
   validateNotificationRuleDraft,
   validateNotificationSchedule,
 } from "./notification-schema.service.js";
-import type {
-  NotificationChannel,
-  NotificationSchedule,
-  ProjectNotificationSchema,
-} from "./notification-schema.types.js";
+import type { NotificationChannel, NotificationSchedule } from "./notification-schema.types.js";
 import type { NotificationScheduleInput } from "./notification-schedule.service.js";
 import {
   createNotificationRule,
@@ -38,7 +31,6 @@ function defaultChannelsForType(typeDefinition: {
     : (["in_app", "web_push"] as NotificationChannel[]);
 }
 
-/** Union explicit channels with type defaults so agents cannot drop web_push silently. */
 function mergeRuleChannels(
   inputChannels: NotificationChannel[] | undefined,
   typeDefinition: { default_channels: NotificationChannel[] },
@@ -53,8 +45,6 @@ function mergeRuleChannels(
 export type NotificationRuleRecord = {
   id: string;
   user_id: string;
-  project_id: string | null;
-  installation_id: string | null;
   source: NotificationRuleSource;
   session_id: string | null;
   label: string | null;
@@ -97,8 +87,6 @@ export type UpdateNotificationRuleInput = {
 };
 
 export type ListNotificationRulesInput = {
-  project_id?: string;
-  installation_id?: string;
   status?: NotificationRuleStatus;
   notification_type?: string;
   limit?: number;
@@ -109,8 +97,6 @@ function toRuleRecord(rule: NotificationRule): NotificationRuleRecord {
   return {
     id: rule.id,
     user_id: rule.user_id.toString(),
-    project_id: rule.project_id,
-    installation_id: rule.installation_id,
     source: rule.source,
     session_id: rule.session_id,
     label: rule.label,
@@ -140,25 +126,16 @@ function parseExpiresAt(value: string | undefined): Date | null {
   return date;
 }
 
-function resolveNotificationTypeInput(
-  notificationType: string,
-  project: { id: string; notification_schema?: unknown | null } | null,
-): string {
+function resolveNotificationTypeInput(notificationType: string): string {
   const trimmed = notificationType.trim();
-  if (trimmed.includes(".") || isPlatformNotificationType(trimmed)) {
-    return trimmed;
-  }
-
-  const schema = project ? resolveStoredProjectNotificationSchema(project) : null;
-  if (!schema) {
+  if (!isPlatformNotificationType(trimmed)) {
     throw new AppError(
       400,
-      "NOTIFICATION_TYPE_REQUIRES_SCHEMA",
-      "Short notification type slugs require a project with notification_schema — pass the full type key or use a scoped project route.",
+      "UNKNOWN_NOTIFICATION_TYPE",
+      "Notification type must be a platform type (radiant.platform.*)",
     );
   }
-
-  return formatNotificationTypeKey(schema.app_id, trimmed);
+  return trimmed;
 }
 
 function assertValidationErrors(
@@ -169,35 +146,19 @@ function assertValidationErrors(
   });
 }
 
-function buildProjectNotificationSchema(
-  project: { id: string; notification_schema?: unknown | null },
-): ProjectNotificationSchema | null {
-  return buildProjectNotificationSchemaResponse(project);
-}
-
 export async function createNotificationRuleForUser(
   privyUserId: string,
-  scopeParams: { projectId?: string; installationId?: string },
   input: CreateNotificationRuleInput,
   options: { sessionId?: string; source?: NotificationRuleSource } = {},
 ): Promise<NotificationRuleRecord> {
-  const scope = await resolveNotificationScope(privyUserId, scopeParams);
-  const notificationType = resolveNotificationTypeInput(input.notification_type, scope.project);
+  const scope = await resolveNotificationScope(privyUserId);
+  const notificationType = resolveNotificationTypeInput(input.notification_type);
 
   const typeDefinition = resolveNotificationTypeDefinition({
     notification_type: notificationType,
-    project: scope.project,
   });
   if (!typeDefinition) {
     throw new AppError(404, "UNKNOWN_NOTIFICATION_TYPE", `Unknown notification type: ${notificationType}`);
-  }
-
-  if (!isPlatformNotificationType(notificationType) && !scope.projectId) {
-    throw new AppError(
-      400,
-      "PROJECT_SCOPE_REQUIRED",
-      "App-scoped notification rules require project_id or installation_id scope",
-    );
   }
 
   const channels = mergeRuleChannels(input.channels, typeDefinition);
@@ -222,7 +183,6 @@ export async function createNotificationRuleForUser(
     condition: input.condition ?? {},
     schedule: resolvedSchedule ?? input.schedule,
     channels: channelsResult.data,
-    project: scope.project,
   });
   if (!draftResult.success) {
     assertValidationErrors(draftResult);
@@ -233,8 +193,6 @@ export async function createNotificationRuleForUser(
 
   const rule = await createNotificationRule({
     userId: scope.userId,
-    projectId: scope.projectId,
-    installationId: scope.installationId,
     source: options.source ?? input.source ?? "user",
     sessionId: options.sessionId ?? input.session_id ?? null,
     label: input.label ?? null,
@@ -259,18 +217,13 @@ export async function listNotificationRulesForUser(
   privyUserId: string,
   input: ListNotificationRulesInput = {},
 ): Promise<{ rules: NotificationRuleRecord[]; total: number; limit: number; offset: number }> {
-  const scope = await resolveNotificationScope(privyUserId, {
-    projectId: input.project_id,
-    installationId: input.installation_id,
-  });
+  const scope = await resolveNotificationScope(privyUserId);
 
   const limit = Math.min(input.limit ?? 50, 200);
   const offset = input.offset ?? 0;
 
   const { rules, total } = await listNotificationRules({
     userId: scope.userId,
-    projectId: input.project_id,
-    installationId: input.installation_id,
     status: input.status,
     notificationType: input.notification_type,
     limit,
@@ -289,7 +242,7 @@ export async function getNotificationRuleForUser(
   privyUserId: string,
   ruleId: string,
 ): Promise<NotificationRuleRecord> {
-  const scope = await resolveNotificationScope(privyUserId, {});
+  const scope = await resolveNotificationScope(privyUserId);
   const rule = await findNotificationRuleForUser(ruleId, scope.userId);
   if (!rule) {
     throw new AppError(404, "NOTIFICATION_RULE_NOT_FOUND", "Notification rule not found");
@@ -302,21 +255,14 @@ export async function updateNotificationRuleForUser(
   ruleId: string,
   input: UpdateNotificationRuleInput,
 ): Promise<NotificationRuleRecord> {
-  const scope = await resolveNotificationScope(privyUserId, {});
+  const scope = await resolveNotificationScope(privyUserId);
   const existing = await findNotificationRuleForUser(ruleId, scope.userId);
   if (!existing) {
     throw new AppError(404, "NOTIFICATION_RULE_NOT_FOUND", "Notification rule not found");
   }
 
-  let project = null as { id: string; notification_schema?: unknown | null } | null;
-  if (existing.project_id) {
-    const { findProjectByIdForUser } = await import("../projects/project.repository.js");
-    project = await findProjectByIdForUser(existing.project_id, scope.userId);
-  }
-
   const typeDefinition = resolveNotificationTypeDefinition({
     notification_type: existing.notification_type,
-    project,
   });
   if (!typeDefinition) {
     throw new AppError(404, "UNKNOWN_NOTIFICATION_TYPE", "Notification type no longer defined");
@@ -363,7 +309,6 @@ export async function updateNotificationRuleForUser(
       condition: nextCondition,
       schedule: nextSchedule ?? undefined,
       channels: nextChannels,
-      project,
     });
     if (!draftResult.success) {
       assertValidationErrors(draftResult);
@@ -400,21 +345,10 @@ export async function deleteNotificationRuleForUser(
   privyUserId: string,
   ruleId: string,
 ): Promise<{ id: string; status: "deleted" }> {
-  const scope = await resolveNotificationScope(privyUserId, {});
+  const scope = await resolveNotificationScope(privyUserId);
   const deleted = await softDeleteNotificationRule(ruleId, scope.userId);
   if (!deleted) {
     throw new AppError(404, "NOTIFICATION_RULE_NOT_FOUND", "Notification rule not found");
   }
   return { id: deleted.id, status: "deleted" };
-}
-
-export async function getProjectNotificationSchemaForUser(
-  privyUserId: string,
-  projectId: string,
-): Promise<ProjectNotificationSchema | null> {
-  const scope = await resolveNotificationScope(privyUserId, { projectId });
-  if (!scope.project) {
-    throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
-  }
-  return buildProjectNotificationSchema(scope.project);
 }

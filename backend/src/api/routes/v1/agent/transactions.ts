@@ -22,7 +22,7 @@ import {
   approveAgentTransactionForUi,
   refreshAgentTransactionQuoteForUi,
   rejectAgentTransactionForUi,
-} from "../../../../services/projects/app-action-approval.service.js";
+} from "../../../../services/agent-transaction/transaction-approval-ui.service.js";
 import { fail, ok } from "../../../../utils/http-response.js";
 
 export const agentTransactionsRouter = Router();

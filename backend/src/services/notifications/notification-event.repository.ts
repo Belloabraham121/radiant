@@ -12,8 +12,6 @@ import type { NotificationEventPayload } from "./notification-schema.types.js";
 export type CreateNotificationEventInput = {
   userId: bigint;
   ruleId?: string | null;
-  projectId?: string | null;
-  installationId?: string | null;
   notificationType: string;
   title: string;
   body: string;
@@ -43,8 +41,6 @@ export async function createNotificationEvent(
     data: {
       user_id: input.userId,
       rule_id: input.ruleId ?? null,
-      project_id: input.projectId ?? null,
-      installation_id: input.installationId ?? null,
       notification_type: input.notificationType,
       title: input.title,
       body: input.body,

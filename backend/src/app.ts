@@ -20,16 +20,10 @@ import { healthRouter } from "./api/routes/health.js";
 import { chatRouter } from "./api/routes/v1/chat/chat.js";
 import { chatSessionsRouter } from "./api/routes/v1/chat/sessions.js";
 import { privyWebhookRouter } from "./api/routes/v1/webhooks/privy.js";
-import { e2bWebhookRouter } from "./api/routes/v1/webhooks/e2b.js";
 import { notificationsWebhookRouter } from "./api/routes/v1/webhooks/notifications.js";
-import { deployRouter } from "./api/routes/v1/deploy/deploy.js";
-import { projectsRouter } from "./api/routes/v1/projects/projects.js";
-import { appsRouter } from "./api/routes/v1/apps/apps.js";
-import { installationsRouter } from "./api/routes/v1/installations/installations.js";
 import { defiBalanceManagerRouter } from "./api/routes/v1/defi/balance-manager.js";
 import { defiPoolsRouter } from "./api/routes/v1/defi/pools.js";
 import { proxyRouter } from "./api/routes/v1/proxy/proxy.js";
-import { appDataRouter } from "./api/routes/v1/app-data/app-data.js";
 import { notificationsRouter } from "./api/routes/v1/notifications/notifications.js";
 import { createCorsOptions } from "./config/cors.js";
 import { getInngestConfig } from "./config/inngest.js";
@@ -47,11 +41,6 @@ export function createApp() {
     "/api/v1/webhooks/privy",
     express.raw({ type: "application/json" }),
     privyWebhookRouter,
-  );
-  app.use(
-    "/api/v1/webhooks/e2b",
-    express.raw({ type: "application/json" }),
-    e2bWebhookRouter,
   );
   app.use(express.json({ limit: "10mb" }));
   app.use(cookieParser());
@@ -85,12 +74,7 @@ export function createApp() {
   app.use(chatSessionsRouter);
   app.use(defiPoolsRouter);
   app.use(defiBalanceManagerRouter);
-  app.use(deployRouter);
-  app.use(projectsRouter);
-  app.use(appsRouter);
-  app.use(installationsRouter);
   app.use(proxyRouter);
-  app.use(appDataRouter);
   app.use(notificationsRouter);
   app.use(errorHandlerMiddleware);
 

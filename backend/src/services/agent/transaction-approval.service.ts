@@ -19,8 +19,6 @@ import { isDeepBookPredictAction } from "../defi/deepbook/deepbook-predict.servi
 import { isDeepBookSwapAction } from "../defi/deepbook/deepbook-swap.service.js";
 import type { FlashLoanRepaySource } from "../defi/deepbook/deepbook-flash-loan.types.js";
 import type { ExecuteTransactionInput, TxResult } from "../chains/types.js";
-import type { AppActionSource } from "../projects/app-action.types.js";
-import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 import type { PendingTransaction } from "./agent.types.js";
 import type { LiquidityFallbackOffer } from "../defi/cross-chain/cross-chain.types.js";
 import type { StellarRoutingFallbackOffer } from "../defi/stellar-routing/stellar-routing.types.js";
@@ -162,7 +160,7 @@ async function pruneExpired(): Promise<void> {
 export function buildLiquidityFallbackPendingFromOffer(
   input: ExecuteTransactionInput,
   offer: LiquidityFallbackOffer,
-  id = randomUUID(),
+  id: string = randomUUID(),
 ): PendingTransaction {
   const fromSymbol = offer.from_token;
   const toSymbol = offer.to_token;
@@ -188,7 +186,7 @@ export function buildLiquidityFallbackPendingFromOffer(
 export function buildStellarRoutingFallbackPendingFromOffer(
   input: ExecuteTransactionInput,
   offer: StellarRoutingFallbackOffer,
-  id = randomUUID(),
+  id: string = randomUUID(),
 ): PendingTransaction {
   const fromSymbol = offer.token_in;
   const toSymbol = offer.token_out;
@@ -262,7 +260,7 @@ export async function createLiquidityFallbackPendingTransaction(
 export async function buildPendingTransactionPreview(
   privyUserId: string,
   input: ExecuteTransactionInput,
-  id = randomUUID(),
+  id: string = randomUUID(),
 ): Promise<PendingTransaction> {
   const enrichResult = await enrichExecuteInputForApproval(privyUserId, input);
 
@@ -468,35 +466,15 @@ export async function transferRequiresApprovalWithPermissions(
   return usdThresholdRequiresApproval(permissions, input);
 }
 
-export type TransferRequiresApprovalOptions = {
-  pinnedAppScope?: PinnedAppScope | null;
-  /** Artifact POST /actions/* — always in-app confirm; agent auto-approve does not apply. */
-  source?: AppActionSource;
-};
-
-/** True when an action was initiated from the artifact UI and must confirm in-app. */
-export function artifactUiActionRequiresApproval(input: ExecuteTransactionInput): boolean {
-  return isMutatingExecuteAction(input.action);
-}
-
 export async function transferRequiresApproval(
   privyUserId: string,
   input: ExecuteTransactionInput,
-  options: TransferRequiresApprovalOptions = {},
 ): Promise<boolean> {
-  if (options.pinnedAppScope && isDeepBookSwapAction(input.action)) {
-    return true;
-  }
-
   if (isDeepBookProvisionAction(input.action)) {
     const info = await getDeepBookManagerInfo(privyUserId);
     if (info.provisioned) {
       return false;
     }
-  }
-
-  if (options.source === "ui" && artifactUiActionRequiresApproval(input)) {
-    return true;
   }
 
   const permissions = await getAgentPermissions(privyUserId);

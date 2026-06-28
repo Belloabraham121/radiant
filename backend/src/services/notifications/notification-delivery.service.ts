@@ -34,8 +34,6 @@ export type EmitNotificationInput = {
   body: string;
   payload?: NotificationEventPayload;
   idempotencyKey?: string;
-  projectId?: string;
-  installationId?: string;
   channels?: NotificationChannel[];
   /** User-initiated or explicit test delivery — skip hourly cap. */
   bypassRateLimit?: boolean;
@@ -156,8 +154,6 @@ export async function deliverNotification(
     event = await createNotificationEvent({
       userId,
       ruleId: rule?.id ?? null,
-      projectId: input.projectId ?? rule?.project_id ?? null,
-      installationId: input.installationId ?? rule?.installation_id ?? null,
       notificationType: input.notificationType,
       title: input.title,
       body: input.body,
@@ -223,8 +219,6 @@ export async function deliverNotification(
       title: event.title,
       body: event.body,
       payload,
-      project_id: event.project_id,
-      installation_id: event.installation_id,
       rule_id: event.rule_id,
       ts: event.created_at.toISOString(),
     });

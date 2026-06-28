@@ -18,8 +18,6 @@ export type NotificationUserDataExport = {
     status: string;
     trigger_kind: string;
     source: string;
-    project_id: string | null;
-    installation_id: string | null;
     condition: unknown;
     schedule: unknown;
     channels: unknown;
@@ -33,8 +31,6 @@ export type NotificationUserDataExport = {
     title: string;
     body: string;
     payload: unknown;
-    project_id: string | null;
-    installation_id: string | null;
     rule_id: string | null;
     created_at: string;
     deliveries: Array<{
@@ -63,8 +59,6 @@ function serializeRule(rule: NotificationRule): NotificationUserDataExport["rule
     status: rule.status,
     trigger_kind: rule.trigger_kind,
     source: rule.source,
-    project_id: rule.project_id,
-    installation_id: rule.installation_id,
     condition: rule.condition,
     schedule: rule.schedule,
     channels: rule.channels,
@@ -91,8 +85,6 @@ function serializeEvent(
     title: event.title,
     body: event.body,
     payload: event.payload,
-    project_id: event.project_id,
-    installation_id: event.installation_id,
     rule_id: event.rule_id,
     created_at: event.created_at.toISOString(),
     deliveries: event.deliveries.map((delivery) => ({

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
-import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, LayoutGrid, LayoutPanelLeft, Sparkles, Square } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, Sparkles, Square } from "lucide-react";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { AgentMessageMarkdown } from "@/components/app/AgentMessageMarkdown";
@@ -14,15 +14,8 @@ import { isStellarRoutingFallbackPending } from "@/lib/stellar-routing-fallback"
 import { isServerAutoApproveEligible } from "@/lib/auto-approve-pending";
 import { ClarificationBar } from "@/components/app/ClarificationBar";
 import { AgentWorkingIndicator } from "@/components/app/AgentWorkingIndicator";
-import { ChatAppScopePicker, useChatAppScope } from "@/components/app/ChatAppScopePicker";
-import { ChatAgentStreamProvider } from "@/components/app/ChatAgentStreamBridge";
-import { ResizableArtifactPanel } from "@/components/app/ResizableArtifactPanel";
-import { useArtifactSession } from "@/components/app/ArtifactContext";
 import { useChatSession } from "@/hooks/useChatSession";
 import type { ChatMessage, Receipt } from "@/lib/chat-messages";
-import type { ArtifactPayload } from "@/lib/artifact-types";
-import { saveStoredChatAppScope, scopeToChipLabel, type ChatAppScope } from "@/lib/chat-app-scope";
-import { requestArtifactPreviewTab } from "@/lib/artifact-preview-tab";
 import {
   explorerLinkLabelForReceipt,
   explorerUrlForDigest,
@@ -105,48 +98,7 @@ function MessageCopyButton({
   );
 }
 
-function ArtifactViewButton({
-  artifact,
-  onClick,
-  compact = false,
-}: {
-  artifact: ArtifactPayload;
-  onClick: () => void;
-  compact?: boolean;
-}) {
-  const label = compact ? `Open — ${artifact.name}` : `View app — ${artifact.name}`;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        compact
-          ? "inline-flex max-w-[min(100%,14rem)] items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-3 py-1.5 text-xs font-bold text-[var(--hero-ink)] shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
-          : "inline-flex max-w-full items-center gap-2 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-violet)]/10 px-4 py-2 text-sm font-bold text-[var(--hero-ink)] shadow-[3px_3px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
-      }
-    >
-      <LayoutPanelLeft className="size-4 shrink-0 text-[var(--hero-violet)]" strokeWidth={2.5} />
-      <span className="truncate">{label}</span>
-    </button>
-  );
-}
-
-function UserMessageAppScopeChip({ scope }: { scope: ChatAppScope }) {
-  return (
-    <span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border-2 border-[var(--hero-ink)]/25 bg-[var(--hero-amber)]/20 px-3 py-1 text-[11px] font-bold text-[var(--hero-ink)]/75">
-      <LayoutGrid className="size-3 shrink-0" strokeWidth={2.5} />
-      <span className="truncate">{scopeToChipLabel(scope)}</span>
-    </span>
-  );
-}
-
-function Bubble({
-  message,
-  onViewArtifact,
-}: {
-  message: ChatMessage;
-  onViewArtifact?: (artifact: ArtifactPayload) => void;
-}) {
+function Bubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   return (
     <div
@@ -201,9 +153,6 @@ function Bubble({
         </div>
         )}
 
-        {isUser && message.appScope ? (
-          <UserMessageAppScopeChip scope={message.appScope} />
-        ) : null}
 
         {message.receipts && message.receipts.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -216,12 +165,6 @@ function Bubble({
           </div>
         )}
 
-        {message.artifact && !message.streaming ? (
-          <ArtifactViewButton
-            artifact={message.artifact}
-            onClick={() => onViewArtifact?.(message.artifact!)}
-          />
-        ) : null}
 
         <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
           {!message.streaming ? (
@@ -283,7 +226,6 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
     streaming,
     chatError,
     pendingTx,
-    pendingTxRelayedToPreview,
     pendingClarification,
     approving,
     rejecting,
@@ -304,37 +246,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
     dismissClarification,
   } = useChatSession(sessionId, draftResetKey);
 
-  const scopeSessionKey = sessionId ?? activeSessionId;
-  const { scope: appScope, setScope: setAppScope } = useChatAppScope(scopeSessionKey);
 
-  useEffect(() => {
-    saveStoredChatAppScope(scopeSessionKey, appScope);
-  }, [scopeSessionKey, appScope]);
-
-  const artifactKey = scopeSessionKey ?? "new";
-  const {
-    panelOpen,
-    payload: artifactPayload,
-    activePath,
-    streaming: artifactStreaming,
-    setActivePath,
-    closePanel,
-    openArtifact,
-    updateArtifact,
-  } = useArtifactSession(artifactKey);
-
-  const chatColumnClass =
-    panelOpen && artifactPayload ? "mx-auto w-full max-w-none px-0" : CHAT_COL;
-
-  useEffect(() => {
-    if (hydrating || panelOpen || artifactPayload) return;
-    const lastWithArtifact = [...messages]
-      .reverse()
-      .find((message) => message.artifact && !message.streaming);
-    if (lastWithArtifact?.artifact) {
-      openArtifact(lastWithArtifact.artifact);
-    }
-  }, [artifactPayload, hydrating, messages, openArtifact, panelOpen]);
 
   useEffect(() => {
     animatedMessageIdsRef.current.clear();
@@ -454,39 +366,13 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
     stickToBottomRef.current = true;
     setInput("");
     resetInputHeight();
-
-    if (appScope) {
-      requestArtifactPreviewTab();
-      const payload =
-        artifactPayload ??
-        [...messages].reverse().find((message) => message.artifact)?.artifact;
-      if (payload) {
-        if (artifactPayload) {
-          updateArtifact(artifactPayload, { open: true });
-        } else {
-          openArtifact(payload);
-        }
-      }
-    }
-
-    const scopeForSend = appScope;
-    if (scopeForSend) {
-      setAppScope(null);
-      saveStoredChatAppScope(scopeSessionKey, null);
-    }
-
-    void sendMessage(text, scopeForSend);
+    void sendMessage(text);
   };
 
   return (
-    <ChatAgentStreamProvider sessionId={scopeSessionKey ?? undefined}>
-    <div className="flex h-full min-h-0 overflow-hidden">
-      <div
-        ref={ref}
-        className={`flex min-h-0 min-w-0 flex-1 flex-col`}
-      >
+    <div ref={ref} className="flex h-full min-h-0 flex-col">
       <header
-        className={`${chatColumnClass} flex items-center justify-between gap-3 px-6 py-4`}
+        className={`${CHAT_COL} flex items-center justify-between gap-3 px-6 py-4`}
       >
         <div className="flex min-w-0 items-center gap-3">
           <SidebarToggle />
@@ -494,28 +380,19 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
             {title}
           </h1>
         </div>
-        <div className="flex min-w-0 shrink items-center justify-end">
-          {artifactPayload && !panelOpen ? (
-            <ArtifactViewButton
-              artifact={artifactPayload}
-              compact
-              onClick={() => updateArtifact(artifactPayload, { open: true })}
-            />
-          ) : null}
-        </div>
       </header>
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-6 py-8">
         {loadError ? (
           <div
-            className={`${chatColumnClass} flex h-full items-center justify-center`}
+            className={`${CHAT_COL} flex h-full items-center justify-center`}
           >
             <p className="text-center text-sm font-semibold text-[var(--hero-coral)]">
               {loadError}
             </p>
           </div>
         ) : (
-          <div className={`${chatColumnClass} space-y-6`}>
+          <div className={`${CHAT_COL} space-y-6`}>
             {hydrating && messages.length === 0 ? (
               <ChatHydratingIndicator />
             ) : null}
@@ -540,7 +417,6 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
               <Bubble
                 key={message.id}
                 message={message}
-                onViewArtifact={(artifact) => openArtifact(artifact)}
               />
             ))}
 
@@ -571,7 +447,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
       {chatError && !pendingTx ? (
         <p
           role="alert"
-          className={`${chatColumnClass} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
+          className={`${CHAT_COL} px-6 pb-2 text-center text-xs font-semibold text-[var(--hero-coral)]`}
         >
           {chatError}
         </p>
@@ -580,7 +456,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
       <div className="shrink-0 px-6 pb-4">
         {pendingClarification ? (
           <ClarificationBar
-            className={`${chatColumnClass} mb-3`}
+            className={`${CHAT_COL} mb-3`}
             pending={pendingClarification}
             busy={respondingClarification}
             onRespond={(answer) => void respondClarification(answer)}
@@ -590,7 +466,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
 
         {pendingTx && isLiquidityFallbackPending(pendingTx) ? (
           <LiquidityFallbackDialog
-            className={`${chatColumnClass} mb-3`}
+            className={`${CHAT_COL} mb-3`}
             offer={pendingTx.liquidity_fallback_offer}
             busy={acceptingFallback || rejectingFallback}
             error={chatError}
@@ -599,16 +475,16 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
           />
         ) : pendingTx && isStellarRoutingFallbackPending(pendingTx) ? (
           <StellarRoutingFallbackDialog
-            className={`${chatColumnClass} mb-3`}
+            className={`${CHAT_COL} mb-3`}
             offer={pendingTx.stellar_routing_fallback_offer}
             busy={acceptingFallback || rejectingFallback}
             error={chatError}
             onAccept={() => void acceptStellarRoutingFallbackPending()}
             onReject={() => void rejectStellarRoutingFallbackPending()}
           />
-        ) : pendingTx && !isServerAutoApproveEligible(pendingTx) && !pendingTxRelayedToPreview ? (
+        ) : pendingTx && !isServerAutoApproveEligible(pendingTx) ? (
           <TransactionApprovalBar
-            className={`${chatColumnClass} mb-3`}
+            className={`${CHAT_COL} mb-3`}
             pending={pendingTx}
             busy={approving || rejecting}
             refreshingQuote={refreshingQuote}
@@ -621,7 +497,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
 
         <form onSubmit={send}>
           <div
-            className={`${chatColumnClass} flex min-h-[4.5rem] flex-col gap-2 rounded-3xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 pb-3 pt-4 shadow-[3px_3px_0_var(--hero-ink)]`}
+            className={`${CHAT_COL} flex min-h-[4.5rem] flex-col gap-2 rounded-3xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 pb-3 pt-4 shadow-[3px_3px_0_var(--hero-ink)]`}
           >
             <textarea
               ref={inputRef}
@@ -638,15 +514,7 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
               className="max-h-40 min-h-6 w-full resize-none overflow-y-auto bg-transparent text-sm font-semibold leading-5 placeholder:text-[var(--hero-ink)]/35 focus:outline-none"
               disabled={inputDisabled}
             />
-            <div className="flex items-center justify-between gap-2">
-              <ChatAppScopePicker
-                sessionId={scopeSessionKey}
-                input={input}
-                onInputChange={setInput}
-                scope={appScope}
-                onScopeChange={setAppScope}
-                disabled={inputDisabled}
-              />
+            <div className="flex items-center justify-end gap-2">
               {streaming ? (
                 <button
                   type="button"
@@ -669,27 +537,13 @@ export function ChatView({ sessionId, draftResetKey = 0 }: ChatViewProps) {
             </div>
           </div>
           <p
-            className={`${chatColumnClass} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
+            className={`${CHAT_COL} mt-2 text-center text-[11px] font-medium text-[var(--hero-ink)]/35`}
           >
             Radiant signs transactions with your wallet. Big moves always ask
             first.
           </p>
         </form>
       </div>
-      </div>
-
-      {panelOpen && artifactPayload ? (
-        <ResizableArtifactPanel
-          payload={artifactPayload}
-          activePath={activePath}
-          streaming={artifactStreaming}
-          sessionId={sessionId ?? activeSessionId ?? undefined}
-          onActivePathChange={setActivePath}
-          onPayloadChange={(artifact) => updateArtifact(artifact, { open: true })}
-          onClose={closePanel}
-        />
-      ) : null}
     </div>
-    </ChatAgentStreamProvider>
   );
 }

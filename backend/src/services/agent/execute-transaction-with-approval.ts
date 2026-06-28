@@ -81,10 +81,7 @@ export async function runExecuteTransactionToolWithApproval(
     };
 
     if (!approved) {
-      const needsApproval = await transferRequiresApproval(privyUserId, input, {
-        pinnedAppScope: opts.pinnedAppScope,
-        source: opts.source,
-      });
+      const needsApproval = await transferRequiresApproval(privyUserId, input);
       if (needsApproval) {
         const enabledChains = getEnabledChainConfigs().map((config) => config.id);
         await runExecutePreflightHooks(privyUserId, input, enabledChains);

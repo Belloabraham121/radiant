@@ -1,7 +1,6 @@
 import type { ChatMessage, ChatMessageRole, Prisma } from "@prisma/client";
 import { getAgentContextConfig } from "../../config/agent.js";
 import { prisma } from "../../infrastructure/postgres/client.js";
-import type { PinnedAppScope } from "../projects/pinned-app-scope.types.js";
 
 export async function listMessagesBySessionId(sessionId: string): Promise<ChatMessage[]> {
   return prisma.chatMessage.findMany({
@@ -32,7 +31,6 @@ export async function appendMessage(
   role: ChatMessageRole,
   content: string,
   toolCalls?: Prisma.InputJsonValue,
-  appScope?: PinnedAppScope,
 ): Promise<ChatMessage> {
   return prisma.chatMessage.create({
     data: {
@@ -40,7 +38,6 @@ export async function appendMessage(
       role,
       content,
       tool_calls: toolCalls ?? undefined,
-      app_scope: appScope ?? undefined,
     },
   });
 }

@@ -21,19 +21,18 @@ describe("notification presentation", () => {
       {
         title_template: "Alert {{profit_bps}} bps",
         body_template: "{{route_summary}}",
-        deep_link_template: "/app/projects/{{project_id}}/run",
+        deep_link_template: "/app/chat",
       },
       {
         profit_bps: 42,
         route_summary: "SUI_USDC → DEEP_SUI",
-        project_id: "abc",
       },
-      { title: "Fallback", body: "Fallback body" },
+      { title: "Fallback", body: "Fallback body", deep_link: "/app/chat" },
     );
 
     assert.equal(rendered.title, "Alert 42 bps");
     assert.equal(rendered.body, "SUI_USDC → DEEP_SUI");
-    assert.equal(rendered.deep_link, "/app/projects/abc/run");
+    assert.equal(rendered.deep_link, "/app/chat");
   });
 });
 

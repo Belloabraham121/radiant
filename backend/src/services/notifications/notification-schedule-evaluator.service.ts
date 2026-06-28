@@ -16,7 +16,7 @@ function buildScheduleCandidate(
   context: ScheduleRuleEvaluationContext,
   now: Date,
 ): NotificationEmitCandidate {
-  const { rule, typeDefinition, projectId, installationId } = context;
+  const { rule, typeDefinition } = context;
   const schedule = rule.schedule as NotificationSchedule;
   const condition = rule.condition as Record<string, unknown>;
   const message =
@@ -34,15 +34,12 @@ function buildScheduleCandidate(
     {
       label: rule.label ?? typeDefinition.label,
       message: message ?? "",
-      project_id: projectId ?? "",
       ...(condition as Record<string, string | number | undefined | null>),
     },
     { title: fallbackTitle, body: fallbackBody },
   );
 
-  const deepLink =
-    presentation.deep_link ??
-    (projectId ? `/app/projects/${projectId}/run` : undefined);
+  const deepLink = presentation.deep_link ?? "/app/chat";
 
   return {
     rule_id: rule.id,
@@ -57,8 +54,6 @@ function buildScheduleCandidate(
       severity: "info",
     },
     idempotency_key: buildScheduleIdempotencyKey(rule.id, schedule, now),
-    project_id: projectId,
-    installation_id: installationId,
   };
 }
 
@@ -73,8 +68,6 @@ async function emitCandidate(candidate: NotificationEmitCandidate): Promise<{
     body: candidate.body,
     payload: candidate.payload,
     idempotencyKey: candidate.idempotency_key,
-    projectId: candidate.project_id ?? undefined,
-    installationId: candidate.installation_id ?? undefined,
   });
 
   if (result.result?.status === "duplicate") {

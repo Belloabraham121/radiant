@@ -7,39 +7,6 @@ import type {
   ProcessNotificationEventResult,
 } from "./notification-event.types.js";
 import { renderNotificationPresentation } from "./notification-presentation.service.js";
-import {
-  formatNotificationTypeKey,
-  resolveStoredProjectNotificationSchema,
-} from "./notification-schema.service.js";
-import { isPlatformNotificationType } from "./platform-notification-registry.js";
-import { prisma } from "../../infrastructure/postgres/client.js";
-
-async function resolveNotificationTypeKey(input: ProcessNotificationEventInput): Promise<string> {
-  const trimmed = input.notificationType.trim();
-  if (trimmed.includes(".") || isPlatformNotificationType(trimmed)) {
-    return trimmed;
-  }
-
-  if (!input.projectId) {
-    return trimmed;
-  }
-
-  const project = await prisma.project.findUnique({
-    where: { id: input.projectId },
-    select: { id: true, notification_schema: true },
-  });
-
-  if (!project) {
-    return trimmed;
-  }
-
-  const schema = resolveStoredProjectNotificationSchema(project);
-  if (!schema) {
-    return trimmed;
-  }
-
-  return formatNotificationTypeKey(schema.app_id, trimmed);
-}
 
 function buildEventIdempotencyKey(base: string | undefined, ruleId: string, notificationType: string): string {
   if (base) {
@@ -51,13 +18,11 @@ function buildEventIdempotencyKey(base: string | undefined, ruleId: string, noti
 export async function processNotificationEvent(
   input: ProcessNotificationEventInput,
 ): Promise<ProcessNotificationEventResult> {
-  const notificationType = await resolveNotificationTypeKey(input);
+  const notificationType = input.notificationType.trim();
   const eventData = input.data ?? {};
 
   const contexts = await loadEventRuleEvaluationContexts({
     notificationType,
-    projectId: input.projectId ?? null,
-    installationId: input.installationId ?? null,
     ...(input.userId !== undefined ? { userId: input.userId } : {}),
   });
 
@@ -92,7 +57,6 @@ export async function processNotificationEvent(
       {
         label,
         message: message ?? "",
-        project_id: context.projectId ?? "",
         ...eventData,
         ...ruleCondition,
       },
@@ -120,8 +84,6 @@ export async function processNotificationEvent(
           context.rule.id,
           notificationType,
         ),
-        projectId: context.projectId ?? undefined,
-        installationId: context.installationId ?? undefined,
       });
 
       if (result.result?.status === "duplicate") {

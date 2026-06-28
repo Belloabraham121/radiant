@@ -26,7 +26,7 @@ import {
 import type { PartialBridgeIntent } from "./bridge-intent.types.js";
 import { executeResolvedBridgeIntent } from "./bridge-execute.js";
 
-const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [] };
+const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [], originalMessage: "" };
 
 function buildClarificationOutcome(
   question: string,

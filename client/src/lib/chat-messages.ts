@@ -1,9 +1,6 @@
 import type { ApiChatMessage, ChatToolCall } from "@/lib/chat-api";
 import type { AgentChainId } from "@/lib/agent-chains";
-import type { ArtifactPayload } from "@/lib/artifact-types";
-import { parseChatAppScope, type ChatAppScope } from "@/lib/chat-app-scope";
 import type { AgentStatusCategory } from "@/lib/agent-status-category";
-import { extractArtifactFromToolCalls } from "@/lib/extract-artifact";
 import { sanitizeToolErrorMessage } from "@/lib/sanitize-tool-error";
 import {
   mapToolCallsToExecutionSteps,
@@ -29,10 +26,8 @@ export type ChatMessage = {
   id: string;
   role: "user" | "agent";
   text: string;
-  appScope?: ChatAppScope;
   receipts?: Receipt[];
   executionSteps?: ExecutionStep[];
-  artifact?: ArtifactPayload;
   streaming?: boolean;
   statusCategory?: AgentStatusCategory;
   error?: boolean;
@@ -654,27 +649,23 @@ export function mapToolCallsToMessageExtras(
 ): {
   executionSteps?: ExecutionStep[];
   receipts?: Receipt[];
-  artifact?: ArtifactPayload;
 } {
-  const artifact = extractArtifactFromToolCalls(toolCalls);
   const executionSteps = resolveExecutionSteps(toolCalls, streamedSteps);
   const transactionReceipts = resolveTransactionReceipts(
     toolCalls,
     executionSteps,
   );
-  const artifactField = artifact ? { artifact } : {};
 
   if (executionSteps) {
     return {
       executionSteps,
-      ...artifactField,
       ...(transactionReceipts.length > 0
         ? { receipts: transactionReceipts }
         : {}),
     };
   }
   const receipts = mapToolCallsToReceipts(toolCalls);
-  return receipts.length > 0 ? { receipts, ...artifactField } : artifactField;
+  return receipts.length > 0 ? { receipts } : {};
 }
 
 function parseToolCalls(raw: unknown): ChatToolCall[] {
@@ -692,12 +683,10 @@ export function apiMessageToChatMessage(
   message: ApiChatMessage,
 ): ChatMessage | null {
   if (message.role === "user") {
-    const appScope = parseChatAppScope(message.app_scope);
     return {
       id: message.id,
       role: "user",
       text: message.content,
-      ...(appScope ? { appScope } : {}),
     };
   }
 

@@ -2,7 +2,6 @@
 
 import { ChatSessionsProvider } from "@/components/app/ChatSessionsProvider";
 import { ChatSessionActivityProvider } from "@/components/app/ChatSessionActivityProvider";
-import { ArtifactProvider } from "@/components/app/ArtifactContext";
 import { Sidebar } from "@/components/app/Sidebar";
 import { SidebarProvider } from "@/components/app/SidebarContext";
 import { AuthenticatedGate } from "@/components/auth/AuthenticatedGate";
@@ -17,7 +16,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <AuthenticatedGate>
       <ChatSessionsProvider>
         <ChatSessionActivityProvider>
-          <ArtifactProvider>
             <AgentWalletProvider>
               <AppWalletProvider>
                 <SidebarProvider>
@@ -34,7 +32,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </SidebarProvider>
               </AppWalletProvider>
             </AgentWalletProvider>
-          </ArtifactProvider>
         </ChatSessionActivityProvider>
       </ChatSessionsProvider>
     </AuthenticatedGate>

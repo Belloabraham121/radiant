@@ -2,15 +2,6 @@ import { AppError } from "../../../../errors/app-error.js";
 import { getAdapter } from "../../../chains/registry.js";
 import { queryAgentTransactions } from "../../../agent-transaction/agent-transaction.service.js";
 import { getWalletAssetsForPrivyUser } from "../../../wallet/wallet-assets.service.js";
-import { findUserByPrivyId } from "../../../auth/user.repository.js";
-import { findProjectByIdForUser } from "../../../projects/project.repository.js";
-import { buildProjectActionsCatalogResponse } from "../../../projects/app-action-schema.service.js";
-import { buildProjectNotificationSchemaResponse } from "../../../notifications/notification-schema.service.js";
-import {
-  listAppActionsCatalogForPinnedScope,
-  listAppActionsCatalogForSession,
-} from "../../../projects/app-action-catalog.service.js";
-import { resolveAppScope } from "../../../projects/app-scope-resolver.service.js";
 import {
   queryBridgeCapabilities,
   querySupportedChains,
@@ -88,142 +79,6 @@ async function handleBridgeCapabilities(ctx: QueryHandlerContext) {
   });
 }
 
-async function handleProjectOrSessionActions(ctx: QueryHandlerContext) {
-  const useSession = ctx.query === "session_actions";
-  const projectId = ctx.params.project_id as string | undefined;
-  const appName = ctx.params.app_name as string | undefined;
-
-  if (ctx.options?.pinnedAppScope) {
-    return listAppActionsCatalogForPinnedScope(
-      ctx.privyUserId,
-      ctx.options.pinnedAppScope,
-      ctx.options.sessionId,
-    );
-  }
-
-  if (!useSession && projectId) {
-    const user = await findUserByPrivyId(ctx.privyUserId);
-    if (!user) {
-      throw new AppError(404, "USER_NOT_FOUND", "User not found");
-    }
-
-    const project = await findProjectByIdForUser(projectId, user.id);
-    if (!project) {
-      throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
-    }
-
-    return buildProjectActionsCatalogResponse(project);
-  }
-
-  if (!ctx.options?.sessionId) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      useSession
-        ? "session_actions requires an active chat session."
-        : "project_actions requires params.project_id (UUID) or params.app_name with a chat session.",
-    );
-  }
-
-  const scope = await resolveAppScope(ctx.privyUserId, ctx.options.sessionId, {
-    project_id: useSession ? undefined : projectId,
-    app_name: appName,
-    use_session_draft: useSession || (!projectId && !appName),
-  });
-
-  if (scope.kind === "project") {
-    const user = await findUserByPrivyId(ctx.privyUserId);
-    if (!user) {
-      throw new AppError(404, "USER_NOT_FOUND", "User not found");
-    }
-    const project = await findProjectByIdForUser(scope.project_id, user.id);
-    if (!project) {
-      throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
-    }
-    return buildProjectActionsCatalogResponse(project);
-  }
-
-  return listAppActionsCatalogForSession(ctx.privyUserId, scope.session_id);
-}
-
-async function handleProjectNotificationSchema(ctx: QueryHandlerContext) {
-  const projectId = ctx.params.project_id as string | undefined;
-  const appName = ctx.params.app_name as string | undefined;
-
-  if (ctx.options?.pinnedAppScope?.kind === "project") {
-    const user = await findUserByPrivyId(ctx.privyUserId);
-    if (!user) {
-      throw new AppError(404, "USER_NOT_FOUND", "User not found");
-    }
-    const project = await findProjectByIdForUser(
-      ctx.options.pinnedAppScope.project_id,
-      user.id,
-    );
-    if (!project) {
-      throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
-    }
-    return { schema: buildProjectNotificationSchemaResponse(project) };
-  }
-
-  if (ctx.options?.pinnedAppScope?.kind === "installation") {
-    const { findInstallationForUser } = await import("../../../apps/app-installation.repository.js");
-    const user = await findUserByPrivyId(ctx.privyUserId);
-    if (!user) {
-      throw new AppError(404, "USER_NOT_FOUND", "User not found");
-    }
-    const installation = await findInstallationForUser(
-      ctx.options.pinnedAppScope.installation_id,
-      user.id,
-    );
-    if (!installation) {
-      throw new AppError(404, "INSTALLATION_NOT_FOUND", "Installation not found");
-    }
-    return { schema: buildProjectNotificationSchemaResponse(installation.source_project) };
-  }
-
-  if (projectId) {
-    const user = await findUserByPrivyId(ctx.privyUserId);
-    if (!user) {
-      throw new AppError(404, "USER_NOT_FOUND", "User not found");
-    }
-    const project = await findProjectByIdForUser(projectId, user.id);
-    if (!project) {
-      throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
-    }
-    return { schema: buildProjectNotificationSchemaResponse(project) };
-  }
-
-  if (!ctx.options?.sessionId) {
-    throw new AppError(
-      400,
-      "VALIDATION_ERROR",
-      "project_notification_schema requires params.project_id (UUID) or params.app_name with a chat session.",
-    );
-  }
-
-  const scope = await resolveAppScope(ctx.privyUserId, ctx.options.sessionId, {
-    app_name: appName,
-  });
-
-  if (scope.kind !== "project") {
-    throw new AppError(
-      404,
-      "NOTIFICATION_SCHEMA_NOT_FOUND",
-      "Notification schema is only available for saved projects — save the app to Projects first.",
-    );
-  }
-
-  const user = await findUserByPrivyId(ctx.privyUserId);
-  if (!user) {
-    throw new AppError(404, "USER_NOT_FOUND", "User not found");
-  }
-  const project = await findProjectByIdForUser(scope.project_id, user.id);
-  if (!project) {
-    throw new AppError(404, "PROJECT_NOT_FOUND", "Project not found");
-  }
-  return { schema: buildProjectNotificationSchemaResponse(project) };
-}
-
 const CORE_QUERY_HANDLERS: Record<string, ChainQueryHandler> = {
   balance: handleBalance,
   native_balance: handleBalance,
@@ -232,9 +87,6 @@ const CORE_QUERY_HANDLERS: Record<string, ChainQueryHandler> = {
   token_resolve: handleTokenResolve,
   bridge_capabilities: handleBridgeCapabilities,
   supported_chains: async () => querySupportedChains(),
-  project_actions: handleProjectOrSessionActions,
-  session_actions: handleProjectOrSessionActions,
-  project_notification_schema: handleProjectNotificationSchema,
 };
 
 export function isCoreQueryType(query: string): query is (typeof CORE_QUERY_TYPES)[number] {

@@ -7,6 +7,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { ArrowUpRight, Loader2, Search, TrendingUp } from "lucide-react";
 import {
+  AGENTS,
   fmt,
   getAgentReputation,
   makeSeries,
@@ -15,7 +16,6 @@ import {
   type AgentCategory,
   type AgentSort,
 } from "@/lib/explorer-data";
-import { fetchPublicApps, listingToAgent } from "@/lib/apps-api";
 import { Sparkline } from "./Charts";
 import { ReputationBadge } from "./ReputationBadge";
 
@@ -60,49 +60,39 @@ export function AgentGrid() {
     setLoading(true);
     setFetchError(null);
 
-    const apiSort =
-      sort === "newest" || sort === "name"
-        ? sort
-        : sort === "users"
-          ? "installs"
-          : "newest";
+    const filtered =
+      category === "all" ? AGENTS : AGENTS.filter((agent) => agent.category === category);
+    const searched = query.trim()
+      ? filtered.filter(
+          (agent) =>
+            agent.name.toLowerCase().includes(query.trim().toLowerCase()) ||
+            agent.tagline.toLowerCase().includes(query.trim().toLowerCase()),
+        )
+      : filtered;
 
-    void fetchPublicApps({
-      category: category === "all" ? undefined : category,
-      search: query.trim() || undefined,
-      sort: apiSort,
-    })
-      .then((catalog) => {
-        if (cancelled) return;
-        let mapped = catalog.apps.map(listingToAgent);
-        if (sort === "trending") {
-          mapped = [...mapped].sort((a, b) => trendingScore(b) - trendingScore(a));
-        } else if (sort === "reputation") {
-          mapped = [...mapped].sort(
-            (a, b) => getAgentReputation(b).score - getAgentReputation(a).score,
-          );
-        } else if (sort === "volume") {
-          mapped = [...mapped].sort((a, b) => b.volumeSui - a.volumeSui);
-        } else if (sort === "txs") {
-          mapped = [...mapped].sort((a, b) => b.txCount - a.txCount);
-        } else if (sort === "tvl") {
-          mapped = [...mapped].sort((a, b) => b.tvlSui - a.tvlSui);
-        } else if (sort === "users") {
-          mapped = [...mapped].sort((a, b) => b.uses - a.uses);
-        } else if (sort === "name") {
-          mapped = [...mapped].sort((a, b) => a.name.localeCompare(b.name));
-        }
-        setAgents(mapped);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setFetchError(err instanceof Error ? err.message : "Could not load apps");
-          setAgents([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    let mapped = [...searched];
+    if (sort === "trending") {
+      mapped.sort((a, b) => trendingScore(b) - trendingScore(a));
+    } else if (sort === "reputation") {
+      mapped.sort((a, b) => getAgentReputation(b).score - getAgentReputation(a).score);
+    } else if (sort === "volume") {
+      mapped.sort((a, b) => b.volumeSui - a.volumeSui);
+    } else if (sort === "txs") {
+      mapped.sort((a, b) => b.txCount - a.txCount);
+    } else if (sort === "tvl") {
+      mapped.sort((a, b) => b.tvlSui - a.tvlSui);
+    } else if (sort === "users") {
+      mapped.sort((a, b) => b.uses - a.uses);
+    } else if (sort === "newest") {
+      mapped.sort((a, b) => b.deployedAt.localeCompare(a.deployedAt));
+    } else if (sort === "name") {
+      mapped.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    if (!cancelled) {
+      setAgents(mapped);
+      setLoading(false);
+    }
 
     return () => {
       cancelled = true;

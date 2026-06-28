@@ -44,9 +44,7 @@ import {
 import { classifyFlashLoanTurnIntent } from "../deepbook/flash-loan-turn-intent.js";
 import {
   buildReplyAfterToolsNudge,
-  buildReplyFromAppActionToolCalls,
   findLastToolError,
-  hasSuccessfulAppActionResult,
   hasSuccessfulQueryResults,
   shouldNudgeReplyAfterTools,
 } from "../turn-reply-flow.js";
@@ -66,26 +64,18 @@ import {
   synthesizeTurnReply,
 } from "./error-explanation.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
-import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
-import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { FlashLoanBundleQuoteResult } from "../../defi/deepbook/deepbook-flash-loan.types.js";
 import {
   emitAgentStatusCategory,
-  emitArtifactPreview,
   emitExecutionProgress,
   emitReplyClear,
   emitReplyDelta,
   hasExecutionProgressContext,
 } from "../execution-progress-context.js";
 import { resolveCategoryFromTool } from "../agent-status-category.js";
-import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
-import { EDIT_APP_TOOL_NAME } from "../../projects/edit-app.tool.js";
 import { WEB_SEARCH_TOOL_NAME } from "../browsing/web-search.tool.js";
 import { BROWSE_WEBPAGE_TOOL_NAME } from "../browsing/browse-webpage.tool.js";
-import { parsePartialGenerateAppArgs } from "../../projects/parse-partial-generate-app.js";
-import { buildPreviewArtifactPayload } from "../../projects/preview-artifact.js";
-import type { GenerateAppResult } from "../../projects/project.types.js";
 import { streamChatCompletion } from "./openai-stream-completion.js";
 import { openAiMaxOutputTokens } from "./openai-completion-params.js";
 import {
@@ -231,88 +221,6 @@ function emitExecuteProgressFromResult(
   }
 }
 
-function appActionExecuteLabel(action?: string): string {
-  if (action === "swap") {
-    return "Execute swap";
-  }
-  return action ? `Execute ${action.replace(/_/g, " ")}` : "Execute app action";
-}
-
-function emitAppActionProgressFromResult(
-  result: unknown,
-  action?: string,
-): void {
-  if (isAgentToolErrorResult(result)) {
-    emitExecutionProgress({
-      step: {
-        id: "execute",
-        status: "failed",
-        label: appActionExecuteLabel(action),
-        detail: result.error.message,
-      },
-    });
-    return;
-  }
-
-  if (typeof result !== "object" || result === null || !("status" in result)) {
-    return;
-  }
-
-  const outcome = result as AppActionResult;
-  if (outcome.status === "error") {
-    emitExecutionProgress({
-      step: {
-        id: "execute",
-        status: "failed",
-        label: appActionExecuteLabel(action),
-        detail: outcome.error.message,
-      },
-    });
-    return;
-  }
-
-  if (outcome.status === "preview_delegated") {
-    emitExecutionProgress({
-      step: {
-        id: "execute",
-        status: "warning",
-        label: appActionExecuteLabel(action),
-        detail: "Started in app preview — confirm there",
-      },
-    });
-    return;
-  }
-
-  if (outcome.status === "approval_required") {
-    emitAgentStatusCategory("waiting");
-    emitExecutionProgress({
-      step: {
-        id: "execute",
-        status: "warning",
-        label: appActionExecuteLabel(action),
-        detail: "Waiting for your approval in the app",
-        agent_transaction_id: outcome.pending?.id,
-        chain_id: outcome.pending?.chain_id,
-      },
-    });
-    return;
-  }
-
-  if (outcome.status === "executed" && outcome.digest) {
-    emitExecutionProgress({
-      step: {
-        id: "execute",
-        status: "ok",
-        label: appActionExecuteLabel(action),
-        detail: `Broadcast · ${outcome.digest.slice(0, 10)}…`,
-        digest: outcome.digest,
-        chain_id: outcome.result?.chain_id,
-        agent_transaction_id: outcome.agent_transaction_id,
-      },
-    });
-  }
-}
-
 function emitSwapQuoteProgressFromResult(result: unknown): void {
   if (isAgentToolErrorResult(result)) {
     emitExecutionProgress({
@@ -411,8 +319,6 @@ export const openaiRuntime: AgentRuntime = {
           buildSystemPromptInputFromContext({
             memoryBlock: input.memoryBlock,
             agentPermissions: input.agentPermissions,
-            pinnedAppScope: input.pinnedAppScope,
-            artifactContextBlock: input.artifactContextBlock,
             promptContext: {
               ...input.promptContext,
               userMessage: lastUserMessage,
@@ -433,21 +339,6 @@ export const openaiRuntime: AgentRuntime = {
     let lastExecuteInput: ExecuteTransactionInput | null = null;
     const flashLoanTurnIntent = classifyFlashLoanTurnIntent(lastUserMessage);
 
-    let streamingArtifactPreview:
-      | import("../../projects/project.types.js").ArtifactPayload
-      | null = null;
-    let lastStreamedGenerateAppArgsLength = 0;
-
-    const emitGenerateAppPreview = (rawArgs: string, streaming = true) => {
-      const partial = parsePartialGenerateAppArgs(rawArgs);
-      const preview = buildPreviewArtifactPayload(
-        partial,
-        streamingArtifactPreview,
-      );
-      if (!preview) return;
-      streamingArtifactPreview = preview;
-      emitArtifactPreview(preview, streaming);
-    };
 
     for (let step = 0; step < maxToolSteps; step += 1) {
       if (turnTracker.isExhausted) {
@@ -497,30 +388,6 @@ export const openaiRuntime: AgentRuntime = {
                   }
                 }
                 toolCallSeenDuringStream = true;
-
-                if (toolCall.name !== GENERATE_APP_TOOL_NAME) return;
-                if (lastStreamedGenerateAppArgsLength === 0) {
-                  emitExecutionProgress({
-                    step: {
-                      id: "generate-app",
-                      status: "running",
-                      label: "Building app",
-                      detail: "Writing source files…",
-                    },
-                  });
-                }
-                if (
-                  toolCall.arguments.length <= lastStreamedGenerateAppArgsLength
-                )
-                  return;
-                if (
-                  toolCall.arguments.length -
-                    lastStreamedGenerateAppArgsLength <
-                  24
-                )
-                  return;
-                lastStreamedGenerateAppArgsLength = toolCall.arguments.length;
-                emitGenerateAppPreview(toolCall.arguments, true);
               },
             },
           );
@@ -707,28 +574,6 @@ export const openaiRuntime: AgentRuntime = {
           resolveCategoryFromTool(toolCall.function.name, args),
         );
 
-        if (toolCall.function.name === GENERATE_APP_TOOL_NAME) {
-          emitExecutionProgress({
-            step: {
-              id: "generate-app",
-              status: "running",
-              label: "Building app",
-              detail: "Writing source files…",
-            },
-          });
-          emitGenerateAppPreview(toolCall.function.arguments, true);
-        }
-
-        if (toolCall.function.name === EDIT_APP_TOOL_NAME) {
-          emitExecutionProgress({
-            step: {
-              id: "edit-app",
-              status: "running",
-              label: "Editing app",
-              detail: "Applying targeted edits…",
-            },
-          });
-        }
 
         if (toolCall.function.name === WEB_SEARCH_TOOL_NAME) {
           emitExecutionProgress({
@@ -828,10 +673,6 @@ export const openaiRuntime: AgentRuntime = {
                 {
                   sessionId: input.sessionId,
                   flashLoanTurnIntent,
-                  pinnedAppScope: input.pinnedAppScope,
-                  ...(toolCall.function.name === GENERATE_APP_TOOL_NAME
-                    ? { rawArguments: toolCall.function.arguments }
-                    : {}),
                 },
               );
         tool_calls.push({
@@ -844,69 +685,8 @@ export const openaiRuntime: AgentRuntime = {
           typeof args.action === "string"
             ? { action: args.action }
             : {}),
-          ...(toolCall.function.name === CALL_APP_ACTION_TOOL_NAME &&
-          typeof args.action === "string"
-            ? { action: args.action }
-            : {}),
           result,
         });
-
-        if (toolCall.function.name === GENERATE_APP_TOOL_NAME) {
-          if (!isAgentToolErrorResult(result)) {
-            const appResult = result as GenerateAppResult;
-            if (appResult.artifact) {
-              streamingArtifactPreview = appResult.artifact;
-              emitArtifactPreview(appResult.artifact, false);
-            }
-            emitExecutionProgress({
-              step: {
-                id: "generate-app",
-                status: "ok",
-                label: "Building app",
-                detail: `${appResult.files.length} file${appResult.files.length === 1 ? "" : "s"} updated`,
-              },
-            });
-          } else {
-            if (streamingArtifactPreview) {
-              emitArtifactPreview(streamingArtifactPreview, false);
-            }
-            emitExecutionProgress({
-              step: {
-                id: "generate-app",
-                status: "failed",
-                label: "Building app",
-                detail: result.error.message,
-              },
-            });
-          }
-        }
-
-        if (toolCall.function.name === EDIT_APP_TOOL_NAME) {
-          if (!isAgentToolErrorResult(result)) {
-            const appResult = result as GenerateAppResult;
-            if (appResult.artifact) {
-              streamingArtifactPreview = appResult.artifact;
-              emitArtifactPreview(appResult.artifact, false);
-            }
-            emitExecutionProgress({
-              step: {
-                id: "edit-app",
-                status: "ok",
-                label: "Editing app",
-                detail: "Applied edits",
-              },
-            });
-          } else {
-            emitExecutionProgress({
-              step: {
-                id: "edit-app",
-                status: "failed",
-                label: "Editing app",
-                detail: result.error.message,
-              },
-            });
-          }
-        }
 
         if (toolCall.function.name === WEB_SEARCH_TOOL_NAME) {
           const searchResult = result as { results?: unknown[] };
@@ -947,12 +727,6 @@ export const openaiRuntime: AgentRuntime = {
           });
         }
 
-        if (toolCall.function.name === CALL_APP_ACTION_TOOL_NAME) {
-          emitAppActionProgressFromResult(
-            result,
-            typeof args.action === "string" ? args.action : undefined,
-          );
-        }
 
         if (
           batchHasExecute &&
@@ -998,12 +772,6 @@ export const openaiRuntime: AgentRuntime = {
           }
         }
 
-        if (toolCall.function.name === CALL_APP_ACTION_TOOL_NAME) {
-          const outcome = result as AppActionResult;
-          if (outcome.status === "approval_required") {
-            pending_transaction = outcome.pending;
-          }
-        }
 
         messages.push({
           role: "tool",
@@ -1030,12 +798,8 @@ export const openaiRuntime: AgentRuntime = {
       }
 
       if (pending_transaction) {
-        const usedAppAction = tool_calls.some(
-          (call) => call.name === CALL_APP_ACTION_TOOL_NAME,
-        );
-        reply = usedAppAction
-          ? "Confirm the transaction in your app preview."
-          : "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
+        reply =
+          "This transaction needs your approval before I can broadcast it. Review the quote and confirm in the dialog.";
         break;
       }
 
@@ -1097,13 +861,6 @@ export const openaiRuntime: AgentRuntime = {
     }
 
     if (!reply) {
-      const appActionReply = buildReplyFromAppActionToolCalls(tool_calls);
-      if (appActionReply) {
-        reply = appActionReply;
-      }
-    }
-
-    if (!reply) {
       const quote = findLatestFlashLoanQuote(tool_calls);
       if (quote && shouldUseCannedFlashLoanQuoteReply(tool_calls, quote)) {
         reply = formatFlashLoanQuoteReply(quote);
@@ -1122,10 +879,7 @@ export const openaiRuntime: AgentRuntime = {
           } catch (err) {
             throw mapOpenAiError(err);
           }
-        } else if (
-          hasSuccessfulQueryResults(tool_calls) ||
-          hasSuccessfulAppActionResult(tool_calls)
-        ) {
+        } else if (hasSuccessfulQueryResults(tool_calls)) {
           const streamed = streamedReplyAccum.trim();
           if (streamed) {
             reply = streamed;

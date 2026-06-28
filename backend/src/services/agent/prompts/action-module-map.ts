@@ -129,8 +129,6 @@ export const QUERY_TYPE_PROMPT_MODULES: Readonly<Record<string, readonly PromptM
   cross_chain_connections: ["protocol:lifi:env", "protocol:lifi:bridge"],
   cross_chain_status: ["protocol:lifi:env", "protocol:lifi:bridge"],
   stellar_swap_quote: ["protocol:soroswap:env", "protocol:soroswap:swap"],
-  project_actions: ["artifact:build", "artifact:defi-ui"],
-  session_actions: ["artifact:build", "artifact:defi-ui"],
   project_notification_schema: ["platform:notifications"],
 };
 

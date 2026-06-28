@@ -32,8 +32,6 @@ function ensureVapidConfigured(): boolean {
 
 export function resolveNotificationDeepLink(input: {
   payload: NotificationEventPayload;
-  projectId: string | null;
-  installationId: string | null;
 }): string {
   if (input.payload.deep_link) {
     const link = input.payload.deep_link;
@@ -48,15 +46,7 @@ export function resolveNotificationDeepLink(input: {
     return link.startsWith("/") ? link : `/${link}`;
   }
 
-  if (input.installationId) {
-    return `/app/installed/${input.installationId}/run`;
-  }
-
-  if (input.projectId) {
-    return `/app/projects/${input.projectId}/run`;
-  }
-
-  return "/app/projects";
+  return "/app/chat";
 }
 
 function buildPushPayload(input: {
@@ -65,8 +55,6 @@ function buildPushPayload(input: {
 }): string {
   const url = resolveNotificationDeepLink({
     payload: input.payload,
-    projectId: input.event.project_id,
-    installationId: input.event.installation_id,
   });
 
   return JSON.stringify({

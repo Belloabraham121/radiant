@@ -7,7 +7,6 @@ import {
   Activity,
   Bell,
   ChevronsLeft,
-  FolderKanban,
   MessageSquare,
   PanelLeft,
   Plus,
@@ -24,7 +23,6 @@ import { useChatSessionActivity } from "@/components/app/chat-session-activity-c
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { formatSessionTime } from "@/lib/chat-messages";
 import { deleteChatSession, type ChatSessionListItem } from "@/lib/chat-api";
-import { clearStoredChatAppScope } from "@/lib/chat-app-scope";
 import { ApiError } from "@/lib/api";
 import {
   SAMPLE_WORKFLOWS,
@@ -40,7 +38,6 @@ const NAV: Array<{
   planes: Array<"chat" | "canvas">;
 }> = [
   { href: "/app/activity", label: "Activity", Icon: Activity, planes: ["chat"] },
-  { href: "/app/projects", label: "Projects", Icon: FolderKanban, planes: ["chat"] },
   { href: "/app/notifications", label: "Notifications", Icon: Bell, planes: ["chat", "canvas"] },
 ];
 
@@ -86,7 +83,6 @@ export function Sidebar() {
     setDeleteError(null);
     try {
       await deleteChatSession(deleteTarget.id);
-      clearStoredChatAppScope(deleteTarget.id);
       if (activeSessionId === deleteTarget.id) {
         router.push("/app");
       }
@@ -167,10 +163,7 @@ export function Sidebar() {
             const active =
               href === "/app"
                 ? pathname === "/app" || pathname.startsWith("/app/chat/")
-                : href === "/app/projects"
-                  ? pathname.startsWith("/app/projects") ||
-                    pathname.startsWith("/app/installed")
-                  : pathname.startsWith(href);
+                : pathname.startsWith(href);
             const showUnreadBadge = href === "/app/notifications" && unreadCount > 0;
             return (
               <Link

@@ -70,8 +70,6 @@ model User {
   deepbook_balance_manager DeepBookBalanceManager?
   deepbook_margin_supplier_cap DeepBookMarginSupplierCap?
   deepbook_margin_supply_referrals DeepBookMarginSupplyReferral[]
-  projects                 Project[]
-  app_installations        AppInstallation[]
   notification_push_subscriptions NotificationPushSubscription[]
   notification_preference  NotificationPreference?
   notification_rules       NotificationRule[]
@@ -95,8 +93,6 @@ model ChatSession {
 
   messages           ChatMessage[]
   agent_transactions AgentTransaction[]
-  projects           Project[]
-  draft              ChatSessionDraft?
   agent_state        AgentSessionState?
 
   @@index([user_id, updated_at(sort: Desc)])
@@ -119,32 +115,6 @@ model AgentSessionState {
   @@index([updated_at])
 }
 
-model ChatSessionDraft {
-  id         String   @id @default(uuid()) @db.Uuid
-  session_id String   @unique @db.Uuid
-  session    ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  name       String
-  tagline    String   @default("")
-  template   String
-  revision   Int      @default(0)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  files      ChatSessionDraftFile[]
-}
-
-model ChatSessionDraftFile {
-  id         String           @id @default(uuid()) @db.Uuid
-  draft_id   String           @db.Uuid
-  draft      ChatSessionDraft @relation(fields: [draft_id], references: [id], onDelete: Cascade)
-  path       String
-  content    String           @db.Text
-  revision   Int
-  created_at DateTime         @default(now())
-
-  @@unique([draft_id, path, revision])
-  @@index([draft_id, revision])
-}
-
 model ChatMessage {
   id         String          @id @default(uuid()) @db.Uuid
   session_id String          @db.Uuid
@@ -152,7 +122,6 @@ model ChatMessage {
   role       ChatMessageRole
   content    String
   tool_calls         Json?
-  app_scope          Json?
   created_at         DateTime            @default(now())
   agent_transactions AgentTransaction[]
 
@@ -243,119 +212,6 @@ model AgentWallet {
   @@unique([chain_type, address])
 }
 
-enum ProjectStatus {
-  draft
-  building
-  deploying
-  live
-  failed
-}
-
-enum DeployJobStatus {
-  queued
-  running
-  completed
-  failed
-  cancelled
-}
-
-model Project {
-  id                 String        @id @default(uuid()) @db.Uuid
-  user_id            BigInt
-  user               User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  session_id         String?       @db.Uuid
-  session            ChatSession?  @relation(fields: [session_id], references: [id], onDelete: SetNull)
-  name               String
-  tagline            String        @default("")
-  template           String
-  status             ProjectStatus @default(draft)
-  accent             String        @default("#8e5bff")
-  template_params    Json          @default("{}")
-  package_id         String?
-  walrus_url         String?
-  walrus_blob_id     String?
-  registry_object_id String?
-  is_public          Boolean       @default(false)
-  fee_bps            Int           @default(0)
-  category           String        @default("payments")
-  artifact_revision  Int           @default(0)
-  action_schema      Json?
-  notification_schema Json?
-  created_at         DateTime      @default(now())
-  updated_at         DateTime      @updatedAt
-  files              ArtifactFile[]
-  deploy_jobs        DeployJob[]
-  installations      AppInstallation[] @relation("InstallSource")
-
-  @@index([user_id, updated_at(sort: Desc)])
-  @@index([is_public, created_at(sort: Desc)])
-}
-
-model AppInstallation {
-  id                String   @id @default(uuid()) @db.Uuid
-  user_id           BigInt
-  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  source_project_id String   @db.Uuid
-  source_project    Project  @relation("InstallSource", fields: [source_project_id], references: [id], onDelete: Cascade)
-  pinned_revision   Int?
-  installed_at      DateTime @default(now())
-  updated_at        DateTime @updatedAt
-
-  @@unique([user_id, source_project_id])
-  @@index([user_id, installed_at(sort: Desc)])
-  @@index([source_project_id])
-}
-
-model ArtifactFile {
-  id         String   @id @default(uuid()) @db.Uuid
-  project_id String   @db.Uuid
-  project    Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  path       String
-  content    String
-  revision   Int
-  created_at DateTime @default(now())
-
-  @@unique([project_id, path, revision])
-  @@index([project_id, revision])
-}
-
-/// Per-installation app data — personal storage for generated apps (Phase 1: Postgres, Phase 2: Turso).
-model AppData {
-  id              String          @id @default(uuid()) @db.Uuid
-  project_id      String          @db.Uuid
-  installation_id String?         @db.Uuid
-  user_id         BigInt
-  collection      String          @db.VarChar(100)
-  key             String?         @db.VarChar(255)
-  data            Json
-  created_at      DateTime        @default(now())
-  updated_at      DateTime        @updatedAt
-
-  @@unique([project_id, user_id, collection, key])
-  @@index([project_id, user_id, collection, created_at(sort: Desc)])
-  @@index([project_id, installation_id, collection, created_at(sort: Desc)])
-}
-
-model DeployJob {
-  id                  String          @id @default(uuid()) @db.Uuid
-  project_id          String          @db.Uuid
-  project             Project         @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  status              DeployJobStatus @default(queued)
-  provider            String
-  sandbox_id          String?
-  sandbox_seconds     Int?
-  estimated_cost_usd  Decimal?        @db.Decimal(10, 6)
-  logs                String          @default("")
-  error_message       String?
-  artifact_revision   Int
-  started_at          DateTime?
-  finished_at         DateTime?
-  created_at          DateTime        @default(now())
-
-  @@index([project_id, created_at(sort: Desc)])
-  @@index([status])
-}
-
 enum NotificationChannelType {
   in_app
   web_push
@@ -372,7 +228,6 @@ enum NotificationRuleStatus {
 enum NotificationRuleSource {
   user
   agent
-  app
   system
 }
 
@@ -421,8 +276,6 @@ model NotificationRule {
   id                String                   @id @default(uuid()) @db.Uuid
   user_id           BigInt
   user              User                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  project_id        String?                  @db.Uuid
-  installation_id   String?                  @db.Uuid
   source            NotificationRuleSource
   session_id        String?                  @db.Uuid
   label             String?                  @db.VarChar(120)
@@ -442,8 +295,6 @@ model NotificationRule {
   events            NotificationEvent[]
 
   @@index([user_id, status])
-  @@index([project_id, notification_type, status])
-  @@index([installation_id, status])
   @@index([notification_type, status, trigger_kind])
 }
 
@@ -453,8 +304,6 @@ model NotificationEvent {
   user              User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
   rule_id           String?           @db.Uuid
   rule              NotificationRule? @relation(fields: [rule_id], references: [id], onDelete: SetNull)
-  project_id        String?           @db.Uuid
-  installation_id   String?           @db.Uuid
   notification_type String            @db.VarChar(120)
   title             String
   body              String            @db.Text

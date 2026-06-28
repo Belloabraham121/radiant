@@ -13,8 +13,6 @@ export type NotificationEventRecord = {
     rule_id?: string;
     severity?: "info" | "warning" | "critical";
   };
-  project_id: string | null;
-  installation_id: string | null;
   rule_id: string | null;
   created_at: string;
   unread: boolean;
@@ -39,17 +37,6 @@ export type NotificationPreferences = {
   max_per_hour: number;
   default_channels: NotificationChannel[];
   updated_at: string;
-};
-
-export type ProjectNotificationSchema = {
-  schema_version: number;
-  app_id: string;
-  types: Array<{
-    type: string;
-    label: string;
-    description?: string;
-    trigger_kind: string;
-  }>;
 };
 
 export type PushConfig = {
@@ -227,14 +214,10 @@ export async function patchNotificationPreferences(
 }
 
 export async function listNotificationRules(options: {
-  project_id?: string;
-  installation_id?: string;
   status?: string;
   limit?: number;
 } = {}): Promise<{ rules: NotificationRuleRecord[]; total: number }> {
   const qs = new URLSearchParams();
-  if (options.project_id) qs.set("project_id", options.project_id);
-  if (options.installation_id) qs.set("installation_id", options.installation_id);
   if (options.status) qs.set("status", options.status);
   if (options.limit) qs.set("limit", String(options.limit));
   const query = qs.toString();
@@ -250,25 +233,11 @@ export async function deleteNotificationRule(ruleId: string): Promise<{ deleted:
   );
 }
 
-export async function fetchProjectNotificationSchema(
-  projectId: string,
-): Promise<{ schema: ProjectNotificationSchema | null }> {
-  return apiFetch<{ schema: ProjectNotificationSchema | null }>(
-    `/api/v1/projects/${encodeURIComponent(projectId)}/notifications/schema`,
-  );
-}
-
 export function resolveNotificationDeepLink(event: NotificationEventRecord): string | null {
   if (event.payload?.deep_link) {
     return event.payload.deep_link;
   }
-  if (event.installation_id) {
-    return `/app/installed/${event.installation_id}/run`;
-  }
-  if (event.project_id) {
-    return `/app/projects/${event.project_id}/run`;
-  }
-  return null;
+  return "/app/chat";
 }
 
 export function formatNotificationTime(iso: string): string {
