@@ -4,8 +4,6 @@ import {
   hasFlashLoanExecutionAttempt,
 } from "./deepbook/flash-loan-approval-flow.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "./execute-transaction.tool.js";
-import { CALL_APP_ACTION_TOOL_NAME } from "../projects/call-app-action.tool.js";
-import type { AppActionResult } from "../projects/app-action.types.js";
 import { QUERY_CHAIN_TOOL_NAME } from "./query-chain.tool.js";
 import type { AgentToolErrorResult } from "./tools.js";
 
@@ -57,26 +55,18 @@ function isPendingOrExecutedOutcome(result: unknown): boolean {
     return false;
   }
   const outcome = result as { status?: string };
-  return (
-    outcome.status === "approval_required" ||
-    outcome.status === "executed" ||
-    outcome.status === "preview_delegated"
-  );
+  return outcome.status === "approval_required" || outcome.status === "executed";
 }
 
 function hasPendingOrExecutedTransaction(toolCalls: ToolCallRecord[]): boolean {
   return toolCalls.some((call) => {
-    if (
-      call.name === EXECUTE_TRANSACTION_TOOL_NAME ||
-      call.name === CALL_APP_ACTION_TOOL_NAME
-    ) {
+    if (call.name === EXECUTE_TRANSACTION_TOOL_NAME) {
       return isPendingOrExecutedOutcome(call.result);
     }
     return false;
   });
 }
 
-/** Model fetched data but returned no assistant text — prompt a reply without guessing user intent. */
 export function shouldNudgeReplyAfterTools(
   toolCalls: ToolCallRecord[],
   assistantContent?: string | null,
@@ -117,68 +107,6 @@ export function findLastToolError(
     ) {
       return { name: call.name, result: call.result as AgentToolErrorResult };
     }
-    if (call.name === CALL_APP_ACTION_TOOL_NAME) {
-      const outcome = call.result as AppActionResult;
-      if (outcome?.status === "error") {
-        return {
-          name: call.name,
-          result: { error: outcome.error },
-        };
-      }
-    }
-  }
-  return null;
-}
-
-export function findLatestAppActionResult(
-  toolCalls: ToolCallRecord[],
-): { action?: string; result: AppActionResult } | null {
-  for (let i = toolCalls.length - 1; i >= 0; i -= 1) {
-    const call = toolCalls[i];
-    if (call.name !== CALL_APP_ACTION_TOOL_NAME) {
-      continue;
-    }
-    const result = call.result;
-    if (typeof result === "object" && result !== null && "status" in result) {
-      return { action: call.action, result: result as AppActionResult };
-    }
-  }
-  return null;
-}
-
-export function hasSuccessfulAppActionResult(toolCalls: ToolCallRecord[]): boolean {
-  return toolCalls.some((call) => {
-    if (call.name !== CALL_APP_ACTION_TOOL_NAME) {
-      return false;
-    }
-    const result = call.result as AppActionResult | undefined;
-    return (
-      result?.status === "executed" ||
-      result?.status === "approval_required" ||
-      result?.status === "preview_delegated"
-    );
-  });
-}
-
-export function buildReplyFromAppActionToolCalls(toolCalls: ToolCallRecord[]): string | null {
-  const latest = findLatestAppActionResult(toolCalls);
-  if (!latest) {
-    return null;
-  }
-
-  const { result } = latest;
-  if (result.status === "preview_delegated") {
-    return result.message;
-  }
-  if (result.status === "approval_required") {
-    return "Confirm the transaction in your app preview.";
-  }
-  if (result.status === "executed") {
-    const action = latest.action ?? result.action;
-    return `${action} completed in your app — digest ${result.digest}.`;
-  }
-  if (result.status === "error") {
-    return result.error.message;
   }
   return null;
 }

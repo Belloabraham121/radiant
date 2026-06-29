@@ -5,7 +5,6 @@ import type { TxResult } from "../../chains/types.js";
 import type { StepDependency } from "../intent/step-dependency.js";
 import type { ClarificationGap, PendingClarification } from "./clarification.types.js";
 import type { WorkflowLedgerEntry } from "./workflow-ledger.js";
-import type { AppActionName } from "../../projects/app-action.types.js";
 
 type WorkflowStepBase = {
   depends_on?: StepDependency;
@@ -23,12 +22,6 @@ export type WorkflowExecuteStep = WorkflowStepBase & {
   input: ExecuteTransactionInput;
 };
 
-export type WorkflowBuildStep = WorkflowStepBase & {
-  kind: "build";
-  label: string;
-  instruction: string;
-};
-
 /** Fallback when planner cannot map a segment to a concrete tool input. */
 export type WorkflowAgentStep = WorkflowStepBase & {
   kind: "agent";
@@ -36,23 +29,10 @@ export type WorkflowAgentStep = WorkflowStepBase & {
   instruction: string;
 };
 
-/** Execute a saved or installed app action via call_app_action (Phase 7.3). */
-export type WorkflowAppActionStep = WorkflowStepBase & {
-  kind: "app_action";
-  label: string;
-  project_id?: string;
-  installation_id?: string;
-  app_name?: string;
-  action: AppActionName;
-  params: Record<string, unknown>;
-};
-
 export type WorkflowStep =
   | WorkflowQueryStep
   | WorkflowExecuteStep
-  | WorkflowBuildStep
-  | WorkflowAgentStep
-  | WorkflowAppActionStep;
+  | WorkflowAgentStep;
 
 export type WorkflowPlan = {
   originalMessage: string;
@@ -68,13 +48,6 @@ export type CompletedWorkflowStep = {
   skip_reason?: string;
 };
 
-export type SessionWorkflowStatus =
-  | "active"
-  | "paused_approval"
-  | "paused_clarification"
-  | "completed"
-  | "failed";
-
 export type SessionWorkflowState = {
   sessionId: string;
   plan: WorkflowPlan;
@@ -87,6 +60,13 @@ export type SessionWorkflowState = {
   failureMessage?: string;
   createdAt: number;
 };
+
+export type SessionWorkflowStatus =
+  | "active"
+  | "paused_approval"
+  | "paused_clarification"
+  | "completed"
+  | "failed";
 
 export type WorkflowStepOutcome =
   | {
@@ -116,3 +96,5 @@ export type WorkflowRunOutcome = {
   pending_clarification: PendingClarification | null;
   workflowCompleted: boolean;
 };
+
+export type { ClarificationGap, PendingClarification };

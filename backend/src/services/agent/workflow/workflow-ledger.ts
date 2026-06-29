@@ -2,9 +2,7 @@ import type { DeepBookSwapQuoteResult } from "../../defi/deepbook/deepbook-swap.
 import type { TxResult } from "../../chains/types.js";
 import type { ToolCallRecord } from "../agent.types.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
-import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
-import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
 import type { PlanSlot } from "./planner.types.js";
 
@@ -34,17 +32,6 @@ function isExecuteOutcome(result: unknown): result is ExecuteToolOutcome {
     "status" in result &&
     ((result as ExecuteToolOutcome).status === "executed" ||
       (result as ExecuteToolOutcome).status === "approval_required")
-  );
-}
-
-function isAppActionOutcome(result: unknown): result is AppActionResult {
-  return (
-    typeof result === "object" &&
-    result !== null &&
-    "status" in result &&
-    ((result as AppActionResult).status === "executed" ||
-      (result as AppActionResult).status === "approval_required" ||
-      (result as AppActionResult).status === "preview_delegated")
   );
 }
 
@@ -78,19 +65,12 @@ export function ledgerEntryFromToolCalls(
     entry.output_amount_est = quoteCall.result.output_amount_display;
   }
 
-  const executeCall =
-    tool_calls.find((call) => call.name === EXECUTE_TRANSACTION_TOOL_NAME) ??
-    tool_calls.find((call) => call.name === CALL_APP_ACTION_TOOL_NAME);
+  const executeCall = tool_calls.find((call) => call.name === EXECUTE_TRANSACTION_TOOL_NAME);
 
-  if (executeCall && (isExecuteOutcome(executeCall.result) || isAppActionOutcome(executeCall.result))) {
+  if (executeCall && isExecuteOutcome(executeCall.result)) {
     let execParams: Record<string, unknown> = params;
-    if (isExecuteOutcome(executeCall.result) && executeCall.result.status === "approval_required") {
+    if (executeCall.result.status === "approval_required") {
       execParams = executeCall.result.pending.params;
-    } else {
-      const appResult = executeCall.result as AppActionResult;
-      if (appResult.status === "approval_required") {
-        execParams = appResult.pending.params;
-      }
     }
 
     if (action === "swap") {

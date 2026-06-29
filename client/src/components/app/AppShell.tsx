@@ -2,7 +2,6 @@
 
 import { ChatSessionsProvider } from "@/components/app/ChatSessionsProvider";
 import { ChatSessionActivityProvider } from "@/components/app/ChatSessionActivityProvider";
-import { ArtifactProvider } from "@/components/app/ArtifactContext";
 import { Sidebar } from "@/components/app/Sidebar";
 import { SidebarProvider } from "@/components/app/SidebarContext";
 import { AuthenticatedGate } from "@/components/auth/AuthenticatedGate";
@@ -11,32 +10,42 @@ import { AppWalletProvider } from "@/components/wallet/AppWalletProvider";
 import { NotificationServiceWorkerRegistrar } from "@/components/app/NotificationServiceWorkerRegistrar";
 import { NotificationProvider } from "@/components/app/NotificationProvider";
 import { NotificationToaster } from "@/components/app/NotificationToaster";
+import { FeatureFlagsProvider } from "@/lib/feature-flags-context";
+import { useUserProfile } from "@/hooks/useUserProfile";
+
+function AppShellContent({ children }: { children: React.ReactNode }) {
+  const { features, featuresLoaded } = useUserProfile();
+
+  return (
+    <FeatureFlagsProvider features={features} loaded={featuresLoaded}>
+      <ChatSessionsProvider>
+        <ChatSessionActivityProvider>
+          <AgentWalletProvider>
+            <AppWalletProvider>
+              <SidebarProvider>
+                <NotificationProvider>
+                  <NotificationServiceWorkerRegistrar />
+                  <NotificationToaster />
+                  <div className="flex h-screen overflow-hidden bg-[var(--hero-bg)] text-[var(--hero-ink)]">
+                    <Sidebar />
+                    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+                      {children}
+                    </main>
+                  </div>
+                </NotificationProvider>
+              </SidebarProvider>
+            </AppWalletProvider>
+          </AgentWalletProvider>
+        </ChatSessionActivityProvider>
+      </ChatSessionsProvider>
+    </FeatureFlagsProvider>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthenticatedGate>
-      <ChatSessionsProvider>
-        <ChatSessionActivityProvider>
-          <ArtifactProvider>
-            <AgentWalletProvider>
-              <AppWalletProvider>
-                <SidebarProvider>
-                  <NotificationProvider>
-                    <NotificationServiceWorkerRegistrar />
-                    <NotificationToaster />
-                    <div className="flex h-screen overflow-hidden bg-[var(--hero-bg)] text-[var(--hero-ink)]">
-                      <Sidebar />
-                      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
-                        {children}
-                      </main>
-                    </div>
-                  </NotificationProvider>
-                </SidebarProvider>
-              </AppWalletProvider>
-            </AgentWalletProvider>
-          </ArtifactProvider>
-        </ChatSessionActivityProvider>
-      </ChatSessionsProvider>
+      <AppShellContent>{children}</AppShellContent>
     </AuthenticatedGate>
   );
 }

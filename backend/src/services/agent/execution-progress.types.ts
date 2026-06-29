@@ -1,5 +1,4 @@
 import type { ChatResponse } from "./agent.types.js";
-import type { ArtifactPayload } from "../projects/project.types.js";
 import type { AgentStatusCategory } from "./agent-status-category.js";
 
 export type ExecutionStepStatus =
@@ -51,7 +50,6 @@ export type ChatStreamSender = (
   event:
     | "step"
     | "status"
-    | "artifact"
     | "reply"
     | "reply_clear"
     | "session"
@@ -60,7 +58,6 @@ export type ChatStreamSender = (
   data:
     | ExecutionProgressEvent
     | AgentStatusEvent
-    | { artifact: ArtifactPayload; streaming: boolean }
     | { delta: string }
     | { session_id: string }
     | ChatStreamDoneEvent

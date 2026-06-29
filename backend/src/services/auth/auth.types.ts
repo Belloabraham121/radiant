@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { FeatureFlags } from "../../config/features.js";
 import type { AgentPermissions } from "../agent/agent-permissions.types.js";
 import type { ChainId } from "../chains/types.js";
 
@@ -30,6 +31,7 @@ export type AuthMeData = {
   agent_wallet: AuthMeAgentWallet | null;
   agent_wallets: AuthMeAgentWallet[];
   agent_permissions: AgentPermissions;
+  features: FeatureFlags;
 };
 
 export const logoutBodySchema = z.object({}).optional();

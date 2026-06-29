@@ -4,15 +4,11 @@ import type { NotificationTypeDefinition } from "./notification-schema.types.js"
 export type EventRuleEvaluationContext = {
   rule: NotificationRule;
   typeDefinition: NotificationTypeDefinition;
-  projectId: string | null;
-  installationId: string | null;
 };
 
 export type ProcessNotificationEventInput = {
   notificationType: string;
-  data: Record<string, unknown>;
-  projectId?: string;
-  installationId?: string;
+  data?: Record<string, unknown>;
   userId?: bigint;
   idempotencyKey?: string;
   title?: string;

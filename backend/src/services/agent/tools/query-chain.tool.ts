@@ -23,7 +23,7 @@ export const queryChainToolDefinition = buildQueryChainToolDefinition(
 export async function runQueryChainTool(
   privyUserId: string,
   input: QueryChainInput,
-  options?: Pick<AgentToolOptions, "flashLoanTurnIntent" | "sessionId" | "pinnedAppScope">,
+  options?: Pick<AgentToolOptions, "flashLoanTurnIntent" | "sessionId">,
 ): Promise<QueryChainResult> {
   const parsed = queryChainInputSchema.parse(input);
   const wallet = await resolveAgentWalletByPrivyUserId(

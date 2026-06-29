@@ -54,7 +54,7 @@ import {
   executeResolvedSquidSwapIntent,
 } from "./squid-execute.js";
 
-const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [] };
+const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [], originalMessage: "" };
 
 function bridgeIntentToSwapIntent(intent: PartialBridgeIntent): PartialSwapIntent {
   return {

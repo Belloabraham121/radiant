@@ -7,7 +7,6 @@ import {
   createNotificationRuleForUser,
   deleteNotificationRuleForUser,
   getNotificationRuleForUser,
-  getProjectNotificationSchemaForUser,
   listNotificationRulesForUser,
   updateNotificationRuleForUser,
 } from "../../../../services/notifications/notification-rule.service.js";
@@ -74,8 +73,6 @@ const updateRuleBodySchema = z.object({
 });
 
 const listRulesQuerySchema = z.object({
-  project_id: z.string().uuid().optional(),
-  installation_id: z.string().uuid().optional(),
   status: z.enum(["active", "paused", "expired", "deleted"]).optional(),
   notification_type: z.string().max(120).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -107,8 +104,6 @@ const emitNotificationBodySchema = z
     body: z.string().min(1).max(5000),
     payload: z.record(z.string(), z.unknown()).optional(),
     idempotency_key: z.string().min(1).max(200).optional(),
-    project_id: z.string().uuid().optional(),
-    installation_id: z.string().uuid().optional(),
     channels: z.array(notificationChannelSchema).min(1).optional(),
   })
   .refine((body) => body.user_id != null || body.privy_user_id != null, {
@@ -118,8 +113,6 @@ const emitNotificationBodySchema = z
 const notificationEventIngressBodySchema = z.object({
   notification_type: z.string().min(1).max(120),
   data: z.record(z.string(), z.unknown()).default({}),
-  project_id: z.string().uuid().optional(),
-  installation_id: z.string().uuid().optional(),
   user_id: z.string().regex(/^\d+$/).optional(),
   idempotency_key: z.string().min(1).max(200).optional(),
   title: z.string().min(1).max(500).optional(),
@@ -325,8 +318,6 @@ notificationsRouter.post(
         body: body.body,
         ...(body.payload ? { payload: body.payload } : {}),
         ...(body.idempotency_key ? { idempotencyKey: body.idempotency_key } : {}),
-        ...(body.project_id ? { projectId: body.project_id } : {}),
-        ...(body.installation_id ? { installationId: body.installation_id } : {}),
         ...(body.channels ? { channels: body.channels } : {}),
       });
       return ok(req, res, result);
@@ -344,9 +335,7 @@ notificationsRouter.post(
       const body = parseBody(notificationEventIngressBodySchema, req.body);
       const result = await processNotificationEvent({
         notificationType: body.notification_type,
-        data: body.data,
-        ...(body.project_id ? { projectId: body.project_id } : {}),
-        ...(body.installation_id ? { installationId: body.installation_id } : {}),
+        data: body.data ?? {},
         ...(body.user_id ? { userId: BigInt(body.user_id) } : {}),
         ...(body.idempotency_key ? { idempotencyKey: body.idempotency_key } : {}),
         ...(body.title ? { title: body.title } : {}),
@@ -385,7 +374,7 @@ notificationsRouter.get("/api/v1/notifications/rules", requireAuth, async (req, 
 notificationsRouter.post("/api/v1/notifications/rules", requireAuth, async (req, res, next) => {
   try {
     const body = parseBody(createRuleBodySchema, req.body);
-    const rule = await createNotificationRuleForUser(req.user.privyUserId, {}, body, {
+    const rule = await createNotificationRuleForUser(req.user.privyUserId, body, {
       source: "user",
     });
     return ok(req, res, rule);
@@ -421,88 +410,3 @@ notificationsRouter.delete("/api/v1/notifications/rules/:ruleId", requireAuth, a
     return next(err);
   }
 });
-
-notificationsRouter.get(
-  "/api/v1/projects/:projectId/notifications/schema",
-  requireAuth,
-  async (req, res, next) => {
-    try {
-      const schema = await getProjectNotificationSchemaForUser(req.user.privyUserId, req.params.projectId);
-      return ok(req, res, { schema });
-    } catch (err) {
-      return next(err);
-    }
-  },
-);
-
-notificationsRouter.get(
-  "/api/v1/projects/:projectId/notifications/rules",
-  requireAuth,
-  async (req, res, next) => {
-    try {
-      const query = parseQuery(listRulesQuerySchema, req.query);
-      const data = await listNotificationRulesForUser(req.user.privyUserId, {
-        ...query,
-        project_id: req.params.projectId,
-      });
-      return ok(req, res, data);
-    } catch (err) {
-      return next(err);
-    }
-  },
-);
-
-notificationsRouter.post(
-  "/api/v1/projects/:projectId/notifications/rules",
-  requireAuth,
-  async (req, res, next) => {
-    try {
-      const body = parseBody(createRuleBodySchema, req.body);
-      const rule = await createNotificationRuleForUser(
-        req.user.privyUserId,
-        { projectId: req.params.projectId },
-        body,
-        { source: "app" },
-      );
-      return ok(req, res, rule);
-    } catch (err) {
-      return next(err);
-    }
-  },
-);
-
-notificationsRouter.get(
-  "/api/v1/installations/:installationId/notifications/rules",
-  requireAuth,
-  async (req, res, next) => {
-    try {
-      const query = parseQuery(listRulesQuerySchema, req.query);
-      const data = await listNotificationRulesForUser(req.user.privyUserId, {
-        ...query,
-        installation_id: req.params.installationId,
-      });
-      return ok(req, res, data);
-    } catch (err) {
-      return next(err);
-    }
-  },
-);
-
-notificationsRouter.post(
-  "/api/v1/installations/:installationId/notifications/rules",
-  requireAuth,
-  async (req, res, next) => {
-    try {
-      const body = parseBody(createRuleBodySchema, req.body);
-      const rule = await createNotificationRuleForUser(
-        req.user.privyUserId,
-        { installationId: req.params.installationId },
-        body,
-        { source: "app" },
-      );
-      return ok(req, res, rule);
-    } catch (err) {
-      return next(err);
-    }
-  },
-);

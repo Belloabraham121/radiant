@@ -27,8 +27,6 @@ export async function enqueueNotificationEmit(
       body: input.body,
       ...(input.payload ? { payload: input.payload } : {}),
       ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
-      ...(input.projectId ? { projectId: input.projectId } : {}),
-      ...(input.installationId ? { installationId: input.installationId } : {}),
       ...(input.channels ? { channels: input.channels } : {}),
     },
     ...(input.idempotencyKey ? { id: `notification-${input.idempotencyKey}` } : {}),

@@ -75,17 +75,8 @@ import {
 } from "@/lib/chat-session-cache";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useChatSessionActivity } from "@/components/app/chat-session-activity-context";
-import { useArtifactContext } from "@/components/app/ArtifactContext";
-import type { ChatAppScope } from "@/lib/chat-app-scope";
 import type { AgentStatusCategory } from "@/lib/agent-status-category";
 import { inferStatusCategoryFromStep } from "@/lib/agent-status-category";
-import {
-  subscribePreviewApprovalResolution,
-} from "@/lib/preview-approval-relay";
-import {
-  previewExecuteResultToPending,
-  subscribePreviewExecuteResult,
-} from "@/lib/preview-execute-result";
 import { clarificationAnswerDisplayText } from "@/lib/clarification-display";
 import { isChatSessionBusy } from "@/lib/chat-session-busy";
 import { isServerAutoApproveEligible } from "@/lib/auto-approve-pending";
@@ -149,13 +140,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
   const router = useRouter();
   const { refreshSessions } = useChatSessions();
   const { setSessionBusy } = useChatSessionActivity();
-  const {
-    openArtifact,
-    updateArtifact,
-    setArtifactStreaming,
-    migrateArtifactSession,
-    closePanel,
-  } = useArtifactContext();
   const [boot] = useState(() => initialChatSessionState(sessionId));
 
   const [messages, setMessages] = useState<ChatMessage[]>(boot.messages);
@@ -177,8 +161,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
   const [acceptingFallback, setAcceptingFallback] = useState(false);
   const [rejectingFallback, setRejectingFallback] = useState(false);
   const [respondingClarification, setRespondingClarification] = useState(false);
-  const [pendingTxRelayedToPreview, setPendingTxRelayedToPreview] =
-    useState(false);
   const streamAbortRef = useRef<AbortController | null>(null);
   const autoApproveTxIdRef = useRef<string | null>(null);
   const pendingTxRef = useRef<PendingTransaction | null>(boot.pending_transaction);
@@ -219,26 +201,8 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
   }, [activeSessionId, sessionBusy, setSessionBusy]);
 
   const applyPendingTransaction = useCallback(
-    (
-      pending: PendingTransaction | null,
-      sessionKey?: string,
-      options?: { fromPreview?: boolean },
-    ) => {
+    (pending: PendingTransaction | null, _sessionKey?: string) => {
       setPendingTx(pending);
-      if (!pending) {
-        setPendingTxRelayedToPreview(false);
-        return;
-      }
-
-      if (options?.fromPreview) {
-        // The preview iframe already shows its own in-app approval modal —
-        // mark as relayed so the chat hides its approval bar.
-        setPendingTxRelayedToPreview(true);
-      } else {
-        // Chat-initiated transaction (execute_transaction / call_app_action) —
-        // approval stays in the chat bar; never relay to the preview iframe.
-        setPendingTxRelayedToPreview(false);
-      }
     },
     [],
   );
@@ -262,9 +226,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     setAcceptingFallback(false);
     setRejectingFallback(false);
     setRespondingClarification(false);
-    setPendingTxRelayedToPreview(false);
-    closePanel("new");
-  }, [applyPendingTransaction, closePanel]);
+  }, [applyPendingTransaction]);
 
   useEffect(() => {
     if (sessionId) {
@@ -307,88 +269,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     [applyPendingTransaction],
   );
 
-  useEffect(() => {
-    return subscribePreviewApprovalResolution((message) => {
-      setPendingTx((current) =>
-        current?.id === message.pendingId ? null : current,
-      );
-      setPendingTxRelayedToPreview(false);
-
-      if (message.status === "executed" && message.digest) {
-        setMessages((current) => {
-          const agentIndex = [...current]
-            .reverse()
-            .findIndex((m) => m.role === "agent");
-          if (agentIndex === -1) return current;
-          const index = current.length - 1 - agentIndex;
-          const messageRow = current[index];
-          if (!messageRow) return current;
-
-          const nextStep = executionStepFromPreviewResult({
-            action: "swap",
-            status: "executed",
-            digest: message.digest,
-          });
-          const executionSteps = sortExecutionSteps(
-            upsertExecutionStep(messageRow.executionSteps ?? [], nextStep),
-          );
-          const digestReceipt = receiptFromExecutionStep(nextStep);
-
-          return current.map((row, i) =>
-            i === index
-              ? {
-                  ...row,
-                  executionSteps,
-                  ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
-                }
-              : row,
-          );
-        });
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    return subscribePreviewExecuteResult((message) => {
-      const pending = previewExecuteResultToPending(message);
-      if (pending) {
-        applyPendingTransaction(pending, activeSessionId ?? sessionId, {
-          fromPreview: true,
-        });
-      }
-
-      setMessages((current) => {
-        const agentIndex = [...current]
-          .reverse()
-          .findIndex((m) => m.role === "agent");
-        if (agentIndex === -1) return current;
-        const index = current.length - 1 - agentIndex;
-        const messageRow = current[index];
-        if (!messageRow) return current;
-
-        const nextStep = executionStepFromPreviewResult({
-          action: message.action,
-          status: message.status,
-          digest: message.digest,
-          message: message.message,
-        });
-        const executionSteps = sortExecutionSteps(
-          upsertExecutionStep(messageRow.executionSteps ?? [], nextStep),
-        );
-        const digestReceipt = receiptFromExecutionStep(nextStep);
-
-        return current.map((row, i) =>
-          i === index
-            ? {
-                ...row,
-                executionSteps,
-                ...(digestReceipt ? { receipts: [digestReceipt] } : {}),
-              }
-            : row,
-        );
-      });
-    });
-  }, [activeSessionId, applyPendingTransaction, sessionId]);
 
   useEffect(() => {
     if (!sessionId || boot.skipFetch) {
@@ -673,7 +553,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
   }, [activeSessionId]);
 
   const sendMessage = useCallback(
-    async (text: string, appScope?: ChatAppScope | null) => {
+    async (text: string) => {
       if (!text.trim() || typing || streaming) return;
 
       const optimisticId = `u-${Date.now()}`;
@@ -682,7 +562,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
         id: optimisticId,
         role: "user",
         text,
-        ...(appScope ? { appScope } : {}),
       };
       setMessages((current) => [
         ...current,
@@ -698,7 +577,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
       setStreaming(true);
       setChatError(null);
 
-      const artifactSessionKey = sessionId ?? activeSessionId ?? "new";
       const controller = new AbortController();
       streamAbortRef.current = controller;
 
@@ -707,7 +585,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           {
             message: text,
             session_id: activeSessionId,
-            ...(appScope ? { app_scope: appScope } : {}),
           },
           {
             onSession: (streamSessionId) => {
@@ -748,21 +625,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
                   };
                 }),
               );
-            },
-            onArtifact: ({ artifact, streaming }) => {
-              const focusPath =
-                artifact.files.find((file) => file.path === "app/page.tsx")
-                  ?.path ??
-                artifact.files.find((file) => file.path === "src/App.tsx")
-                  ?.path ??
-                artifact.files.find((file) => file.path === "src/App.jsx")
-                  ?.path ??
-                artifact.files[artifact.files.length - 1]?.path;
-              updateArtifact(artifactSessionKey, artifact, {
-                streaming,
-                open: true,
-                activePath: focusPath,
-              });
             },
             onReplyDelta: (delta) => {
               setMessages((current) =>
@@ -814,8 +676,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
               id: optimisticId,
               role: "user",
               text,
-              ...(appScope ? { appScope } : {}),
-            },
+                  },
             {
               id: data.message_id,
               role: "agent",
@@ -825,7 +686,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
                 ? { statusCategory: liveMessage.statusCategory }
                 : {}),
               ...mapToolCallsToMessageExtras(data.tool_calls, liveSteps),
-              ...(data.artifact ? { artifact: data.artifact } : {}),
             },
           ];
 
@@ -847,19 +707,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
         );
         setPendingClarification(data.pending_clarification ?? null);
 
-        if (!sessionId && data.session_id && artifactSessionKey === "new") {
-          migrateArtifactSession("new", data.session_id);
-        }
-
-        const finalArtifactKey = sessionId ?? data.session_id;
-        if (data.artifact) {
-          updateArtifact(finalArtifactKey, data.artifact, {
-            streaming: false,
-            open: true,
-          });
-        } else {
-          setArtifactStreaming(finalArtifactKey, false);
-        }
 
         if (!sessionId && data.session_id) {
           router.replace(`/app/chat/${data.session_id}`);
@@ -879,7 +726,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
                 : message,
             ),
           );
-          setArtifactStreaming(artifactSessionKey, false);
         } else {
           const message =
             err instanceof ApiError
@@ -889,7 +735,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           setMessages((current) =>
             current.filter((entry) => entry.id !== liveAgentId),
           );
-          setArtifactStreaming(artifactSessionKey, false);
         }
       } finally {
         streamAbortRef.current = null;
@@ -899,16 +744,12 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     [
       activeSessionId,
       applyPendingTransaction,
-      migrateArtifactSession,
-      openArtifact,
       refreshSessions,
       router,
       sessionId,
-      setArtifactStreaming,
       streaming,
       title,
       typing,
-      updateArtifact,
     ],
   );
 
@@ -1069,10 +910,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
         })();
       }
 
-      if (data.artifact) {
-        const artifactSessionKey = activeSessionId ?? data.session_id;
-        openArtifact(artifactSessionKey, data.artifact);
-      }
 
       void refreshSessions({ silent: true });
     } catch (err) {
@@ -1131,7 +968,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     activeSessionId,
     applyPendingTransaction,
     approving,
-    openArtifact,
     pendingTx,
     refreshSessions,
     rejecting,
@@ -1142,7 +978,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
       autoApproveTxIdRef.current = null;
       return;
     }
-    if (approving || pendingTxRelayedToPreview) {
+    if (approving) {
       return;
     }
     if (!isServerAutoApproveEligible(pendingTx)) {
@@ -1153,7 +989,7 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     }
     autoApproveTxIdRef.current = pendingTx.id;
     void approvePending();
-  }, [pendingTx, approving, pendingTxRelayedToPreview, approvePending]);
+  }, [pendingTx, approving, approvePending]);
 
   const refreshPendingQuote = useCallback(async () => {
     if (!pendingTx || approving || refreshingQuote || rejecting) {
@@ -1341,10 +1177,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
         },
       ]);
 
-      if (data.artifact) {
-        const artifactSessionKey = activeSessionId ?? data.session_id;
-        openArtifact(artifactSessionKey, data.artifact);
-      }
 
       void refreshSessions({ silent: true });
     } catch (err) {
@@ -1359,7 +1191,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
   }, [
     activeSessionId,
     approving,
-    openArtifact,
     pendingTx,
     refreshSessions,
     rejecting,
@@ -1424,12 +1255,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
           return next;
         });
 
-        if (data.artifact) {
-          const artifactSessionKey =
-            sessionId ?? activeSessionId ?? data.session_id;
-          openArtifact(artifactSessionKey, data.artifact);
-        }
-
         void refreshSessions({ silent: true });
       } catch (err) {
         const message =
@@ -1443,7 +1268,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     },
     [
       activeSessionId,
-      openArtifact,
       pendingClarification,
       refreshSessions,
       respondingClarification,
@@ -1464,7 +1288,6 @@ export function useChatSession(sessionId?: string, draftResetKey = 0) {
     streaming,
     chatError,
     pendingTx,
-    pendingTxRelayedToPreview,
     pendingClarification,
     approving,
     rejecting,

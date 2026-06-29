@@ -10,8 +10,6 @@ export type NotificationStreamPayload = {
     rule_id?: string;
     severity?: "info" | "warning" | "critical";
   };
-  project_id: string | null;
-  installation_id: string | null;
   rule_id: string | null;
   ts: string;
 };
@@ -46,8 +44,6 @@ export function parseNotificationStreamPayload(
     title: data.title,
     body: typeof data.body === "string" ? data.body : "",
     payload,
-    project_id: typeof data.project_id === "string" ? data.project_id : null,
-    installation_id: typeof data.installation_id === "string" ? data.installation_id : null,
     rule_id: typeof data.rule_id === "string" ? data.rule_id : null,
     ts: typeof data.ts === "string" ? data.ts : new Date().toISOString(),
   };

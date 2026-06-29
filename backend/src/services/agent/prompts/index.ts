@@ -1,6 +1,5 @@
 import { getDefaultAgentChainId } from "../../../config/chains.js";
 import { defaultAgentPermissions } from "../agent-permissions.service.js";
-import { formatPinnedAppScopeForPrompt } from "../../projects/pinned-app-scope.types.js";
 import {
   ALL_MODULE_IDS,
   buildFullModePromptLines,
@@ -16,7 +15,6 @@ import type { BuildSystemPromptInput, PromptBuildContext, PromptModuleId } from 
 
 export type { AgentPromptContext } from "./prompt-context.js";
 export type { BuildSystemPromptInput, PromptModuleId, PromptScopeMode } from "./types.js";
-export { DEEPBOOK_MARGIN_RADIANT_ID_GUIDE } from "./protocols/deepbook/margin.js";
 export {
   ALL_MODULE_IDS,
   ALL_PROMPT_MODULES,
@@ -50,12 +48,9 @@ function toPromptBuildContext(input: BuildSystemPromptInput): PromptBuildContext
   const normalized = buildSystemPromptInputFromContext({
     memoryBlock: input.memoryBlock,
     agentPermissions: input.agentPermissions,
-    pinnedAppScope: input.pinnedAppScope,
-    artifactContextBlock: input.artifactContextBlock,
     promptContext: {
       userMessage: input.userMessage,
       activeModuleIds: input.activeModuleIds,
-      knownAppActions: input.knownAppActions,
       mode: input.mode,
       workflowActions: input.workflowActions,
       workflowQueries: input.workflowQueries,
@@ -66,11 +61,8 @@ function toPromptBuildContext(input: BuildSystemPromptInput): PromptBuildContext
     chainId,
     permissions: normalized.agentPermissions ?? defaultAgentPermissions(),
     memoryBlock: normalized.memoryBlock,
-    pinnedAppScope: normalized.pinnedAppScope,
-    artifactContextBlock: normalized.artifactContextBlock,
     userMessage: normalized.userMessage,
     activeModuleIds: normalized.activeModuleIds,
-    knownAppActions: normalized.knownAppActions,
     mode: normalized.mode ?? getDefaultPromptScopeMode(),
   };
 }
@@ -87,17 +79,11 @@ function resolveModuleIdsForBuild(
     permissions: ctx.permissions,
     userMessage: input.userMessage,
     activeModuleIds: input.activeModuleIds,
-    knownAppActions: input.knownAppActions,
-    pinnedAppScope: input.pinnedAppScope,
     workflowActions: input.workflowActions,
     workflowQueries: input.workflowQueries,
   });
 }
 
-/**
- * Composes the agent system prompt via the module registry.
- * Scoped mode (default): core + resolved optional modules. Full mode: all modules.
- */
 export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
   const ctx = toPromptBuildContext(input);
   const moduleIds = resolveModuleIdsForBuild(ctx, input);
@@ -105,14 +91,6 @@ export function buildSystemPrompt(input: BuildSystemPromptInput = {}): string {
     ctx.mode === "full"
       ? buildFullModePromptLines(ctx)
       : buildScopedModePromptLines(ctx, moduleIds);
-
-  if (input.pinnedAppScope) {
-    lines.push("", formatPinnedAppScopeForPrompt(input.pinnedAppScope));
-  }
-
-  if (input.artifactContextBlock?.trim()) {
-    lines.push("", input.artifactContextBlock.trim());
-  }
 
   const memory = input.memoryBlock?.trim();
   if (memory) {

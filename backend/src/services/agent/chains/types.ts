@@ -20,7 +20,7 @@ export type QueryHandlerContext = {
   params: Record<string, unknown>;
   walletAddress: string;
   balanceContext?: BalanceContext;
-  options?: Pick<AgentToolOptions, "flashLoanTurnIntent" | "sessionId" | "pinnedAppScope">;
+  options?: Pick<AgentToolOptions, "flashLoanTurnIntent" | "sessionId">;
 };
 
 export type ChainQueryHandler = (ctx: QueryHandlerContext) => Promise<QueryChainResult>;

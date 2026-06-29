@@ -10,8 +10,6 @@ import { toNotificationJsonValue, toNullableNotificationJsonValue } from "./noti
 
 export type CreateNotificationRuleRowInput = {
   userId: bigint;
-  projectId?: string | null;
-  installationId?: string | null;
   source: NotificationRuleSource;
   sessionId?: string | null;
   label?: string | null;
@@ -39,8 +37,6 @@ export type UpdateNotificationRuleRowInput = {
 
 export type ListNotificationRulesFilter = {
   userId: bigint;
-  projectId?: string;
-  installationId?: string;
   status?: NotificationRuleStatus | NotificationRuleStatus[];
   notificationType?: string;
   limit?: number;
@@ -53,8 +49,6 @@ export async function createNotificationRule(
   return prisma.notificationRule.create({
     data: {
       user_id: input.userId,
-      project_id: input.projectId ?? null,
-      installation_id: input.installationId ?? null,
       source: input.source,
       session_id: input.sessionId ?? null,
       label: input.label ?? null,
@@ -116,8 +110,6 @@ export async function listNotificationRules(
 
   const where: Prisma.NotificationRuleWhereInput = {
     user_id: filter.userId,
-    ...(filter.projectId ? { project_id: filter.projectId } : {}),
-    ...(filter.installationId ? { installation_id: filter.installationId } : {}),
     ...(filter.notificationType ? { notification_type: filter.notificationType } : {}),
     status,
   };

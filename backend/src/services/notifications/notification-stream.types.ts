@@ -7,8 +7,6 @@ export type NotificationStreamEvent = {
   title: string;
   body: string;
   payload: NotificationEventPayload;
-  project_id: string | null;
-  installation_id: string | null;
   rule_id: string | null;
   ts: string;
 };

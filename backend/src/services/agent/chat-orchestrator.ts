@@ -35,8 +35,6 @@ import {
 } from "./notifications/scheduled-reminder-flow.js";
 import { linkToolCallTransactionsToMessage } from "../agent-transaction/link-transactions.js";
 import { recordInfeasibleFlashLoanQuotesFromToolCalls } from "../agent-transaction/record-flash-loan-quote.js";
-import { extractArtifactFromToolCalls } from "../projects/extract-artifact.js";
-import { buildPinnedArtifactContextBlock } from "../projects/artifact-context.service.js";
 import { truncateAssistantOutput } from "./runtime/output-limits.js";
 
 type RunChatTurnOptions = {
@@ -72,8 +70,6 @@ export async function runChatTurn(
     session.id,
     "user",
     request.message,
-    undefined,
-    request.app_scope ?? undefined,
   );
 
   const isTransactionContinuation =
@@ -92,7 +88,7 @@ export async function runChatTurn(
     });
   }
 
-  if (!isTransactionContinuation && !request.app_scope) {
+  if (!isTransactionContinuation) {
     const workflowOutcome = await tryStartWorkflowFromMessage(
       privyUserId,
       session.id,
@@ -228,15 +224,6 @@ export async function runChatTurn(
     { role: "user", content: request.message },
   ]);
 
-  const artifactContextBlock =
-    request.app_scope != null
-      ? await buildPinnedArtifactContextBlock(
-          privyUserId,
-          session.id,
-          request.app_scope,
-        )
-      : undefined;
-
   const runtime = options.forceRuntime ?? getAgentRuntime();
   const promptContext: AgentPromptContext = {
     userMessage: request.message,
@@ -250,9 +237,6 @@ export async function runChatTurn(
       },
       onStatus: (event) => {
         options.onStream?.("status", event);
-      },
-      onArtifact: (data) => {
-        options.onStream?.("artifact", data);
       },
       onReplyDelta: (delta) => {
         options.onStream?.("reply", { delta });
@@ -268,8 +252,6 @@ export async function runChatTurn(
         messages: contextMessages,
         memoryBlock,
         agentPermissions,
-        pinnedAppScope: request.app_scope ?? null,
-        artifactContextBlock,
         promptContext,
       }),
   );
@@ -325,7 +307,6 @@ export async function runChatTurn(
     pending_transaction: result.pending_transaction,
     pending_clarification: null,
     message_id: assistantMessage.id,
-    artifact: extractArtifactFromToolCalls(toolCallsForMessage),
   };
 }
 
@@ -397,7 +378,6 @@ export async function persistToolFailureTurn(
     pending_transaction: options?.pending_transaction ?? null,
     pending_clarification: null,
     message_id: assistantMessage.id,
-    artifact: extractArtifactFromToolCalls(toolCalls),
   };
 }
 
@@ -438,7 +418,6 @@ export async function persistApprovalTurn(
     pending_transaction: pendingTransaction,
     pending_clarification: null,
     message_id: assistantMessage.id,
-    artifact: extractArtifactFromToolCalls(toolCalls),
   };
 }
 

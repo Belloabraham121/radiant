@@ -1,6 +1,5 @@
 import type { ChainId } from "../../chains/types.js";
 import type { AgentPermissions } from "../agent-permissions.types.js";
-import type { PinnedAppScope } from "../../projects/pinned-app-scope.types.js";
 
 export type PromptScopeMode = "full" | "scoped";
 
@@ -8,7 +7,6 @@ export type PromptLayer =
   | "core"
   | "chain"
   | "protocol"
-  | "artifact"
   | "fiat"
   | "platform";
 
@@ -38,24 +36,15 @@ export type PromptModuleId =
   | "protocol:soroswap:env"
   | "protocol:soroswap:swap"
   | "protocol:stellar:routing-fallback"
-  | "artifact:build"
-  | "artifact:build:swap-vs-build"
-  | "artifact:edit"
-  | "artifact:defi-ui"
   | "platform:browsing"
-  | "platform:storage"
-  | "platform:notifications"
-  | "platform:explorer";
+  | "platform:notifications";
 
 export type PromptBuildContext = {
   chainId: ChainId;
   permissions: AgentPermissions;
   memoryBlock?: string;
-  pinnedAppScope?: PinnedAppScope | null;
-  artifactContextBlock?: string;
   userMessage?: string;
   activeModuleIds?: PromptModuleId[];
-  knownAppActions?: string[];
   mode?: PromptScopeMode;
 };
 
@@ -79,12 +68,8 @@ export type PromptModule = {
 export type BuildSystemPromptInput = {
   memoryBlock?: string;
   agentPermissions?: AgentPermissions;
-  pinnedAppScope?: PinnedAppScope | null;
-  /** Current pinned app source injected server-side — not something the user must provide. */
-  artifactContextBlock?: string;
   userMessage?: string;
   activeModuleIds?: PromptModuleId[];
-  knownAppActions?: string[];
   mode?: PromptScopeMode;
   /** execute_transaction action names from a workflow plan (compound messages). */
   workflowActions?: string[];

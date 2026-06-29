@@ -5,8 +5,6 @@ import {
   listNotificationRulesForUser,
   updateNotificationRuleForUser,
 } from "./notification-rule.service.js";
-import { mergePinnedAppScopeIntoNotificationRule } from "../projects/pinned-app-scope.types.js";
-import { coerceMislabeledAppScopeFields } from "../projects/app-scope-resolver.service.js";
 import type { AgentToolOptions } from "../agent/execute-transaction-context.js";
 
 export const CREATE_NOTIFICATION_RULE_TOOL_NAME = "create_notification_rule" as const;
@@ -43,40 +41,23 @@ const notificationScheduleSchema = z
     }
   });
 
-const notificationScopeSchema = z.preprocess(
-  (input) => {
-    if (typeof input !== "object" || input === null) {
-      return input;
-    }
-    return coerceMislabeledAppScopeFields(input as Record<string, unknown>);
-  },
-  z.object({
-    project_id: z.string().uuid().optional(),
-    installation_id: z.string().uuid().optional(),
-  }),
-);
+export const createNotificationRuleInputSchema = z.object({
+  notification_type: z.string().min(1).max(120),
+  condition: z.record(z.string(), z.unknown()).optional(),
+  schedule: notificationScheduleSchema.optional(),
+  channels: z.array(notificationChannelSchema).min(1).optional(),
+  label: z.string().max(120).optional(),
+  cooldown_seconds: z.number().int().min(0).max(86400).optional(),
+  trigger_once: z.boolean().optional(),
+  expires_at: z.string().optional(),
+});
 
-export const createNotificationRuleInputSchema = notificationScopeSchema.and(
-  z.object({
-    notification_type: z.string().min(1).max(120),
-    condition: z.record(z.string(), z.unknown()).optional(),
-    schedule: notificationScheduleSchema.optional(),
-    channels: z.array(notificationChannelSchema).min(1).optional(),
-    label: z.string().max(120).optional(),
-    cooldown_seconds: z.number().int().min(0).max(86400).optional(),
-    trigger_once: z.boolean().optional(),
-    expires_at: z.string().optional(),
-  }),
-);
-
-export const listNotificationRulesInputSchema = notificationScopeSchema.and(
-  z.object({
-    status: z.enum(["active", "paused", "expired"]).optional(),
-    notification_type: z.string().max(120).optional(),
-    limit: z.number().int().min(1).max(200).optional(),
-    offset: z.number().int().min(0).optional(),
-  }),
-);
+export const listNotificationRulesInputSchema = z.object({
+  status: z.enum(["active", "paused", "expired"]).optional(),
+  notification_type: z.string().max(120).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+  offset: z.number().int().min(0).optional(),
+});
 
 export const updateNotificationRuleInputSchema = z.object({
   rule_id: z.string().uuid(),
@@ -97,18 +78,14 @@ export const deleteNotificationRuleInputSchema = z.object({
 export const createNotificationRuleToolDefinition = {
   name: CREATE_NOTIFICATION_RULE_TOOL_NAME,
   description:
-    "Create a notification alert rule for the user. Use when they ask to be notified, reminded, or alerted about anything an app supports (bids, thresholds, deadlines, custom events). " +
-    "For app-scoped alerts, pass project_id or installation_id (or rely on pinned app scope). " +
-    "Call query_chain project_notification_schema first when unsure which notification_type and condition fields are available.",
+    "Create a notification alert rule for the user. Use when they ask to be notified, reminded, or alerted. " +
+    "Use platform notification types such as radiant.platform.scheduled_reminder.",
   input_schema: {
     type: "object" as const,
     properties: {
-      project_id: { type: "string", description: "Saved project UUID for app-scoped alerts." },
-      installation_id: { type: "string", description: "Installed app UUID." },
       notification_type: {
         type: "string",
-        description:
-          "Full type key (app_id.type) or type slug when project scope is set — from the app's lib/radiant-notifications.ts manifest.",
+        description: "Full platform type key, e.g. radiant.platform.scheduled_reminder.",
       },
       condition: {
         type: "object",
@@ -118,7 +95,7 @@ export const createNotificationRuleToolDefinition = {
       schedule: {
         type: "object",
         description:
-          "Required for schedule trigger kinds. One-shot: { kind: \"once\", in_seconds: 10 } for relative delays (preferred for \"in N seconds/minutes\"), or { kind: \"once\", at: \"<ISO UTC>\" } for absolute times. Cron/interval also supported.",
+          'Required for schedule trigger kinds. One-shot: { kind: "once", in_seconds: 10 } or { kind: "once", at: "<ISO UTC>" }.',
         additionalProperties: true,
       },
       channels: {
@@ -137,12 +114,10 @@ export const createNotificationRuleToolDefinition = {
 
 export const listNotificationRulesToolDefinition = {
   name: LIST_NOTIFICATION_RULES_TOOL_NAME,
-  description: "List the user's notification alert rules, optionally filtered by project or installation scope.",
+  description: "List the user's notification alert rules.",
   input_schema: {
     type: "object" as const,
     properties: {
-      project_id: { type: "string" },
-      installation_id: { type: "string" },
       status: { type: "string", enum: ["active", "paused", "expired"] },
       notification_type: { type: "string" },
       limit: { type: "number" },
@@ -202,17 +177,10 @@ export async function runCreateNotificationRuleTool(
   input: Record<string, unknown>,
   context: AgentToolOptions = {},
 ) {
-  const parsed = mergePinnedAppScopeIntoNotificationRule(
-    createNotificationRuleInputSchema.parse(input),
-    context.pinnedAppScope,
-  );
+  const parsed = createNotificationRuleInputSchema.parse(input);
 
   return createNotificationRuleForUser(
     privyUserId,
-    {
-      projectId: parsed.project_id,
-      installationId: parsed.installation_id,
-    },
     {
       notification_type: parsed.notification_type,
       condition: parsed.condition,
@@ -230,16 +198,10 @@ export async function runCreateNotificationRuleTool(
 export async function runListNotificationRulesTool(
   privyUserId: string,
   input: Record<string, unknown>,
-  context: AgentToolOptions = {},
 ) {
-  const parsed = mergePinnedAppScopeIntoNotificationRule(
-    listNotificationRulesInputSchema.parse(input),
-    context.pinnedAppScope,
-  );
+  const parsed = listNotificationRulesInputSchema.parse(input);
 
   return listNotificationRulesForUser(privyUserId, {
-    project_id: parsed.project_id,
-    installation_id: parsed.installation_id,
     status: parsed.status,
     notification_type: parsed.notification_type,
     limit: parsed.limit,
@@ -252,6 +214,7 @@ export async function runUpdateNotificationRuleTool(
   input: Record<string, unknown>,
 ) {
   const parsed = updateNotificationRuleInputSchema.parse(input);
+
   return updateNotificationRuleForUser(privyUserId, parsed.rule_id, {
     label: parsed.label,
     condition: parsed.condition,

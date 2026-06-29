@@ -28,13 +28,7 @@ function resolveStreamDeepLink(event: NotificationStreamPayload): string | null 
   if (event.payload?.deep_link) {
     return event.payload.deep_link;
   }
-  if (event.installation_id) {
-    return `/app/installed/${event.installation_id}/run`;
-  }
-  if (event.project_id) {
-    return `/app/projects/${event.project_id}/run`;
-  }
-  return null;
+  return "/app/chat";
 }
 
 function playCriticalAlertSound(): void {

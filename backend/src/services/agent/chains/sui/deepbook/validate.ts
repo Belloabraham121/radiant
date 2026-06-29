@@ -26,13 +26,13 @@ import {
   parseDeepBookVoteParams,
 } from "../../../../defi/deepbook/deepbook-governance.service.js";
 import { isDeepBookMarginMaintainerAction } from "../../../../defi/deepbook/deepbook-margin-maintainer.service.js";
-import { normalizeAppActionParams } from "../../../../projects/app-action-param-coerce.js";
-import { getAppActionParamSchema } from "../../../../projects/app-action-param-schemas.js";
+import { normalizeAppActionParams } from "../../../onchain-actions/app-action-param-coerce.js";
+import { getAppActionParamSchema } from "../../../onchain-actions/app-action-param-schemas.js";
 import {
   ONCHAIN_ACTION_NAMES,
   getAppActionDefinition,
-} from "../../../../projects/app-action-registry.js";
-import type { OnchainActionName } from "../../../../projects/app-action.types.js";
+} from "../../../onchain-actions/app-action-registry.js";
+import type { OnchainActionName } from "../../../onchain-actions/app-action.types.js";
 import type { ExecuteTransactionInput } from "../../../../chains/types.js";
 import {
   DEEPBOOK_PROVISION_MANAGER_ACTION,

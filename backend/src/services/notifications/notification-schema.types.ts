@@ -1,4 +1,4 @@
-import type { AppActionParamField } from "../projects/app-action.types.js";
+import type { AppActionParamField } from "../agent/onchain-actions/app-action.types.js";
 
 export const PROJECT_NOTIFICATION_SCHEMA_VERSION = 1 as const;
 

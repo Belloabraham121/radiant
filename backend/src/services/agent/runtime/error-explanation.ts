@@ -14,6 +14,7 @@ import {
   type TransactionErrorContext,
 } from "../deepbook/transaction-error-context.js";
 import { buildSystemPrompt } from "./prompts.js";
+import { buildSystemPromptInputFromContext } from "../prompts/prompt-context.js";
 import type { AgentPromptContext } from "../prompts/prompt-context.js";
 import { openAiMaxOutputTokens } from "./openai-completion-params.js";
 import type { AgentTurnMessage } from "./types.js";

@@ -4,54 +4,10 @@ import { summarizeQueryChainResult, summarizeQueryChainResultAsync } from "./sum
 import type { AgentToolErrorResult } from "../tools.js";
 import type { ExecuteToolOutcome } from "../agent.types.js";
 import { isExecutePendingUserAction, pendingTransactionFromExecuteOutcome } from "../agent.types.js";
-import { formatRadiantClientApiReminderForToolResult } from "../../projects/radiant-client-api-catalog.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
-import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { UPDATE_MEMORY_TOOL_NAME } from "../update-memory.tool.js";
-import { LIST_PUBLIC_APPS_TOOL_NAME } from "../../projects/list-public-apps.tool.js";
-import { INSTALL_APP_TOOL_NAME } from "../../projects/install-app.tool.js";
-import type { AppActionResult } from "../../projects/app-action.types.js";
 import type { TxResult } from "../../chains/types.js";
-
-/**
- * Strip platform-injected CSS (.radiant-agent-indicator, .radiant-tx-approval-*, etc.)
- * from globals.css before showing it to the LLM. The agent shouldn't edit these styles,
- * and they bloat the file past the 3000-char truncation limit.
- */
-function stripPlatformCssForSummary(css: string): string {
-  const platformMarkers = [
-    ".radiant-agent-indicator",
-    ".radiant-agent-indicator-dot",
-    "@keyframes radiant-agent-pulse",
-    "[data-radiant-id].agent-focused",
-    "[data-radiant-id].agent-clicking",
-    ".radiant-tx-approval-",
-  ];
-  const lines = css.split("\n");
-  const kept: string[] = [];
-  let skip = false;
-  let braceDepth = 0;
-  for (const line of lines) {
-    if (!skip && platformMarkers.some((m) => line.includes(m))) {
-      skip = true;
-      braceDepth = 0;
-    }
-    if (skip) {
-      for (const ch of line) {
-        if (ch === "{") braceDepth++;
-        if (ch === "}") braceDepth--;
-      }
-      if (braceDepth <= 0) {
-        skip = false;
-        braceDepth = 0;
-      }
-      continue;
-    }
-    kept.push(line);
-  }
-  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
-}
 
 function isToolError(result: unknown): result is AgentToolErrorResult {
   return (
@@ -62,7 +18,6 @@ function isToolError(result: unknown): result is AgentToolErrorResult {
   );
 }
 
-/** Short note for chat approval replies when a margin manager is involved. */
 export function formatMarginManagerApprovalNote(result: TxResult): string {
   const margin = result.deepbook?.margin;
   if (!margin?.margin_manager) {
@@ -75,7 +30,6 @@ export function formatMarginManagerApprovalNote(result: TxResult): string {
   );
 }
 
-/** Human- and model-readable summary after a successful on-chain execute. */
 export function formatExecutedTxSummary(result: TxResult): string {
   const digestPart = result.digest
     ? `Tx digest: ${result.digest}`
@@ -127,51 +81,6 @@ export function formatExecutedTxSummary(result: TxResult): string {
   );
 }
 
-function summarizeListPublicAppsResult(result: unknown): string {
-  const catalog = result as {
-    apps?: Array<{
-      id: string;
-      name: string;
-      tagline: string;
-      category: string;
-      install_count: number;
-    }>;
-    stats?: { total_apps: number; total_installs: number };
-    hint?: string;
-  };
-  const apps = catalog.apps ?? [];
-  if (apps.length === 0) {
-    return catalog.hint ?? "No public apps in the explorer yet.";
-  }
-  const lines = apps.map(
-    (app) =>
-      `- ${app.name} (${app.category}) — project_id: ${app.id} — ${app.tagline || "no tagline"} — ${app.install_count} install(s)`,
-  );
-  const total = catalog.stats?.total_apps ?? apps.length;
-  const hint = catalog.hint ? `\n\n${catalog.hint}` : "";
-  return `Public explorer apps (${total} total):\n\n${lines.join("\n")}${hint}`;
-}
-
-function summarizeInstallAppResult(result: unknown): string {
-  if (isToolError(result)) {
-    return toolErrorToModelContent(result.error);
-  }
-  const outcome = result as {
-    installation_id?: string;
-    already_installed?: boolean;
-    app_name?: string;
-    open_path?: string;
-    message?: string;
-  };
-  if (outcome.message) {
-    return outcome.message;
-  }
-  if (outcome.installation_id) {
-    return `Installed. Open at ${outcome.open_path ?? `/app/installed/${outcome.installation_id}/run`}`;
-  }
-  return "Install completed.";
-}
-
 export async function summarizeToolResultAsync(name: string, result: unknown): Promise<string> {
   if (name === QUERY_CHAIN_TOOL_NAME) {
     return (await summarizeQueryChainResultAsync(result)) ?? "Query completed.";
@@ -191,79 +100,6 @@ export function summarizeToolResult(name: string, result: unknown): string {
 
   if (name === QUERY_CHAIN_TOOL_NAME) {
     return summarizeQueryChainResult(result) ?? "Query completed.";
-  }
-
-  if (name === CALL_APP_ACTION_TOOL_NAME) {
-    const outcome = result as AppActionResult;
-    if (outcome.status === "error") {
-      return toolErrorToModelContent(outcome.error);
-    }
-    if (outcome.status === "approval_required") {
-      const fiat = outcome.pending.fiat_preview;
-      const fiatLine =
-        fiat?.total_pay_usd != null && fiat.total_receive_usd != null
-          ? ` (~$${fiat.total_pay_usd.toFixed(2)} → ~$${fiat.total_receive_usd.toFixed(2)})`
-          : "";
-      return `Approval required: ${outcome.pending.summary}${fiatLine}`;
-    }
-    if (outcome.status === "preview_delegated") {
-      return outcome.message;
-    }
-    if (outcome.status === "executed") {
-      return `Tx digest: ${outcome.digest}`;
-    }
-    return "Done.";
-  }
-
-  if (name === "read_artifact") {
-    const outcome = result as { summary?: string; file_count?: number; name?: string };
-    if (typeof outcome.summary === "string" && outcome.summary.trim()) {
-      return outcome.summary;
-    }
-    return `Read ${outcome.file_count ?? 0} file(s) from "${outcome.name ?? "app"}".`;
-  }
-
-  if (name === "generate_app" || name === "edit_app") {
-    const outcome = result as {
-      name?: string;
-      revision?: number;
-      files?: Array<{ path: string; content: string }>;
-    };
-    const fileList = outcome.files ?? [];
-    const PLATFORM_FILES = new Set([
-      "lib/radiant-client.ts",
-      "lib/radiant-agent-runtime.ts",
-      "lib/radiant-charts.tsx",
-      "components/AgentIndicator.tsx",
-    ]);
-    const userFiles = fileList.filter((f) => !PLATFORM_FILES.has(f.path));
-    const platformCount = fileList.length - userFiles.length;
-
-    const fileSummaries = userFiles.map((f) => {
-      let content = f.content;
-      if (f.path.endsWith("globals.css")) {
-        content = stripPlatformCssForSummary(content);
-      }
-      const lines = content.split("\n");
-      const preview = lines.join("\n");
-      if (preview.length <= 3000) {
-        return `--- ${f.path} (${lines.length} lines) ---\n${preview}`;
-      }
-      const truncated = preview.slice(0, 3000);
-      return `--- ${f.path} (${lines.length} lines, truncated) ---\n${truncated}\n...`;
-    });
-
-    const verb = name === "edit_app" ? "Edits applied to" : "Built";
-    const platformNote = platformCount > 0
-      ? ` (+ ${platformCount} platform files omitted)`
-      : "";
-    return (
-      `${verb} "${outcome.name ?? "App"}" (revision ${outcome.revision ?? 0}). ` +
-      `${userFiles.length} user files${platformNote}. ` +
-      `Full file contents below — use these EXACT strings as old_string when calling edit_app:\n\n` +
-      fileSummaries.join("\n\n") +
-      `\n\n${formatRadiantClientApiReminderForToolResult()}`
-    );
   }
 
   if (name === "web_search") {
@@ -307,12 +143,6 @@ export function summarizeToolResult(name: string, result: unknown): string {
       : outcome.body;
     const truncNote = outcome.truncated ? " (response was truncated)" : "";
     return `API ${outcome.method} ${outcome.url}\nStatus: ${outcome.status}${truncNote}\n\n${bodyPreview}`;
-  }
-
-  if (name === LIST_PUBLIC_APPS_TOOL_NAME || name === INSTALL_APP_TOOL_NAME) {
-    return name === LIST_PUBLIC_APPS_TOOL_NAME
-      ? summarizeListPublicAppsResult(result)
-      : summarizeInstallAppResult(result);
   }
 
   if (name !== EXECUTE_TRANSACTION_TOOL_NAME) {

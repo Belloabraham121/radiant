@@ -1,7 +1,5 @@
 import { mapAgentToolError } from "../../utils/agent-tool-errors.js";
 import type { ExecuteTransactionInput } from "../chains/types.js";
-import { mapExecuteActionToAppActionName } from "../projects/app-action-mapper.js";
-import type { AppActionContext } from "../projects/app-action.types.js";
 import type { ExecuteToolOutcome } from "./agent.types.js";
 import { emitAgentEvent, hasAgentStreamSubscribers } from "./agent-stream.service.js";
 import { bufferPendingExecuteInApp } from "./agent-stream-pending-execute.js";
@@ -16,13 +14,6 @@ export function shouldBroadcastAgentStream(ctx: AgentStreamBroadcastContext): bo
   return Boolean(ctx.sessionId && ctx.broadcast);
 }
 
-export function agentStreamContextFromAppAction(ctx: AppActionContext): AgentStreamBroadcastContext {
-  return {
-    sessionId: ctx.sessionId,
-    broadcast: ctx.source === "agent" && Boolean(ctx.sessionId),
-  };
-}
-
 export function agentStreamContextFromToolOptions(opts: AgentToolOptions): AgentStreamBroadcastContext {
   return {
     sessionId: opts.sessionId,
@@ -31,7 +22,7 @@ export function agentStreamContextFromToolOptions(opts: AgentToolOptions): Agent
 }
 
 export function resolveAgentStreamAction(input: ExecuteTransactionInput): string {
-  return mapExecuteActionToAppActionName(input.action) ?? input.action;
+  return input.action;
 }
 
 function emitAgentStreamSteps(

@@ -1,4 +1,5 @@
 import type { AgentPermissions } from "./agent-permissions-api";
+import type { FeatureFlags } from "./features";
 import { apiFetch, ApiError } from "./api";
 
 export type AuthMeAgentWallet = {
@@ -20,6 +21,7 @@ export type AuthMeData = {
   agent_wallet: AuthMeAgentWallet | null;
   agent_wallets: AuthMeAgentWallet[];
   agent_permissions: AgentPermissions;
+  features: FeatureFlags;
 };
 
 /** @deprecated Use `ApiError` from `@/lib/api`. */

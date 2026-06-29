@@ -15,18 +15,13 @@ export type PlannedAction =
   | "deepbook_cancel_all_orders"
   | "swap"
   | "transfer_sui"
-  | "query"
-  | "build";
+  | "query";
 
 export type PlannedStep = {
   action: PlannedAction;
   label: string;
   params: Record<string, PlanSlot | string | number | boolean>;
   depends_on?: StepDependency;
-  /** When set, on-chain steps run through call_app_action instead of execute_transaction. */
-  project_id?: string;
-  installation_id?: string;
-  app_name?: string;
 };
 
 export type PlannerAssumption = {

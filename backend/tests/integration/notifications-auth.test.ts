@@ -35,19 +35,6 @@ describe("notifications API auth", () => {
       path: "/api/v1/notifications/rules",
       body: { notification_type: "radiant.platform.agent_message", condition: {} },
     },
-    {
-      method: "GET",
-      path: "/api/v1/projects/00000000-0000-4000-8000-000000000001/notifications/schema",
-    },
-    {
-      method: "POST",
-      path: "/api/v1/projects/00000000-0000-4000-8000-000000000001/notifications/rules",
-      body: { notification_type: "opportunity_found", condition: { min_profit_bps: 1 } },
-    },
-    {
-      method: "GET",
-      path: "/api/v1/installations/00000000-0000-4000-8000-000000000002/notifications/rules",
-    },
     { method: "GET", path: "/api/v1/notifications/events" },
     {
       method: "POST",

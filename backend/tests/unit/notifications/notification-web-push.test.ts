@@ -6,36 +6,14 @@ describe("notification web push", () => {
   it("prefers explicit deep_link from payload", () => {
     const url = resolveNotificationDeepLink({
       payload: { deep_link: "/custom/path" },
-      projectId: "00000000-0000-4000-8000-000000000001",
-      installationId: null,
     });
     assert.equal(url, "/custom/path");
   });
 
-  it("builds installation run deep link", () => {
+  it("falls back to chat", () => {
     const url = resolveNotificationDeepLink({
       payload: {},
-      projectId: null,
-      installationId: "00000000-0000-4000-8000-000000000002",
     });
-    assert.equal(url, "/app/installed/00000000-0000-4000-8000-000000000002/run");
-  });
-
-  it("builds project run deep link", () => {
-    const url = resolveNotificationDeepLink({
-      payload: {},
-      projectId: "00000000-0000-4000-8000-000000000003",
-      installationId: null,
-    });
-    assert.equal(url, "/app/projects/00000000-0000-4000-8000-000000000003/run");
-  });
-
-  it("falls back to projects hub", () => {
-    const url = resolveNotificationDeepLink({
-      payload: {},
-      projectId: null,
-      installationId: null,
-    });
-    assert.equal(url, "/app/projects");
+    assert.equal(url, "/app/chat");
   });
 });

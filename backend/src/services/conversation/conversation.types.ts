@@ -25,6 +25,5 @@ export type MessageRecord = {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
   tool_calls: unknown;
-  app_scope?: unknown;
   created_at: string;
 };

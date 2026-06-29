@@ -29,20 +29,15 @@ import type {
   DeepBookVolumeResult,
 } from "../defi/deepbook/deepbook-indexer-analytics.service.js";
 import type { AgentTransactionsQueryResult } from "../agent-transaction/agent-transaction.types.js";
-import type { ProjectActionsCatalogResponse } from "../projects/app-action-schema.types.js";
-import type { ProjectNotificationSchema } from "../notifications/notification-schema.types.js";
-import type { ArtifactPayload } from "../projects/project.types.js";
 import {
   agentTransactionCategorySchema,
   agentTransactionStatusSchema,
 } from "../agent-transaction/agent-transaction.types.js";
-import { pinnedAppScopeSchema } from "../projects/pinned-app-scope.types.js";
 
 export const chatRequestSchema = z
   .object({
     message: z.string().max(8000).optional().default(""),
     session_id: z.string().uuid().optional(),
-    app_scope: pinnedAppScopeSchema.optional(),
     approve_transaction_id: z.string().uuid().optional(),
     reject_transaction_id: z.string().uuid().optional(),
     clarification_id: z.string().uuid().optional(),
@@ -143,8 +138,6 @@ export type ChatResponse = {
   pending_transaction: PendingTransaction | null;
   pending_clarification: PendingClarification | null;
   message_id: string;
-  /** Set when generate_app succeeds — opens artifact panel on client (Phase 1). */
-  artifact: ArtifactPayload | null;
 };
 
 const queryChainInputObjectSchema = z.object({
@@ -190,8 +183,6 @@ const queryChainInputObjectSchema = z.object({
       category: agentTransactionCategorySchema.optional(),
       session_id: z.string().uuid().optional(),
       transaction_id: z.string().uuid().optional(),
-      project_id: z.string().uuid().optional(),
-      app_name: z.string().min(1).optional(),
     })
     .passthrough()
     .optional()
@@ -264,18 +255,6 @@ export const queryChainInputSchema = z.preprocess((input) => {
     delete params.amount;
   }
 
-  const projectId = params.project_id;
-  if (typeof projectId === "string" && projectId.trim()) {
-    const uuidRe =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRe.test(projectId.trim())) {
-      if (typeof params.app_name !== "string" || !params.app_name.trim()) {
-        params.app_name = projectId.trim();
-      }
-      delete params.project_id;
-    }
-  }
-
   return { ...record, params };
 }, queryChainInputObjectSchema);
 
@@ -299,9 +278,6 @@ export type QueryChainResult =
   | DeepBookVolumeResult
   | DeepBookOhlcvResult
   | AgentTransactionsQueryResult
-  | ProjectActionsCatalogResponse
-  | ProjectNotificationSchema
-  | { schema: ProjectNotificationSchema | null }
   | Record<string, unknown>;
 
 export type ExecuteToolOutcome =

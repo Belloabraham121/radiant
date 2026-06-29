@@ -145,7 +145,6 @@ async function evaluatePollRule(
     route_summary: best.routeSummary,
     opportunity_id: opportunityId,
     pool_key: best.poolKey,
-    project_id: context.projectId ?? "",
   };
 
   const rendered = renderNotificationPresentation(
@@ -154,7 +153,7 @@ async function evaluatePollRule(
     {
       title: `Flash arb ${best.profitBps} bps`,
       body: `${best.routeSummary} — est. surplus ${best.surplus.toFixed(4)} ${best.coinKey}`,
-      ...(context.projectId ? { deep_link: `/app/projects/${context.projectId}/run` } : {}),
+      deep_link: "/app/chat",
     },
   );
 
@@ -178,8 +177,6 @@ async function evaluatePollRule(
       rule_id: context.rule.id,
     },
     idempotency_key: `poll:${context.rule.id}:${opportunityId}`,
-    project_id: context.projectId,
-    installation_id: context.installationId,
   };
 }
 

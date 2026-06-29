@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AppActionParamField } from "../projects/app-action.types.js";
+import type { AppActionParamField } from "../agent/onchain-actions/app-action.types.js";
 import { validateNotificationCondition } from "./notification-condition.validator.js";
 import {
   normalizeNotificationScheduleInput,

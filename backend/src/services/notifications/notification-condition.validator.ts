@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AppActionParamField } from "../projects/app-action.types.js";
+import type { AppActionParamField } from "../agent/onchain-actions/app-action.types.js";
 import type { NotificationValidationError } from "./notification-schema.types.js";
 
 function fieldToZod(field: AppActionParamField): z.ZodType {

@@ -101,41 +101,11 @@ export const PROMPT_MODULE_TRIGGERS: Partial<Record<PromptModuleId, PromptTrigge
     keywords: [/\bpredict\b/i, /\bPLP\b/i, /prediction market/i],
     chains: ["sui"],
   },
-  "artifact:build:swap-vs-build": {
-    keywords: [
-      /\bbuild\b.*\b(swap|dex|uniswap)\b/i,
-      /like uniswap/i,
-      /\bdex ui\b/i,
-    ],
-  },
-  "artifact:build": {
-    keywords: [
-      /\bgenerate_app\b/i,
-      /\bbuild\b.*\b(app|ui|dashboard|form)\b/i,
-      /save_project/,
-      /call_app_action/,
-    ],
-    queryTypes: ["project_actions", "session_actions"],
-  },
-  "artifact:edit": {
-    keywords: [/\bedit_app\b/i, /make the (background|button|title)/i],
-  },
-  "artifact:defi-ui": {
-    keywords: [/data-radiant-id/i, /radiant-agent/i, /live quotes/i],
-    queryTypes: ["project_actions", "session_actions"],
-  },
   "platform:browsing": {
     keywords: [/\bweb_search\b/i, /\bbrowse_webpage\b/i, /\bcall_api\b/i, /search the web/i],
   },
-  "platform:storage": {
-    keywords: [/storeAppData/i, /queryAppData/i, /storeSharedData/i],
-  },
   "platform:notifications": {
     keywords: [/createNotificationRule/i, /remind me/i, /notification/i],
-    queryTypes: ["project_notification_schema"],
-  },
-  "platform:explorer": {
-    keywords: [/\bdeploy_app\b/i, /\binstall_app\b/i, /\bpublish_app\b/i, /marketplace/i],
   },
   "protocol:lifi:env": {
     queryTypes: ["cross_chain_quote", "cross_chain_routes", "cross_chain_connections", "cross_chain_status"],

@@ -14,8 +14,6 @@ export type NotificationEventRecord = {
   title: string;
   body: string;
   payload: NotificationEventPayload;
-  project_id: string | null;
-  installation_id: string | null;
   rule_id: string | null;
   created_at: string;
   unread: boolean;
@@ -40,8 +38,6 @@ function toEventRecord(
     title: event.title,
     body: event.body,
     payload: event.payload as NotificationEventPayload,
-    project_id: event.project_id,
-    installation_id: event.installation_id,
     rule_id: event.rule_id,
     created_at: event.created_at.toISOString(),
     unread,

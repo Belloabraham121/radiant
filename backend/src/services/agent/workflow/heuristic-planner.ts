@@ -133,25 +133,6 @@ function workflowStepToPlanned(
     };
   }
 
-  if (step.kind === "build") {
-    return {
-      action: "build",
-      label: step.label,
-      params: { instruction: step.instruction },
-    };
-  }
-
-  if (step.kind === "app_action") {
-    return {
-      action: step.action as PlannedStep["action"],
-      label: step.label,
-      params: step.params as Record<string, PlanSlot | string | number | boolean>,
-      ...(step.project_id ? { project_id: step.project_id } : {}),
-      ...(step.installation_id ? { installation_id: step.installation_id } : {}),
-      ...(step.app_name ? { app_name: step.app_name } : {}),
-    };
-  }
-
   return null;
 }
 
@@ -254,12 +235,6 @@ export function planWorkflowHeuristic(message: string): PlannerOutput | null {
         planned.params.query === "token_balances" &&
         steps.length > 0
       ) {
-        planned.depends_on = {
-          after_step_index: steps.length - 1,
-          only_if_success: true,
-        };
-      }
-      if (planned.action === "build" && steps.length > 0) {
         planned.depends_on = {
           after_step_index: steps.length - 1,
           only_if_success: true,

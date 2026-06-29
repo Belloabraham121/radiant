@@ -51,7 +51,7 @@ import {
 } from "../bridge/bridge-clarification-gaps.js";
 import { executeResolvedBridgeIntent } from "../bridge/bridge-execute.js";
 
-const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [] };
+const EMPTY_WORKFLOW_PLAN: WorkflowPlan = { steps: [], originalMessage: "" };
 
 async function startBridgeClarificationFromSwap(
   sessionId: string,

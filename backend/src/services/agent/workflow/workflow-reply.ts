@@ -3,8 +3,6 @@ import { formatWalletAssetsSummary } from "../../market/valuation.service.js";
 import type { ToolCallRecord } from "../agent.types.js";
 import { QUERY_CHAIN_TOOL_NAME } from "../query-chain.tool.js";
 import { EXECUTE_TRANSACTION_TOOL_NAME } from "../execute-transaction.tool.js";
-import { CALL_APP_ACTION_TOOL_NAME } from "../../projects/call-app-action.tool.js";
-import { GENERATE_APP_TOOL_NAME } from "../../projects/generate-app.tool.js";
 import type { CompletedWorkflowStep } from "./workflow.types.js";
 
 function isWalletAssets(result: unknown): result is WalletAssetsData {
@@ -82,16 +80,9 @@ export function synthesizeWorkflowCompletionReply(
     sections.push(`Skipped ${skipped.length} step(s):\n${lines.join("\n")}`);
   }
 
-  const hasArtifact = executed.some((entry) =>
-    entry.tool_calls.some((call) => call.name === GENERATE_APP_TOOL_NAME),
-  );
-  if (hasArtifact) {
-    sections.push("The UI is open in the artifact panel — you can iterate or save it to Projects.");
-  }
-
   const hasPendingExecute = executed.some((entry) =>
     entry.tool_calls.some((call) => {
-      if (call.name !== EXECUTE_TRANSACTION_TOOL_NAME && call.name !== CALL_APP_ACTION_TOOL_NAME) {
+      if (call.name !== EXECUTE_TRANSACTION_TOOL_NAME) {
         return false;
       }
       return (

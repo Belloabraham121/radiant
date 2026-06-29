@@ -1,6 +1,7 @@
 import type { User } from "@privy-io/node";
 import type { Prisma } from "@prisma/client";
 import { getDefaultAgentChainId } from "../../config/chains.js";
+import { getFeatureFlags } from "../../config/features.js";
 import { AppError } from "../../errors/app-error.js";
 import { normalizeEmail } from "../../utils/normalize-email.js";
 import type { ChainId } from "../chains/types.js";
@@ -206,5 +207,6 @@ export function toAuthMeData(
     agent_wallet: primaryWallet,
     agent_wallets,
     agent_permissions: agentPermissionsFromUser(user),
+    features: getFeatureFlags(),
   };
 }

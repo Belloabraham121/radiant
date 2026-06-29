@@ -15,7 +15,6 @@ import { extractMarginDepositIntent, extractMarginBorrowIntent, extractLeverageO
 import { extractPredictMintIntent, extractPredictRangeIntent } from "../deepbook/predict-approval-flow.js";
 import type {
   WorkflowAgentStep,
-  WorkflowBuildStep,
   WorkflowExecuteStep,
   WorkflowQueryStep,
   WorkflowStep,
@@ -485,24 +484,6 @@ export function extractAppNameHintFromSegment(segment: string): string | null {
   return null;
 }
 
-function parseBuildSegment(segment: string): WorkflowBuildStep | null {
-  if (!/\b(build|create|make|design|develop|implement)\b/i.test(segment)) {
-    return null;
-  }
-
-  if (
-    /^\s*swap\b/i.test(segment.trim()) &&
-    !/\b(ui|app|interface|dashboard|page|widget|uniswap|like)\b/i.test(segment)
-  ) {
-    return null;
-  }
-
-  return {
-    kind: "build",
-    label: segment.length > 60 ? `${segment.slice(0, 57)}…` : segment,
-    instruction: segment,
-  };
-}
 
 export function classifyWorkflowSegment(segment: string): WorkflowStep {
   const deposit = extractDepositIntent(segment);
@@ -546,16 +527,6 @@ export function classifyWorkflowSegment(segment: string): WorkflowStep {
 
   const swap = parseSwapSegment(segment);
   if (swap) {
-    const appName = extractAppNameHintFromSegment(segment);
-    if (appName) {
-      return {
-        kind: "app_action",
-        label: swap.label,
-        app_name: appName,
-        action: "swap",
-        params: swap.input.params as Record<string, unknown>,
-      };
-    }
     return swap;
   }
 
@@ -669,9 +640,6 @@ export function classifyWorkflowSegment(segment: string): WorkflowStep {
 
   const query = parseQuerySegment(segment);
   if (query) return query;
-
-  const build = parseBuildSegment(segment);
-  if (build) return build;
 
   const agentStep: WorkflowAgentStep = {
     kind: "agent",

@@ -10,7 +10,7 @@ export function buildPermissionLines(ctx: PromptBuildContext): string[] {
       ]
     : [
         "Auto-approve is OFF: every swap and transfer must pause for user approval in the app.",
-        "Never ask the user to confirm a swap in chat text. After swap_quote, immediately call execute_transaction or call_app_action in the same turn — the app shows an approval dialog.",
+        "Never ask the user to confirm a swap in chat text. After swap_quote, immediately call execute_transaction in the same turn — the app shows an approval dialog.",
       ];
 
   const flashLoanLine = ctx.permissions.allow_flash_loans
