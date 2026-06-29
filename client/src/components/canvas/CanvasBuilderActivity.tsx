@@ -81,10 +81,10 @@ export function CanvasBuilderActivity({
 
   return (
     <div
-      className={`pointer-events-none absolute inset-x-0 bottom-[calc(4.5rem+2.5rem)] px-6 transition-all duration-300 ease-out ${
+      className={`pointer-events-none w-full overflow-hidden transition-all duration-300 ease-out ${
         visible
-          ? "translate-y-0 opacity-100"
-          : "pointer-events-none translate-y-6 opacity-0"
+          ? "max-h-80 translate-y-0 opacity-100"
+          : "pointer-events-none max-h-0 translate-y-4 opacity-0"
       }`}
       aria-live="polite"
       aria-label="Builder activity"

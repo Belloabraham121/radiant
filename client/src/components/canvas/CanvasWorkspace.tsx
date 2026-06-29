@@ -381,7 +381,7 @@ export function CanvasWorkspace() {
               </div>
             ) : null}
 
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 px-6 pb-4">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col gap-3 px-6 pb-4">
               {mode === "build" ? (
                 <CanvasBuilderActivity
                   entries={buildActivity}
