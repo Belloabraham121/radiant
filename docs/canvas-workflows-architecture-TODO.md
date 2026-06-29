@@ -1455,18 +1455,18 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 **Exit criteria:** Prisma migration reviewed; SSE event names frozen; policy schema signed off.
 
-**Implementation status (2026-06-29):** Verified in repo — feature flag plumbing (`FEATURE_CANVAS_ENABLED` / `NEXT_PUBLIC_FEATURE_CANVAS_ENABLED`), client Canvas route shell with Build/Dry/Live toggles, React Flow board with pan/zoom, and Prisma models + migration for `CanvasWorkflow`, `CanvasWorkflowPolicy`, `CanvasWorkflowRevision`, `CanvasWorkflowRuntime`, `CanvasWorkflowRun`, `CanvasWorkflowRunEvent`. Graph types, backend canvas services, Builder SSE, and CRUD API remain unchecked below.
+**Implementation status (2026-06-29):** Verified in repo — feature flag plumbing (`FEATURE_CANVAS_ENABLED` / `NEXT_PUBLIC_FEATURE_CANVAS_ENABLED`), client Canvas route shell with Build/Dry/Live toggles, React Flow board with pan/zoom, Prisma models + migration, graph types + Zod validation, canvas policy schema, SSE event type catalog, Canvas LLM provider skeleton, and unit tests for graph/policy/port compatibility. Graph CRUD API, Builder SSE wiring, and frontend SSE consumer remain Phase 1.
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
 | [x] | Add Prisma models: workflow, revision, policy, run, run_event | `backend/prisma/schema.prisma`; migration `20260629120000_add_canvas_workflows` |
-| [ ] | Graph types + Zod node schemas | `backend/src/services/canvas/graph/` — **See [Node catalog](#node-catalog)** |
-| [ ] | Canvas policy types + validation | `backend/src/services/canvas/policy/` |
-| [ ] | SSE event types mirroring chat stream | `canvas-build-progress.types.ts` |
+| [x] | Graph types + Zod node schemas | `backend/src/services/canvas/graph/` — **See [Node catalog](#node-catalog)** |
+| [x] | Canvas policy types + validation | `backend/src/services/canvas/policy/` |
+| [x] | SSE event types mirroring chat stream | `canvas-build-progress.types.ts` |
 | [x] | Feature flag `CANVAS_ENABLED` | `backend/src/config/features.ts` (`FEATURE_CANVAS_ENABLED`); `GET /api/v1/features`; `auth/me` → `features`; `requireFeature` middleware; client `FeatureFlagsProvider`, Sidebar gating, middleware redirect, `CanvasFeatureGuard` |
-| [ ] | Canvas LLM types: `model_tier`, `CanvasAgentLlmConfig` | `backend/src/services/canvas/llm/canvas-llm.types.ts` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
-| [ ] | Provider interface + OpenAI v1 skeleton (no Anthropic yet) | `backend/src/services/canvas/llm/canvas-llm-provider.registry.ts`, `providers/openai-v1.provider.ts` |
-| [ ] | `build_config` / `tester_config` on `CanvasWorkflowDocument` + Zod | `backend/src/services/canvas/graph/canvas-graph.types.ts` |
+| [x] | Canvas LLM types: `model_tier`, `CanvasAgentLlmConfig` | `backend/src/services/canvas/llm/canvas-llm.types.ts` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
+| [x] | Provider interface + OpenAI v1 skeleton (no Anthropic yet) | `backend/src/services/canvas/llm/canvas-llm-provider.registry.ts`, `providers/openai-v1.provider.ts` |
+| [x] | `build_config` / `tester_config` on `CanvasWorkflowDocument` + Zod | `backend/src/services/canvas/graph/canvas-graph.types.ts` |
 
 | Status | Client task |
 | ------ | ----------- |
@@ -1475,8 +1475,8 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Unit: graph validation, policy Zod |
-| [ ] | Unit: port type compatibility matrix |
+| [x] | Unit: graph validation, policy Zod |
+| [x] | Unit: port type compatibility matrix |
 
 ---
 
