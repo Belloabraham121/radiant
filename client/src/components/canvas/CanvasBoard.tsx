@@ -52,11 +52,11 @@ const edgeTypes: EdgeTypes = { animated: AnimatedSVGEdge };
 
 const EDGE_STYLE = { stroke: "var(--hero-ink)", strokeWidth: 2.5 };
 
-/** In Dry/Live, edges use the traveling-dot animated edge to show data flow. */
+/** Step (orthogonal) edges; Dry/Live swaps to the traveling-dot animated edge. */
 function styleEdgeForMode<T extends Edge>(edge: T, mode: CanvasMode): T {
   return {
     ...edge,
-    type: mode === "build" ? "default" : "animated",
+    type: mode === "build" ? "step" : "animated",
     style: EDGE_STYLE,
   };
 }
@@ -246,7 +246,7 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
         onConnect={(c: Connection) =>
           setEdges((eds) =>
             addEdge(
-              { ...c, type: mode === "build" ? "default" : "animated", style: EDGE_STYLE },
+              { ...c, type: mode === "build" ? "step" : "animated", style: EDGE_STYLE },
               eds,
             ),
           )
@@ -263,7 +263,7 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
         fitView
         fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={{ type: "default" }}
+        defaultEdgeOptions={{ type: "step" }}
         deleteKeyCode={["Backspace", "Delete"]}
         minZoom={0.3}
         maxZoom={1.8}

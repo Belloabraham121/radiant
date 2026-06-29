@@ -1,6 +1,6 @@
 "use client";
 
-import { BaseEdge, getBezierPath, type EdgeProps } from "@xyflow/react";
+import { BaseEdge, getSmoothStepPath, type EdgeProps } from "@xyflow/react";
 
 /**
  * Edge with a dot that travels along the path (SVG animateMotion) — used in
@@ -18,13 +18,14 @@ export function AnimatedSVGEdge({
   style,
   markerEnd,
 }: EdgeProps) {
-  const [edgePath] = getBezierPath({
+  const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
+    borderRadius: 0, // sharp right angles — straight orthogonal segments
   });
 
   return (
