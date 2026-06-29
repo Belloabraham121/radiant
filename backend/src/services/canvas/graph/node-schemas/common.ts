@@ -83,7 +83,7 @@ export const ifConditionConfigSchema = z
 export const compareConfigSchema = z
   .object({
     operator: z.enum([">", "<", ">=", "<=", "==", "="]).optional(),
-    b: z.number().optional(),
+    b: optionalNumber(),
   })
   .passthrough();
 
@@ -103,7 +103,7 @@ export const scheduleCronConfigSchema = z
 
 export const delayConfigSchema = z
   .object({
-    duration_seconds: z.number().int().positive().optional(),
+    duration_seconds: optionalPositiveNumber(),
   })
   .passthrough();
 
@@ -155,7 +155,7 @@ export const policyGateConfigSchema = z
 export const uiTableConfigSchema = z
   .object({
     title: z.string().optional(),
-    max_rows: z.number().int().positive().optional(),
+    max_rows: optionalPositiveNumber(),
     columns: z.string().optional(),
     highlight_column: z.string().optional(),
   })
