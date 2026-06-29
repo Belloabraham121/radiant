@@ -3,6 +3,7 @@ import type {
   CanvasBuildProgressEvent,
   CanvasBuildStreamSender,
   JsonPatchOperation,
+  WorkflowBuildStatusKind,
 } from "./canvas-build-progress.types.js";
 import type { CanvasEdge, CanvasNode } from "../graph/canvas-graph.types.js";
 import type {
@@ -60,6 +61,22 @@ function emit(event: CanvasBuildProgressEvent): void {
   }
   const { type, ...payload } = event;
   send(type, payload);
+}
+
+export function emitWorkflowBuildStarted(message: string): void {
+  emit({ type: "workflow.build.started", message });
+}
+
+export function emitWorkflowBuildStatus(
+  message: string,
+  kind: WorkflowBuildStatusKind = "status",
+  tool?: string,
+): void {
+  emit({ type: "workflow.build.status", message, kind, tool });
+}
+
+export function emitWorkflowBuildAck(message: string): void {
+  emit({ type: "workflow.build.ack", message });
 }
 
 export function emitWorkflowNodeAdd(node: CanvasNode): void {

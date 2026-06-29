@@ -5,6 +5,9 @@ import type {
 
 /** Stable SSE event names for Canvas Builder graph streaming. */
 export const CANVAS_BUILD_PROGRESS_EVENT_NAMES = [
+  "workflow.build.started",
+  "workflow.build.status",
+  "workflow.build.ack",
   "workflow.node.add",
   "workflow.node.update",
   "workflow.node.patch",
@@ -15,6 +18,31 @@ export const CANVAS_BUILD_PROGRESS_EVENT_NAMES = [
   "workflow.approve.pending",
   "workflow.build.error",
 ] as const;
+
+export type WorkflowBuildStatusKind =
+  | "thinking"
+  | "status"
+  | "tool"
+  | "warning"
+  | "error"
+  | "success";
+
+export type WorkflowBuildStartedEvent = {
+  type: "workflow.build.started";
+  message: string;
+};
+
+export type WorkflowBuildStatusEvent = {
+  type: "workflow.build.status";
+  message: string;
+  kind: WorkflowBuildStatusKind;
+  tool?: string;
+};
+
+export type WorkflowBuildAckEvent = {
+  type: "workflow.build.ack";
+  message: string;
+};
 
 export type CanvasBuildProgressEventName =
   (typeof CANVAS_BUILD_PROGRESS_EVENT_NAMES)[number];
@@ -80,6 +108,9 @@ export type WorkflowBuildErrorEvent = {
 };
 
 export type CanvasBuildProgressEvent =
+  | WorkflowBuildStartedEvent
+  | WorkflowBuildStatusEvent
+  | WorkflowBuildAckEvent
   | WorkflowNodeAddEvent
   | WorkflowNodeUpdateEvent
   | WorkflowNodePatchEvent

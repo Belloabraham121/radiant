@@ -1,7 +1,6 @@
 "use client";
 
-import { Ban, FlaskConical, Hammer, Radio, Settings2, Sparkles } from "lucide-react";
-import type { CanvasLlmModelTier } from "@/lib/canvas-types";
+import { Ban, FlaskConical, Hammer, Radio, Settings2 } from "lucide-react";
 import type { CanvasMode } from "./canvas-nodes";
 
 const MODES: Array<{ id: CanvasMode; label: string; icon: typeof Hammer }> = [
@@ -10,22 +9,13 @@ const MODES: Array<{ id: CanvasMode; label: string; icon: typeof Hammer }> = [
   { id: "live", label: "Live", icon: Radio },
 ];
 
-const MODEL_TIERS: Array<{ id: CanvasLlmModelTier; label: string }> = [
-  { id: "lite", label: "Lite" },
-  { id: "thinking", label: "Thinking" },
-];
-
 export function CanvasToolbar({
   mode,
   onModeChange,
-  modelTier,
-  onModelTierChange,
   dryRunReady,
 }: {
   mode: CanvasMode;
   onModeChange: (mode: CanvasMode) => void;
-  modelTier: CanvasLlmModelTier;
-  onModelTierChange?: (tier: CanvasLlmModelTier) => void;
   dryRunReady?: boolean;
 }) {
   return (
@@ -61,32 +51,6 @@ export function CanvasToolbar({
             );
           })}
         </div>
-
-        {mode === "build" && onModelTierChange ? (
-          <div className="flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-2 py-1">
-            <Sparkles className="size-3.5 text-[var(--hero-amber)]" strokeWidth={2.5} />
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--hero-ink)]/45">
-              Model
-            </span>
-            {MODEL_TIERS.map(({ id, label }) => {
-              const active = modelTier === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => onModelTierChange(id)}
-                  className={`rounded-full px-2.5 py-1 text-xs font-bold transition-colors ${
-                    active
-                      ? "bg-[var(--hero-violet)] text-white"
-                      : "text-[var(--hero-ink)]/55 hover:text-[var(--hero-ink)]"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
       </div>
 
       <div className="flex items-center gap-2">

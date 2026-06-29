@@ -105,6 +105,12 @@ function RichNodeComponent({ id, data, selected }: NodeProps<RichNodeType>) {
           />
         ) : null}
 
+        {data.dryRunSimulated ? (
+          <span className="absolute left-1 top-1 rounded-full border border-[var(--hero-ink)] bg-[var(--hero-amber)] px-1 py-0.5 text-[8px] font-bold uppercase tracking-wide text-[var(--hero-ink)]">
+            sim
+          </span>
+        ) : null}
+
         {/* Delete (floating badge, on hover) */}
         <button
           type="button"

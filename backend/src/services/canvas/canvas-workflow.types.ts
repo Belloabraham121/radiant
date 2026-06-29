@@ -13,14 +13,22 @@ export const updateCanvasWorkflowSchema = z.object({
 
 export const patchCanvasBuildConfigSchema = canvasAgentLlmConfigSchema;
 
+export const patchCanvasTesterConfigSchema = canvasAgentLlmConfigSchema;
+
 export const canvasBuildStreamRequestSchema = z.object({
   message: z.string().min(1).max(16_000),
+});
+
+export const canvasDryRunStreamRequestSchema = z.object({
+  message: z.string().max(16_000).optional(),
 });
 
 export type CreateCanvasWorkflowInput = z.infer<typeof createCanvasWorkflowSchema>;
 export type UpdateCanvasWorkflowInput = z.infer<typeof updateCanvasWorkflowSchema>;
 export type PatchCanvasBuildConfigInput = z.infer<typeof patchCanvasBuildConfigSchema>;
+export type PatchCanvasTesterConfigInput = z.infer<typeof patchCanvasTesterConfigSchema>;
 export type CanvasBuildStreamRequest = z.infer<typeof canvasBuildStreamRequestSchema>;
+export type CanvasDryRunStreamRequest = z.infer<typeof canvasDryRunStreamRequestSchema>;
 
 export type CanvasWorkflowListItem = {
   id: string;

@@ -17,6 +17,7 @@ import {
   getCanvasWorkflow,
   listCanvasWorkflows,
   patchCanvasWorkflowBuildConfig,
+  patchCanvasWorkflowTesterConfig,
   type CanvasWorkflowDetail,
   type CanvasWorkflowListItem,
 } from "@/lib/canvas-api";
@@ -149,13 +150,18 @@ type ActiveWorkflowContextValue = {
   loading: boolean;
   error: string | null;
   buildConfig: CanvasBuildConfig;
+  testerConfig: CanvasBuildConfig;
   setBuildConfig: (config: CanvasBuildConfig) => Promise<void>;
+  setTesterConfig: (config: CanvasBuildConfig) => Promise<void>;
   refreshWorkflow: () => Promise<void>;
   dryRunReady: boolean;
   setDryRunReady: (ready: boolean) => void;
   buildLog: string[];
   appendBuildLog: (line: string) => void;
   clearBuildLog: () => void;
+  dryRunLog: string[];
+  appendDryRunLog: (line: string) => void;
+  clearDryRunLog: () => void;
 };
 
 const ActiveWorkflowContext = createContext<ActiveWorkflowContextValue | null>(null);
@@ -172,11 +178,18 @@ export function ActiveCanvasWorkflowProvider({
   const [error, setError] = useState<string | null>(null);
   const [dryRunReady, setDryRunReady] = useState(false);
   const [buildLog, setBuildLog] = useState<string[]>([]);
+  const [dryRunLog, setDryRunLog] = useState<string[]>([]);
 
   const buildConfig = useMemo(
     (): CanvasBuildConfig =>
       workflow?.build_config ?? { model_tier: "lite", provider: "openai" },
     [workflow?.build_config],
+  );
+
+  const testerConfig = useMemo(
+    (): CanvasBuildConfig =>
+      workflow?.tester_config ?? { model_tier: "lite", provider: "openai" },
+    [workflow?.tester_config],
   );
 
   const { ready: apiReady, waiting } = useCanvasApiReady();
@@ -242,11 +255,25 @@ export function ActiveCanvasWorkflowProvider({
     [workflowId],
   );
 
+  const setTesterConfig = useCallback(
+    async (config: CanvasBuildConfig) => {
+      const updated = await patchCanvasWorkflowTesterConfig(workflowId, config);
+      setWorkflow(updated);
+    },
+    [workflowId],
+  );
+
   const appendBuildLog = useCallback((line: string) => {
     setBuildLog((prev) => [...prev, line]);
   }, []);
 
   const clearBuildLog = useCallback(() => setBuildLog([]), []);
+
+  const appendDryRunLog = useCallback((line: string) => {
+    setDryRunLog((prev) => [...prev, line]);
+  }, []);
+
+  const clearDryRunLog = useCallback(() => setDryRunLog([]), []);
 
   const value = useMemo(
     () => ({
@@ -254,26 +281,36 @@ export function ActiveCanvasWorkflowProvider({
       loading,
       error,
       buildConfig,
+      testerConfig,
       setBuildConfig,
+      setTesterConfig,
       refreshWorkflow,
       dryRunReady,
       setDryRunReady,
       buildLog,
       appendBuildLog,
       clearBuildLog,
+      dryRunLog,
+      appendDryRunLog,
+      clearDryRunLog,
     }),
     [
       workflow,
       loading,
       error,
       buildConfig,
+      testerConfig,
       setBuildConfig,
+      setTesterConfig,
       refreshWorkflow,
       dryRunReady,
       setDryRunReady,
       buildLog,
       appendBuildLog,
       clearBuildLog,
+      dryRunLog,
+      appendDryRunLog,
+      clearDryRunLog,
     ],
   );
 

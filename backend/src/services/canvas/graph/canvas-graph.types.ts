@@ -59,6 +59,12 @@ export const CANVAS_NODE_TYPES = [
   // Logic / action / agent
   "copy_trade",
   "if_condition",
+  "compare",
+  "threshold",
+  "policy_gate",
+  "dry_run_gate",
+  "wallet_balance",
+  "schedule_cron",
   "delay",
   "ai_reason",
   "notify",

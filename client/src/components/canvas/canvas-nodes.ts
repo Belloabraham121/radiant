@@ -118,6 +118,11 @@ export type RichNodeData = {
   outputs: CanvasPort[];
   /** Action nodes show a "simulated"/"live" ribbon in Dry/Live mode. */
   isAction?: boolean;
+  /** Dry-run execution badge from Tester stream. */
+  dryRunSimulated?: boolean;
+  dryRunStatus?: "running" | "ok" | "skipped" | "failed";
+  /** Bound display payload for UI nodes (Phase 3). */
+  uiBinding?: unknown;
   /** Not yet executable (e.g. Limitless place/cancel) — shows a "soon" badge. */
   comingSoon?: boolean;
   /** Price Chart node only — selected chart style. */

@@ -1543,23 +1543,23 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Graph compiler → `CompiledWorkflow` | `compiler/compile-workflow.ts` |
-| [ ] | Dry-run executor + simulation models | `runtime/dry-run-simulator.ts` |
-| [ ] | Workflow control nodes runtime (start / approve / stop) | `runtime/nodes/workflow-*.ts` — **See [§ B](#b-workflow-control-nodes)** |
-| [ ] | UI display node bindings (button, table, label) | `client/src/components/canvas/nodes/Ui*.tsx` — **See [§ D](#d-ui--display-nodes-manipulable-canvas-cards)** |
-| [ ] | Tester agent role + tools | `backend/src/services/canvas/test/` |
-| [ ] | Tester uses `tester_config` tier (may differ from Builder) | `canvas-tester-agent.service.ts` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
-| [ ] | Run history API | `canvas-workflow-run.service.ts` |
+| [x] | Graph compiler → `CompiledWorkflow` | `compiler/compile-workflow.ts` |
+| [x] | Dry-run executor + simulation models | `runtime/dry-run-simulator.ts` |
+| [x] | Workflow control nodes runtime (start / approve / stop) | `runtime/nodes/workflow-*.ts` — **See [§ B](#b-workflow-control-nodes)** |
+| [x] | UI display node bindings (button, table, label) | `client/src/components/canvas/nodes/Ui*.tsx` — **See [§ D](#d-ui--display-nodes-manipulable-canvas-cards)** |
+| [x] | Tester agent role + tools | `backend/src/services/canvas/test/` |
+| [x] | Tester uses `tester_config` tier (may differ from Builder) | `canvas-tester-agent.service.ts` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
+| [x] | Run history API | `canvas-workflow-run.service.ts` |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | Dry Run mode UI + simulated action badges |
-| [ ] | Run timeline (reuse execution timeline components) |
+| [x] | Dry Run mode UI + simulated action badges |
+| [x] | Run timeline (reuse execution timeline components) |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Unit: compiler DAG + policy binding |
-| [ ] | Integration: dry run end-to-end |
+| [x] | Unit: compiler DAG + policy binding |
+| [x] | Integration: dry run end-to-end |
 
 ---
 

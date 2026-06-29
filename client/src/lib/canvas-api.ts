@@ -86,8 +86,101 @@ export async function patchCanvasWorkflowBuildConfig(
   );
 }
 
+export async function patchCanvasWorkflowTesterConfig(
+  workflowId: string,
+  testerConfig: CanvasBuildConfig,
+): Promise<CanvasWorkflowDetail> {
+  return apiFetch<CanvasWorkflowDetail>(
+    `/api/v1/canvas/workflows/${workflowId}/tester_config`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(testerConfig),
+    },
+  );
+}
+
+export type CanvasWorkflowRunListItem = {
+  id: string;
+  workflow_id: string;
+  mode: "dry" | "live";
+  status: string;
+  workflow_revision: number;
+  started_at: string;
+  finished_at: string | null;
+  error_message: string | null;
+};
+
+export type CanvasWorkflowRunDetail = CanvasWorkflowRunListItem & {
+  events: Array<{
+    id: string;
+    event_type: string;
+    payload: unknown;
+    created_at: string;
+  }>;
+};
+
+export async function listCanvasWorkflowRuns(
+  workflowId: string,
+): Promise<{ runs: CanvasWorkflowRunListItem[] }> {
+  return apiFetch<{ runs: CanvasWorkflowRunListItem[] }>(
+    `/api/v1/canvas/workflows/${workflowId}/runs`,
+  );
+}
+
+export async function getCanvasWorkflowRun(
+  workflowId: string,
+  runId: string,
+): Promise<CanvasWorkflowRunDetail> {
+  return apiFetch<CanvasWorkflowRunDetail>(
+    `/api/v1/canvas/workflows/${workflowId}/runs/${runId}`,
+  );
+}
+
+async function consumeSseStream<T extends { event: string; data: unknown }>(
+  response: Response,
+  onEvent: (evt: T) => void,
+): Promise<void> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
+
+    for (const chunk of chunks) {
+      const lines = chunk.split("\n");
+      let eventName = "message";
+      let dataLine = "";
+      for (const line of lines) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        if (line.startsWith("data:")) dataLine = line.slice(5).trim();
+      }
+      if (!dataLine) continue;
+      const data = JSON.parse(dataLine) as T["data"];
+      onEvent({ event: eventName, data } as T);
+    }
+  }
+}
+
 export type CanvasBuildStreamEvent =
   | { event: "connected"; data: { workflow_id: string; model_tier: string; provider: string } }
+  | { event: "workflow.build.started"; data: { message: string } }
+  | {
+      event: "workflow.build.status";
+      data: {
+        message: string;
+        kind: "thinking" | "status" | "tool" | "warning" | "error" | "success";
+        tool?: string;
+      };
+    }
+  | { event: "workflow.build.ack"; data: { message: string } }
   | { event: "workflow.node.add"; data: { node: CanvasGraphNode } }
   | { event: "workflow.node.update"; data: { node_id: string; patch: Partial<CanvasGraphNode> } }
   | {
@@ -125,34 +218,46 @@ export async function streamCanvasBuild(
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Build stream failed (${response.status})`);
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("No response body");
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-
-    const chunks = buffer.split("\n\n");
-    buffer = chunks.pop() ?? "";
-
-    for (const chunk of chunks) {
-      const lines = chunk.split("\n");
-      let eventName = "message";
-      let dataLine = "";
-      for (const line of lines) {
-        if (line.startsWith("event:")) eventName = line.slice(6).trim();
-        if (line.startsWith("data:")) dataLine = line.slice(5).trim();
+    let message = text || `Build stream failed (${response.status})`;
+    if (text) {
+      try {
+        const parsed = JSON.parse(text) as { error?: { message?: string } };
+        if (parsed.error?.message) message = parsed.error.message;
+      } catch {
+        // use raw text
       }
-      if (!dataLine) continue;
-      const data = JSON.parse(dataLine) as CanvasBuildStreamEvent["data"];
-      onEvent({ event: eventName, data } as CanvasBuildStreamEvent);
     }
+    throw new Error(message);
   }
+
+  await consumeSseStream(response, onEvent);
+}
+
+export type CanvasDryRunStreamEvent = import("@/lib/canvas-dry-run").CanvasDryRunStreamEvent;
+
+export async function streamCanvasDryRun(
+  workflowId: string,
+  onEvent: (evt: CanvasDryRunStreamEvent) => void,
+  options?: { message?: string; signal?: AbortSignal },
+): Promise<void> {
+  const response = await fetch(
+    apiUrl(`/api/v1/canvas/workflows/${workflowId}/dry-run/stream`),
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({ message: options?.message }),
+      signal: options?.signal,
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Dry run stream failed (${response.status})`);
+  }
+
+  await consumeSseStream<CanvasDryRunStreamEvent>(response, onEvent);
 }

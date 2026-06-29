@@ -1,6 +1,9 @@
 import { AppError } from "../../../errors/app-error.js";
 import {
+  emitWorkflowBuildAck,
   emitWorkflowBuildError,
+  emitWorkflowBuildStarted,
+  emitWorkflowBuildStatus,
   getCanvasBuildLlmConfig,
   runWithCanvasBuildProgress,
 } from "./canvas-build-progress-context.js";
@@ -29,6 +32,34 @@ Rules:
 Use add_node, patch_node, add_edge, then complete. Only use v1 catalog slugs from add_node.`;
 
 const MAX_BUILDER_TURNS = 12;
+
+const CHITCHAT_PATTERN =
+  /^(hi|hello|hey|thanks|thank you|ok|okay|test|help|yo|sup|howdy)[!.?\s]*$/i;
+
+function isLikelyWorkflowRequest(message: string): boolean {
+  const trimmed = message.trim();
+  if (trimmed.length < 12 && CHITCHAT_PATTERN.test(trimmed)) {
+    return false;
+  }
+  return true;
+}
+
+function toolActionLabel(toolName: string, args: unknown): string {
+  if (toolName === "add_node" && args && typeof args === "object" && "slug" in args) {
+    const slug = String((args as { slug: string }).slug);
+    return `Adding ${slug} node…`;
+  }
+  if (toolName === "add_edge") return "Connecting nodes…";
+  if (toolName === "patch_node") return "Updating node config…";
+  if (toolName === "complete") return "Finalizing workflow…";
+  return `Running ${toolName}…`;
+}
+
+function truncateThinking(text: string, max = 280): string {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  if (oneLine.length <= max) return oneLine;
+  return `${oneLine.slice(0, max - 1)}…`;
+}
 
 function graphSummary(graph: CanvasGraph): string {
   const nodeLines = graph.nodes.map(
@@ -76,6 +107,21 @@ async function executeBuilderTurn(
   workflowId: string,
   userMessage: string,
 ): Promise<void> {
+  emitWorkflowBuildStarted("Builder agent started");
+
+  if (!isLikelyWorkflowRequest(userMessage)) {
+    emitWorkflowBuildStatus(
+      "Hi! I'm the Radiant Canvas Builder — I assemble workflow graphs from plain-English descriptions.",
+      "status",
+    );
+    emitWorkflowBuildStatus(
+      'Try something like: "When BTC drops 5%, alert me and buy the top Polymarket market."',
+      "status",
+    );
+    emitWorkflowBuildAck("Waiting for your workflow description.");
+    return;
+  }
+
   const { workflow, graph } = await loadWorkflowGraph(privyUserId, workflowId);
   const state: BuilderGraphState = {
     workflowId,
@@ -98,7 +144,13 @@ async function executeBuilderTurn(
 
   let completed = false;
 
+  emitWorkflowBuildStatus("Reading your request and planning the workflow…", "thinking");
+
   for (let turn = 0; turn < MAX_BUILDER_TURNS && !completed; turn += 1) {
+    if (turn > 0) {
+      emitWorkflowBuildStatus(`Continuing build (step ${turn + 1})…`, "thinking");
+    }
+
     const result = await provider.completeWithTools({
       model,
       messages,
@@ -108,6 +160,7 @@ async function executeBuilderTurn(
     });
 
     if (result.content.trim()) {
+      emitWorkflowBuildStatus(truncateThinking(result.content), "thinking");
       messages.push({ role: "assistant", content: result.content });
     }
 
@@ -115,6 +168,7 @@ async function executeBuilderTurn(
       if (turn === MAX_BUILDER_TURNS - 1) {
         throw new AppError(422, "BUILD_INCOMPLETE", "Builder did not finish the workflow.");
       }
+      emitWorkflowBuildStatus("No tool calls yet — prompting the agent to continue…", "status");
       messages.push({
         role: "user",
         content: "Continue building the workflow using tools, then call complete.",
@@ -130,7 +184,14 @@ async function executeBuilderTurn(
         throw new AppError(400, "INVALID_TOOL_ARGS", `Invalid JSON for ${toolCall.name}`);
       }
 
+      emitWorkflowBuildStatus(
+        toolActionLabel(toolCall.name, parsedArgs),
+        "tool",
+        toolCall.name,
+      );
+
       const toolResult = await runBuilderTool(toolCall.name, parsedArgs, state);
+      emitWorkflowBuildStatus(toolResult.message, "success", toolCall.name);
       messages.push({
         role: "assistant",
         content: `[tool:${toolCall.name}] ${toolResult.message}`,
@@ -155,6 +216,8 @@ export async function runCanvasBuildStreamStub(
   build_config?: CanvasAgentLlmConfig,
 ): Promise<void> {
   await runWithCanvasBuildProgress({ send, build_config }, async () => {
+    emitWorkflowBuildStarted("Stub builder started");
+    emitWorkflowBuildStatus("Assembling sample workflow (stub mode)…", "status");
     const { workflow, graph } = await loadWorkflowGraph(privyUserId, workflowId);
     const state: BuilderGraphState = {
       workflowId,

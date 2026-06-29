@@ -13,6 +13,7 @@ import type {
   CanvasWorkflowListItem,
   CreateCanvasWorkflowInput,
   PatchCanvasBuildConfigInput,
+  PatchCanvasTesterConfigInput,
   UpdateCanvasWorkflowInput,
 } from "./canvas-workflow.types.js";
 import { validateCanvasGraph } from "./graph/validate-graph.js";
@@ -192,6 +193,24 @@ export async function patchUserWorkflowBuildConfig(
     where: { id: workflowId },
     data: {
       build_config: input as Prisma.InputJsonValue,
+    },
+  });
+
+  return toWorkflowDetail(updated);
+}
+
+export async function patchUserWorkflowTesterConfig(
+  privyUserId: string,
+  workflowId: string,
+  input: PatchCanvasTesterConfigInput,
+): Promise<CanvasWorkflowDetail> {
+  const userId = await requireUserId(privyUserId);
+  await requireOwnedWorkflow(workflowId, userId);
+
+  const updated = await prisma.canvasWorkflow.update({
+    where: { id: workflowId },
+    data: {
+      tester_config: input as Prisma.InputJsonValue,
     },
   });
 
