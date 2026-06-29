@@ -229,7 +229,16 @@ export async function streamCanvasBuild(
   message: string,
   onEvent: (evt: CanvasBuildStreamEvent) => void,
   signal?: AbortSignal,
+  options?: { selectedNodeId?: string; editIntent?: "create" | "patch" },
 ): Promise<void> {
+  const body: Record<string, unknown> = { message };
+  if (options?.selectedNodeId) {
+    body.selected_node_id = options.selectedNodeId;
+  }
+  if (options?.editIntent) {
+    body.edit_intent = options.editIntent;
+  }
+
   const response = await fetch(
     apiUrl(`/api/v1/canvas/workflows/${workflowId}/build/stream`),
     {
@@ -239,7 +248,7 @@ export async function streamCanvasBuild(
         "Content-Type": "application/json",
         Accept: "text/event-stream",
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify(body),
       signal,
     },
   );

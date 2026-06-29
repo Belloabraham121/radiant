@@ -86,7 +86,18 @@ export function nodeNeedsInspectorFocus(data: RichNode["data"], catalogSlug?: st
 }
 
 export function canvasNodeToFlowNode(node: CanvasGraphNode): RichNode {
-  const entry = findCatalogEntry(node.type);
+  const slugOverride =
+    typeof node.config?.[CATALOG_SLUG_CONFIG_KEY] === "string"
+      ? (node.config[CATALOG_SLUG_CONFIG_KEY] as string)
+      : undefined;
+  const entry =
+    (slugOverride ? NODE_CATALOG.find((e) => e.slug === slugOverride) : undefined) ??
+    findCatalogEntry(node.type);
+  // Drop the internal slug marker so it never shows up as a config value.
+  const configEntries = Object.entries(node.config).filter(
+    ([key]) => key !== CATALOG_SLUG_CONFIG_KEY,
+  );
+
   const data = entry
     ? nodeDataFromCatalog(entry)
     : {
@@ -94,7 +105,7 @@ export function canvasNodeToFlowNode(node: CanvasGraphNode): RichNode {
         icon: "Play",
         title: node.meta?.label ?? nodeTypeToCatalogSlug(node.type),
         preview: "none" as const,
-        config: Object.entries(node.config).map(([label, value]) => ({
+        config: configEntries.map(([label, value]) => ({
           label,
           value: String(value),
         })),
@@ -113,12 +124,12 @@ export function canvasNodeToFlowNode(node: CanvasGraphNode): RichNode {
     }
   }
 
-  if (Object.keys(node.config).length > 0) {
+  if (configEntries.length > 0) {
     const configValues = Object.fromEntries(
-      Object.entries(node.config).map(([key, value]) => [key, value as ConfigValue]),
+      configEntries.map(([key, value]) => [key, value as ConfigValue]),
     );
     data.values = { ...(data.values ?? {}), ...configValues };
-    data.config = Object.entries(node.config).map(([label, value]) => ({
+    data.config = configEntries.map(([label, value]) => ({
       label,
       value: String(value),
     }));
@@ -158,10 +169,56 @@ const CATALOG_SLUG_TO_NODE_TYPE: Record<string, string> = {
   "polymarket-market": "polymarket_feed",
   "polymarket-order": "place_order",
   "place-order": "place_order",
+  "limitless-market": "limitless_feed",
   swap: "lifi_swap",
   bridge: "lifi_bridge",
   "lifi-quote": "lifi_quote",
 };
+
+/** Node types the backend graph schema accepts. Anything else is persisted as
+ *  `custom_app_action` (with the real slug stashed) so validation never fails. */
+const VALID_BACKEND_NODE_TYPES = new Set<string>([
+  "workflow_start",
+  "workflow_approve",
+  "workflow_stop",
+  "workflow_pause",
+  "workflow_resume",
+  "price_chart",
+  "polymarket_feed",
+  "polymarket_orderbook",
+  "polymarket_positions",
+  "limitless_feed",
+  "whale_tx_tracker",
+  "polymarket_place_limit",
+  "polymarket_place_market",
+  "polymarket_cancel_order",
+  "place_order",
+  "lifi_quote",
+  "lifi_swap",
+  "lifi_bridge",
+  "lifi_route_status",
+  "lifi_liquidity_fallback",
+  "swap_bridge",
+  "ui_button",
+  "ui_label",
+  "ui_table",
+  "ui_chart",
+  "ui_panel",
+  "copy_trade",
+  "if_condition",
+  "compare",
+  "threshold",
+  "policy_gate",
+  "dry_run_gate",
+  "wallet_balance",
+  "schedule_cron",
+  "delay",
+  "ai_reason",
+  "notify",
+  "custom_app_action",
+]);
+
+const CATALOG_SLUG_CONFIG_KEY = "_catalog_slug";
 
 const CANVAS_PORT_KINDS = [
   "trigger",
@@ -228,14 +285,24 @@ export function flowGraphToCanvasGraph(
 export function flowNodeToCanvasNode(node: Node): CanvasGraphNode {
   const data = node.data as RichNode["data"];
   const entry = findCatalogEntryForNode(data);
-  const type = entry
+  const candidate = entry
     ? (CATALOG_SLUG_TO_NODE_TYPE[entry.slug] ?? entry.slug.replace(/-/g, "_"))
     : "custom_app_action";
+
+  const config: Record<string, unknown> = { ...(data.values ?? {}) };
+  let type = candidate;
+  if (!VALID_BACKEND_NODE_TYPES.has(candidate)) {
+    // Unknown to the backend (e.g. limitless-order) — persist as a generic
+    // action but stash the real slug so the board can restore it on reload.
+    if (entry) config[CATALOG_SLUG_CONFIG_KEY] = entry.slug;
+    type = "custom_app_action";
+  }
+
   return {
     id: node.id,
     type,
     position: node.position,
-    config: data.values ?? {},
+    config,
     meta: { label: data.title },
   };
 }

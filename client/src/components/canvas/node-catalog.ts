@@ -183,6 +183,18 @@ const LIFI_CORRIDOR_FIELDS: ConfigField[] = [
   { kind: "number", key: "slippage_bps", label: "Slippage", default: 50, min: 0, max: 1000, suffix: "bps" },
 ];
 
+/** Shared operators for the guided condition builder. */
+const CONDITION_OPERATORS = [
+  { value: "gt", label: ">" },
+  { value: "lt", label: "<" },
+  { value: "gte", label: "≥" },
+  { value: "lte", label: "≤" },
+  { value: "eq", label: "=" },
+  { value: "neq", label: "≠" },
+  { value: "crosses_above", label: "crosses ↑" },
+  { value: "crosses_below", label: "crosses ↓" },
+];
+
 /** v1 nodes only (v2 / future hidden). Grouped for the palette. */
 const RAW_NODE_CATALOG: NodeCatalogEntry[] = [
   // Workflow control
@@ -266,7 +278,18 @@ const RAW_NODE_CATALOG: NodeCatalogEntry[] = [
     inputs: [{ kind: "trigger" }, { kind: "data" }],
     outputs: [{ kind: "trigger" }],
     preview: "result",
-    fields: [{ kind: "text", key: "expression", label: "Expression", placeholder: "value == true" }],
+    fields: [
+      {
+        kind: "branches",
+        key: "branches",
+        label: "Conditions",
+        defaultOp: "gt",
+        operators: CONDITION_OPERATORS,
+        leftPlaceholder: "field (e.g. price.mid)",
+        rightPlaceholder: "value or field",
+        addLabel: "Add else-if",
+      },
+    ],
   },
   {
     slug: "compare",
@@ -279,19 +302,17 @@ const RAW_NODE_CATALOG: NodeCatalogEntry[] = [
     outputs: [{ kind: "signal" }, { kind: "trigger" }],
     fields: [
       {
-        kind: "select",
-        key: "operator",
-        label: "Operator",
-        default: ">",
-        options: [
-          { value: ">", label: ">" },
-          { value: "<", label: "<" },
-          { value: ">=", label: ">=" },
-          { value: "<=", label: "<=" },
-          { value: "==", label: "==" },
-        ],
+        kind: "condition",
+        key: "compare",
+        label: "Compare",
+        leftKey: "a",
+        opKey: "operator",
+        rightKey: "b",
+        defaultOp: "gt",
+        operators: CONDITION_OPERATORS,
+        leftPlaceholder: "value A",
+        rightPlaceholder: "value B",
       },
-      { kind: "number", key: "b", label: "Constant B", default: 0 },
     ],
   },
   {
@@ -340,7 +361,49 @@ const RAW_NODE_CATALOG: NodeCatalogEntry[] = [
     description: "Enforce spend caps & allow-lists before actions.",
     inputs: [{ kind: "order_intent" }, { kind: "trigger" }],
     outputs: [{ kind: "trigger" }, { kind: "data" }],
-    fields: [{ kind: "text", key: "_note", label: "Policy", default: "Uses workflow policy (caps, allow-lists)" }],
+    preview: "result",
+    fields: [
+      {
+        kind: "select",
+        key: "policy_mode",
+        label: "Policy source",
+        default: "inherit",
+        options: [
+          { value: "inherit", label: "Use workflow policy" },
+          { value: "override", label: "Draft overrides (not enforced in Live)" },
+        ],
+      },
+      {
+        kind: "text",
+        key: "_note",
+        label: "Workflow policy",
+        default: "Live enforcement reads workflow policy (caps, allowed actions, kill switch). Edit under Workflow → Policy.",
+        showWhen: { key: "policy_mode", in: ["inherit"] },
+      },
+      {
+        kind: "number",
+        key: "max_single_action_usd",
+        label: "Max single action",
+        default: 100,
+        min: 1,
+        suffix: "USD",
+        showWhen: { key: "policy_mode", in: ["override"] },
+      },
+      {
+        kind: "text",
+        key: "allowed_actions",
+        label: "Allowed actions",
+        placeholder: "place_order, polymarket_place_market, lifi_swap",
+        showWhen: { key: "policy_mode", in: ["override"] },
+      },
+      {
+        kind: "toggle",
+        key: "require_approve",
+        label: "Require approve step",
+        default: true,
+        showWhen: { key: "policy_mode", in: ["override"] },
+      },
+    ],
   },
   { slug: "dry-run-gate", title: "Dry-run Gate", group: "Logic", category: "logic", icon: "FlaskConical", description: "Route to simulator in Dry; pass through in Live.", inputs: [{ kind: "order_intent" }, { kind: "trigger" }], outputs: [{ kind: "trigger" }, { kind: "order_intent" }] },
 
@@ -697,7 +760,22 @@ const RAW_NODE_CATALOG: NodeCatalogEntry[] = [
     description: "Tabular bind — rows, orders, positions.",
     inputs: [{ kind: "data" }],
     outputs: [{ kind: "signal" }],
-    fields: [{ kind: "text", key: "label", label: "Table title", placeholder: "Open orders" }],
+    fields: [
+      { kind: "text", key: "title", label: "Title", default: "Open orders", placeholder: "Open orders" },
+      { kind: "number", key: "max_rows", label: "Max rows", default: 10, min: 1, max: 100 },
+      {
+        kind: "text",
+        key: "columns",
+        label: "Columns",
+        placeholder: "market, side, size, price (comma-separated)",
+      },
+      {
+        kind: "text",
+        key: "highlight_column",
+        label: "Highlight column",
+        placeholder: "side (optional)",
+      },
+    ],
   },
   {
     slug: "ui-label",
@@ -708,7 +786,29 @@ const RAW_NODE_CATALOG: NodeCatalogEntry[] = [
     description: "Display a bound value or status.",
     inputs: [{ kind: "data" }, { kind: "signal" }],
     outputs: [],
-    fields: [{ kind: "text", key: "label", label: "Label prefix", placeholder: "Mid:" }],
+    fields: [
+      {
+        kind: "text",
+        key: "label_text",
+        label: "Label text",
+        required: true,
+        default: "Mid",
+        placeholder: "Mid price",
+      },
+      {
+        kind: "select",
+        key: "value_format",
+        label: "Value format",
+        default: "plain",
+        options: [
+          { value: "plain", label: "Plain" },
+          { value: "price", label: "Price (0.00)" },
+          { value: "percent", label: "Percent" },
+        ],
+      },
+      { kind: "text", key: "prefix", label: "Prefix", placeholder: "$" },
+      { kind: "text", key: "suffix", label: "Suffix", placeholder: " USDC" },
+    ],
   },
   {
     slug: "ui-chart",
@@ -719,7 +819,21 @@ const RAW_NODE_CATALOG: NodeCatalogEntry[] = [
     description: "Generic chart from an upstream series.",
     inputs: [{ kind: "data" }],
     outputs: [{ kind: "data" }],
-    fields: [{ kind: "text", key: "label", label: "Chart title", placeholder: "Price" }],
+    preview: "bars",
+    fields: [
+      { kind: "text", key: "title", label: "Chart title", default: "Price", placeholder: "Price" },
+      {
+        kind: "select",
+        key: "chart_type",
+        label: "Chart type",
+        default: "line",
+        options: [
+          { value: "line", label: "Line" },
+          { value: "area", label: "Area" },
+          { value: "bar", label: "Bar" },
+        ],
+      },
+    ],
   },
 
   // AI

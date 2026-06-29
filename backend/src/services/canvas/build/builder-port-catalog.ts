@@ -1,6 +1,12 @@
 import type { CanvasGraph, CanvasNodeType, PortKind } from "../graph/canvas-graph.types.js";
 import { getCompatibleInputPorts } from "../graph/port-compatibility.js";
 import { nodeTypeToSlug, slugToNodeType } from "../graph/node-slug-map.js";
+import {
+  formatBuilderConfigPromptSection,
+  validateBuilderNodeConfig,
+} from "./builder-config-catalog.js";
+
+export { validateBuilderNodeConfig } from "./builder-config-catalog.js";
 
 /** Inputs / outputs per compiler node type (v1 Builder catalog). */
 export const NODE_PORT_PROFILES: Record<
@@ -103,7 +109,39 @@ export function getPostAddNodeWiringHints(slug: string, graph: CanvasGraph): str
   }
 
   if (normalized === "threshold") {
-    hints.push("threshold.trigger → workflow-approve.trigger (never feed.data → approve.trigger)");
+    hints.push(
+      "threshold.trigger → workflow-approve.trigger or if-condition.trigger (control flow)",
+    );
+    hints.push(
+      "threshold.signal → if-condition.signal or workflow-stop.signal only — NEVER threshold.signal → *.data",
+    );
+    hints.push("polymarket-feed.data → threshold.data (never feed.data → approve.trigger)");
+  }
+
+  if (normalized === "compare") {
+    hints.push(
+      "compare needs two data inputs (e.g. two polymarket-feed.data branches or feed + wallet) — NEVER threshold.signal → compare.data",
+    );
+    hints.push("compare.trigger → workflow-approve.trigger; compare.signal → if-condition.signal");
+  }
+
+  if (normalized === "if-condition") {
+    hints.push("threshold.trigger → if-condition.trigger OR threshold.signal → if-condition.signal");
+    hints.push("NEVER *.signal → if-condition.data — use trigger/signal inputs only for threshold outputs");
+  }
+
+  if (normalized === "ui-table") {
+    hints.push("polymarket-feed.data → ui-table.data — NEVER threshold.signal → ui-table.data");
+  }
+
+  if (normalized === "ui-label") {
+    hints.push("polymarket-feed.data → ui-label.data for live values");
+    hints.push("ui-table.signal → ui-label.signal (NOT ui-label.data) for row selection events");
+  }
+
+  if (normalized === "copy-trade") {
+    hints.push("threshold.trigger → copy-trade.trigger; polymarket-feed.market → copy-trade.market");
+    hints.push("copy-trade.order_intent → policy-gate.order_intent before polymarket-place-market");
   }
 
   if (normalized === "workflow-approve") {
@@ -148,7 +186,7 @@ export function buildBuilderSystemPrompt(): string {
 - After adding nodes, ALWAYS call add_edge to wire the graph before complete.
 - A graph with nodes but no edges is INVALID — never call complete until every functional node is connected.
 - Use exact node UUIDs returned by add_node (e.g. "Added polymarket-feed node <uuid>").
-- Typical build order: add all nodes → add_edge for each link in the flow → complete.
+- Build order: add all nodes → patch_node for every config field → add_edge → validate → complete.
 
 ## Port compatibility (source_port → allowed target_port)
 ${PORT_COMPAT_LINES.join("\n")}
@@ -159,13 +197,22 @@ ${formatNodePortCatalogForPrompt()}
 ## Wiring recipes (use these port pairs)
 - Control flow chain: workflow-start.trigger → …trigger → … → terminal step (see stop rule below)
 - Feed → logic: polymarket-feed.data → threshold.data; threshold.trigger → workflow-approve.trigger
-- Feed → display: polymarket-feed.data → ui-table.data
+- Feed → display: polymarket-feed.data → ui-table.data; polymarket-feed.data → ui-label.data
 - Logic → approve: threshold.trigger or if-condition.trigger → workflow-approve.trigger
 - Approve → action: workflow-approve.trigger → policy-gate.trigger → polymarket-place-market.trigger
 - Market context → PM order: polymarket-feed.market → polymarket-place-market.market
 - Action → stop: polymarket-place-market.data → workflow-stop.signal (NEVER action.data → workflow-stop.trigger)
 - DeFi: workflow-start.trigger → wallet-balance.trigger → lifi-quote.trigger → lifi-swap.trigger → workflow-stop.trigger
 - order_intent path: lifi-quote.order_intent → policy-gate.order_intent → lifi-swap.order_intent
+- Dual thresholds (buy/sell): polymarket-feed.data → each threshold.data; each threshold.trigger → its if-condition.trigger
+- Compare node: two separate data sources into compare (both target_port data) — never wire threshold.signal into compare
+- UI monitor: ui-table.signal → ui-label.signal (never ui-table.signal → ui-label.data)
+
+## NEVER signal → data (invalid — add_edge will reject)
+- threshold.signal → ui-table.data / ui-label.data / compare.data / if-condition.data
+- compare.signal → if-condition.data / ui-label.data
+- ui-table.signal → ui-label.data (use ui-label.signal instead)
+- Use threshold.trigger for trade/approve paths; threshold.signal only to if-condition.signal or workflow-stop.signal
 
 ## Polymarket sports auto-trading (7-node template)
 Nodes: workflow-start, polymarket-feed, threshold, workflow-approve, policy-gate, polymarket-place-market, workflow-stop
@@ -181,13 +228,24 @@ Notes: polymarket-feed is a source (no trigger input). workflow-start.trigger en
 5. Feed nodes (polymarket-feed, polymarket-orderbook) have no trigger input — wire feed.data to threshold/if-condition.data; never start.trigger → polymarket-feed.
 6. Call complete only when nodes AND edges satisfy the user's request.
 
-## Polymarket market configuration
-- Users pick markets in the UI via the Polymarket market picker (search by name/category); you do not need to paste CLOB token IDs unless the user provides them explicitly.
-- When the user names a market and supplies a token id, use patch_node on polymarket-feed / polymarket-market nodes to set config.asset_id (and config.market for the label).
-- If the user only names a market without a token id, add the polymarket-market node and tell them to select the market in the node picker.
-- Optional: call search_polymarket_markets to resolve market names to clob_token_ids before patch_node.
+## Polymarket market configuration (MANDATORY)
+- When the user mentions a market, event, league, or team: call search_polymarket_markets FIRST, then patch_node on polymarket-feed / polymarket-market with config.asset_id, config.market, config.outcome, config.depth.
+- If the user supplies a CLOB token id explicitly, patch config.asset_id directly (still set config.market for the label).
+- Only tell the user to pick a market in the UI when search_polymarket_markets returns zero results.
+- Extract threshold bounds, order size/side/outcome, and approve messages from the user's design — never leave action or logic nodes with empty config.
 
-Use add_node, add_edge, patch_node, then complete. Only v1 catalog slugs from add_node.`;
+${formatBuilderConfigPromptSection()}
+
+## Edit mode (existing graph + modification request)
+When the graph already has nodes and the user asks to change, update, or set values on existing steps:
+- Use patch_node ONLY on matching nodes (by id from the graph summary or user-selected node).
+- Patch ONLY node types implied by the user's message (e.g. order size → polymarket-place-market; threshold → threshold). Do NOT patch policy-gate, ui-table, or polymarket-feed unless the user explicitly mentions policy, display, or market/event changes.
+- policy-gate policy_mode accepts inherit | override ONLY — never live, dry_run, or other runtime modes.
+- Do NOT call add_node to duplicate workflow-start, polymarket-feed, threshold, or order nodes.
+- Do NOT call search_polymarket_markets unless the user changes the market/event OR the feed node has no asset_id.
+- After patch-only edits, call complete immediately if the graph is still connected and config is valid — no need to re-add edges or re-patch unchanged nodes.
+
+Use add_node, patch_node, add_edge, then complete. Only v1 catalog slugs from add_node.`;
 }
 
 export function validateBuilderGraphConnectivity(graph: CanvasGraph): string[] {

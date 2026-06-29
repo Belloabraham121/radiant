@@ -25,6 +25,8 @@ describe("builder port catalog", () => {
     assert.match(prompt, /workflow-start/);
     assert.match(prompt, /polymarket-place-market\.data → workflow-stop\.signal/);
     assert.match(prompt, /polymarket-feed is a source \(no trigger input\)/);
+    assert.match(prompt, /NEVER signal → data/);
+    assert.match(prompt, /patch_node for EVERY node/);
   });
 
   it("Polymarket sports auto-trading edges are port-compatible", () => {

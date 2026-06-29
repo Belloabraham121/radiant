@@ -502,6 +502,8 @@ canvasWorkflowsRouter.post(
             message: body.message,
             send,
             build_config: workflow.build_config ?? undefined,
+            selected_node_id: body.selected_node_id,
+            edit_intent: body.edit_intent,
           });
         }
       } catch (err) {

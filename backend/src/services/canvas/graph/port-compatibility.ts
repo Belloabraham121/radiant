@@ -50,5 +50,10 @@ export function formatIncompatiblePortsMessage(
       " For workflow-stop after an action node, use action.data → workflow-stop.signal instead.";
   }
 
+  if (sourcePort === "signal" && targetPort === "data") {
+    message +=
+      " signal ports carry booleans/events — never feed a data input. Use source.trigger → target.trigger for control flow, or source.signal → target.signal. For numeric payloads use source.data → target.data (e.g. polymarket-feed.data → threshold.data). threshold.signal/compare.signal/ui-table.signal cannot wire to *.data.";
+  }
+
   return message;
 }

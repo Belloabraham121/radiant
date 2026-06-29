@@ -23,6 +23,7 @@ import {
   getPostAddNodeWiringHints,
   NODE_PORT_PROFILES,
 } from "./builder-port-catalog.js";
+import { formatConfigPatchHint, sanitizeBuilderPatchConfig } from "./builder-config-catalog.js";
 import { arePortsCompatible, formatIncompatiblePortsMessage } from "../graph/port-compatibility.js";
 import { validateCanvasGraph } from "../graph/validate-graph.js";
 import { persistCoherentGraphPatch, markWorkflowDryRunReady } from "../canvas-workflow.service.js";
@@ -135,7 +136,9 @@ export async function builderAddNode(
     id: randomUUID(),
     type: nodeType,
     position: args.position ?? defaultPosition(state.graph),
-    config: args.config ?? {},
+    config: args.config
+      ? sanitizeBuilderPatchConfig(nodeType, args.config as Record<string, unknown>)
+      : {},
     meta: args.label ? { label: args.label } : undefined,
   };
 
@@ -148,10 +151,11 @@ export async function builderAddNode(
   }
 
   const wiringHints = getPostAddNodeWiringHints(args.slug, state.graph);
+  const configHint = formatConfigPatchHint(args.slug);
 
   return {
     ok: true,
-    message: `Added ${args.slug} node ${node.id} (${formatPortHintForSlug(args.slug)}). Next: add_edge to connect it.${wiringHints}`,
+    message: `Added ${args.slug} node ${node.id} (${formatPortHintForSlug(args.slug)}). Next: patch_node config if needed, then add_edge.${configHint}${wiringHints}`,
     revision,
   };
 }
@@ -172,15 +176,17 @@ export async function builderPatchNode(
       args.json_patch as JsonPatchOperation[],
     );
     existing.config = patchedConfig.config as Record<string, unknown>;
+    existing.config = sanitizeBuilderPatchConfig(existing.type, existing.config);
     emitWorkflowNodePatch(args.node_id, args.json_patch as JsonPatchOperation[]);
   }
 
   if (args.patch) {
     if (args.patch.config && typeof args.patch.config === "object") {
-      existing.config = {
+      const merged = {
         ...existing.config,
         ...(args.patch.config as Record<string, unknown>),
       };
+      existing.config = sanitizeBuilderPatchConfig(existing.type, merged);
     }
     if (args.patch.position && typeof args.patch.position === "object") {
       const pos = args.patch.position as { x?: number; y?: number };
@@ -288,7 +294,8 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "add_node",
-      description: "Add a v1 workflow node to the canvas graph.",
+      description:
+        "Add a v1 workflow node. Pass config when the user already supplied parameters (threshold value, order size, market name). Otherwise patch_node immediately after adding. Config must be complete before complete.",
       parameters: {
         type: "object",
         properties: {
@@ -298,7 +305,11 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
             description: "Node catalog slug (kebab-case).",
           },
           label: { type: "string", description: "Optional display label." },
-          config: { type: "object", description: "Initial node config fields." },
+          config: {
+            type: "object",
+            description:
+              "Initial node config (metric/operator/value, asset_id, side/size/outcome, message, etc.). Prefer patch_node if config is discovered after search_polymarket_markets.",
+          },
           position: {
             type: "object",
             properties: { x: { type: "number" }, y: { type: "number" } },
@@ -312,7 +323,8 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "patch_node",
-      description: "Update an existing node config, position, or metadata.",
+      description:
+        "Update node config before complete. Use patch: { config: { metric, value, asset_id, size, message, … } }. Required for polymarket-feed (asset_id), threshold (value), orders (size/side), and any parameter extracted from the user message.",
       parameters: {
         type: "object",
         properties: {
@@ -341,7 +353,7 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
     function: {
       name: "add_edge",
       description:
-        "REQUIRED: Connect two nodes. Use UUIDs from add_node. Port rules: trigger→trigger for control flow; data→data for feeds→logic; market→market for PM context; order_intent→order_intent for trade intents; action.data→workflow-stop.signal to finish after place-order nodes (never action.data→stop.trigger). Call once per link in the workflow chain.",
+        "REQUIRED: Connect two nodes. Use UUIDs from add_node. Port rules: trigger→trigger for control flow; data→data for feeds→logic; market→market for PM context; order_intent→order_intent for trade intents; action.data→workflow-stop.signal to finish (never action.data→stop.trigger). signal→signal|trigger ONLY — never signal→data. Call once per link in the workflow chain.",
       parameters: {
         type: "object",
         properties: {
@@ -365,7 +377,7 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
     function: {
       name: "search_polymarket_markets",
       description:
-        "Search Polymarket markets by name/category to resolve clob token ids before patch_node.",
+        "MANDATORY when the user names a market, event, league, or team. Returns clob_token_ids to patch onto polymarket-feed config.asset_id before add_edge/complete.",
       parameters: {
         type: "object",
         properties: {
@@ -389,7 +401,8 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "complete",
-      description: "Signal that the workflow build is finished.",
+      description:
+        "Signal build finished. Rejected if edges are missing OR required node config is empty (feed asset_id, threshold value, order size, etc.).",
       parameters: {
         type: "object",
         properties: {

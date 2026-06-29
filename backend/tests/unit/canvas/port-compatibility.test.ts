@@ -48,4 +48,10 @@ describe("canvas port compatibility matrix", () => {
     assert.match(message, /workflow-stop\.signal/);
     assert.match(message, /target_port: signal/);
   });
+
+  it("explains signal → data mistakes", () => {
+    const message = formatIncompatiblePortsMessage("signal", "data", ["data", "signal"]);
+    assert.match(message, /never feed a data input/);
+    assert.match(message, /target\.signal/);
+  });
 });

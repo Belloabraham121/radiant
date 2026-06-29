@@ -103,6 +103,7 @@ export function CanvasWorkspace() {
   const [buildActivityCollapsed, setBuildActivityCollapsed] = useState(false);
   const buildCompletedRef = useRef(false);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const [dryRunSteps, setDryRunSteps] = useState<ExecutionStep[]>([]);
   const [dryRunBadges, setDryRunBadges] = useState<Map<string, DryRunNodeBadge>>(new Map());
   const abortRef = useRef<AbortController | null>(null);
@@ -135,6 +136,8 @@ export function CanvasWorkspace() {
     return map;
   }, [displayNodes]);
 
+  const editingNodeTitle = detailNodeId ? nodeTitleById.get(detailNodeId) ?? null : null;
+
   useEffect(() => {
     graphRef.current = { nodes, edges };
   }, [nodes, edges]);
@@ -157,9 +160,18 @@ export function CanvasWorkspace() {
     if (workflowChanged) {
       deletedNodeIdsRef.current.clear();
     }
-    setNodes(baseGraph.nodes);
-    setEdges(baseGraph.edges);
-    graphRef.current = { nodes: baseGraph.nodes, edges: baseGraph.edges };
+    // Honor pending local deletions so a stale graph round-trip can't resurrect
+    // a node the user just removed.
+    const deletedIds = deletedNodeIdsRef.current;
+    const syncedNodes = deletedIds.size
+      ? baseGraph.nodes.filter((n) => !deletedIds.has(n.id))
+      : baseGraph.nodes;
+    const syncedEdges = deletedIds.size
+      ? baseGraph.edges.filter((e) => !deletedIds.has(e.source) && !deletedIds.has(e.target))
+      : baseGraph.edges;
+    setNodes(syncedNodes);
+    setEdges(syncedEdges);
+    graphRef.current = { nodes: syncedNodes, edges: syncedEdges };
   }, [workflow, graphSyncKey, baseGraph, setNodes, setEdges]);
 
   const resizeInput = useCallback(() => {
@@ -393,6 +405,9 @@ export function CanvasWorkspace() {
         input.trim(),
         handleBuildEvent,
         abortRef.current.signal,
+        detailNodeId
+          ? { selectedNodeId: detailNodeId, editIntent: "patch" as const }
+          : undefined,
       );
       if (!buildCompletedRef.current) {
         const msg = "Build stream ended without completing — try again or use a clearer workflow description.";
@@ -410,7 +425,7 @@ export function CanvasWorkspace() {
     } finally {
       setBuilding(false);
     }
-  }, [workflow, input, building, appendBuildActivity, handleBuildEvent, resetInputHeight]);
+  }, [workflow, input, building, appendBuildActivity, handleBuildEvent, resetInputHeight, detailNodeId]);
 
   const submitDryRun = useCallback(async () => {
     if (!workflow || dryRunning || !dryRunReady) return;
@@ -591,6 +606,7 @@ export function CanvasWorkspace() {
               setEdges={setEdges}
               focusNodeId={focusNodeId}
               onNodesDelete={handleNodesDelete}
+              onDetailNodeChange={setDetailNodeId}
             />
 
             {mode === "dry" && activityLog.length > 0 ? (
@@ -655,6 +671,13 @@ export function CanvasWorkspace() {
                 <div
                   className={`${CANVAS_INPUT_COL} flex min-h-[4.5rem] flex-col gap-2 rounded-3xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 pb-3 pt-4 shadow-[3px_3px_0_var(--hero-ink)]`}
                 >
+                  {mode === "build" && editingNodeTitle ? (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full border border-[var(--hero-ink)]/20 bg-white px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--hero-ink)]/70">
+                        Editing: {editingNodeTitle}
+                      </span>
+                    </div>
+                  ) : null}
                   <textarea
                     ref={inputRef}
                     value={input}

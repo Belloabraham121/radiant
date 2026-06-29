@@ -74,6 +74,7 @@ type BoardInnerProps = {
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   focusNodeId?: string | null;
   onNodesDelete?: (nodes: Node[]) => void;
+  onDetailNodeChange?: (nodeId: string | null) => void;
 };
 
 function BoardInner({
@@ -86,6 +87,7 @@ function BoardInner({
   setEdges,
   focusNodeId,
   onNodesDelete,
+  onDetailNodeChange,
 }: BoardInnerProps) {
   const scope = useRef<HTMLDivElement>(null);
   const introAnimatedRef = useRef(false);
@@ -94,6 +96,14 @@ function BoardInner({
   const [interactionMode, setInteractionMode] = useState<CanvasInteractionMode>("pan");
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const prevFocusRef = useRef<string | null>(null);
+
+  const updateDetailNodeId = useCallback(
+    (nodeId: string | null) => {
+      setDetailNodeId(nodeId);
+      onDetailNodeChange?.(nodeId);
+    },
+    [onDetailNodeChange],
+  );
 
   useEffect(() => {
     if (!focusNodeId || focusNodeId === prevFocusRef.current) return;
@@ -104,9 +114,9 @@ function BoardInner({
     const y = node.position.y + (node.height ?? 56) / 2;
     setCenter(x, y, { zoom: 1.1, duration: 450 });
     if (mode === "build" && nodeNeedsInspectorFocus(node.data)) {
-      queueMicrotask(() => setDetailNodeId(focusNodeId));
+      queueMicrotask(() => updateDetailNodeId(focusNodeId));
     }
-  }, [focusNodeId, nodes, setCenter, mode]);
+  }, [focusNodeId, nodes, setCenter, mode, updateDetailNodeId]);
 
   const addNode = useCallback(
     (entry: NodeCatalogEntry) => {
@@ -268,10 +278,10 @@ function BoardInner({
       {detailNode ? (
         <NodeDetailModal
           node={detailNode}
-          onClose={() => setDetailNodeId(null)}
+          onClose={() => updateDetailNodeId(null)}
           onDelete={() => {
             void deleteElements({ nodes: [{ id: detailNode.id }] });
-            setDetailNodeId(null);
+            updateDetailNodeId(null);
           }}
         />
       ) : null}
@@ -302,9 +312,7 @@ function BoardInner({
             ),
           )
         }
-        onNodeClick={(_, node) => {
-          if (node.type !== "chart") setDetailNodeId(node.id);
-        }}
+        onNodeClick={(_, node) => updateDetailNodeId(node.id)}
         onNodeDragStop={() =>
           setNodes((current) => resolveCollisions(current, COLLISION_OPTIONS))
         }
@@ -371,6 +379,7 @@ export type CanvasBoardProps = {
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   focusNodeId?: string | null;
   onNodesDelete?: (nodes: Node[]) => void;
+  onDetailNodeChange?: (nodeId: string | null) => void;
 };
 
 function BoardControlled(props: CanvasBoardProps) {
@@ -389,6 +398,7 @@ export function CanvasBoardStateful({
   focusNodeId,
   graphRevision = 0,
   onNodesDelete,
+  onDetailNodeChange,
 }: {
   mode: CanvasMode;
   initialNodes?: RichNodeType[];
@@ -397,6 +407,7 @@ export function CanvasBoardStateful({
   /** Bump when the persisted workflow graph revision changes — avoids clobbering local edits. */
   graphRevision?: number;
   onNodesDelete?: (nodes: Node[]) => void;
+  onDetailNodeChange?: (nodeId: string | null) => void;
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<RichNodeType>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -420,6 +431,7 @@ export function CanvasBoardStateful({
       setEdges={setEdges}
       focusNodeId={focusNodeId}
       onNodesDelete={onNodesDelete}
+      onDetailNodeChange={onDetailNodeChange}
     />
   );
 }

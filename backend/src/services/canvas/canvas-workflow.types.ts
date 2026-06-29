@@ -17,6 +17,8 @@ export const patchCanvasTesterConfigSchema = canvasAgentLlmConfigSchema;
 
 export const canvasBuildStreamRequestSchema = z.object({
   message: z.string().min(1).max(16_000),
+  selected_node_id: z.string().uuid().optional(),
+  edit_intent: z.enum(["create", "patch"]).optional(),
 });
 
 export const canvasDryRunStreamRequestSchema = z.object({

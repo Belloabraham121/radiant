@@ -1,17 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight, X, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, X, Trash2 } from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
 import {
   getNodeStatus,
   isConfigFieldVisible,
   PORT_COLOR,
   PORT_LABEL,
+  type BranchRule,
   type CanvasPort,
   type ConfigField,
   type ConfigValue,
-  type PortKind,
   type RichNode as RichNodeType,
 } from "./canvas-nodes";
 import { NodeGlyph, isImageLogo } from "./node-glyph";
@@ -19,10 +19,26 @@ import { findCatalogEntryForNode } from "@/lib/canvas-graph-mapper";
 import type { PortDoc } from "./node-port-docs";
 import { useActiveCanvasWorkflow } from "./canvas-workflow-context";
 import { isPreviewConfigReady, useCanvasNodePreview } from "@/hooks/useCanvasNodePreview";
+import { getCanvasWorkflowPolicy, type CanvasPolicyDetail } from "@/lib/canvas-api";
 import { PolymarketMarketPicker } from "./PolymarketMarketPicker";
+import { JsonDataView } from "./node-data-view";
 
 const PREVIEW_BOX =
   "rounded-lg border-2 border-dashed border-[var(--hero-ink)]/15 bg-[var(--hero-bg)]";
+
+/** Flatten an example payload into dot-paths (price.mid, book.bids[0].price…). */
+function collectFieldPaths(value: unknown, prefix = "", out: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    if (value.length > 0) collectFieldPaths(value[0], `${prefix}[0]`, out);
+  } else if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) {
+      const path = prefix ? `${prefix}.${k}` : k;
+      out.push(path);
+      collectFieldPaths(v, path, out);
+    }
+  }
+  return out;
+}
 
 function OrderPreview({ values }: { values: Record<string, ConfigValue> }) {
   const op = String(values.operation ?? "place_limit");
@@ -114,8 +130,104 @@ function BookPreviewMock() {
   );
 }
 
-function PreviewRegion({ nodeId, data }: { nodeId: string; data: RichNodeType["data"] }) {
+function PolicyGatePreview({ values }: { values: Record<string, ConfigValue> }) {
+  const { workflow } = useActiveCanvasWorkflow();
+  const mode = String(values.policy_mode ?? "inherit");
+  const [policy, setPolicy] = useState<CanvasPolicyDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (mode !== "inherit" || !workflow?.id) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        const detail = await getCanvasWorkflowPolicy(workflow.id);
+        if (!cancelled) setPolicy(detail);
+      } catch {
+        if (!cancelled) setPolicy(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, workflow?.id]);
+
+  if (mode === "override") {
+    const cap = values.max_single_action_usd ?? "—";
+    const actions = String(values.allowed_actions || "—");
+    const approve = values.require_approve === true ? "yes" : "no";
+    return (
+      <div className={`${PREVIEW_BOX} space-y-1 px-3 py-2 text-xs`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-bold uppercase tracking-wide text-[var(--hero-amber)]">Draft override</span>
+          <span className="text-[var(--hero-ink)]/45">not enforced in Live</span>
+        </div>
+        <div className="text-[var(--hero-ink)]/65">
+          max action ${String(cap)} · approve {approve}
+        </div>
+        <div className="truncate font-mono text-[var(--hero-ink)]/50">{actions}</div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className={`${PREVIEW_BOX} px-3 py-2 text-xs font-semibold text-[var(--hero-ink)]/45`}>
+        Loading workflow policy…
+      </div>
+    );
+  }
+
+  if (!policy) {
+    return (
+      <div className={`${PREVIEW_BOX} flex items-center justify-between px-3 py-2 text-xs`}>
+        <span className="font-bold text-[var(--hero-mint)]">PASS</span>
+        <span className="text-[var(--hero-ink)]/45">workflow policy (dry-run)</span>
+      </div>
+    );
+  }
+
+  const denied = policy.kill_switch || policy.kill_switch_active;
+  return (
+    <div className={`${PREVIEW_BOX} space-y-1 px-3 py-2 text-xs`}>
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={`font-bold uppercase ${denied ? "text-[var(--hero-coral)]" : "text-[var(--hero-mint)]"}`}
+        >
+          {denied ? "DENY" : "PASS"}
+        </span>
+        <span className="text-[var(--hero-ink)]/45">workflow policy</span>
+      </div>
+      <div className="text-[var(--hero-ink)]/65">
+        24h cap ${policy.max_spend_usd_24h} · single ${policy.max_single_action_usd} · spent $
+        {policy.spend_usd_24h}
+      </div>
+      <div className="truncate font-mono text-[var(--hero-ink)]/50">
+        {policy.allowed_actions.slice(0, 4).join(", ")}
+        {policy.allowed_actions.length > 4 ? "…" : ""}
+      </div>
+    </div>
+  );
+}
+
+function PreviewRegion({
+  nodeId,
+  data,
+  catalogSlug,
+}: {
+  nodeId: string;
+  data: RichNodeType["data"];
+  catalogSlug?: string;
+}) {
   const kind = data.preview;
+  if (catalogSlug === "policy-gate" && data.values) {
+    return <PolicyGatePreview values={data.values} />;
+  }
   if (kind === "none") return null;
 
   if (kind === "bars") {
@@ -203,6 +315,7 @@ function FieldControl({
   catalogSlug,
   allValues,
   onApplyValues,
+  datalistId,
 }: {
   field: ConfigField;
   value: ConfigValue;
@@ -210,6 +323,7 @@ function FieldControl({
   catalogSlug?: string;
   allValues?: Record<string, ConfigValue>;
   onApplyValues?: (patch: Record<string, ConfigValue>) => void;
+  datalistId?: string;
 }) {
   if (field.kind === "market" && catalogSlug === "polymarket-market" && onApplyValues) {
     return (
@@ -220,6 +334,115 @@ function FieldControl({
         placeholder={"placeholder" in field ? field.placeholder : undefined}
         onApply={onApplyValues}
       />
+    );
+  }
+  if (field.kind === "condition") {
+    const left = String(allValues?.[field.leftKey] ?? "");
+    const op = String(allValues?.[field.opKey] ?? field.defaultOp);
+    const right = String(allValues?.[field.rightKey] ?? "");
+    const apply = (patch: Record<string, ConfigValue>) => onApplyValues?.(patch);
+    return (
+      <div className="flex items-center gap-1.5">
+        <input
+          type="text"
+          list={datalistId}
+          className={`${CONTROL} min-w-0 flex-1`}
+          value={left}
+          placeholder={field.leftPlaceholder ?? "field"}
+          onChange={(e) => apply({ [field.leftKey]: e.target.value })}
+        />
+        <select
+          className={CONTROL}
+          value={op}
+          onChange={(e) => apply({ [field.opKey]: e.target.value })}
+        >
+          {field.operators.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <input
+          type="text"
+          list={datalistId}
+          className={`${CONTROL} min-w-0 flex-1`}
+          value={right}
+          placeholder={field.rightPlaceholder ?? "value"}
+          onChange={(e) => apply({ [field.rightKey]: e.target.value })}
+        />
+      </div>
+    );
+  }
+  if (field.kind === "branches") {
+    const rows: BranchRule[] = Array.isArray(value) ? value : [];
+    const commit = (next: BranchRule[]) => onChange(next);
+    const patchRow = (i: number, patch: Partial<BranchRule>) =>
+      commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+    return (
+      <div className="space-y-2">
+        {rows.map((row, i) => (
+          <div
+            key={i}
+            className="space-y-1.5 rounded-lg border-2 border-[var(--hero-ink)]/10 bg-white p-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-bold uppercase tracking-wide text-[var(--hero-ink)]/45">
+                {i === 0 ? "If" : "Else if"}
+              </span>
+              {rows.length > 1 ? (
+                <button
+                  type="button"
+                  aria-label="Remove condition"
+                  onClick={() => commit(rows.filter((_, j) => j !== i))}
+                  className="nodrag text-[var(--hero-ink)]/30 transition-colors hover:text-[var(--hero-coral)]"
+                >
+                  <X className="size-3" strokeWidth={2.5} />
+                </button>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                list={datalistId}
+                className={`${CONTROL} min-w-0 flex-1`}
+                value={row.left}
+                placeholder={field.leftPlaceholder ?? "field"}
+                onChange={(e) => patchRow(i, { left: e.target.value })}
+              />
+              <select
+                className={CONTROL}
+                value={row.op}
+                onChange={(e) => patchRow(i, { op: e.target.value })}
+              >
+                {field.operators.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                list={datalistId}
+                className={`${CONTROL} min-w-0 flex-1`}
+                value={row.right}
+                placeholder={field.rightPlaceholder ?? "value"}
+                onChange={(e) => patchRow(i, { right: e.target.value })}
+              />
+            </div>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => commit([...rows, { left: "", op: field.defaultOp, right: "" }])}
+          className="nodrag flex w-full items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[var(--hero-ink)]/20 px-2 py-1 text-[11px] font-bold text-[var(--hero-ink)]/55 transition-colors hover:border-[var(--hero-ink)] hover:text-[var(--hero-ink)]"
+        >
+          <Plus className="size-3" strokeWidth={2.5} />
+          {field.addLabel ?? "Add condition"}
+        </button>
+        <p className="text-[10px] font-medium text-[var(--hero-ink)]/40">
+          Else → falls through to the default output.
+        </p>
+      </div>
     );
   }
   if (field.kind === "select") {
@@ -271,6 +494,7 @@ function FieldControl({
   return (
     <input
       type="text"
+      list={datalistId}
       className={`${CONTROL} w-full`}
       value={String(value ?? "")}
       placeholder={"placeholder" in field ? field.placeholder : undefined}
@@ -284,15 +508,20 @@ function ConfigPanel({
   fields,
   values,
   catalogSlug,
+  suggestions,
 }: {
   nodeId: string;
   fields: ConfigField[];
   values: Record<string, ConfigValue>;
   catalogSlug?: string;
+  suggestions?: string[];
 }) {
   const { updateNodeData } = useReactFlow();
   const applyValues = (patch: Record<string, ConfigValue>) =>
     updateNodeData(nodeId, { values: { ...values, ...patch } });
+
+  const hasSuggestions = Boolean(suggestions && suggestions.length > 0);
+  const datalistId = hasSuggestions ? `cfg-paths-${nodeId}` : undefined;
 
   const setValue = (key: string, v: ConfigValue) => {
     const next: Record<string, ConfigValue> = { ...values, [key]: v };
@@ -311,9 +540,20 @@ function ConfigPanel({
   return (
     <div className="space-y-2">
       <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">Configure</p>
+      {hasSuggestions ? (
+        <datalist id={datalistId}>
+          {suggestions!.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      ) : null}
       {visible.map((field) => {
         const value = values[field.key] ?? "";
-        const missing = field.required && field.key !== "_note" && (value === "" || value === undefined);
+        const missing =
+          field.kind !== "condition" &&
+          field.required &&
+          field.key !== "_note" &&
+          (value === "" || value === undefined);
         if (field.key === "_note") {
           return (
             <p
@@ -324,7 +564,11 @@ function ConfigPanel({
             </p>
           );
         }
-        const fullWidth = field.kind === "text" || field.kind === "market";
+        const fullWidth =
+          field.kind === "text" ||
+          field.kind === "market" ||
+          field.kind === "condition" ||
+          field.kind === "branches";
         const label = (
           <span className="text-xs font-bold uppercase tracking-wide text-[var(--hero-ink)]/45">
             {field.label}
@@ -342,6 +586,7 @@ function ConfigPanel({
                 catalogSlug={catalogSlug}
                 allValues={values}
                 onApplyValues={applyValues}
+                datalistId={datalistId}
               />
             </div>
           );
@@ -356,6 +601,7 @@ function ConfigPanel({
               catalogSlug={catalogSlug}
               allValues={values}
               onApplyValues={applyValues}
+              datalistId={datalistId}
             />
           </label>
         );
@@ -364,76 +610,45 @@ function ConfigPanel({
   );
 }
 
-function JsonExample({ example }: { example: unknown }) {
-  const [open, setOpen] = useState(false);
-  const json = JSON.stringify(example, null, 2);
+function PaneHeader({ label, sub }: { label: string; sub: string }) {
   return (
-    <div className="mt-1">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--hero-ink)]/45 hover:text-[var(--hero-ink)]"
-      >
-        {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-        Example payload
-      </button>
-      {open ? (
-        <pre className="mt-1 max-h-40 overflow-auto rounded-md border-2 border-[var(--hero-ink)]/10 bg-[var(--hero-bg)] p-2 font-mono text-[10px] leading-relaxed text-[var(--hero-ink)]/75">
-          {json}
-        </pre>
-      ) : null}
+    <div className="flex items-center justify-between border-b-2 border-[var(--hero-ink)]/10 px-4 py-3">
+      <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--hero-ink)]/45">
+        {label}
+      </span>
+      <span className="text-[10px] font-medium text-[var(--hero-ink)]/35">{sub}</span>
     </div>
   );
 }
 
-function PortDocRow({ port, doc }: { port: CanvasPort; doc?: PortDoc }) {
+/** One input/output port — its chip, description, and example payload viewer. */
+function PortIOCard({ port, doc }: { port: CanvasPort; doc?: PortDoc }) {
   return (
-    <div className="rounded-lg border-2 border-[var(--hero-ink)]/10 bg-white px-3 py-2">
+    <div className="space-y-1.5">
       <div className="flex items-center gap-2">
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)]/15 px-2 py-0.5 text-[11px] font-bold"
-        >
+        <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)]/15 px-2 py-0.5 text-[11px] font-bold">
           <span
             className="size-2.5 rounded-full border border-[var(--hero-ink)]"
             style={{ background: PORT_COLOR[port.kind] }}
           />
           {port.label ?? PORT_LABEL[port.kind]}
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--hero-ink)]/35">{port.kind}</span>
+        <span className="text-[9px] font-bold uppercase tracking-wide text-[var(--hero-ink)]/35">
+          {port.kind}
+        </span>
       </div>
-      {doc ? (
-        <>
-          <p className="mt-1.5 text-xs font-medium text-[var(--hero-ink)]/65">{doc.description}</p>
-          <JsonExample example={doc.example} />
-        </>
+      {doc?.description ? (
+        <p className="text-xs font-medium text-[var(--hero-ink)]/60">{doc.description}</p>
       ) : null}
+      <JsonDataView value={doc?.example} emptyLabel="No sample for this port yet." />
     </div>
   );
 }
 
-function PortDocSection({
-  title,
-  ports,
-  docs,
-}: {
-  title: string;
-  ports: CanvasPort[];
-  docs?: Partial<Record<PortKind, PortDoc>>;
-}) {
-  if (ports.length === 0) return null;
-  return (
-    <div>
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">{title}</p>
-      <div className="space-y-2">
-        {ports.map((p, i) => (
-          <PortDocRow key={`${p.kind}-${p.label ?? i}`} port={p} doc={docs?.[p.kind]} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Center dialog showing a node's full detail — opens when a node is clicked. */
+/**
+ * Node detail popup (n8n-style): INPUT (data in) · PARAMETERS · OUTPUT
+ * (expected result). A centered modal over the canvas — opens on node click.
+ */
 export function NodeDetailModal({
   node,
   onClose,
@@ -450,116 +665,183 @@ export function NodeDetailModal({
   const catalogSlug = catalogEntry?.slug ?? data.catalogSlug;
   const portDocs = catalogEntry?.portDocs;
   const hasConfig = Boolean(data.fields?.length && data.values);
-  const showPortDocs = Boolean(portDocs && (data.inputs.length > 0 || data.outputs.length > 0));
+
+  // Field paths from the incoming data (input port examples) → operand dropdown.
+  const inputFieldPaths = useMemo(() => {
+    const paths = new Set<string>();
+    for (const p of data.inputs) {
+      for (const path of collectFieldPaths(portDocs?.inputs?.[p.kind]?.example)) {
+        paths.add(path);
+      }
+    }
+    return Array.from(paths);
+  }, [data.inputs, portDocs]);
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center p-6">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-[var(--hero-ink)]/25" />
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="absolute inset-0 bg-[var(--hero-ink)]/40"
+      />
       <div
         role="dialog"
         aria-label={data.title}
-        className="relative flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border-2 border-[var(--hero-ink)] bg-white shadow-2xl"
+        className="relative flex h-full max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] shadow-2xl"
       >
-        {/* Header */}
-        <div className="flex items-center gap-3 border-b-2 border-[var(--hero-ink)] px-4 py-3">
+        {/* Top bar */}
+        <div className="flex items-center gap-3 border-b-2 border-[var(--hero-ink)] bg-white px-4 py-2.5">
           <span
-            className={`flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-[var(--hero-ink)] ${
-              fullBleed ? "" : "bg-white"
+          className={`flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 border-[var(--hero-ink)] ${
+            fullBleed ? "" : "bg-white"
+          }`}
+        >
+          <NodeGlyph
+            icon={data.icon}
+            className={fullBleed ? "h-full w-full object-cover" : "size-5 text-[var(--hero-ink)]"}
+          />
+        </span>
+        <span className="min-w-0 truncate font-heading text-base font-extrabold">{data.title}</span>
+        {status.label ? (
+          <span
+            className={`rounded-full border-2 border-[var(--hero-ink)]/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+              status.tone === "warn" || status.tone === "soon"
+                ? "bg-[var(--hero-amber)] text-[var(--hero-ink)]"
+                : status.tone === "ready"
+                  ? "bg-[var(--hero-mint)]/20"
+                  : "bg-white"
             }`}
           >
-            <NodeGlyph
-              icon={data.icon}
-              className={fullBleed ? "h-full w-full object-cover" : "size-5 text-[var(--hero-ink)]"}
-            />
+            {status.label}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-heading text-base font-extrabold">{data.title}</span>
-          </span>
-          {status.label ? (
-            <span
-              className={`rounded-full border-2 border-[var(--hero-ink)]/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-                status.tone === "warn" || status.tone === "soon"
-                  ? "bg-[var(--hero-amber)] text-[var(--hero-ink)]"
-                  : status.tone === "ready"
-                    ? "bg-[var(--hero-mint)]/20"
-                    : "bg-white"
-              }`}
-            >
-              {status.label}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="flex size-7 items-center justify-center rounded-lg border-2 border-[var(--hero-ink)]/15 transition-colors hover:border-[var(--hero-ink)]"
-          >
-            <X className="size-4" strokeWidth={2.5} />
-          </button>
-        </div>
+        ) : null}
 
-        {/* Body */}
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          {data.comingSoon ? (
-            <p className="rounded-lg border-2 border-[var(--hero-amber)]/40 bg-[var(--hero-amber)]/10 px-3 py-2 text-xs font-semibold text-[var(--hero-ink)]/75">
-              Trading on this venue is coming soon — config is editable, execution is not yet enabled.
-            </p>
-          ) : null}
-
-          {data.preview !== "none" ? (
-            <div>
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">
-                Preview
-              </p>
-              <PreviewRegion nodeId={node.id} data={data} />
-            </div>
-          ) : null}
-
-          {hasConfig ? (
-            <ConfigPanel
-              nodeId={node.id}
-              fields={data.fields!}
-              values={data.values!}
-              catalogSlug={catalogSlug}
-            />
-          ) : data.config.length > 0 ? (
-            <div>
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">
-                Configure
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {data.config.map((c) => (
-                  <span
-                    key={c.label}
-                    className="inline-flex items-center gap-1 rounded-md border-2 border-[var(--hero-ink)]/15 bg-[var(--hero-bg)] px-1.5 py-0.5 text-xs font-semibold"
-                  >
-                    <span className="text-[var(--hero-ink)]/40">{c.label}</span>
-                    <span className="font-bold">{c.value}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {showPortDocs ? (
-            <div className="flex flex-col gap-4 border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-3">
-              <PortDocSection title="Inputs" ports={data.inputs} docs={portDocs?.inputs} />
-              <PortDocSection title="Outputs" ports={data.outputs} docs={portDocs?.outputs} />
-            </div>
-          ) : null}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t-2 border-[var(--hero-ink)] px-4 py-3">
+        <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
             onClick={onDelete}
             className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1.5 text-xs font-bold text-[var(--hero-coral)] transition-colors hover:bg-[var(--hero-coral)]/10"
           >
             <Trash2 className="size-3.5" strokeWidth={2.5} />
-            Delete node
+            Delete
           </button>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="flex size-8 items-center justify-center rounded-lg border-2 border-[var(--hero-ink)]/15 transition-colors hover:border-[var(--hero-ink)]"
+          >
+            <X className="size-4" strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+
+      {/* Three panes */}
+      <div className="flex min-h-0 flex-1">
+        {/* INPUT */}
+        <section className="flex w-1/4 min-w-[15rem] flex-col border-r-2 border-[var(--hero-ink)]/15 bg-white">
+          <PaneHeader label="Input" sub="data coming in" />
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+            {data.inputs.length > 0 ? (
+              data.inputs.map((p, i) => (
+                <PortIOCard key={`in-${p.kind}-${i}`} port={p} doc={portDocs?.inputs?.[p.kind]} />
+              ))
+            ) : (
+              <p className="text-xs font-semibold text-[var(--hero-ink)]/40">
+                This node has no inputs — it is a starting point.
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* PARAMETERS (center) */}
+        <section className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--hero-bg)]">
+          <div className="mx-auto w-full max-w-md space-y-4 p-6">
+            <div className="flex items-center gap-3">
+              <span
+                className={`flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-[var(--hero-ink)] ${
+                  fullBleed ? "" : "bg-white"
+                }`}
+              >
+                <NodeGlyph
+                  icon={data.icon}
+                  className={fullBleed ? "h-full w-full object-cover" : "size-6 text-[var(--hero-ink)]"}
+                />
+              </span>
+              <div className="min-w-0">
+                <h2 className="truncate font-heading text-lg font-extrabold">{data.title}</h2>
+                {catalogSlug ? (
+                  <p className="font-mono text-[11px] font-semibold text-[var(--hero-ink)]/40">
+                    {catalogSlug}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            {data.comingSoon ? (
+              <p className="rounded-lg border-2 border-[var(--hero-amber)]/40 bg-[var(--hero-amber)]/10 px-3 py-2 text-xs font-semibold text-[var(--hero-ink)]/75">
+                Trading on this venue is coming soon — config is editable, execution is not yet enabled.
+              </p>
+            ) : null}
+
+            {data.preview !== "none" || catalogSlug === "policy-gate" ? (
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">
+                  Preview
+                </p>
+                <PreviewRegion nodeId={node.id} data={data} catalogSlug={catalogSlug} />
+              </div>
+            ) : null}
+
+            {hasConfig ? (
+              <ConfigPanel
+                nodeId={node.id}
+                fields={data.fields!}
+                values={data.values!}
+                catalogSlug={catalogSlug}
+                suggestions={inputFieldPaths}
+              />
+            ) : data.config.length > 0 ? (
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">
+                  Configure
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {data.config.map((c) => (
+                    <span
+                      key={c.label}
+                      className="inline-flex items-center gap-1 rounded-md border-2 border-[var(--hero-ink)]/15 bg-white px-1.5 py-0.5 text-xs font-semibold"
+                    >
+                      <span className="text-[var(--hero-ink)]/40">{c.label}</span>
+                      <span className="font-bold">{c.value}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs font-medium text-[var(--hero-ink)]/45">
+                This node has no parameters to configure.
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* OUTPUT */}
+        <section className="flex w-1/4 min-w-[15rem] flex-col border-l-2 border-[var(--hero-ink)]/15 bg-white">
+          <PaneHeader label="Output" sub="expected result" />
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+            {data.outputs.length > 0 ? (
+              data.outputs.map((p, i) => (
+                <PortIOCard key={`out-${p.kind}-${i}`} port={p} doc={portDocs?.outputs?.[p.kind]} />
+              ))
+            ) : (
+              <p className="text-xs font-semibold text-[var(--hero-ink)]/40">
+                This node produces no output ports.
+              </p>
+            )}
+          </div>
+        </section>
         </div>
       </div>
     </div>
