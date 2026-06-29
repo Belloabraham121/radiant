@@ -29,6 +29,8 @@ export type CompileWorkflowInput = {
   revision: number;
   graph: CanvasGraph;
   policy: CanvasPolicy;
+  /** When true, policy binding warnings become compile errors (Live deploy). */
+  enforcePolicyHard?: boolean;
 };
 
 export type CompileWorkflowResult =
@@ -261,6 +263,25 @@ export function compileWorkflow(input: CompileWorkflowInput): CompileWorkflowRes
   }
 
   const policy_warnings = bindPolicyWarnings(compiledNodes, input.policy);
+
+  if (input.enforcePolicyHard) {
+    for (const warning of policy_warnings) {
+      if (
+        warning.code === "POLICY_KILL_SWITCH" ||
+        warning.code === "POLICY_ACTION_NOT_ALLOWED" ||
+        warning.code === "POLICY_SINGLE_ACTION_CAP"
+      ) {
+        errors.push({
+          path: `nodes.${warning.node_id}`,
+          message: warning.message,
+          code: warning.code,
+        });
+      }
+    }
+    if (errors.length > 0) {
+      return { ok: false, errors };
+    }
+  }
 
   const withoutHash: Omit<CompiledWorkflow, "compiled_hash"> = {
     workflow_id: input.workflowId,

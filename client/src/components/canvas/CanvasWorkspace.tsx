@@ -6,16 +6,19 @@ import { ArrowUp, LayoutDashboard, ListChecks } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
 import { CanvasToolbar } from "./CanvasToolbar";
+import { CanvasPolicyPanel } from "./CanvasPolicyPanel";
 import { CanvasModelPicker } from "./CanvasModelPicker";
 import { CanvasBuilderActivity } from "./CanvasBuilderActivity";
 import { CanvasBoardStateful } from "./CanvasBoard";
 import { CanvasRunsPanel } from "./CanvasRunsPanel";
 import { useActiveCanvasWorkflow } from "./canvas-workflow-context";
 import type { CanvasMode, RichNode } from "./canvas-nodes";
-import { streamCanvasBuild, streamCanvasDryRun, type CanvasBuildStreamEvent } from "@/lib/canvas-api";
+import { streamCanvasBuild, streamCanvasDryRun, streamCanvasLive, activateCanvasKillSwitch, getCanvasWorkflowPolicy, type CanvasBuildStreamEvent } from "@/lib/canvas-api";
 import { applyBuildStreamEvent, canvasGraphToFlow } from "@/lib/canvas-graph-mapper";
 import type { CanvasLlmModelTier } from "@/lib/canvas-types";
 import type { CanvasDryRunStreamEvent } from "@/lib/canvas-dry-run";
+import { liveEventToExecutionStep } from "@/lib/canvas-live";
+import type { CanvasLiveStreamEvent } from "@/lib/canvas-live";
 import {
   applyDryRunNodeBadge,
   dryRunEventToExecutionStep,
@@ -83,6 +86,13 @@ export function CanvasWorkspace() {
   const [input, setInput] = useState("");
   const [building, setBuilding] = useState(false);
   const [dryRunning, setDryRunning] = useState(false);
+  const [liveRunning, setLiveRunning] = useState(false);
+  const [policyPanelOpen, setPolicyPanelOpen] = useState(false);
+  const [policyDetail, setPolicyDetail] = useState<import("@/lib/canvas-api").CanvasPolicyDetail | null>(null);
+  const [killSwitchActive, setKillSwitchActive] = useState(false);
+  const [liveConfirmOpen, setLiveConfirmOpen] = useState(false);
+  const [liveSteps, setLiveSteps] = useState<ExecutionStep[]>([]);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [dryRunError, setDryRunError] = useState<string | null>(null);
   const [buildActivity, setBuildActivity] = useState<BuilderActivityEntry[]>([]);
@@ -162,6 +172,82 @@ export function CanvasWorkspace() {
       if (patch.focusNodeId) setFocusNodeId(patch.focusNodeId);
     },
     [mode, refreshWorkflow, setDryRunReady],
+  );
+
+  useEffect(() => {
+    if (!workflow) return;
+    void getCanvasWorkflowPolicy(workflow.id)
+      .then((p) => setKillSwitchActive(p.kill_switch_active))
+      .catch(() => undefined);
+  }, [workflow]);
+
+  const handleLiveEvent = useCallback(
+    (event: CanvasLiveStreamEvent) => {
+      if (event.event === "workflow.run.error") {
+        setLiveError(event.data.message);
+      }
+      if (event.event === "workflow.run.killed") {
+        setKillSwitchActive(true);
+      }
+      const step = liveEventToExecutionStep(event, nodeTitleById);
+      if (step) {
+        setLiveSteps((prev) => {
+          const idx = prev.findIndex((s) => s.id === step.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = step;
+            return next;
+          }
+          return [...prev, step];
+        });
+      }
+    },
+    [nodeTitleById],
+  );
+
+  const submitLive = useCallback(async () => {
+    if (!workflow || liveRunning) return;
+    setLiveRunning(true);
+    setLiveError(null);
+    setLiveSteps([]);
+    setLiveConfirmOpen(false);
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+
+    try {
+      await streamCanvasLive(
+        workflow.id,
+        handleLiveEvent,
+        { confirmLive: true, signal: abortRef.current.signal },
+      );
+    } catch (err) {
+      if (err instanceof Error && err.name !== "AbortError") {
+        setLiveError(err.message);
+      }
+    } finally {
+      setLiveRunning(false);
+      void refreshWorkflow();
+    }
+  }, [workflow, liveRunning, handleLiveEvent, refreshWorkflow]);
+
+  const handleKillSwitch = useCallback(async () => {
+    if (!workflow) return;
+    try {
+      const policy = await activateCanvasKillSwitch(workflow.id);
+      setKillSwitchActive(policy.kill_switch_active);
+    } catch (err) {
+      setLiveError(err instanceof Error ? err.message : "Kill switch failed");
+    }
+  }, [workflow]);
+
+  const handleModeChange = useCallback(
+    (next: CanvasMode) => {
+      if (next === "live" && mode !== "live") {
+        setLiveConfirmOpen(true);
+      }
+      setMode(next);
+    },
+    [mode],
   );
 
   const handleDryRunEvent = useCallback(
@@ -280,9 +366,13 @@ export function CanvasWorkspace() {
   );
 
   const activeModelTier = mode === "dry" ? testerConfig.model_tier : buildConfig.model_tier;
-  const chatBusy = building || dryRunning;
+  const chatBusy = building || dryRunning || liveRunning;
   const canSubmit =
-    mode === "build" ? Boolean(input.trim()) && !chatBusy : dryRunReady && !chatBusy;
+    mode === "build"
+      ? Boolean(input.trim()) && !chatBusy
+      : mode === "dry"
+        ? dryRunReady && !chatBusy
+        : !liveRunning && !killSwitchActive;
 
   if (loading && !workflow) {
     return (
@@ -346,9 +436,61 @@ export function CanvasWorkspace() {
         <>
           <CanvasToolbar
             mode={mode}
-            onModeChange={setMode}
+            onModeChange={handleModeChange}
             dryRunReady={dryRunReady}
+            onPolicyClick={() => {
+              void getCanvasWorkflowPolicy(workflow.id)
+                .then((p) => {
+                  setPolicyDetail(p);
+                  setPolicyPanelOpen(true);
+                })
+                .catch((err) => {
+                  setLiveError(err instanceof Error ? err.message : "Failed to load policy");
+                });
+            }}
+            onKillClick={() => void handleKillSwitch()}
+            killSwitchActive={killSwitchActive}
+            liveRunning={liveRunning}
           />
+
+          <CanvasPolicyPanel
+            workflowId={workflow.id}
+            policy={policyDetail}
+            open={policyPanelOpen}
+            onClose={() => setPolicyPanelOpen(false)}
+            onPolicyUpdated={(p) => {
+              setPolicyDetail(p);
+              setKillSwitchActive(p.kill_switch_active);
+            }}
+          />
+
+          {liveConfirmOpen && mode === "live" ? (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-[var(--hero-ink)]/25 p-4">
+              <div className="max-w-sm rounded-2xl border-2 border-[var(--hero-ink)] bg-white p-5 shadow-[4px_4px_0_var(--hero-ink)]">
+                <h2 className="font-heading text-lg font-extrabold">Enable Live execution?</h2>
+                <p className="mt-2 text-sm font-medium text-[var(--hero-ink)]/65">
+                  Live runs execute real actions (swap, Polymarket orders) subject to your workflow policy.
+                  Use Kill to halt immediately.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLiveConfirmOpen(false)}
+                    className="flex-1 rounded-full border-2 border-[var(--hero-ink)] px-3 py-2 text-sm font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void submitLive()}
+                    className="flex-1 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-mint)] px-3 py-2 text-sm font-bold shadow-[2px_2px_0_var(--hero-ink)]"
+                  >
+                    Run Live
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="relative min-h-0 flex-1">
             <CanvasBoardStateful
@@ -370,6 +512,14 @@ export function CanvasWorkspace() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            ) : null}
+
+            {mode === "live" && liveSteps.length > 0 ? (
+              <div className="pointer-events-none absolute right-4 bottom-28 z-10 w-80 max-w-[40vw]">
+                <div className="pointer-events-auto">
+                  <ExecutionTimeline steps={liveSteps} live={liveRunning} />
+                </div>
               </div>
             ) : null}
 
@@ -401,6 +551,10 @@ export function CanvasWorkspace() {
                 className="pointer-events-auto"
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (mode === "live") {
+                    setLiveConfirmOpen(true);
+                    return;
+                  }
                   if (mode === "dry") void submitDryRun();
                   else void submitBuild();
                 }}
@@ -421,13 +575,15 @@ export function CanvasWorkspace() {
                     placeholder={
                       mode === "dry"
                         ? "Optional note for Tester — leave empty to run full dry simulation…"
-                        : "Describe a workflow — “When BTC drops 5%, buy the whale’s Polymarket position…”"
+                        : mode === "live"
+                          ? "Live mode — confirm to execute real actions…"
+                          : "Describe a workflow — “When BTC drops 5%, buy the whale’s Polymarket position…”"
                     }
                     rows={1}
                     disabled={
                       chatBusy ||
-                      mode === "live" ||
-                      (mode === "dry" && !dryRunReady)
+                      (mode === "dry" && !dryRunReady) ||
+                      (mode === "live" && killSwitchActive)
                     }
                     className="max-h-40 min-h-6 w-full resize-none overflow-y-auto bg-transparent text-sm font-semibold leading-5 placeholder:text-[var(--hero-ink)]/35 focus:outline-none disabled:opacity-50"
                   />
@@ -447,20 +603,22 @@ export function CanvasWorkspace() {
                     )}
                     <button
                       type="submit"
-                      aria-label={mode === "dry" ? "Run dry test" : "Send"}
-                      disabled={!canSubmit || mode === "live"}
+                      aria-label={
+                        mode === "live" ? "Confirm live run" : mode === "dry" ? "Run dry test" : "Send"
+                      }
+                      disabled={!canSubmit}
                       className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--hero-ink)] text-[var(--hero-bg)] transition-transform hover:-translate-y-0.5 disabled:opacity-40"
                     >
                       <ArrowUp className="size-5" strokeWidth={2.5} />
                     </button>
                   </div>
                 </div>
-                {(mode === "build" ? buildError : dryRunError) ? (
+                {(mode === "build" ? buildError : mode === "live" ? liveError : dryRunError) ? (
                   <p
                     className={`${CANVAS_INPUT_COL} mt-2 text-center text-[11px] font-semibold text-[var(--hero-coral)]`}
                     role="alert"
                   >
-                    {mode === "build" ? buildError : dryRunError}
+                    {mode === "build" ? buildError : mode === "live" ? liveError : dryRunError}
                   </p>
                 ) : (
                   <p
@@ -468,7 +626,9 @@ export function CanvasWorkspace() {
                   >
                     {mode === "dry"
                       ? "Tester dry-runs the graph with simulated actions — no on-chain submit."
-                      : "The Builder agent assembles your workflow. Live actions always ask first."}
+                      : mode === "live"
+                        ? "Live executes swap + Polymarket nodes with policy enforcement. Kill switch halts before sign."
+                        : "The Builder agent assembles your workflow. Live actions always ask first."}
                   </p>
                 )}
               </form>

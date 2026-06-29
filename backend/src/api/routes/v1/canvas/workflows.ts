@@ -5,8 +5,10 @@ import { requireFeature } from "../../../middleware/require-feature.js";
 import {
   canvasBuildStreamRequestSchema,
   canvasDryRunStreamRequestSchema,
+  canvasLiveStreamRequestSchema,
   createCanvasWorkflowSchema,
   patchCanvasBuildConfigSchema,
+  patchCanvasPolicySchema,
   patchCanvasTesterConfigSchema,
   updateCanvasWorkflowSchema,
 } from "../../../../services/canvas/canvas-workflow.types.js";
@@ -30,6 +32,15 @@ import {
 import {
   runCanvasDryRunStream,
 } from "../../../../services/canvas/test/canvas-tester-agent.service.js";
+import {
+  activateKillSwitch,
+  getWorkflowPolicy,
+  patchWorkflowPolicy,
+} from "../../../../services/canvas/policy/canvas-policy.service.js";
+import { runCanvasLiveStream } from "../../../../services/canvas/runtime/canvas-live-run.service.js";
+import { useCanvasBuilderStub } from "../../../../config/canvas.js";
+import { stopLiveWorkflow } from "../../../../services/canvas/runtime/graph-executor.js";
+import { CANVAS_LIVE_PROGRESS_EVENT_NAMES } from "../../../../services/canvas/runtime/canvas-live-progress-context.js";
 import { fail, ok } from "../../../../utils/http-response.js";
 import { writeSseEvent } from "../../../../utils/chat-sse.js";
 import { CANVAS_BUILD_PROGRESS_EVENT_NAMES } from "../../../../services/canvas/build/canvas-build-progress.types.js";
@@ -191,6 +202,154 @@ canvasWorkflowsRouter.patch(
 );
 
 canvasWorkflowsRouter.get(
+  "/api/v1/canvas/workflows/:workflowId/policy",
+  ...canvasGuard,
+  async (req, res, next) => {
+    try {
+      const workflowId = req.params.workflowId;
+      if (!workflowId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "workflowId is required",
+        });
+      }
+      const data = await getWorkflowPolicy(req.user.privyUserId, workflowId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+canvasWorkflowsRouter.patch(
+  "/api/v1/canvas/workflows/:workflowId/policy",
+  ...canvasGuard,
+  async (req, res, next) => {
+    try {
+      const workflowId = req.params.workflowId;
+      if (!workflowId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "workflowId is required",
+        });
+      }
+      const body = patchCanvasPolicySchema.parse(req.body ?? {});
+      const data = await patchWorkflowPolicy(req.user.privyUserId, workflowId, body);
+      return ok(req, res, data);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "Invalid request body",
+          details: err.flatten(),
+        });
+      }
+      next(err);
+    }
+  },
+);
+
+canvasWorkflowsRouter.post(
+  "/api/v1/canvas/workflows/:workflowId/kill",
+  ...canvasGuard,
+  async (req, res, next) => {
+    try {
+      const workflowId = req.params.workflowId;
+      if (!workflowId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "workflowId is required",
+        });
+      }
+      const data = await activateKillSwitch(req.user.privyUserId, workflowId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+canvasWorkflowsRouter.post(
+  "/api/v1/canvas/workflows/:workflowId/live/stop",
+  ...canvasGuard,
+  async (req, res, next) => {
+    try {
+      const workflowId = req.params.workflowId;
+      if (!workflowId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "workflowId is required",
+        });
+      }
+      const data = await stopLiveWorkflow(req.user.privyUserId, workflowId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+canvasWorkflowsRouter.post(
+  "/api/v1/canvas/workflows/:workflowId/live/stream",
+  ...canvasGuard,
+  async (req, res, next) => {
+    const workflowId = req.params.workflowId;
+    if (!workflowId) {
+      return fail(req, res, 400, {
+        code: "VALIDATION_ERROR",
+        message: "workflowId is required",
+      });
+    }
+
+    try {
+      const body = canvasLiveStreamRequestSchema.parse(req.body ?? {});
+
+      res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders?.();
+
+      writeSseEvent(res, "connected", {
+        workflow_id: workflowId,
+        mode: "live",
+      });
+
+      const send = (event: (typeof CANVAS_LIVE_PROGRESS_EVENT_NAMES)[number], data: unknown) => {
+        writeSseEvent(res, event, data);
+      };
+
+      try {
+        await runCanvasLiveStream({
+          privyUserId: req.user.privyUserId,
+          workflowId,
+          confirmLive: body.confirm_live,
+          send,
+        });
+      } catch (err) {
+        if (!res.writableEnded) {
+          const message = err instanceof Error ? err.message : "Live stream failed.";
+          writeSseEvent(res, "workflow.run.error", {
+            code: "LIVE_RUN_ERROR",
+            message,
+          });
+        }
+      }
+
+      res.end();
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "Invalid request body",
+          details: err.flatten(),
+        });
+      }
+      next(err);
+    }
+  },
+);
+
+canvasWorkflowsRouter.get(
   "/api/v1/canvas/workflows/:workflowId/runs",
   ...canvasGuard,
   async (req, res, next) => {
@@ -326,7 +485,7 @@ canvasWorkflowsRouter.post(
         writeSseEvent(res, event, data);
       };
 
-      const useStub = process.env.CANVAS_BUILDER_STUB === "true";
+      const useStub = useCanvasBuilderStub();
 
       try {
         if (useStub) {

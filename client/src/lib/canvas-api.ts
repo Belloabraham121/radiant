@@ -56,6 +56,24 @@ export type CanvasWorkflowDetail = {
   updated_at: string;
 };
 
+export type CanvasPolicyDetail = {
+  policy_version: string;
+  workflow_id: string;
+  max_spend_usd_24h: number;
+  max_single_action_usd: number;
+  allowed_actions: string[];
+  forbidden_transfers: Array<{
+    from_chain?: string;
+    to_chain?: string;
+    token_symbol?: string;
+  }>;
+  region_profile: string;
+  kill_switch: boolean;
+  require_deploy_approval: boolean;
+  kill_switch_active: boolean;
+  spend_usd_24h: number;
+};
+
 export async function listCanvasWorkflows(): Promise<{ workflows: CanvasWorkflowListItem[] }> {
   return apiFetch<{ workflows: CanvasWorkflowListItem[] }>("/api/v1/canvas/workflows");
 }
@@ -260,4 +278,74 @@ export async function streamCanvasDryRun(
   }
 
   await consumeSseStream<CanvasDryRunStreamEvent>(response, onEvent);
+}
+
+export async function getCanvasWorkflowPolicy(workflowId: string): Promise<CanvasPolicyDetail> {
+  return apiFetch<CanvasPolicyDetail>(`/api/v1/canvas/workflows/${workflowId}/policy`);
+}
+
+export async function patchCanvasWorkflowPolicy(
+  workflowId: string,
+  patch: Partial<
+    Pick<
+      CanvasPolicyDetail,
+      | "max_spend_usd_24h"
+      | "max_single_action_usd"
+      | "allowed_actions"
+      | "forbidden_transfers"
+      | "region_profile"
+      | "kill_switch"
+      | "require_deploy_approval"
+    >
+  >,
+): Promise<CanvasPolicyDetail> {
+  return apiFetch<CanvasPolicyDetail>(`/api/v1/canvas/workflows/${workflowId}/policy`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function activateCanvasKillSwitch(workflowId: string): Promise<CanvasPolicyDetail> {
+  return apiFetch<CanvasPolicyDetail>(`/api/v1/canvas/workflows/${workflowId}/kill`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export async function stopCanvasLiveWorkflow(
+  workflowId: string,
+): Promise<{ stopped: true }> {
+  return apiFetch<{ stopped: true }>(`/api/v1/canvas/workflows/${workflowId}/live/stop`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export type CanvasLiveStreamEvent = import("@/lib/canvas-live").CanvasLiveStreamEvent;
+
+export async function streamCanvasLive(
+  workflowId: string,
+  onEvent: (evt: CanvasLiveStreamEvent) => void,
+  options?: { confirmLive?: boolean; signal?: AbortSignal },
+): Promise<void> {
+  const response = await fetch(
+    apiUrl(`/api/v1/canvas/workflows/${workflowId}/live/stream`),
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify({ confirm_live: options?.confirmLive ?? false }),
+      signal: options?.signal,
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || `Live stream failed (${response.status})`);
+  }
+
+  await consumeSseStream<CanvasLiveStreamEvent>(response, onEvent);
 }

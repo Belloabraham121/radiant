@@ -1571,24 +1571,24 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Policy CRUD + compile-time enforcement | `canvas-policy.service.ts` |
-| [ ] | Stream runtime worker + consumer groups | `runtime/graph-executor.ts` |
-| [ ] | Warm Privy signing lane | `backend/src/services/canvas/signing/` |
-| [ ] | Polymarket L1/L2 auth + order submit | `adapters/polymarket/` |
-| [ ] | Replace polymarket stub for Canvas actions | extend or parallel to app adapter |
-| [ ] | Inngest: cron triggers + fee collection | `backend/src/inngest/functions/canvas-*` |
-| [ ] | Kill switch pub/sub | Redis |
+| [x] | Policy CRUD + compile-time enforcement | `canvas-policy.service.ts` |
+| [x] | Stream runtime worker + consumer groups | `runtime/graph-executor.ts` |
+| [x] | Warm Privy signing lane | `backend/src/services/canvas/signing/` |
+| [x] | Polymarket L1/L2 auth + order submit | `adapters/polymarket/` |
+| [x] | Replace polymarket stub for Canvas actions | extend or parallel to app adapter |
+| [x] | Inngest: cron triggers + fee collection | `backend/src/inngest/functions/canvas-*` |
+| [x] | Kill switch pub/sub | Redis |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | Policy editor panel |
-| [ ] | Live mode confirmation + kill switch |
-| [ ] | Live run timeline with real tx links |
+| [x] | Policy editor panel |
+| [x] | Live mode confirmation + kill switch |
+| [x] | Live run timeline with real tx links |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Unit: policy engine deny paths |
-| [ ] | Integration: kill switch halts before sign |
+| [x] | Unit: policy engine deny paths |
+| [x] | Integration: kill switch halts before sign |
 | [ ] | Manual: Polymarket testnet/small order |
 
 ---

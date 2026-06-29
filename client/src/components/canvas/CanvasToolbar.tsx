@@ -13,10 +13,18 @@ export function CanvasToolbar({
   mode,
   onModeChange,
   dryRunReady,
+  onPolicyClick,
+  onKillClick,
+  killSwitchActive,
+  liveRunning,
 }: {
   mode: CanvasMode;
   onModeChange: (mode: CanvasMode) => void;
   dryRunReady?: boolean;
+  onPolicyClick?: () => void;
+  onKillClick?: () => void;
+  killSwitchActive?: boolean;
+  liveRunning?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-4 py-3">
@@ -44,7 +52,7 @@ export function CanvasToolbar({
               >
                 <Icon className="size-4" strokeWidth={2.5} />
                 {label}
-                {isLive && active ? (
+                {isLive && active && liveRunning ? (
                   <span className="ml-0.5 size-2 animate-pulse rounded-full bg-[var(--hero-ink)]" />
                 ) : null}
               </button>
@@ -56,6 +64,7 @@ export function CanvasToolbar({
       <div className="flex items-center gap-2">
         <button
           type="button"
+          onClick={onPolicyClick}
           className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1.5 text-sm font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
         >
           <Settings2 className="size-4" strokeWidth={2.5} />
@@ -63,11 +72,12 @@ export function CanvasToolbar({
         </button>
         <button
           type="button"
-          disabled={mode !== "live"}
+          disabled={mode !== "live" || killSwitchActive}
+          onClick={onKillClick}
           className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-coral)] px-3 py-1.5 text-sm font-bold text-white shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
         >
           <Ban className="size-4" strokeWidth={2.5} />
-          Kill
+          {killSwitchActive ? "Killed" : "Kill"}
         </button>
       </div>
     </div>

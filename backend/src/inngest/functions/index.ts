@@ -6,6 +6,8 @@ import { notificationDeliverFunction } from "./notification-deliver.js";
 import { notificationEvaluatePollFunction } from "./notification-evaluate-poll.js";
 import { notificationEvaluateScheduleFunction } from "./notification-evaluate-schedule.js";
 import { notificationScheduleOnceFunction } from "./notification-schedule-once.js";
+import { canvasFeeCollectFunction } from "./canvas-fee-collect.js";
+import { canvasCronTriggerFunction } from "./canvas-cron-trigger.js";
 
 export const inngestFunctions = [
   lifiTrackCrossChainFunction,
@@ -16,4 +18,6 @@ export const inngestFunctions = [
   notificationEvaluatePollFunction,
   notificationEvaluateScheduleFunction,
   notificationScheduleOnceFunction,
+  canvasFeeCollectFunction,
+  canvasCronTriggerFunction,
 ];
