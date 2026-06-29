@@ -16,6 +16,7 @@ import { useActiveCanvasWorkflow } from "./canvas-workflow-context";
 import type { CanvasMode, RichNode } from "./canvas-nodes";
 import { streamCanvasBuild, streamCanvasDryRun, streamCanvasLive, activateCanvasKillSwitch, getCanvasWorkflowPolicy, type CanvasBuildStreamEvent } from "@/lib/canvas-api";
 import { applyBuildStreamEvent, canvasGraphToFlow, flowGraphToCanvasGraph, removeNodesFromFlowGraph } from "@/lib/canvas-graph-mapper";
+import { getLayoutedElements } from "./canvas-layout";
 import type { CanvasLlmModelTier } from "@/lib/canvas-types";
 import type { CanvasDryRunStreamEvent } from "@/lib/canvas-dry-run";
 import { liveEventToExecutionStep } from "@/lib/canvas-live";
@@ -244,7 +245,16 @@ export function CanvasWorkspace() {
         buildCompletedRef.current = true;
         setDryRunReady(true);
         deletedNodeIdsRef.current.clear();
-        void refreshWorkflow();
+        // Auto-tidy the freshly assembled graph (dagre LR) so generated
+        // workflows come out untangled, then persist + refresh.
+        const laidNodes = getLayoutedElements(
+          graphRef.current.nodes,
+          graphRef.current.edges,
+          "LR",
+        );
+        graphRef.current = { nodes: laidNodes, edges: graphRef.current.edges };
+        setNodes(laidNodes);
+        void persistGraph(laidNodes, graphRef.current.edges).then(() => refreshWorkflow());
         return;
       }
       if (event.event === "workflow.build.error") {
@@ -269,7 +279,7 @@ export function CanvasWorkspace() {
       setEdges(patch.edges);
       if (patch.focusNodeId) setFocusNodeId(patch.focusNodeId);
     },
-    [mode, refreshWorkflow, setDryRunReady, setNodes, setEdges],
+    [mode, refreshWorkflow, setDryRunReady, setNodes, setEdges, persistGraph],
   );
 
   useEffect(() => {
