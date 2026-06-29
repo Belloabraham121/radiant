@@ -1202,7 +1202,7 @@ Primary prediction-market integration for Canvas v1. Existing stub: `backend/src
 | Item | Value |
 | ---- | ----- |
 | REST base | `https://clob.polymarket.com` |
-| Market WS | `wss://ws-subscriptions-clob.polymarket.com/ws/market` |
+| Market WS | `wss://ws-subscriptions-clob.polymarket.com/ws/market` — [WebSocket overview](https://docs.polymarket.com/market-data/websocket/overview), [market channel](https://docs.polymarket.com/market-data/websocket/market-channel) |
 | User WS | `wss://ws-subscriptions-clob.polymarket.com/ws/user` |
 | Primary matching region | **eu-west-2** |
 | Closest non-georestricted | eu-west-1 |
@@ -1486,25 +1486,25 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Graph CRUD API | `backend/src/api/v1/canvas/workflows/` |
-| [ ] | Build stream endpoint + AsyncLocalStorage emitters | `canvas-build-progress-context.ts` |
-| [ ] | Builder agent tools: add_node, patch_node, add_edge, complete | `backend/src/services/canvas/build/` — **See [§ I — Agent-builder defaults](#i-agent-builder-defaults)** |
-| [ ] | Persist revision on each coherent patch | `canvas-workflow.service.ts` |
-| [ ] | Canvas LLM provider for Builder (tier from `build_config`) | `backend/src/services/canvas/llm/` — **not** chat `getAgentRuntime()` |
-| [ ] | Build stream passes `model_tier` / `provider` from workflow or session | `canvas-build-progress-context.ts` |
+| [x] | Graph CRUD API | `backend/src/api/v1/canvas/workflows/` |
+| [x] | Build stream endpoint + AsyncLocalStorage emitters | `canvas-build-progress-context.ts` |
+| [x] | Builder agent tools: add_node, patch_node, add_edge, complete | `backend/src/services/canvas/build/` — **See [§ I — Agent-builder defaults](#i-agent-builder-defaults)** |
+| [x] | Persist revision on each coherent patch | `canvas-workflow.service.ts` |
+| [x] | Canvas LLM provider for Builder (tier from `build_config`) | `backend/src/services/canvas/llm/` — **not** chat `getAgentRuntime()` |
+| [x] | Build stream passes `model_tier` / `provider` from workflow or session | `canvas-build-progress-context.ts` |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | Model tier picker (**Lite** / **Thinking**) in Canvas toolbar | `client/src/components/canvas/CanvasToolbar.tsx` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
-| [ ] | PATCH `build_config` on tier change (Build mode) | workflow API |
-| [ ] | SSE consumer for `workflow.node.*` events |
-| [ ] | Rich node shell component (header/preview/config/ports) |
-| [ ] | Camera focus on `workflow.node.focus` |
+| [x] | Model tier picker (**Lite** / **Thinking**) in Canvas toolbar | `client/src/components/canvas/CanvasToolbar.tsx` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
+| [x] | PATCH `build_config` on tier change (Build mode) | workflow API |
+| [x] | SSE consumer for `workflow.node.*` events |
+| [x] | Rich node shell component (header/preview/config/ports) |
+| [x] | Camera focus on `workflow.node.focus` |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Integration: build stream emits ordered events |
-| [ ] | Unit: JSON patch application |
+| [x] | Integration: build stream emits ordered events |
+| [x] | Unit: JSON patch application |
 
 ---
 
@@ -1516,21 +1516,21 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Market data service skeleton + Redis streams | `backend/src/services/canvas/market-data/` |
-| [ ] | Polymarket WS ingest worker (eu-west-2) | `polymarket-ws-ingest.worker.ts` |
-| [ ] | Preview API: `GET .../nodes/:id/preview` | aggregates stream snapshot |
-| [ ] | CoinGecko chart config passthrough | reuse `coingecko.ts` limits |
-| [ ] | Polymarket REST read client (books/prices) | rate limit wrapper |
+| [x] | Market data service skeleton + Redis streams | `backend/src/services/canvas/market-data/` |
+| [x] | Polymarket WS ingest worker (eu-west-2) | `polymarket-ws-ingest.worker.ts` |
+| [x] | Preview API: `GET .../nodes/:id/preview` | aggregates stream snapshot |
+| [x] | CoinGecko chart config passthrough | reuse `coingecko.ts` limits |
+| [x] | Polymarket REST read client (books/prices) | rate limit wrapper |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | Price Chart node (TradingView widget) |
-| [ ] | Polymarket feed node preview (book/trades) |
-| [ ] | Preview activation when min config met |
+| [x] | Price Chart node (TradingView widget) |
+| [x] | Polymarket feed node preview (book/trades) |
+| [x] | Preview activation when min config met |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Unit: stream normalizer |
+| [x] | Unit: stream normalizer |
 | [ ] | Integration: ingest → Redis → preview API |
 
 ---

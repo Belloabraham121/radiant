@@ -1,6 +1,13 @@
+import OpenAI from "openai";
 import { getOpenAiConfig } from "../../../../config/agent.js";
-import type { CanvasLlmProvider } from "../canvas-llm.types.js";
+import type {
+  CanvasLlmCompletionParams,
+  CanvasLlmProvider,
+  CanvasLlmToolCall,
+  CanvasLlmToolCompletionResult,
+} from "../canvas-llm.types.js";
 import type { CanvasLlmChunk, CanvasLlmModelTier } from "../canvas-llm.types.js";
+import { streamChatCompletion } from "../../../agent/runtime/openai-stream-completion.js";
 
 const DEFAULT_LITE_MODEL = "gpt-4o-mini";
 const DEFAULT_THINKING_MODEL = "gpt-4o";
@@ -17,8 +24,27 @@ function resolveOpenAiModel(tier: CanvasLlmModelTier): string {
   return envThinking || DEFAULT_THINKING_MODEL;
 }
 
-async function* emptyStream(): AsyncIterable<CanvasLlmChunk> {
-  // Phase 0 skeleton — full OpenAI streaming wired in Phase 1+.
+function getClient(): OpenAI {
+  const { apiKey } = getOpenAiConfig();
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured");
+  }
+  return new OpenAI({ apiKey });
+}
+
+async function* streamTextCompletion(
+  params: CanvasLlmCompletionParams,
+): AsyncIterable<CanvasLlmChunk> {
+  const client = getClient();
+  const result = await streamChatCompletion(client, {
+    model: params.model,
+    messages: params.messages.map((m) => ({ role: m.role, content: m.content })),
+    max_tokens: params.max_tokens,
+    tools: [],
+  });
+  if (result.message.content) {
+    yield { delta: result.message.content, done: false };
+  }
   yield { delta: "", done: true };
 }
 
@@ -29,8 +55,32 @@ export const openAiV1CanvasLlmProvider: CanvasLlmProvider = {
     return resolveOpenAiModel(tier);
   },
 
-  streamCompletion(_params) {
-    // TODO(Phase 1): integrate OpenAI streaming API (mirror chat runtime patterns).
-    return emptyStream();
+  streamCompletion(params) {
+    return streamTextCompletion(params);
+  },
+
+  async completeWithTools(params): Promise<CanvasLlmToolCompletionResult> {
+    const client = getClient();
+    const result = await streamChatCompletion(client, {
+      model: params.model,
+      messages: params.messages.map((m) => ({ role: m.role, content: m.content })),
+      max_tokens: params.max_tokens,
+      tools: params.tools as OpenAI.Chat.Completions.ChatCompletionTool[],
+    });
+
+    const toolCalls: CanvasLlmToolCall[] = [];
+    for (const tc of result.message.tool_calls ?? []) {
+      if (tc.type !== "function") continue;
+      toolCalls.push({
+        id: tc.id,
+        name: tc.function.name,
+        arguments: tc.function.arguments,
+      });
+    }
+
+    return {
+      content: result.message.content ?? "",
+      tool_calls: toolCalls,
+    };
   },
 };

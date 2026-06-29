@@ -36,9 +36,19 @@ export const lifiSwapConfigSchema = z
   })
   .passthrough();
 
+export const polymarketFeedConfigSchema = z
+  .object({
+    asset_id: z.string().min(1).optional(),
+    market: z.string().min(1).optional(),
+    token_id: z.string().min(1).optional(),
+    depth: z.union([z.string(), z.number()]).optional(),
+  })
+  .passthrough();
+
 const typedNodeConfigSchemas: Partial<Record<CanvasNodeType, z.ZodType<Record<string, unknown>>>> = {
   workflow_start: workflowStartConfigSchema,
   price_chart: priceChartConfigSchema,
+  polymarket_feed: polymarketFeedConfigSchema,
   lifi_swap: lifiSwapConfigSchema,
 };
 

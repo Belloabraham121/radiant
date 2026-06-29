@@ -31,10 +31,37 @@ export type CanvasLlmChunk = {
   done?: boolean;
 };
 
+export type CanvasLlmToolDefinition = {
+  type: "function";
+  function: {
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+  };
+};
+
+export type CanvasLlmToolCall = {
+  id: string;
+  name: string;
+  arguments: string;
+};
+
+export type CanvasLlmToolCompletionResult = {
+  content: string;
+  tool_calls: CanvasLlmToolCall[];
+};
+
 export interface CanvasLlmProvider {
   id: CanvasLlmProviderId;
   resolveModel(tier: CanvasLlmModelTier): string;
   streamCompletion(
     params: CanvasLlmCompletionParams,
   ): AsyncIterable<CanvasLlmChunk>;
+  completeWithTools(params: {
+    model: string;
+    messages: CanvasLlmMessage[];
+    tools: CanvasLlmToolDefinition[];
+    max_tokens?: number;
+    temperature?: number;
+  }): Promise<CanvasLlmToolCompletionResult>;
 }

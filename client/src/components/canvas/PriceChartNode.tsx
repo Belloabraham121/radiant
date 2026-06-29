@@ -23,6 +23,8 @@ import {
 import { Trash2 } from "lucide-react";
 import { CATEGORY_COLOR, PORT_COLOR, type RichNode as RichNodeType } from "./canvas-nodes";
 import { NodeGlyph } from "./node-glyph";
+import { useActiveCanvasWorkflow } from "./canvas-workflow-context";
+import { isPreviewConfigReady, useCanvasNodePreview } from "@/hooks/useCanvasNodePreview";
 
 type ChartType = "candlestick" | "line" | "area" | "bars";
 
@@ -105,7 +107,14 @@ function PriceChartNodeComponent({ id, data, selected }: NodeProps<RichNodeType>
     data.config.find((c) => c.label === "pair")?.value ||
     "BTC/USD";
 
-  // Create the chart once; drive resize + a mock real-time tick.
+  const { workflow } = useActiveCanvasWorkflow();
+  const previewEnabled = isPreviewConfigReady("price-chart", {
+    pair,
+    coin_id: data.values?.coin_id,
+  });
+  const { preview } = useCanvasNodePreview(workflow?.id, id, previewEnabled);
+
+  // Create the chart once; drive resize + preview or mock ticks.
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
@@ -136,13 +145,45 @@ function PriceChartNodeComponent({ id, data, selected }: NodeProps<RichNodeType>
     const ro = new ResizeObserver(resize);
     ro.observe(mount);
 
-    // Mock live updates: mostly update the forming candle; sometimes add a bar.
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Live preview from CoinGecko when min config is met; mock tick otherwise.
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+
+    if (preview?.kind === "price_chart" && preview.ready && preview.points.length > 0) {
+      const bars = preview.points.map(
+        (p) =>
+          ({
+            time: p.time as UTCTimestamp,
+            open: p.open,
+            high: p.high,
+            low: p.low,
+            close: p.close,
+          }) satisfies Bar,
+      );
+      barsRef.current = bars;
+      series.setData(toSeriesData(bars, chartType) as never);
+      chartRef.current?.timeScale().fitContent();
+      return;
+    }
+
+    if (previewEnabled) return;
+
     const interval = window.setInterval(() => {
-      const series = seriesRef.current;
+      const liveSeries = seriesRef.current;
       const bars = barsRef.current;
-      if (!series || bars.length === 0) return;
+      if (!liveSeries || bars.length === 0) return;
       tickRef.current += 1;
-      const last = bars[bars.length - 1];
+      const last = bars[bars.length - 1]!;
 
       if (tickRef.current % 6 === 0) {
         const time = (last.time + 3600) as UTCTimestamp;
@@ -162,20 +203,15 @@ function PriceChartNodeComponent({ id, data, selected }: NodeProps<RichNodeType>
         last.high = Math.max(last.high, close);
         last.low = Math.min(last.low, close);
       }
-      const updated = bars[bars.length - 1];
+      const updated = bars[bars.length - 1]!;
       const t = (data.chartType as ChartType) ?? "candlestick";
-      series.update(t === "line" || t === "area" ? { time: updated.time, value: updated.close } : updated);
+      liveSeries.update(
+        t === "line" || t === "area" ? { time: updated.time, value: updated.close } : updated,
+      );
     }, 1400);
 
-    return () => {
-      window.clearInterval(interval);
-      ro.disconnect();
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => window.clearInterval(interval);
+  }, [preview, previewEnabled, chartType, data.chartType]);
 
   // (Re)build the series whenever the chart type changes.
   useEffect(() => {
@@ -214,6 +250,11 @@ function PriceChartNodeComponent({ id, data, selected }: NodeProps<RichNodeType>
         <span className="font-heading text-sm font-extrabold">{data.title}</span>
         <span className="rounded-md border-2 border-[var(--hero-ink)]/15 bg-[var(--hero-bg)] px-1.5 py-0.5 font-mono text-[10px] font-bold">
           {pair}
+          {preview?.kind === "price_chart" && preview.last_close !== null ? (
+            <span className="ml-1 text-[var(--hero-mint)]">
+              ${preview.last_close.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
+          ) : null}
         </span>
 
         {/* Chart-type switcher */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatSessionsProvider } from "@/components/app/ChatSessionsProvider";
+import { CanvasWorkflowsProvider } from "@/components/canvas/canvas-workflow-context";
 import { ChatSessionActivityProvider } from "@/components/app/ChatSessionActivityProvider";
 import { Sidebar } from "@/components/app/Sidebar";
 import { SidebarProvider } from "@/components/app/SidebarContext";
@@ -19,6 +20,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
   return (
     <FeatureFlagsProvider features={features} loaded={featuresLoaded}>
       <ChatSessionsProvider>
+        <CanvasWorkflowsProvider>
         <ChatSessionActivityProvider>
           <AgentWalletProvider>
             <AppWalletProvider>
@@ -37,6 +39,7 @@ function AppShellContent({ children }: { children: React.ReactNode }) {
             </AppWalletProvider>
           </AgentWalletProvider>
         </ChatSessionActivityProvider>
+        </CanvasWorkflowsProvider>
       </ChatSessionsProvider>
     </FeatureFlagsProvider>
   );

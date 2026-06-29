@@ -5,18 +5,48 @@ import type {
   JsonPatchOperation,
 } from "./canvas-build-progress.types.js";
 import type { CanvasEdge, CanvasNode } from "../graph/canvas-graph.types.js";
+import type {
+  CanvasAgentLlmConfig,
+  CanvasLlmModelTier,
+  CanvasLlmProviderId,
+} from "../llm/canvas-llm.types.js";
 
 type CanvasBuildProgressStore = {
   send?: CanvasBuildStreamSender;
+  model_tier?: CanvasLlmModelTier;
+  provider?: CanvasLlmProviderId;
+  build_config?: CanvasAgentLlmConfig;
 };
 
 const storage = new AsyncLocalStorage<CanvasBuildProgressStore>();
 
+export type CanvasBuildProgressContextOptions = {
+  send: CanvasBuildStreamSender;
+  build_config?: CanvasAgentLlmConfig;
+};
+
 export function runWithCanvasBuildProgress<T>(
-  send: CanvasBuildStreamSender,
+  options: CanvasBuildProgressContextOptions,
   fn: () => Promise<T>,
 ): Promise<T> {
-  return storage.run({ send }, fn);
+  const { send, build_config } = options;
+  return storage.run(
+    {
+      send,
+      build_config,
+      model_tier: build_config?.model_tier,
+      provider: build_config?.provider ?? "openai",
+    },
+    fn,
+  );
+}
+
+export function getCanvasBuildLlmConfig(): CanvasAgentLlmConfig {
+  const store = storage.getStore();
+  return {
+    model_tier: store?.model_tier ?? "lite",
+    provider: store?.provider ?? "openai",
+  };
 }
 
 export function hasCanvasBuildProgressContext(): boolean {

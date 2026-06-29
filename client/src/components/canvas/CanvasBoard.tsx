@@ -20,23 +20,19 @@ import {
   type Edge,
   type EdgeTypes,
   type NodeTypes,
+  type OnEdgesChange,
+  type OnNodesChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { RichNode } from "./RichNode";
 import { PriceChartNode } from "./PriceChartNode";
 import { AnimatedSVGEdge } from "./AnimatedEdge";
-import {
-  SAMPLE_EDGES,
-  SAMPLE_NODES,
-  type CanvasMode,
-  type RichNode as RichNodeType,
-} from "./canvas-nodes";
+import { type CanvasMode, type RichNode as RichNodeType } from "./canvas-nodes";
 import { AddNodePalette } from "./AddNodePalette";
 import { NodeDetailModal } from "./node-detail";
 import { nodeDataFromCatalog, type NodeCatalogEntry } from "./node-catalog";
 import { resolveCollisions } from "./collision";
 
-/** Keep ~16px of breathing room between cards when resolving overlaps. */
 const COLLISION_OPTIONS = { maxIterations: 50, overlapThreshold: 0.5, margin: 16 };
 
 gsap.registerPlugin(useGSAP);
@@ -52,7 +48,6 @@ const edgeTypes: EdgeTypes = { animated: AnimatedSVGEdge };
 
 const EDGE_STYLE = { stroke: "var(--hero-ink)", strokeWidth: 2.5 };
 
-/** Step (orthogonal) edges; Dry/Live swaps to the traveling-dot animated edge. */
 function styleEdgeForMode<T extends Edge>(edge: T, mode: CanvasMode): T {
   return {
     ...edge,
@@ -61,21 +56,43 @@ function styleEdgeForMode<T extends Edge>(edge: T, mode: CanvasMode): T {
   };
 }
 
-function edgesForMode(mode: CanvasMode): Edge[] {
-  return SAMPLE_EDGES.map((e) => styleEdgeForMode(e, mode));
-}
+type BoardInnerProps = {
+  mode: CanvasMode;
+  nodes: RichNodeType[];
+  edges: Edge[];
+  onNodesChange: OnNodesChange<RichNodeType>;
+  onEdgesChange: OnEdgesChange;
+  setNodes: React.Dispatch<React.SetStateAction<RichNodeType[]>>;
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+  focusNodeId?: string | null;
+};
 
-function BoardInner({ mode }: { mode: CanvasMode }) {
+function BoardInner({
+  mode,
+  nodes,
+  edges,
+  onNodesChange,
+  onEdgesChange,
+  setNodes,
+  setEdges,
+  focusNodeId,
+}: BoardInnerProps) {
   const scope = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition, fitView, deleteElements } = useReactFlow();
+  const { screenToFlowPosition, fitView, deleteElements, setCenter } = useReactFlow();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
-  // Stateful nodes/edges so they're draggable and connectable.
-  const [nodes, setNodes, onNodesChange] = useNodesState<RichNodeType>(SAMPLE_NODES);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(edgesForMode("build"));
+  const prevFocusRef = useRef<string | null>(null);
 
-  // Drop a catalog node at the current viewport center (small jitter so repeated
-  // adds don't stack exactly).
+  useEffect(() => {
+    if (!focusNodeId || focusNodeId === prevFocusRef.current) return;
+    prevFocusRef.current = focusNodeId;
+    const node = nodes.find((n) => n.id === focusNodeId);
+    if (!node) return;
+    const x = node.position.x + (node.width ?? 96) / 2;
+    const y = node.position.y + (node.height ?? 56) / 2;
+    setCenter(x, y, { zoom: 1.1, duration: 450 });
+  }, [focusNodeId, nodes, setCenter]);
+
   const addNode = useCallback(
     (entry: NodeCatalogEntry) => {
       const rect = scope.current?.getBoundingClientRect();
@@ -99,8 +116,6 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
     [screenToFlowPosition, setNodes],
   );
 
-  // Tidy scattered nodes into a clean left→right layered layout (longest-path
-  // layering over the edges), then fit them to view.
   const autoLayout = useCallback(() => {
     const COL_GAP = 340;
     const ROW_GAP = 200;
@@ -113,7 +128,6 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
         if (incoming.has(e.target)) incoming.get(e.target)!.push(e.source);
       }
 
-      // layer = longest path from a root (indegree 0), with a cycle guard.
       const layer = new Map<string, number>();
       const visiting = new Set<string>();
       const computeLayer = (id: string): number => {
@@ -149,7 +163,6 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
     requestAnimationFrame(() => fitView({ padding: 0.2, duration: 400 }));
   }, [edges, fitView, setNodes]);
 
-  // ⌘K / Ctrl+K opens the node palette.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -161,13 +174,10 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Swap edges to the animated traveling-dot type in Dry/Live (preserves links).
   useEffect(() => {
     setEdges((current) => current.map((e) => styleEdgeForMode(e, mode)));
   }, [mode, setEdges]);
 
-  // Signature moment: nodes pop in (back.out) like the agent is assembling
-  // the graph in front of you. Reduced-motion → instant.
   useGSAP(
     () => {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -181,7 +191,7 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
         delay: 0.15,
       });
     },
-    { scope, dependencies: [] },
+    { scope, dependencies: [nodes.length] },
   );
 
   const detailNode = detailNodeId ? (nodes.find((n) => n.id === detailNodeId) ?? null) : null;
@@ -194,11 +204,7 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
         : "";
 
   return (
-    <div
-      ref={scope}
-      className={`relative h-full w-full ${frameClass}`}
-    >
-      {/* Add node — opens the searchable command palette */}
+    <div ref={scope} className={`relative h-full w-full ${frameClass}`}>
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
@@ -252,7 +258,6 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
           )
         }
         onNodeClick={(_, node) => {
-          // Chart nodes are self-contained (inline controls) — no detail modal.
           if (node.type !== "chart") setDetailNodeId(node.id);
         }}
         onNodeDragStop={() =>
@@ -307,10 +312,60 @@ function BoardInner({ mode }: { mode: CanvasMode }) {
   );
 }
 
-export function CanvasBoard({ mode }: { mode: CanvasMode }) {
+export type CanvasBoardProps = {
+  mode: CanvasMode;
+  nodes: RichNodeType[];
+  edges: Edge[];
+  onNodesChange: OnNodesChange<RichNodeType>;
+  onEdgesChange: OnEdgesChange;
+  setNodes: React.Dispatch<React.SetStateAction<RichNodeType[]>>;
+  setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
+  focusNodeId?: string | null;
+};
+
+function BoardControlled(props: CanvasBoardProps) {
   return (
     <ReactFlowProvider>
-      <BoardInner mode={mode} />
+      <BoardInner {...props} />
     </ReactFlowProvider>
   );
 }
+
+/** Convenience wrapper when parent does not control graph state. */
+export function CanvasBoardStateful({
+  mode,
+  initialNodes = [],
+  initialEdges = [],
+  focusNodeId,
+}: {
+  mode: CanvasMode;
+  initialNodes?: RichNodeType[];
+  initialEdges?: Edge[];
+  focusNodeId?: string | null;
+}) {
+  const [nodes, setNodes, onNodesChange] = useNodesState<RichNodeType>(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  useEffect(() => {
+    setNodes(initialNodes);
+  }, [initialNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(initialEdges);
+  }, [initialEdges, setEdges]);
+
+  return (
+    <BoardControlled
+      mode={mode}
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
+      setNodes={setNodes}
+      setEdges={setEdges}
+      focusNodeId={focusNodeId}
+    />
+  );
+}
+
+export { BoardControlled as CanvasBoard };

@@ -12,6 +12,8 @@ import {
   type RichNode as RichNodeType,
 } from "./canvas-nodes";
 import { NodeGlyph, isImageLogo } from "./node-glyph";
+import { useActiveCanvasWorkflow } from "./canvas-workflow-context";
+import { isPreviewConfigReady, useCanvasNodePreview } from "@/hooks/useCanvasNodePreview";
 
 const PREVIEW_BOX =
   "rounded-lg border-2 border-dashed border-[var(--hero-ink)]/15 bg-[var(--hero-bg)]";
@@ -45,7 +47,68 @@ function OrderPreview({ values }: { values: Record<string, ConfigValue> }) {
   );
 }
 
-function PreviewRegion({ data }: { data: RichNodeType["data"] }) {
+function BookPreviewLive({ nodeId, data }: { nodeId: string; data: RichNodeType["data"] }) {
+  const { workflow } = useActiveCanvasWorkflow();
+  const enabled = isPreviewConfigReady("polymarket-market", data.values);
+  const { preview, loading } = useCanvasNodePreview(workflow?.id, nodeId, enabled);
+
+  if (loading && enabled) {
+    return (
+      <div className={`${PREVIEW_BOX} px-3 py-2 text-xs font-semibold text-[var(--hero-ink)]/45`}>
+        Loading book…
+      </div>
+    );
+  }
+
+  if (preview?.kind === "polymarket_feed" && preview.ready) {
+    const rows = [
+      ...preview.book.bids.map((r) => ({ p: r.price.toFixed(2), s: r.size.toFixed(0), buy: true })),
+      ...preview.book.asks.map((r) => ({ p: r.price.toFixed(2), s: r.size.toFixed(0), buy: false })),
+    ].slice(0, 8);
+    return (
+      <div className={`${PREVIEW_BOX} space-y-0.5 px-3 py-2 font-mono text-xs`}>
+        <div className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-wide text-[var(--hero-ink)]/40">
+          <span>L2 book</span>
+          <span className="text-[var(--hero-mint)]">{preview.connection}</span>
+        </div>
+        {rows.map((r, i) => (
+          <div key={i} className="flex justify-between">
+            <span className={r.buy ? "text-[var(--hero-mint)]" : "text-[var(--hero-coral)]"}>{r.p}</span>
+            <span className="text-[var(--hero-ink)]/45">{r.s}</span>
+          </div>
+        ))}
+        {preview.last_trade ? (
+          <div className="mt-1 border-t border-dashed border-[var(--hero-ink)]/10 pt-1 text-[var(--hero-ink)]/55">
+            last {preview.last_trade.price.toFixed(3)}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return <BookPreviewMock />;
+}
+
+function BookPreviewMock() {
+  const rows = [
+    { p: "0.62", s: "1.2k", buy: true },
+    { p: "0.61", s: "3.4k", buy: true },
+    { p: "0.63", s: "2.1k", buy: false },
+    { p: "0.64", s: "0.9k", buy: false },
+  ];
+  return (
+    <div className={`${PREVIEW_BOX} space-y-0.5 px-3 py-2 font-mono text-xs`}>
+      {rows.map((r, i) => (
+        <div key={i} className="flex justify-between">
+          <span className={r.buy ? "text-[var(--hero-mint)]" : "text-[var(--hero-coral)]"}>{r.p}</span>
+          <span className="text-[var(--hero-ink)]/45">{r.s}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PreviewRegion({ nodeId, data }: { nodeId: string; data: RichNodeType["data"] }) {
   const kind = data.preview;
   if (kind === "none") return null;
 
@@ -61,22 +124,7 @@ function PreviewRegion({ data }: { data: RichNodeType["data"] }) {
   }
 
   if (kind === "book") {
-    const rows = [
-      { p: "0.62", s: "1.2k", buy: true },
-      { p: "0.61", s: "3.4k", buy: true },
-      { p: "0.63", s: "2.1k", buy: false },
-      { p: "0.64", s: "0.9k", buy: false },
-    ];
-    return (
-      <div className={`${PREVIEW_BOX} space-y-0.5 px-3 py-2 font-mono text-xs`}>
-        {rows.map((r, i) => (
-          <div key={i} className="flex justify-between">
-            <span className={r.buy ? "text-[var(--hero-mint)]" : "text-[var(--hero-coral)]"}>{r.p}</span>
-            <span className="text-[var(--hero-ink)]/45">{r.s}</span>
-          </div>
-        ))}
-      </div>
-    );
+    return <BookPreviewLive nodeId={nodeId} data={data} />;
   }
 
   if (kind === "positions") {
@@ -353,7 +401,7 @@ export function NodeDetailModal({
               <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">
                 Preview
               </p>
-              <PreviewRegion data={data} />
+              <PreviewRegion nodeId={node.id} data={data} />
             </div>
           ) : null}
 

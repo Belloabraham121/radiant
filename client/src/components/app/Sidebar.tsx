@@ -22,15 +22,18 @@ import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useChatSessionActivity } from "@/components/app/chat-session-activity-context";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useFeatureEnabled } from "@/lib/feature-flags-context";
-import { formatSessionTime } from "@/lib/chat-messages";
-import { deleteChatSession, type ChatSessionListItem } from "@/lib/chat-api";
 import { ApiError } from "@/lib/api";
-import {
-  SAMPLE_WORKFLOWS,
-  WORKFLOW_STATUS_META,
-  WORKFLOW_STATUS_ORDER,
-} from "@/components/canvas/sample-workflows";
+import { deleteChatSession, type ChatSessionListItem } from "@/lib/chat-api";
+import { WORKFLOW_STATUS_META, WORKFLOW_STATUS_ORDER } from "@/components/canvas/sample-workflows";
+import { useCanvasWorkflows } from "@/components/canvas/canvas-workflow-context";
+import { formatSessionTime } from "@/lib/chat-messages";
 import { useSidebar } from "./SidebarContext";
+
+function mapWorkflowStatus(status: string): keyof typeof WORKFLOW_STATUS_META {
+  if (status === "live") return "live";
+  if (status === "dry_run_ready") return "dry";
+  return "draft";
+}
 
 const NAV: Array<{
   href: string;
@@ -49,6 +52,12 @@ export function Sidebar() {
   const { seed, displayName } = useUserProfile();
   const canvasEnabled = useFeatureEnabled("canvas");
   const { sessions, loading, error, refreshSessions, startNewChat } = useChatSessions();
+  const {
+    workflows,
+    loading: workflowsLoading,
+    error: workflowsError,
+    createWorkflow,
+  } = useCanvasWorkflows();
   const { isSessionBusy } = useChatSessionActivity();
   const { unreadCount } = useNotifications();
   const [deleteTarget, setDeleteTarget] = useState<ChatSessionListItem | null>(null);
@@ -72,9 +81,12 @@ export function Sidebar() {
     setOpen(false);
   };
 
+  const activeWorkflowId = pathname.startsWith("/app/canvas/")
+    ? pathname.split("/app/canvas/")[1]?.split("/")[0]
+    : null;
+
   const handleNewWorkflow = () => {
-    router.push("/app/canvas");
-    setOpen(false);
+    void createWorkflow().finally(() => setOpen(false));
   };
 
   async function confirmDeleteChat() {
@@ -196,8 +208,14 @@ export function Sidebar() {
               <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--hero-ink)]/35">
                 Your workflows
               </p>
+              {workflowsLoading && workflows.length === 0 ? (
+                <p className="px-2 text-xs font-medium text-[var(--hero-ink)]/40">Loading workflows…</p>
+              ) : null}
+              {workflowsError ? (
+                <p className="px-2 text-xs font-semibold text-[var(--hero-coral)]">{workflowsError}</p>
+              ) : null}
               {WORKFLOW_STATUS_ORDER.map((status) => {
-                const items = SAMPLE_WORKFLOWS.filter((w) => w.status === status);
+                const items = workflows.filter((w) => mapWorkflowStatus(w.status) === status);
                 if (items.length === 0) return null;
                 const meta = WORKFLOW_STATUS_META[status];
                 return (
@@ -206,12 +224,18 @@ export function Sidebar() {
                       {meta.label}
                     </p>
                     <div className="flex flex-col gap-1">
-                      {items.map((w) => (
+                      {items.map((w) => {
+                        const active = activeWorkflowId === w.id;
+                        return (
                         <Link
                           key={w.id}
-                          href="/app/canvas"
+                          href={`/app/canvas/${w.id}`}
                           onClick={() => setOpen(false)}
-                          className="group block rounded-2xl border-2 border-transparent px-4 py-2.5 transition-all hover:border-[var(--hero-ink)] hover:bg-[var(--hero-bg)]"
+                          className={`group block rounded-2xl border-2 px-4 py-2.5 transition-all ${
+                            active
+                              ? "border-[var(--hero-ink)] bg-[var(--hero-bg)]"
+                              : "border-transparent hover:border-[var(--hero-ink)] hover:bg-[var(--hero-bg)]"
+                          }`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-2">
@@ -224,26 +248,17 @@ export function Sidebar() {
                               />
                               <span className="truncate text-sm font-bold">{w.name}</span>
                             </span>
-                            {w.lastRun ? (
-                              <span className="shrink-0 text-[11px] font-bold text-[var(--hero-ink)]/35">
-                                {w.lastRun}
-                              </span>
-                            ) : null}
+                            <span className="shrink-0 text-[11px] font-bold text-[var(--hero-ink)]/35">
+                              {formatSessionTime(w.updated_at)}
+                            </span>
                           </div>
-                          {typeof w.runsToday === "number" ? (
-                            <p className="mt-0.5 truncate pl-4 text-xs font-medium text-[var(--hero-ink)]/50">
-                              {w.runsToday} runs today
-                            </p>
-                          ) : null}
                         </Link>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
               })}
-              <p className="mt-2 px-2 text-[11px] font-medium text-[var(--hero-ink)]/35">
-                Prototype — sample workflows.
-              </p>
             </>
           ) : (
           <>

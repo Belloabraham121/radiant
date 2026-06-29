@@ -88,6 +88,13 @@ export function messageForApiFailure(
     return "Could not load agent activity. Make sure the backend is running.";
   }
 
+  if (pathname.startsWith("/api/v1/canvas/workflows")) {
+    if (kind === "timeout") {
+      return "Could not load Canvas workflows — the request timed out. Wait a moment and try again.";
+    }
+    return "Could not load Canvas workflows. Make sure the backend is running.";
+  }
+
   if (pathname.startsWith("/api/v1/projects")) {
     if (kind === "timeout") {
       return "Loading projects timed out. Wait a moment and try again.";
