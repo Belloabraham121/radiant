@@ -10,7 +10,7 @@ import type { CanvasLlmChunk, CanvasLlmModelTier } from "../canvas-llm.types.js"
 import { streamChatCompletion } from "../../../agent/runtime/openai-stream-completion.js";
 
 const DEFAULT_LITE_MODEL = "gpt-4o-mini";
-const DEFAULT_THINKING_MODEL = "gpt-4o";
+const DEFAULT_THINKING_MODEL = "gpt-5.4";
 
 function resolveOpenAiModel(tier: CanvasLlmModelTier): string {
   const envLite = process.env.CANVAS_OPENAI_LITE_MODEL?.trim();

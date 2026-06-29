@@ -17,6 +17,8 @@ export function useUserProfile() {
   const { user, ready, authenticated } = usePrivy();
   const [me, setMe] = useState<AuthMeData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileResolved, setProfileResolved] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready || !authenticated) {
@@ -39,6 +41,8 @@ export function useUserProfile() {
       } finally {
         if (!cancelled) {
           setProfileLoading(false);
+          setProfileResolved(true);
+          setProfileUserId(user?.id ?? null);
         }
       }
     }
@@ -60,7 +64,9 @@ export function useUserProfile() {
       authenticated,
       user,
       profileLoading: ready && authenticated && profileLoading,
-      featuresLoaded: ready && (!authenticated || !profileLoading),
+      featuresLoaded:
+        ready &&
+        (!authenticated || (profileResolved && profileUserId === user?.id)),
       features: (profileMe?.features ?? DEFAULT_FEATURE_FLAGS) as FeatureFlags,
       seed: resolveAvatarSeed(profileMe?.avatar_seed, user),
       avatarStyle: profileMe?.avatar_style ?? "lorelei",
@@ -69,5 +75,5 @@ export function useUserProfile() {
       loginBadges,
       memberSince: formatMemberSince(profileMe?.member_since),
     };
-  }, [authenticated, me, profileLoading, ready, user]);
+  }, [authenticated, me, profileLoading, profileResolved, profileUserId, ready, user]);
 }

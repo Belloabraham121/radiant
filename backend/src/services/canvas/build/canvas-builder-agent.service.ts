@@ -17,21 +17,13 @@ import { getCanvasLlmProvider } from "../llm/canvas-llm-provider.registry.js";
 import type { CanvasAgentLlmConfig, CanvasLlmMessage } from "../llm/canvas-llm.types.js";
 import type { CanvasGraph } from "../graph/canvas-graph.types.js";
 import { loadWorkflowGraph } from "../canvas-workflow.service.js";
+import {
+  buildBuilderSystemPrompt,
+  formatPortHintForSlug,
+  validateBuilderGraphConnectivity,
+} from "./builder-port-catalog.js";
 
-const BUILDER_SYSTEM_PROMPT = `You are the Radiant Canvas Builder agent. Given a natural-language workflow description, assemble a v1 workflow graph using the provided tools.
-
-Rules:
-1. Every workflow needs workflow-start (or schedule-cron) and a reachable workflow-stop or terminal action.
-2. Insert workflow-approve before the first irreversible Live action unless the user pre-authorized unattended execution.
-3. Prefer typed ports — connect market → Polymarket actions, trigger → action nodes, order_intent → policy-gate → action.
-4. Insert policy-gate before Live action nodes; dry-run-gate when the user asks for testable flows.
-5. Default prediction-market flows: workflow-start → polymarket-feed + polymarket-orderbook → threshold/if-condition → workflow-approve → polymarket-order → workflow-stop.
-6. Emit workflow.node.focus by adding nodes that need config (feeds, charts, protocol actions, approve gate) — the tools handle focus automatically.
-7. Call complete when the graph satisfies the user's request.
-
-Use add_node, patch_node, add_edge, then complete. Only use v1 catalog slugs from add_node.`;
-
-const MAX_BUILDER_TURNS = 12;
+const MAX_BUILDER_TURNS = 16;
 
 const CHITCHAT_PATTERN =
   /^(hi|hello|hey|thanks|thank you|ok|okay|test|help|yo|sup|howdy)[!.?\s]*$/i;
@@ -51,6 +43,7 @@ function toolActionLabel(toolName: string, args: unknown): string {
   }
   if (toolName === "add_edge") return "Connecting nodes…";
   if (toolName === "patch_node") return "Updating node config…";
+  if (toolName === "search_polymarket_markets") return "Searching Polymarket markets…";
   if (toolName === "complete") return "Finalizing workflow…";
   return `Running ${toolName}…`;
 }
@@ -62,19 +55,33 @@ function truncateThinking(text: string, max = 280): string {
 }
 
 function graphSummary(graph: CanvasGraph): string {
-  const nodeLines = graph.nodes.map(
-    (n) => `- ${n.id}: ${n.type}${n.meta?.label ? ` (${n.meta.label})` : ""}`,
-  );
+  const nodeLines = graph.nodes.map((n) => {
+    const slug = n.type.replace(/_/g, "-");
+    const label = n.meta?.label ? ` label="${n.meta.label}"` : "";
+    return `- id=${n.id} slug=${slug}${label}`;
+  });
   const edgeLines = graph.edges.map(
     (e) =>
       `- ${e.source.node_id}:${e.source.port} → ${e.target.node_id}:${e.target.port}`,
   );
   return [
-    "Current graph:",
+    "Current graph (use exact ids in add_edge):",
     "Nodes:",
     nodeLines.length ? nodeLines.join("\n") : "(none)",
     "Edges:",
-    edgeLines.length ? edgeLines.join("\n") : "(none)",
+    edgeLines.length ? edgeLines.join("\n") : "(none — you MUST add edges before complete)",
+  ].join("\n");
+}
+
+function connectivityReminder(state: BuilderGraphState): string {
+  const issues = validateBuilderGraphConnectivity(state.graph);
+  if (issues.length === 0) {
+    return "";
+  }
+  return [
+    "Connectivity issues — fix with add_edge before calling complete:",
+    ...issues.map((i) => `- ${i}`),
+    graphSummary(state.graph),
   ].join("\n");
 }
 
@@ -135,7 +142,7 @@ async function executeBuilderTurn(
   const model = provider.resolveModel(llmConfig.model_tier);
 
   const messages: CanvasLlmMessage[] = [
-    { role: "system", content: BUILDER_SYSTEM_PROMPT },
+    { role: "system", content: buildBuilderSystemPrompt() },
     {
       role: "user",
       content: `${userMessage.trim()}\n\n${graphSummary(state.graph)}`,
@@ -171,7 +178,8 @@ async function executeBuilderTurn(
       emitWorkflowBuildStatus("No tool calls yet — prompting the agent to continue…", "status");
       messages.push({
         role: "user",
-        content: "Continue building the workflow using tools, then call complete.",
+        content:
+          "Continue building: use add_node, then add_edge to wire each step (use node UUIDs from add_node responses), then complete.",
       });
       continue;
     }
@@ -182,6 +190,26 @@ async function executeBuilderTurn(
         parsedArgs = JSON.parse(toolCall.arguments || "{}");
       } catch {
         throw new AppError(400, "INVALID_TOOL_ARGS", `Invalid JSON for ${toolCall.name}`);
+      }
+
+      if (toolCall.name === "complete") {
+        const connectivityIssues = validateBuilderGraphConnectivity(state.graph);
+        if (connectivityIssues.length > 0) {
+          const feedback = connectivityReminder(state);
+          emitWorkflowBuildStatus(
+            "Build incomplete — nodes must be connected with add_edge before finishing.",
+            "status",
+          );
+          messages.push({
+            role: "assistant",
+            content: `[tool:complete rejected] ${connectivityIssues.join(" ")}`,
+          });
+          messages.push({
+            role: "user",
+            content: `${feedback}\n\nCall add_edge for each missing link, then complete again.`,
+          });
+          continue;
+        }
       }
 
       emitWorkflowBuildStatus(
@@ -199,6 +227,25 @@ async function executeBuilderTurn(
 
       if (toolResult.completed) {
         completed = true;
+      }
+    }
+
+    if (!completed) {
+      const hadAddNode = result.tool_calls.some((tc) => tc.name === "add_node");
+      const hadAddEdge = result.tool_calls.some((tc) => tc.name === "add_edge");
+      if (hadAddNode && !hadAddEdge && state.graph.nodes.length >= 2) {
+        messages.push({
+          role: "user",
+          content: `You added nodes but did not call add_edge. Wire the workflow now using exact node ids and compatible ports.\n\n${connectivityReminder(state) || graphSummary(state.graph)}`,
+        });
+      } else {
+        const reminder = connectivityReminder(state);
+        if (reminder) {
+          messages.push({
+            role: "user",
+            content: reminder,
+          });
+        }
       }
     }
   }
@@ -252,6 +299,20 @@ export async function runCanvasBuildStreamStub(
       { slug: "workflow-stop", position: { x: 720, y: 200 } },
       state,
     );
+    if (state.graph.nodes.length >= 3) {
+      const stopId = state.graph.nodes[state.graph.nodes.length - 1]!.id;
+      const ifId = state.graph.nodes[1]!.id;
+      await runBuilderTool(
+        "add_edge",
+        {
+          source_node_id: ifId,
+          source_port: "trigger",
+          target_node_id: stopId,
+          target_port: "trigger",
+        },
+        state,
+      );
+    }
     await runBuilderTool(
       "complete",
       { summary: "Stub builder assembled a sample BTC chart workflow." },

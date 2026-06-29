@@ -91,6 +91,16 @@ export async function getCanvasWorkflow(workflowId: string): Promise<CanvasWorkf
   return apiFetch<CanvasWorkflowDetail>(`/api/v1/canvas/workflows/${workflowId}`);
 }
 
+export async function patchCanvasWorkflowGraph(
+  workflowId: string,
+  graph: CanvasGraphPayload,
+): Promise<CanvasWorkflowDetail> {
+  return apiFetch<CanvasWorkflowDetail>(`/api/v1/canvas/workflows/${workflowId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ graph }),
+  });
+}
+
 export async function patchCanvasWorkflowBuildConfig(
   workflowId: string,
   buildConfig: CanvasBuildConfig,

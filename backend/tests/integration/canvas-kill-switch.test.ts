@@ -11,6 +11,7 @@ import { setKillSwitchState } from "../../src/services/canvas/policy/canvas-kill
 import { executeLiveGraphRun } from "../../src/services/canvas/runtime/graph-executor.js";
 import type { CanvasGraph } from "../../src/services/canvas/graph/canvas-graph.types.js";
 import { clearMemoryCacheForTests } from "../../src/infrastructure/redis/cache.js";
+import { setRedisClientForTests } from "../../src/infrastructure/redis/client.js";
 import { resetKillSwitchMemoryForTests } from "../../src/services/canvas/policy/canvas-kill-switch.js";
 
 const privyUserId = "did:privy:canvas-kill-switch-test";
@@ -92,6 +93,7 @@ describe("canvas kill switch halts before sign", () => {
     delete process.env.CANVAS_RUNTIME_MOCK;
     resetKillSwitchMemoryForTests();
     clearMemoryCacheForTests();
+    setRedisClientForTests(null);
 
     await prisma.canvasWorkflowRunEvent.deleteMany({
       where: { run: { user: { privy_user_id: privyUserId } } },
@@ -109,6 +111,7 @@ describe("canvas kill switch halts before sign", () => {
       where: { user: { privy_user_id: privyUserId } },
     });
     await prisma.user.deleteMany({ where: { privy_user_id: privyUserId } });
+    await prisma.$disconnect();
   });
 
   it("halts live run when kill switch is active before order submit", async () => {

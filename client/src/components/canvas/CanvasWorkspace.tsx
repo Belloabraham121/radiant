@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Edge } from "@xyflow/react";
+import type { Edge, Node } from "@xyflow/react";
+import { useEdgesState, useNodesState } from "@xyflow/react";
 import { ArrowUp, LayoutDashboard, ListChecks } from "lucide-react";
 import { SidebarToggle } from "@/components/app/Sidebar";
 import { ExecutionTimeline } from "@/components/app/ExecutionTimeline";
@@ -9,12 +10,12 @@ import { CanvasToolbar } from "./CanvasToolbar";
 import { CanvasPolicyPanel } from "./CanvasPolicyPanel";
 import { CanvasModelPicker } from "./CanvasModelPicker";
 import { CanvasBuilderActivity } from "./CanvasBuilderActivity";
-import { CanvasBoardStateful } from "./CanvasBoard";
+import { CanvasBoard } from "./CanvasBoard";
 import { CanvasRunsPanel } from "./CanvasRunsPanel";
 import { useActiveCanvasWorkflow } from "./canvas-workflow-context";
 import type { CanvasMode, RichNode } from "./canvas-nodes";
 import { streamCanvasBuild, streamCanvasDryRun, streamCanvasLive, activateCanvasKillSwitch, getCanvasWorkflowPolicy, type CanvasBuildStreamEvent } from "@/lib/canvas-api";
-import { applyBuildStreamEvent, canvasGraphToFlow } from "@/lib/canvas-graph-mapper";
+import { applyBuildStreamEvent, canvasGraphToFlow, flowGraphToCanvasGraph, removeNodesFromFlowGraph } from "@/lib/canvas-graph-mapper";
 import type { CanvasLlmModelTier } from "@/lib/canvas-types";
 import type { CanvasDryRunStreamEvent } from "@/lib/canvas-dry-run";
 import { liveEventToExecutionStep } from "@/lib/canvas-live";
@@ -34,6 +35,7 @@ import type { ExecutionStep } from "@/lib/chat-execution-steps";
 type CanvasTab = "editor" | "runs";
 
 const CANVAS_INPUT_COL = "mx-auto w-full max-w-[53.76rem]";
+const CANVAS_INPUT_MAX_HEIGHT_PX = 160;
 
 const TABS: Array<{ id: CanvasTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "editor", label: "Editor", icon: LayoutDashboard },
@@ -79,6 +81,7 @@ export function CanvasWorkspace() {
     appendDryRunLog,
     clearDryRunLog,
     refreshWorkflow,
+    patchWorkflowGraph,
   } = useActiveCanvasWorkflow();
 
   const [mode, setMode] = useState<CanvasMode>("build");
@@ -103,36 +106,119 @@ export function CanvasWorkspace() {
   const [dryRunSteps, setDryRunSteps] = useState<ExecutionStep[]>([]);
   const [dryRunBadges, setDryRunBadges] = useState<Map<string, DryRunNodeBadge>>(new Map());
   const abortRef = useRef<AbortController | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const deletedNodeIdsRef = useRef(new Set<string>());
+  const graphPersistRef = useRef<Promise<void>>(Promise.resolve());
+  /** Revision from our own PATCH — skip full graph reset when context updates. */
+  const localGraphRevisionRef = useRef<number | null>(null);
+  const lastWorkflowIdRef = useRef<string | null>(null);
 
   const baseGraph = useMemo(() => {
     if (!workflow) return { nodes: [] as RichNode[], edges: [] as Edge[] };
     return canvasGraphToFlow(workflow.graph.nodes, workflow.graph.edges, mode);
   }, [workflow, mode]);
 
-  const [liveNodes, setLiveNodes] = useState<RichNode[] | null>(null);
-  const [liveEdges, setLiveEdges] = useState<Edge[] | null>(null);
+  const [nodes, setNodes, onNodesChange] = useNodesState<RichNode>(baseGraph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(baseGraph.edges);
   const graphRef = useRef({ nodes: baseGraph.nodes, edges: baseGraph.edges });
+  const lastSyncedGraphKeyRef = useRef<string | null>(null);
+  const graphSyncKey = workflow ? `${workflow.id}:${workflow.revision}` : null;
 
-  const graphNodesRaw = liveNodes ?? baseGraph.nodes;
-  const graphNodes = useMemo(
-    () => applyDryRunBadgesToNodes(graphNodesRaw, dryRunBadges),
-    [graphNodesRaw, dryRunBadges],
+  const displayNodes = useMemo(
+    () => applyDryRunBadgesToNodes(nodes, dryRunBadges),
+    [nodes, dryRunBadges],
   );
-  const graphEdges = liveEdges ?? baseGraph.edges;
 
   const nodeTitleById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const n of graphNodes) map.set(n.id, n.data.title);
+    for (const n of displayNodes) map.set(n.id, n.data.title);
     return map;
-  }, [graphNodes]);
+  }, [displayNodes]);
 
   useEffect(() => {
-    graphRef.current = { nodes: graphNodes, edges: graphEdges };
-  }, [graphNodes, graphEdges]);
+    graphRef.current = { nodes, edges };
+  }, [nodes, edges]);
+
+  useEffect(() => {
+    if (!workflow || !graphSyncKey) return;
+    if (lastSyncedGraphKeyRef.current === graphSyncKey) return;
+
+    const workflowChanged = lastWorkflowIdRef.current !== workflow.id;
+    lastWorkflowIdRef.current = workflow.id;
+
+    // PATCH graph already applied locally — avoid flashing the whole canvas.
+    if (!workflowChanged && localGraphRevisionRef.current === workflow.revision) {
+      lastSyncedGraphKeyRef.current = graphSyncKey;
+      localGraphRevisionRef.current = null;
+      return;
+    }
+
+    lastSyncedGraphKeyRef.current = graphSyncKey;
+    if (workflowChanged) {
+      deletedNodeIdsRef.current.clear();
+    }
+    setNodes(baseGraph.nodes);
+    setEdges(baseGraph.edges);
+    graphRef.current = { nodes: baseGraph.nodes, edges: baseGraph.edges };
+  }, [workflow, graphSyncKey, baseGraph, setNodes, setEdges]);
+
+  const resizeInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, CANVAS_INPUT_MAX_HEIGHT_PX)}px`;
+  }, []);
+
+  const resetInputHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+  }, []);
+
+  useEffect(() => {
+    resizeInput();
+  }, [input, resizeInput]);
 
   const appendBuildActivity = useCallback((entry: BuilderActivityEntry) => {
     setBuildActivity((prev) => [...prev, entry]);
   }, []);
+
+  const persistGraph = useCallback(
+    (nextNodes: RichNode[], nextEdges: Edge[]) => {
+      if (!workflow) return Promise.resolve();
+      const canvasGraph = flowGraphToCanvasGraph(
+        nextNodes,
+        nextEdges,
+        workflow.graph.viewport,
+      );
+      graphPersistRef.current = graphPersistRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          const updated = await patchWorkflowGraph(canvasGraph);
+          localGraphRevisionRef.current = updated.revision;
+        });
+      return graphPersistRef.current;
+    },
+    [workflow, patchWorkflowGraph],
+  );
+
+  const handleNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      if (!workflow || deleted.length === 0) return;
+      const deletedIds = deleted.map((node) => node.id);
+      for (const id of deletedIds) deletedNodeIdsRef.current.add(id);
+
+      const next = removeNodesFromFlowGraph(deletedIds, graphRef.current.nodes, graphRef.current.edges);
+      graphRef.current = next;
+      setNodes(next.nodes);
+      setEdges(next.edges);
+
+      if (!building) {
+        void persistGraph(next.nodes, next.edges);
+      }
+    },
+    [workflow, building, persistGraph, setNodes, setEdges],
+  );
 
   const handleBuildEvent = useCallback(
     (event: CanvasBuildStreamEvent) => {
@@ -145,8 +231,7 @@ export function CanvasWorkspace() {
       if (event.event === "workflow.build.complete") {
         buildCompletedRef.current = true;
         setDryRunReady(true);
-        setLiveNodes(null);
-        setLiveEdges(null);
+        deletedNodeIdsRef.current.clear();
         void refreshWorkflow();
         return;
       }
@@ -165,13 +250,14 @@ export function CanvasWorkspace() {
         graphRef.current.nodes,
         graphRef.current.edges,
         mode,
+        deletedNodeIdsRef.current,
       );
       graphRef.current = { nodes: patch.nodes, edges: patch.edges };
-      setLiveNodes(patch.nodes);
-      setLiveEdges(patch.edges);
+      setNodes(patch.nodes);
+      setEdges(patch.edges);
       if (patch.focusNodeId) setFocusNodeId(patch.focusNodeId);
     },
-    [mode, refreshWorkflow, setDryRunReady],
+    [mode, refreshWorkflow, setDryRunReady, setNodes, setEdges],
   );
 
   useEffect(() => {
@@ -314,6 +400,7 @@ export function CanvasWorkspace() {
         appendBuildActivity(createBuilderActivityEntry("error", msg));
       } else {
         setInput("");
+        resetInputHeight();
       }
     } catch (err) {
       if (err instanceof Error && err.name !== "AbortError") {
@@ -323,7 +410,7 @@ export function CanvasWorkspace() {
     } finally {
       setBuilding(false);
     }
-  }, [workflow, input, building, appendBuildActivity, handleBuildEvent]);
+  }, [workflow, input, building, appendBuildActivity, handleBuildEvent, resetInputHeight]);
 
   const submitDryRun = useCallback(async () => {
     if (!workflow || dryRunning || !dryRunReady) return;
@@ -345,6 +432,7 @@ export function CanvasWorkspace() {
         },
       );
       setInput("");
+      resetInputHeight();
     } catch (err) {
       if (err instanceof Error && err.name !== "AbortError") {
         setDryRunError(err.message);
@@ -352,7 +440,7 @@ export function CanvasWorkspace() {
     } finally {
       setDryRunning(false);
     }
-  }, [workflow, dryRunning, dryRunReady, input, clearDryRunLog, handleDryRunEvent]);
+  }, [workflow, dryRunning, dryRunReady, input, clearDryRunLog, handleDryRunEvent, resetInputHeight]);
 
   const handleModelTierChange = useCallback(
     async (tier: CanvasLlmModelTier) => {
@@ -493,11 +581,16 @@ export function CanvasWorkspace() {
           ) : null}
 
           <div className="relative min-h-0 flex-1">
-            <CanvasBoardStateful
+            <CanvasBoard
               mode={mode}
-              initialNodes={graphNodes}
-              initialEdges={graphEdges}
+              nodes={displayNodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              setNodes={setNodes}
+              setEdges={setEdges}
               focusNodeId={focusNodeId}
+              onNodesDelete={handleNodesDelete}
             />
 
             {mode === "dry" && activityLog.length > 0 ? (
@@ -563,6 +656,7 @@ export function CanvasWorkspace() {
                   className={`${CANVAS_INPUT_COL} flex min-h-[4.5rem] flex-col gap-2 rounded-3xl border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] px-5 pb-3 pt-4 shadow-[3px_3px_0_var(--hero-ink)]`}
                 >
                   <textarea
+                    ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {

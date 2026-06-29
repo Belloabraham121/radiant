@@ -17,6 +17,7 @@ import {
   getCanvasWorkflow,
   listCanvasWorkflows,
   patchCanvasWorkflowBuildConfig,
+  patchCanvasWorkflowGraph,
   patchCanvasWorkflowTesterConfig,
   type CanvasWorkflowDetail,
   type CanvasWorkflowListItem,
@@ -31,11 +32,9 @@ function useCanvasApiReady(): {
 } {
   const { ready: privyReady, authenticated } = usePrivy();
   const { features, loaded: featuresLoaded } = useFeatureFlags();
-  const canvasEnabled = features.canvas;
-  const waiting =
-    privyReady && authenticated && canvasEnabled && !featuresLoaded;
+  const waiting = privyReady && authenticated && !featuresLoaded;
   const ready =
-    privyReady && authenticated && featuresLoaded && canvasEnabled;
+    privyReady && authenticated && featuresLoaded && features.canvas;
   return { ready, waiting };
 }
 
@@ -153,6 +152,7 @@ type ActiveWorkflowContextValue = {
   testerConfig: CanvasBuildConfig;
   setBuildConfig: (config: CanvasBuildConfig) => Promise<void>;
   setTesterConfig: (config: CanvasBuildConfig) => Promise<void>;
+  patchWorkflowGraph: (graph: CanvasWorkflowDetail["graph"]) => Promise<CanvasWorkflowDetail>;
   refreshWorkflow: () => Promise<void>;
   dryRunReady: boolean;
   setDryRunReady: (ready: boolean) => void;
@@ -263,6 +263,15 @@ export function ActiveCanvasWorkflowProvider({
     [workflowId],
   );
 
+  const patchWorkflowGraph = useCallback(
+    async (graph: CanvasWorkflowDetail["graph"]) => {
+      const updated = await patchCanvasWorkflowGraph(workflowId, graph);
+      setWorkflow(updated);
+      return updated;
+    },
+    [workflowId],
+  );
+
   const appendBuildLog = useCallback((line: string) => {
     setBuildLog((prev) => [...prev, line]);
   }, []);
@@ -284,6 +293,7 @@ export function ActiveCanvasWorkflowProvider({
       testerConfig,
       setBuildConfig,
       setTesterConfig,
+      patchWorkflowGraph,
       refreshWorkflow,
       dryRunReady,
       setDryRunReady,
@@ -302,6 +312,7 @@ export function ActiveCanvasWorkflowProvider({
       testerConfig,
       setBuildConfig,
       setTesterConfig,
+      patchWorkflowGraph,
       refreshWorkflow,
       dryRunReady,
       setDryRunReady,

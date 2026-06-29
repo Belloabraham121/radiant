@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { Plus, Wand2 } from "lucide-react";
+import { Hand, MousePointer2, Plus, Wand2 } from "lucide-react";
 import {
   addEdge,
   Background,
@@ -22,6 +22,7 @@ import {
   type NodeTypes,
   type OnEdgesChange,
   type OnNodesChange,
+  type Node,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { RichNode } from "./RichNode";
@@ -48,6 +49,12 @@ const edgeTypes: EdgeTypes = { animated: AnimatedSVGEdge };
 
 const EDGE_STYLE = { stroke: "var(--hero-ink)", strokeWidth: 2.5 };
 
+type CanvasInteractionMode = "pan" | "select";
+
+const TOOL_BTN =
+  "inline-flex size-7 items-center justify-center rounded-full transition-colors hover:bg-[var(--hero-ink)]/5";
+const TOOL_BTN_ACTIVE = "bg-[var(--hero-ink)] text-white hover:bg-[var(--hero-ink)]";
+
 function styleEdgeForMode<T extends Edge>(edge: T, mode: CanvasMode): T {
   return {
     ...edge,
@@ -65,6 +72,7 @@ type BoardInnerProps = {
   setNodes: React.Dispatch<React.SetStateAction<RichNodeType[]>>;
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   focusNodeId?: string | null;
+  onNodesDelete?: (nodes: Node[]) => void;
 };
 
 function BoardInner({
@@ -76,10 +84,13 @@ function BoardInner({
   setNodes,
   setEdges,
   focusNodeId,
+  onNodesDelete,
 }: BoardInnerProps) {
   const scope = useRef<HTMLDivElement>(null);
+  const introAnimatedRef = useRef(false);
   const { screenToFlowPosition, fitView, deleteElements, setCenter } = useReactFlow();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<CanvasInteractionMode>("pan");
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
   const prevFocusRef = useRef<string | null>(null);
 
@@ -180,7 +191,9 @@ function BoardInner({
 
   useGSAP(
     () => {
+      if (introAnimatedRef.current) return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      introAnimatedRef.current = true;
       gsap.from("[data-canvas-card]", {
         scale: 0.6,
         opacity: 0,
@@ -191,7 +204,7 @@ function BoardInner({
         delay: 0.15,
       });
     },
-    { scope, dependencies: [nodes.length] },
+    { scope },
   );
 
   const detailNode = detailNodeId ? (nodes.find((n) => n.id === detailNodeId) ?? null) : null;
@@ -205,17 +218,44 @@ function BoardInner({
 
   return (
     <div ref={scope} className={`relative h-full w-full ${frameClass}`}>
-      <button
-        type="button"
-        onClick={() => setPaletteOpen(true)}
-        className="absolute left-4 top-4 z-20 inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1.5 text-xs font-bold transition-transform hover:-translate-y-0.5"
-      >
-        <Plus className="size-3.5" strokeWidth={3} />
-        Add node
-        <kbd className="ml-1 rounded-md border-2 border-[var(--hero-ink)]/15 px-1 py-0.5 text-[9px] font-bold text-[var(--hero-ink)]/40">
-          ⌘K
-        </kbd>
-      </button>
+      <div className="absolute left-4 top-4 z-20 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-white px-3 py-1.5 text-xs font-bold transition-transform hover:-translate-y-0.5"
+        >
+          <Plus className="size-3.5" strokeWidth={3} />
+          Add node
+          <kbd className="ml-1 rounded-md border-2 border-[var(--hero-ink)]/15 px-1 py-0.5 text-[9px] font-bold text-[var(--hero-ink)]/40">
+            ⌘K
+          </kbd>
+        </button>
+
+        <div
+          className="inline-flex items-center gap-0.5 rounded-full border-2 border-[var(--hero-ink)] bg-white p-0.5"
+          role="group"
+          aria-label="Canvas interaction mode"
+        >
+          <button
+            type="button"
+            title="Pan — drag to move canvas"
+            aria-pressed={interactionMode === "pan"}
+            onClick={() => setInteractionMode("pan")}
+            className={`${TOOL_BTN} ${interactionMode === "pan" ? TOOL_BTN_ACTIVE : "text-[var(--hero-ink)]"}`}
+          >
+            <Hand className="size-3.5" strokeWidth={2.5} />
+          </button>
+          <button
+            type="button"
+            title="Select — drag to marquee select"
+            aria-pressed={interactionMode === "select"}
+            onClick={() => setInteractionMode("select")}
+            className={`${TOOL_BTN} ${interactionMode === "select" ? TOOL_BTN_ACTIVE : "text-[var(--hero-ink)]"}`}
+          >
+            <MousePointer2 className="size-3.5" strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
 
       {paletteOpen ? (
         <AddNodePalette onClose={() => setPaletteOpen(false)} onAdd={addNode} />
@@ -249,6 +289,7 @@ function BoardInner({
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodesDelete={onNodesDelete}
         onConnect={(c: Connection) =>
           setEdges((eds) =>
             addEdge(
@@ -269,6 +310,10 @@ function BoardInner({
         fitViewOptions={{ padding: 0.2 }}
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ type: "step" }}
+        elementsSelectable
+        selectionOnDrag={interactionMode === "select"}
+        panOnDrag={interactionMode === "pan" ? true : [1, 2]}
+        panActivationKeyCode="Space"
         deleteKeyCode={["Backspace", "Delete"]}
         minZoom={0.3}
         maxZoom={1.8}
@@ -321,6 +366,7 @@ export type CanvasBoardProps = {
   setNodes: React.Dispatch<React.SetStateAction<RichNodeType[]>>;
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
   focusNodeId?: string | null;
+  onNodesDelete?: (nodes: Node[]) => void;
 };
 
 function BoardControlled(props: CanvasBoardProps) {
@@ -337,22 +383,27 @@ export function CanvasBoardStateful({
   initialNodes = [],
   initialEdges = [],
   focusNodeId,
+  graphRevision = 0,
+  onNodesDelete,
 }: {
   mode: CanvasMode;
   initialNodes?: RichNodeType[];
   initialEdges?: Edge[];
   focusNodeId?: string | null;
+  /** Bump when the persisted workflow graph revision changes — avoids clobbering local edits. */
+  graphRevision?: number;
+  onNodesDelete?: (nodes: Node[]) => void;
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<RichNodeType>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const lastSyncedRevisionRef = useRef(graphRevision);
 
   useEffect(() => {
+    if (lastSyncedRevisionRef.current === graphRevision) return;
+    lastSyncedRevisionRef.current = graphRevision;
     setNodes(initialNodes);
-  }, [initialNodes, setNodes]);
-
-  useEffect(() => {
     setEdges(initialEdges);
-  }, [initialEdges, setEdges]);
+  }, [graphRevision, initialNodes, initialEdges, setNodes, setEdges]);
 
   return (
     <BoardControlled
@@ -364,6 +415,7 @@ export function CanvasBoardStateful({
       setNodes={setNodes}
       setEdges={setEdges}
       focusNodeId={focusNodeId}
+      onNodesDelete={onNodesDelete}
     />
   );
 }

@@ -3,6 +3,7 @@ import type {
   CanvasBuildStreamEvent,
   CanvasGraphEdge,
   CanvasGraphNode,
+  CanvasGraphPayload,
 } from "@/lib/canvas-api";
 import {
   NODE_CATALOG,
@@ -91,6 +92,68 @@ const CATALOG_SLUG_TO_NODE_TYPE: Record<string, string> = {
   bridge: "lifi_bridge",
 };
 
+const CANVAS_PORT_KINDS = [
+  "trigger",
+  "signal",
+  "market",
+  "order_intent",
+  "data",
+] as const;
+
+type CanvasPortKind = (typeof CANVAS_PORT_KINDS)[number];
+
+function parsePortFromHandle(
+  handle: string | null | undefined,
+  direction: "in" | "out",
+): CanvasPortKind {
+  const prefix = direction === "out" ? "out-" : "in-";
+  if (!handle?.startsWith(prefix)) return "data";
+  const raw = handle.slice(prefix.length);
+  return (CANVAS_PORT_KINDS as readonly string[]).includes(raw)
+    ? (raw as CanvasPortKind)
+    : "data";
+}
+
+export function flowEdgeToCanvasEdge(edge: Edge): CanvasGraphEdge {
+  return {
+    id: edge.id,
+    source: {
+      node_id: edge.source,
+      port: parsePortFromHandle(edge.sourceHandle, "out"),
+    },
+    target: {
+      node_id: edge.target,
+      port: parsePortFromHandle(edge.targetHandle, "in"),
+    },
+  };
+}
+
+/** Remove a node and any edges connected to it. */
+export function removeNodesFromFlowGraph(
+  nodeIds: Iterable<string>,
+  nodes: RichNode[],
+  edges: Edge[],
+): { nodes: RichNode[]; edges: Edge[] } {
+  const removed = new Set(nodeIds);
+  if (removed.size === 0) return { nodes, edges };
+  return {
+    nodes: nodes.filter((n) => !removed.has(n.id)),
+    edges: edges.filter((e) => !removed.has(e.source) && !removed.has(e.target)),
+  };
+}
+
+export function flowGraphToCanvasGraph(
+  nodes: RichNode[],
+  edges: Edge[],
+  viewport?: CanvasGraphPayload["viewport"],
+): CanvasGraphPayload {
+  return {
+    nodes: nodes.map((n) => flowNodeToCanvasNode(n)),
+    edges: edges.map(flowEdgeToCanvasEdge),
+    ...(viewport ? { viewport } : {}),
+  };
+}
+
 export function flowNodeToCanvasNode(node: Node): CanvasGraphNode {
   const data = node.data as RichNode["data"];
   const entry = NODE_CATALOG.find((e) => e.title === data.title);
@@ -112,11 +175,21 @@ export type BuildGraphPatchResult = {
   focusNodeId?: string;
 };
 
+function withoutDeletedNodes(
+  nodes: RichNode[],
+  edges: Edge[],
+  deletedNodeIds?: ReadonlySet<string>,
+): { nodes: RichNode[]; edges: Edge[] } {
+  if (!deletedNodeIds || deletedNodeIds.size === 0) return { nodes, edges };
+  return removeNodesFromFlowGraph(deletedNodeIds, nodes, edges);
+}
+
 export function applyBuildStreamEvent(
   event: CanvasBuildStreamEvent,
   nodes: RichNode[],
   edges: Edge[],
   mode: "build" | "dry" | "live",
+  deletedNodeIds?: ReadonlySet<string>,
 ): BuildGraphPatchResult {
   let focusNodeId: string | undefined;
   let nextNodes = nodes;
@@ -124,11 +197,17 @@ export function applyBuildStreamEvent(
 
   switch (event.event) {
     case "workflow.node.add": {
+      if (deletedNodeIds?.has(event.data.node.id)) {
+        break;
+      }
       const flowNode = canvasNodeToFlowNode(event.data.node);
       nextNodes = [...nodes, flowNode];
       break;
     }
     case "workflow.node.update": {
+      if (deletedNodeIds?.has(event.data.node_id)) {
+        break;
+      }
       nextNodes = nodes.map((n) => {
         if (n.id !== event.data.node_id) return n;
         const patch = event.data.patch;
@@ -150,6 +229,9 @@ export function applyBuildStreamEvent(
       break;
     }
     case "workflow.node.patch": {
+      if (deletedNodeIds?.has(event.data.node_id)) {
+        break;
+      }
       nextNodes = nodes.map((n) => {
         if (n.id !== event.data.node_id) return n;
         const values = n.data.values ?? {};
@@ -190,5 +272,6 @@ export function applyBuildStreamEvent(
       break;
   }
 
-  return { nodes: nextNodes, edges: nextEdges, focusNodeId };
+  const filtered = withoutDeletedNodes(nextNodes, nextEdges, deletedNodeIds);
+  return { nodes: filtered.nodes, edges: filtered.edges, focusNodeId };
 }

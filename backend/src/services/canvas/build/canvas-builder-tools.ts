@@ -18,9 +18,15 @@ import {
   isBuilderV1Slug,
   slugToNodeType,
 } from "../graph/node-slug-map.js";
-import { arePortsCompatible } from "../graph/port-compatibility.js";
+import {
+  formatPortHintForSlug,
+  getPostAddNodeWiringHints,
+  NODE_PORT_PROFILES,
+} from "./builder-port-catalog.js";
+import { arePortsCompatible, formatIncompatiblePortsMessage } from "../graph/port-compatibility.js";
 import { validateCanvasGraph } from "../graph/validate-graph.js";
 import { persistCoherentGraphPatch, markWorkflowDryRunReady } from "../canvas-workflow.service.js";
+import { searchPolymarketMarkets } from "../adapters/polymarket/polymarket-market-discovery.service.js";
 
 const addNodeArgsSchema = z.object({
   slug: z.string().min(1),
@@ -59,6 +65,13 @@ const addEdgeArgsSchema = z.object({
 const completeArgsSchema = z.object({
   summary: z.string().min(1).max(2000),
   warnings: z.array(z.string()).optional(),
+});
+
+const searchPolymarketMarketsArgsSchema = z.object({
+  q: z.string().min(1).max(200),
+  category: z.enum(["sports", "politics", "crypto"]).optional(),
+  tag: z.string().trim().optional(),
+  limit: z.number().int().min(1).max(10).optional(),
 });
 
 export type BuilderGraphState = {
@@ -134,9 +147,11 @@ export async function builderAddNode(
     emitWorkflowNodeFocus(node.id, "needs_config");
   }
 
+  const wiringHints = getPostAddNodeWiringHints(args.slug, state.graph);
+
   return {
     ok: true,
-    message: `Added ${args.slug} node ${node.id}`,
+    message: `Added ${args.slug} node ${node.id} (${formatPortHintForSlug(args.slug)}). Next: add_edge to connect it.${wiringHints}`,
     revision,
   };
 }
@@ -202,10 +217,11 @@ export async function builderAddEdge(
     throw new AppError(404, "NODE_NOT_FOUND", "Source or target node not found.");
   }
   if (!arePortsCompatible(args.source_port, args.target_port)) {
+    const targetProfile = NODE_PORT_PROFILES[targetNode.type];
     throw new AppError(
       400,
       "INCOMPATIBLE_PORTS",
-      `Cannot connect ${args.source_port} → ${args.target_port}`,
+      formatIncompatiblePortsMessage(args.source_port, args.target_port, targetProfile.in),
     );
   }
 
@@ -238,6 +254,32 @@ export async function builderComplete(
     message: "Build complete",
     completed: true,
     revision: state.revision,
+  };
+}
+
+export async function builderSearchPolymarketMarkets(
+  _state: BuilderGraphState,
+  rawArgs: unknown,
+): Promise<BuilderToolResult> {
+  const args = searchPolymarketMarketsArgsSchema.parse(rawArgs);
+  const result = await searchPolymarketMarkets({
+    q: args.q,
+    category: args.category,
+    tag: args.tag,
+    limit: args.limit ?? 5,
+  });
+
+  const lines = result.markets.map((m) => {
+    const tokens = m.clob_token_ids.join(", ") || "no tokens";
+    const tags = m.tags.slice(0, 4).join(", ") || "—";
+    return `- id=${m.id} slug=${m.slug} question="${m.question}" tags=[${tags}] clob_token_ids=[${tokens}]`;
+  });
+
+  return {
+    ok: true,
+    message: lines.length
+      ? `Polymarket markets:\n${lines.join("\n")}`
+      : "No Polymarket markets matched that query.",
   };
 }
 
@@ -298,7 +340,8 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
     type: "function" as const,
     function: {
       name: "add_edge",
-      description: "Connect two nodes via typed ports.",
+      description:
+        "REQUIRED: Connect two nodes. Use UUIDs from add_node. Port rules: trigger→trigger for control flow; data→data for feeds→logic; market→market for PM context; order_intent→order_intent for trade intents; action.data→workflow-stop.signal to finish after place-order nodes (never action.data→stop.trigger). Call once per link in the workflow chain.",
       parameters: {
         type: "object",
         properties: {
@@ -314,6 +357,31 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
           },
         },
         required: ["source_node_id", "source_port", "target_node_id", "target_port"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "search_polymarket_markets",
+      description:
+        "Search Polymarket markets by name/category to resolve clob token ids before patch_node.",
+      parameters: {
+        type: "object",
+        properties: {
+          q: { type: "string", description: "Market search query (team, event, question text)." },
+          category: {
+            type: "string",
+            enum: ["sports", "politics", "crypto"],
+            description: "Optional top-level category filter.",
+          },
+          tag: {
+            type: "string",
+            description: "Optional Gamma tag slug (e.g. nfl, nba) for sports sub-filters.",
+          },
+          limit: { type: "number", description: "Max results (1-10, default 5)." },
+        },
+        required: ["q"],
       },
     },
   },
@@ -346,6 +414,8 @@ export async function runBuilderTool(
       return builderPatchNode(state, args);
     case "add_edge":
       return builderAddEdge(state, args);
+    case "search_polymarket_markets":
+      return builderSearchPolymarketMarkets(state, args);
     case "complete":
       return builderComplete(state, args);
     default:
