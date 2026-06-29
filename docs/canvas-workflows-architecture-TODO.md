@@ -1455,11 +1455,11 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 **Exit criteria:** Prisma migration reviewed; SSE event names frozen; policy schema signed off.
 
-**Implementation status (2026-06-29):** Verified in repo — feature flag plumbing (`FEATURE_CANVAS_ENABLED` / `NEXT_PUBLIC_FEATURE_CANVAS_ENABLED`), client Canvas route shell with Build/Dry/Live toggles, and React Flow board with pan/zoom. Schema, backend canvas services, Builder SSE, and persistence remain unchecked below.
+**Implementation status (2026-06-29):** Verified in repo — feature flag plumbing (`FEATURE_CANVAS_ENABLED` / `NEXT_PUBLIC_FEATURE_CANVAS_ENABLED`), client Canvas route shell with Build/Dry/Live toggles, React Flow board with pan/zoom, and Prisma models + migration for `CanvasWorkflow`, `CanvasWorkflowPolicy`, `CanvasWorkflowRevision`, `CanvasWorkflowRuntime`, `CanvasWorkflowRun`, `CanvasWorkflowRunEvent`. Graph types, backend canvas services, Builder SSE, and CRUD API remain unchecked below.
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Add Prisma models: workflow, revision, policy, run, run_event | `backend/prisma/schema.prisma` |
+| [x] | Add Prisma models: workflow, revision, policy, run, run_event | `backend/prisma/schema.prisma`; migration `20260629120000_add_canvas_workflows` |
 | [ ] | Graph types + Zod node schemas | `backend/src/services/canvas/graph/` — **See [Node catalog](#node-catalog)** |
 | [ ] | Canvas policy types + validation | `backend/src/services/canvas/policy/` |
 | [ ] | SSE event types mirroring chat stream | `canvas-build-progress.types.ts` |
@@ -1735,4 +1735,4 @@ docs/canvas-workflows-architecture-TODO.md   # this file
 
 ---
 
-*Last updated: 2026-06-29 — Phase 0 checklist synced to codebase (feature flag + Canvas shell verified).*
+*Last updated: 2026-06-29 — Phase 0 Prisma canvas workflow schema + migration added.*

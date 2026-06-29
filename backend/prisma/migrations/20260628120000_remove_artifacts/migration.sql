@@ -13,8 +13,13 @@ DROP INDEX IF EXISTS "NotificationRule_installation_id_status_idx";
 ALTER TABLE "ChatMessage" DROP COLUMN IF EXISTS "app_scope";
 
 -- Drop artifact-related tables (order respects FK dependencies)
+-- Artifact-era tables dropped here:
+--   DeployJob, ArtifactFile, ArtifactBuildFile, ArtifactBuild,
+--   AppInstallation, ChatSessionDraftFile, ChatSessionDraft, AppData, Project
 DROP TABLE IF EXISTS "DeployJob";
 DROP TABLE IF EXISTS "ArtifactFile";
+DROP TABLE IF EXISTS "ArtifactBuildFile";
+DROP TABLE IF EXISTS "ArtifactBuild";
 DROP TABLE IF EXISTS "AppInstallation";
 DROP TABLE IF EXISTS "ChatSessionDraftFile";
 DROP TABLE IF EXISTS "ChatSessionDraft";
