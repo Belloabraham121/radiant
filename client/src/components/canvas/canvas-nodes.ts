@@ -125,6 +125,8 @@ export type RichNodeData = {
   uiBinding?: unknown;
   /** Not yet executable (e.g. Limitless place/cancel) — shows a "soon" badge. */
   comingSoon?: boolean;
+  /** Catalog slug for inspector + persistence mapping. */
+  catalogSlug?: string;
   /** Price Chart node only — selected chart style. */
   chartType?: "candlestick" | "line" | "area" | "bars";
   [key: string]: unknown;

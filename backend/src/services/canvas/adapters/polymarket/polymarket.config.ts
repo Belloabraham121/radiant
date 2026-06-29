@@ -3,6 +3,8 @@ import { optional } from "../../../../config/optional-env.js";
 export type PolymarketConfig = {
   enabled: boolean;
   clobBaseUrl: string;
+  gammaBaseUrl: string;
+  gammaUserAgent: string;
   wsUrl: string;
   chainId: number;
   rateLimitCapacity: number;
@@ -21,6 +23,11 @@ export function getPolymarketConfig(): PolymarketConfig {
       /\/$/,
       "",
     ),
+    gammaBaseUrl: optional("POLYMARKET_GAMMA_BASE_URL", "https://gamma-api.polymarket.com").replace(
+      /\/$/,
+      "",
+    ),
+    gammaUserAgent: optional("POLYMARKET_GAMMA_USER_AGENT", "Radiant-Canvas/1.0"),
     wsUrl: optional(
       "POLYMARKET_WS_URL",
       "wss://ws-subscriptions-clob.polymarket.com/ws/market",

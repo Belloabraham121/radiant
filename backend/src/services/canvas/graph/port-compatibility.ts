@@ -28,3 +28,27 @@ export function arePortsCompatible(
 ): boolean {
   return OUTPUT_TO_INPUT_COMPAT[sourcePort].includes(targetPort);
 }
+
+/** Human-readable add_edge rejection with allowed target ports. */
+export function formatIncompatiblePortsMessage(
+  sourcePort: PortKind,
+  targetPort: PortKind,
+  targetNodeInputPorts?: readonly PortKind[],
+): string {
+  const allowed = getCompatibleInputPorts(sourcePort);
+  let message = `Cannot connect ${sourcePort} → ${targetPort}. Source port ${sourcePort} may only connect to: ${allowed.join(" | ")}.`;
+
+  if (targetNodeInputPorts && targetNodeInputPorts.length > 0) {
+    const validOnTarget = targetNodeInputPorts.filter((port) => allowed.includes(port));
+    if (validOnTarget.length > 0) {
+      message += ` On this target node, use target_port: ${validOnTarget.join(" | ")}.`;
+    }
+  }
+
+  if (sourcePort === "data" && targetPort === "trigger") {
+    message +=
+      " For workflow-stop after an action node, use action.data → workflow-stop.signal instead.";
+  }
+
+  return message;
+}

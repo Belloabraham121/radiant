@@ -1,19 +1,25 @@
 "use client";
 
-import { X, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, ChevronRight, X, Trash2 } from "lucide-react";
 import { useReactFlow } from "@xyflow/react";
 import {
   getNodeStatus,
   isConfigFieldVisible,
   PORT_COLOR,
   PORT_LABEL,
+  type CanvasPort,
   type ConfigField,
   type ConfigValue,
+  type PortKind,
   type RichNode as RichNodeType,
 } from "./canvas-nodes";
 import { NodeGlyph, isImageLogo } from "./node-glyph";
+import { findCatalogEntryForNode } from "@/lib/canvas-graph-mapper";
+import type { PortDoc } from "./node-port-docs";
 import { useActiveCanvasWorkflow } from "./canvas-workflow-context";
 import { isPreviewConfigReady, useCanvasNodePreview } from "@/hooks/useCanvasNodePreview";
+import { PolymarketMarketPicker } from "./PolymarketMarketPicker";
 
 const PREVIEW_BOX =
   "rounded-lg border-2 border-dashed border-[var(--hero-ink)]/15 bg-[var(--hero-bg)]";
@@ -49,7 +55,7 @@ function OrderPreview({ values }: { values: Record<string, ConfigValue> }) {
 
 function BookPreviewLive({ nodeId, data }: { nodeId: string; data: RichNodeType["data"] }) {
   const { workflow } = useActiveCanvasWorkflow();
-  const enabled = isPreviewConfigReady("polymarket-market", data.values);
+  const enabled = isPreviewConfigReady(data.catalogSlug ?? "polymarket-market", data.values);
   const { preview, loading } = useCanvasNodePreview(workflow?.id, nodeId, enabled);
 
   if (loading && enabled) {
@@ -194,11 +200,28 @@ function FieldControl({
   field,
   value,
   onChange,
+  catalogSlug,
+  allValues,
+  onApplyValues,
 }: {
   field: ConfigField;
   value: ConfigValue;
   onChange: (v: ConfigValue) => void;
+  catalogSlug?: string;
+  allValues?: Record<string, ConfigValue>;
+  onApplyValues?: (patch: Record<string, ConfigValue>) => void;
 }) {
+  if (field.kind === "market" && catalogSlug === "polymarket-market" && onApplyValues) {
+    return (
+      <PolymarketMarketPicker
+        key={String(allValues?.market_id ?? value ?? "empty")}
+        value={String(value ?? "")}
+        outcome={String(allValues?.outcome ?? "yes")}
+        placeholder={"placeholder" in field ? field.placeholder : undefined}
+        onApply={onApplyValues}
+      />
+    );
+  }
   if (field.kind === "select") {
     return (
       <select className={CONTROL} value={String(value)} onChange={(e) => onChange(e.target.value)}>
@@ -260,22 +283,47 @@ function ConfigPanel({
   nodeId,
   fields,
   values,
+  catalogSlug,
 }: {
   nodeId: string;
   fields: ConfigField[];
   values: Record<string, ConfigValue>;
+  catalogSlug?: string;
 }) {
   const { updateNodeData } = useReactFlow();
-  const setValue = (key: string, v: ConfigValue) =>
-    updateNodeData(nodeId, { values: { ...values, [key]: v } });
+  const applyValues = (patch: Record<string, ConfigValue>) =>
+    updateNodeData(nodeId, { values: { ...values, ...patch } });
+
+  const setValue = (key: string, v: ConfigValue) => {
+    const next: Record<string, ConfigValue> = { ...values, [key]: v };
+    if (key === "outcome") {
+      const yesToken = String(values.yes_token_id ?? "");
+      const noToken = String(values.no_token_id ?? "");
+      if (yesToken || noToken) {
+        next.asset_id = v === "no" ? noToken : yesToken;
+      }
+    }
+    updateNodeData(nodeId, { values: next });
+  };
 
   const visible = fields.filter((f) => isConfigFieldVisible(f, values));
 
   return (
     <div className="space-y-2">
+      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">Configure</p>
       {visible.map((field) => {
         const value = values[field.key] ?? "";
-        const missing = field.required && (value === "" || value === undefined);
+        const missing = field.required && field.key !== "_note" && (value === "" || value === undefined);
+        if (field.key === "_note") {
+          return (
+            <p
+              key={field.key}
+              className="rounded-lg border-2 border-dashed border-[var(--hero-ink)]/15 bg-[var(--hero-bg)] px-3 py-2 text-xs font-semibold text-[var(--hero-ink)]/65"
+            >
+              {String(("default" in field ? field.default : undefined) ?? value ?? field.label)}
+            </p>
+          );
+        }
         const fullWidth = field.kind === "text" || field.kind === "market";
         const label = (
           <span className="text-xs font-bold uppercase tracking-wide text-[var(--hero-ink)]/45">
@@ -287,14 +335,28 @@ function ConfigPanel({
           return (
             <div key={field.key} className="space-y-1">
               {label}
-              <FieldControl field={field} value={value} onChange={(v) => setValue(field.key, v)} />
+              <FieldControl
+                field={field}
+                value={value}
+                onChange={(v) => setValue(field.key, v)}
+                catalogSlug={catalogSlug}
+                allValues={values}
+                onApplyValues={applyValues}
+              />
             </div>
           );
         }
         return (
           <label key={field.key} className="flex items-center justify-between gap-3">
             {label}
-            <FieldControl field={field} value={value} onChange={(v) => setValue(field.key, v)} />
+            <FieldControl
+              field={field}
+              value={value}
+              onChange={(v) => setValue(field.key, v)}
+              catalogSlug={catalogSlug}
+              allValues={values}
+              onApplyValues={applyValues}
+            />
           </label>
         );
       })}
@@ -302,25 +364,69 @@ function ConfigPanel({
   );
 }
 
-function PortList({ title, ports }: { title: string; ports: RichNodeType["data"]["inputs"] }) {
+function JsonExample({ example }: { example: unknown }) {
+  const [open, setOpen] = useState(false);
+  const json = JSON.stringify(example, null, 2);
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-[var(--hero-ink)]/45 hover:text-[var(--hero-ink)]"
+      >
+        {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+        Example payload
+      </button>
+      {open ? (
+        <pre className="mt-1 max-h-40 overflow-auto rounded-md border-2 border-[var(--hero-ink)]/10 bg-[var(--hero-bg)] p-2 font-mono text-[10px] leading-relaxed text-[var(--hero-ink)]/75">
+          {json}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
+function PortDocRow({ port, doc }: { port: CanvasPort; doc?: PortDoc }) {
+  return (
+    <div className="rounded-lg border-2 border-[var(--hero-ink)]/10 bg-white px-3 py-2">
+      <div className="flex items-center gap-2">
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)]/15 px-2 py-0.5 text-[11px] font-bold"
+        >
+          <span
+            className="size-2.5 rounded-full border border-[var(--hero-ink)]"
+            style={{ background: PORT_COLOR[port.kind] }}
+          />
+          {port.label ?? PORT_LABEL[port.kind]}
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-[var(--hero-ink)]/35">{port.kind}</span>
+      </div>
+      {doc ? (
+        <>
+          <p className="mt-1.5 text-xs font-medium text-[var(--hero-ink)]/65">{doc.description}</p>
+          <JsonExample example={doc.example} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function PortDocSection({
+  title,
+  ports,
+  docs,
+}: {
+  title: string;
+  ports: CanvasPort[];
+  docs?: Partial<Record<PortKind, PortDoc>>;
+}) {
   if (ports.length === 0) return null;
   return (
     <div>
-      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">
-        {title}
-      </p>
-      <div className="flex flex-wrap gap-1.5">
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">{title}</p>
+      <div className="space-y-2">
         {ports.map((p, i) => (
-          <span
-            key={`${p.kind}-${i}`}
-            className="inline-flex items-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)]/15 px-2 py-0.5 text-[11px] font-bold"
-          >
-            <span
-              className="size-2.5 rounded-full border border-[var(--hero-ink)]"
-              style={{ background: PORT_COLOR[p.kind] }}
-            />
-            {p.label ?? PORT_LABEL[p.kind]}
-          </span>
+          <PortDocRow key={`${p.kind}-${p.label ?? i}`} port={p} doc={docs?.[p.kind]} />
         ))}
       </div>
     </div>
@@ -340,6 +446,11 @@ export function NodeDetailModal({
   const data = node.data;
   const status = getNodeStatus(data);
   const fullBleed = isImageLogo(data.icon);
+  const catalogEntry = findCatalogEntryForNode(data);
+  const catalogSlug = catalogEntry?.slug ?? data.catalogSlug;
+  const portDocs = catalogEntry?.portDocs;
+  const hasConfig = Boolean(data.fields?.length && data.values);
+  const showPortDocs = Boolean(portDocs && (data.inputs.length > 0 || data.outputs.length > 0));
 
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center p-6">
@@ -405,26 +516,38 @@ export function NodeDetailModal({
             </div>
           ) : null}
 
-          {data.fields && data.values ? (
-            <ConfigPanel nodeId={node.id} fields={data.fields} values={data.values} />
+          {hasConfig ? (
+            <ConfigPanel
+              nodeId={node.id}
+              fields={data.fields!}
+              values={data.values!}
+              catalogSlug={catalogSlug}
+            />
           ) : data.config.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {data.config.map((c) => (
-                <span
-                  key={c.label}
-                  className="inline-flex items-center gap-1 rounded-md border-2 border-[var(--hero-ink)]/15 bg-[var(--hero-bg)] px-1.5 py-0.5 text-xs font-semibold"
-                >
-                  <span className="text-[var(--hero-ink)]/40">{c.label}</span>
-                  <span className="font-bold">{c.value}</span>
-                </span>
-              ))}
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--hero-ink)]/35">
+                Configure
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {data.config.map((c) => (
+                  <span
+                    key={c.label}
+                    className="inline-flex items-center gap-1 rounded-md border-2 border-[var(--hero-ink)]/15 bg-[var(--hero-bg)] px-1.5 py-0.5 text-xs font-semibold"
+                  >
+                    <span className="text-[var(--hero-ink)]/40">{c.label}</span>
+                    <span className="font-bold">{c.value}</span>
+                  </span>
+                ))}
+              </div>
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-3 border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-3">
-            <PortList title="Inputs" ports={data.inputs} />
-            <PortList title="Outputs" ports={data.outputs} />
-          </div>
+          {showPortDocs ? (
+            <div className="flex flex-col gap-4 border-t-2 border-dashed border-[var(--hero-ink)]/15 pt-3">
+              <PortDocSection title="Inputs" ports={data.inputs} docs={portDocs?.inputs} />
+              <PortDocSection title="Outputs" ports={data.outputs} docs={portDocs?.outputs} />
+            </div>
+          ) : null}
         </div>
 
         {/* Footer */}

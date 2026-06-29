@@ -11,6 +11,7 @@ import {
   type NodeCatalogEntry,
 } from "@/components/canvas/node-catalog";
 import type { ConfigValue, RichNode } from "@/components/canvas/canvas-nodes";
+import { isConfigFieldVisible } from "@/components/canvas/canvas-nodes";
 import { applyJsonPatchClient } from "@/lib/canvas-json-patch";
 
 /** snake_case backend type → kebab-case catalog slug */
@@ -18,9 +19,70 @@ export function nodeTypeToCatalogSlug(nodeType: string): string {
   return nodeType.replace(/_/g, "-");
 }
 
+/** Builder / compiler node types → palette catalog slug. */
+export const NODE_TYPE_TO_CATALOG_SLUG: Record<string, string> = {
+  polymarket_feed: "polymarket-market",
+  "polymarket-feed": "polymarket-market",
+  polymarket_orderbook: "polymarket-market",
+  "polymarket-orderbook": "polymarket-market",
+  polymarket_place_limit: "polymarket-order",
+  "polymarket-place-limit": "polymarket-order",
+  polymarket_place_market: "polymarket-order",
+  "polymarket-place-market": "polymarket-order",
+  polymarket_cancel_order: "polymarket-order",
+  "polymarket-cancel-order": "polymarket-order",
+  place_order: "polymarket-order",
+  "place-order": "polymarket-order",
+  lifi_swap: "swap",
+  "lifi-swap": "swap",
+  lifi_bridge: "bridge",
+  "lifi-bridge": "bridge",
+};
+
+export function resolveCatalogSlug(nodeType: string): string {
+  const kebab = nodeTypeToCatalogSlug(nodeType);
+  return NODE_TYPE_TO_CATALOG_SLUG[nodeType] ?? NODE_TYPE_TO_CATALOG_SLUG[kebab] ?? kebab;
+}
+
 export function findCatalogEntry(nodeType: string): NodeCatalogEntry | undefined {
-  const slug = nodeTypeToCatalogSlug(nodeType);
+  const slug = resolveCatalogSlug(nodeType);
   return NODE_CATALOG.find((e) => e.slug === slug);
+}
+
+/** Resolve catalog entry from board node data (slug, backend type, or title). */
+export function findCatalogEntryForNode(data: RichNode["data"], backendType?: string): NodeCatalogEntry | undefined {
+  if (data.catalogSlug) {
+    const bySlug = NODE_CATALOG.find((e) => e.slug === data.catalogSlug);
+    if (bySlug) return bySlug;
+  }
+  if (backendType) {
+    const byType = findCatalogEntry(backendType);
+    if (byType) return byType;
+  }
+  return NODE_CATALOG.find((e) => e.title === data.title);
+}
+
+/** Palette slugs that auto-open the inspector after Builder focus. */
+export const BUILDER_FOCUS_CATALOG_SLUGS = new Set([
+  "price-chart",
+  "polymarket-market",
+  "polymarket-positions",
+  "polymarket-order",
+  "place-order",
+  "lifi-quote",
+  "swap",
+  "bridge",
+  "workflow-approve",
+  "copy-trade",
+]);
+
+export function nodeNeedsInspectorFocus(data: RichNode["data"], catalogSlug?: string): boolean {
+  const slug = catalogSlug ?? data.catalogSlug;
+  if (slug && BUILDER_FOCUS_CATALOG_SLUGS.has(slug)) return true;
+  if (!data.fields || !data.values) return false;
+  return data.fields
+    .filter((f) => isConfigFieldVisible(f, data.values!))
+    .some((f) => f.required && f.key !== "_note" && (data.values![f.key] === "" || data.values![f.key] === undefined));
 }
 
 export function canvasNodeToFlowNode(node: CanvasGraphNode): RichNode {
@@ -42,6 +104,13 @@ export function canvasNodeToFlowNode(node: CanvasGraphNode): RichNode {
 
   if (node.meta?.label) {
     data.title = node.meta.label;
+  }
+
+  if (entry) {
+    data.catalogSlug = entry.slug;
+    if (entry.fields && !data.fields) {
+      data.fields = entry.fields;
+    }
   }
 
   if (Object.keys(node.config).length > 0) {
@@ -88,8 +157,10 @@ const CATALOG_SLUG_TO_NODE_TYPE: Record<string, string> = {
   "price-chart": "price_chart",
   "polymarket-market": "polymarket_feed",
   "polymarket-order": "place_order",
+  "place-order": "place_order",
   swap: "lifi_swap",
   bridge: "lifi_bridge",
+  "lifi-quote": "lifi_quote",
 };
 
 const CANVAS_PORT_KINDS = [
@@ -156,7 +227,7 @@ export function flowGraphToCanvasGraph(
 
 export function flowNodeToCanvasNode(node: Node): CanvasGraphNode {
   const data = node.data as RichNode["data"];
-  const entry = NODE_CATALOG.find((e) => e.title === data.title);
+  const entry = findCatalogEntryForNode(data);
   const type = entry
     ? (CATALOG_SLUG_TO_NODE_TYPE[entry.slug] ?? entry.slug.replace(/-/g, "_"))
     : "custom_app_action";

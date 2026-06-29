@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   arePortsCompatible,
+  formatIncompatiblePortsMessage,
   getCompatibleInputPorts,
 } from "../../../src/services/canvas/graph/port-compatibility.js";
 import type { PortKind } from "../../../src/services/canvas/graph/canvas-graph.types.js";
@@ -40,5 +41,11 @@ describe("canvas port compatibility matrix", () => {
     for (const kind of kinds) {
       assert.ok(getCompatibleInputPorts(kind).length > 0);
     }
+  });
+
+  it("suggests workflow-stop.signal when data is wired to trigger", () => {
+    const message = formatIncompatiblePortsMessage("data", "trigger", ["trigger", "signal"]);
+    assert.match(message, /workflow-stop\.signal/);
+    assert.match(message, /target_port: signal/);
   });
 });

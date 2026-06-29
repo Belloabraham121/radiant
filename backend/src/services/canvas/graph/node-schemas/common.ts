@@ -36,6 +36,48 @@ export const lifiSwapConfigSchema = z
   })
   .passthrough();
 
+export const thresholdConfigSchema = z
+  .object({
+    metric: z.enum(["mid", "best_bid", "best_ask", "value"]).optional(),
+    operator: z.enum(["<", ">", "<=", ">="]).optional(),
+    value: z.number().optional(),
+    threshold: z.number().optional(),
+  })
+  .passthrough();
+
+export const ifConditionConfigSchema = z
+  .object({
+    expression: z.string().optional(),
+  })
+  .passthrough();
+
+export const compareConfigSchema = z
+  .object({
+    operator: z.enum([">", "<", ">=", "<=", "==", "="]).optional(),
+    b: z.number().optional(),
+  })
+  .passthrough();
+
+export const notifyConfigSchema = z
+  .object({
+    channel: z.enum(["in_app", "webhook"]).optional(),
+    message: z.string().optional(),
+  })
+  .passthrough();
+
+export const scheduleCronConfigSchema = z
+  .object({
+    cron: z.string().optional(),
+    interval: z.string().optional(),
+  })
+  .passthrough();
+
+export const delayConfigSchema = z
+  .object({
+    duration_seconds: z.number().int().positive().optional(),
+  })
+  .passthrough();
+
 export const polymarketFeedConfigSchema = z
   .object({
     asset_id: z.string().min(1).optional(),
@@ -50,6 +92,14 @@ const typedNodeConfigSchemas: Partial<Record<CanvasNodeType, z.ZodType<Record<st
   price_chart: priceChartConfigSchema,
   polymarket_feed: polymarketFeedConfigSchema,
   lifi_swap: lifiSwapConfigSchema,
+  lifi_bridge: lifiSwapConfigSchema,
+  lifi_quote: lifiSwapConfigSchema,
+  threshold: thresholdConfigSchema,
+  if_condition: ifConditionConfigSchema,
+  compare: compareConfigSchema,
+  notify: notifyConfigSchema,
+  schedule_cron: scheduleCronConfigSchema,
+  delay: delayConfigSchema,
 };
 
 export function getNodeConfigSchema(nodeType: CanvasNodeType): z.ZodType<Record<string, unknown>> {

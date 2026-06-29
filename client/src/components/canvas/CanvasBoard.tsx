@@ -32,6 +32,7 @@ import { type CanvasMode, type RichNode as RichNodeType } from "./canvas-nodes";
 import { AddNodePalette } from "./AddNodePalette";
 import { NodeDetailModal } from "./node-detail";
 import { nodeDataFromCatalog, type NodeCatalogEntry } from "./node-catalog";
+import { nodeNeedsInspectorFocus } from "@/lib/canvas-graph-mapper";
 import { resolveCollisions } from "./collision";
 
 const COLLISION_OPTIONS = { maxIterations: 50, overlapThreshold: 0.5, margin: 16 };
@@ -102,7 +103,10 @@ function BoardInner({
     const x = node.position.x + (node.width ?? 96) / 2;
     const y = node.position.y + (node.height ?? 56) / 2;
     setCenter(x, y, { zoom: 1.1, duration: 450 });
-  }, [focusNodeId, nodes, setCenter]);
+    if (mode === "build" && nodeNeedsInspectorFocus(node.data)) {
+      queueMicrotask(() => setDetailNodeId(focusNodeId));
+    }
+  }, [focusNodeId, nodes, setCenter, mode]);
 
   const addNode = useCallback(
     (entry: NodeCatalogEntry) => {

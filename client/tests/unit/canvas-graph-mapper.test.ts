@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import type { Edge } from "@xyflow/react";
 import {
   applyBuildStreamEvent,
+  findCatalogEntry,
   removeNodesFromFlowGraph,
+  resolveCatalogSlug,
 } from "../../src/lib/canvas-graph-mapper";
 import type { RichNode } from "../../src/components/canvas/canvas-nodes";
 
@@ -85,5 +87,28 @@ describe("applyBuildStreamEvent deleted-node tombstones", () => {
     );
     assert.equal(result.nodes.length, 2);
     assert.equal(result.edges.length, 1);
+  });
+});
+
+describe("findCatalogEntry slug aliasing", () => {
+  it("maps polymarket_feed to polymarket-market catalog entry", () => {
+    const entry = findCatalogEntry("polymarket_feed");
+    assert.equal(entry?.slug, "polymarket-market");
+  });
+
+  it("maps place_order to polymarket-order catalog entry", () => {
+    const entry = findCatalogEntry("place_order");
+    assert.equal(entry?.slug, "polymarket-order");
+    assert.ok(entry?.fields?.some((f) => f.key === "operation"));
+  });
+
+  it("maps lifi_swap to swap catalog entry", () => {
+    assert.equal(findCatalogEntry("lifi_swap")?.slug, "swap");
+    assert.equal(findCatalogEntry("lifi_bridge")?.slug, "bridge");
+  });
+
+  it("resolveCatalogSlug normalizes builder slugs", () => {
+    assert.equal(resolveCatalogSlug("polymarket-feed"), "polymarket-market");
+    assert.equal(resolveCatalogSlug("polymarket-place-market"), "polymarket-order");
   });
 });
