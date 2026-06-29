@@ -21,6 +21,7 @@ import { useNotifications } from "@/components/app/NotificationProvider";
 import { useChatSessions } from "@/components/app/chat-sessions-context";
 import { useChatSessionActivity } from "@/components/app/chat-session-activity-context";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useFeatureEnabled } from "@/lib/feature-flags-context";
 import { formatSessionTime } from "@/lib/chat-messages";
 import { deleteChatSession, type ChatSessionListItem } from "@/lib/chat-api";
 import { ApiError } from "@/lib/api";
@@ -46,6 +47,7 @@ export function Sidebar() {
   const router = useRouter();
   const { open, setOpen } = useSidebar();
   const { seed, displayName } = useUserProfile();
+  const canvasEnabled = useFeatureEnabled("canvas");
   const { sessions, loading, error, refreshSessions, startNewChat } = useChatSessions();
   const { isSessionBusy } = useChatSessionActivity();
   const { unreadCount } = useNotifications();
@@ -59,9 +61,8 @@ export function Sidebar() {
 
   // Which plane the sidebar list shows — derived from the route so it never
   // desyncs. The toggle just navigates between the two planes.
-  const plane: "chat" | "canvas" = pathname.startsWith("/app/canvas")
-    ? "canvas"
-    : "chat";
+  const plane: "chat" | "canvas" =
+    canvasEnabled && pathname.startsWith("/app/canvas") ? "canvas" : "chat";
 
   const handleNewChat = () => {
     startNewChat();
@@ -123,6 +124,7 @@ export function Sidebar() {
             </button>
           </div>
           {/* Chat ⇄ Canvas plane toggle */}
+          {canvasEnabled ? (
           <div className="flex items-center gap-1 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-bg)] p-1">
             <Link
               href="/app"
@@ -147,14 +149,15 @@ export function Sidebar() {
               Canvas
             </Link>
           </div>
+          ) : null}
 
           <button
             type="button"
-            onClick={plane === "chat" ? handleNewChat : handleNewWorkflow}
+            onClick={canvasEnabled && plane === "canvas" ? handleNewWorkflow : handleNewChat}
             className="flex w-full items-center justify-center gap-1.5 rounded-full border-2 border-[var(--hero-ink)] bg-[var(--hero-amber)] px-3 py-2 text-xs font-bold shadow-[2px_2px_0_var(--hero-ink)] transition-transform hover:-translate-y-0.5"
           >
             <Plus className="size-3.5" strokeWidth={3} />
-            {plane === "chat" ? "New chat" : "New workflow"}
+            {canvasEnabled && plane === "canvas" ? "New workflow" : "New chat"}
           </button>
         </div>
 
@@ -188,7 +191,7 @@ export function Sidebar() {
         </nav>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {plane === "canvas" ? (
+          {canvasEnabled && plane === "canvas" ? (
             <>
               <p className="mb-3 px-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--hero-ink)]/35">
                 Your workflows

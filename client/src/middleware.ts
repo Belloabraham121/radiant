@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isFeatureEnabledFromEnv } from "@/lib/features";
 import {
   hasPrivyOAuthQueryParams,
   PRIVY_ACCESS_TOKEN_COOKIE,
@@ -48,6 +49,16 @@ export function middleware(req: NextRequest) {
       );
       return NextResponse.redirect(refreshUrl);
     }
+  }
+
+  if (
+    req.nextUrl.pathname.startsWith("/app/canvas") &&
+    !isFeatureEnabledFromEnv("canvas")
+  ) {
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = "/app";
+    redirectUrl.search = "";
+    return NextResponse.redirect(redirectUrl);
   }
 
   return NextResponse.next();

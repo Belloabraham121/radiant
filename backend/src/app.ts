@@ -13,6 +13,7 @@ import { agentTransactionsRouter } from "./api/routes/v1/agent/transactions.js";
 import { authMeRouter } from "./api/routes/v1/auth/me.js";
 import { authExportRouter } from "./api/routes/v1/auth/export.js";
 import { authRegisterWalletRouter } from "./api/routes/v1/auth/register-wallet.js";
+import { featuresRouter } from "./api/routes/v1/features/features.js";
 import { walletAssetsRouter } from "./api/routes/v1/wallets/assets.js";
 import { walletBalancesRouter } from "./api/routes/v1/wallets/balances.js";
 import { walletSignAndSendRouter } from "./api/routes/v1/wallets/sign-and-send.js";
@@ -61,6 +62,7 @@ export function createApp() {
   }
 
   app.use(healthRouter);
+  app.use(featuresRouter);
   app.use(authMeRouter);
   app.use(authExportRouter);
   app.use(agentPermissionsRouter);

@@ -3,6 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useEffect, useMemo, useState } from "react";
 import { fetchAuthMe, type AuthMeData } from "@/lib/auth-api";
+import { DEFAULT_FEATURE_FLAGS, type FeatureFlags } from "@/lib/features";
 import {
   formatMemberSince,
   resolveAvatarSeed,
@@ -59,6 +60,8 @@ export function useUserProfile() {
       authenticated,
       user,
       profileLoading: ready && authenticated && profileLoading,
+      featuresLoaded: ready && (!authenticated || !profileLoading),
+      features: (profileMe?.features ?? DEFAULT_FEATURE_FLAGS) as FeatureFlags,
       seed: resolveAvatarSeed(profileMe?.avatar_seed, user),
       avatarStyle: profileMe?.avatar_style ?? "lorelei",
       displayName: resolveDisplayName(user, profileMe?.display_name),
