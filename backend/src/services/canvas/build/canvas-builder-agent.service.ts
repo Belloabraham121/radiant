@@ -17,16 +17,17 @@ import {
 import { getCanvasLlmProvider } from "../llm/canvas-llm-provider.registry.js";
 import type { CanvasAgentLlmConfig, CanvasLlmMessage } from "../llm/canvas-llm.types.js";
 import type { CanvasGraph } from "../graph/canvas-graph.types.js";
-import { loadWorkflowGraph } from "../canvas-workflow.service.js";
+import { loadWorkflowGraph, persistCoherentGraphPatch } from "../canvas-workflow.service.js";
 import {
   buildBuilderSystemPrompt,
   formatPortHintForSlug,
   validateBuilderGraphConnectivity,
   validateBuilderNodeConfig,
 } from "./builder-port-catalog.js";
-import { formatEditScopeHint } from "./builder-config-catalog.js";
+import { formatEditScopeHint, sanitizeGraphNodeConfigs } from "./builder-config-catalog.js";
+import { validateCanvasGraph } from "../graph/validate-graph.js";
 
-const MAX_BUILDER_TURNS = 16;
+const MAX_BUILDER_TURNS = 40;
 
 const CHITCHAT_PATTERN =
   /^(hi|hello|hey|thanks|thank you|ok|okay|test|help|yo|sup|howdy)[!.?\s]*$/i;
@@ -255,10 +256,20 @@ async function executeBuilderTurn(
   }
 
   const { workflow, graph } = await loadWorkflowGraph(privyUserId, workflowId);
+  const { graph: sanitizedGraph, changed: configsSanitized } = sanitizeGraphNodeConfigs(
+    structuredClone(graph),
+  );
+  let revision = workflow.revision;
+  let workingGraph = sanitizedGraph;
+  if (configsSanitized && validateCanvasGraph(sanitizedGraph).ok) {
+    revision = await persistCoherentGraphPatch(workflowId, workflow.revision, sanitizedGraph);
+    workingGraph = sanitizedGraph;
+  }
+
   const state: BuilderGraphState = {
     workflowId,
-    revision: workflow.revision,
-    graph: structuredClone(graph),
+    revision,
+    graph: workingGraph,
   };
 
   const llmConfig = getCanvasBuildLlmConfig();
@@ -387,6 +398,22 @@ async function executeBuilderTurn(
           messages.push({
             role: "user",
             content: `Fix the patch config (use numeric size/value, valid enums) and retry patch_node. Use patch: { config: { ... } }.\n\n${graphSummary(state.graph)}`,
+          });
+          continue;
+        }
+        if (err instanceof AppError && toolCall.name === "add_node" && err.code === "GRAPH_VALIDATION_ERROR") {
+          const detail =
+            err.details && typeof err.details === "object" && "errors" in err.details
+              ? JSON.stringify((err.details as { errors: unknown }).errors)
+              : err.message;
+          emitWorkflowBuildStatus(`Add node rejected: ${detail}`, "status");
+          messages.push({
+            role: "assistant",
+            content: `[tool:add_node failed] ${detail}`,
+          });
+          messages.push({
+            role: "user",
+            content: `Graph validation failed — fix stale node configs with patch_node (numeric max_rows/value/size, valid enums) or retry add_node. Errors: ${detail}\n\n${graphSummary(state.graph)}`,
           });
           continue;
         }

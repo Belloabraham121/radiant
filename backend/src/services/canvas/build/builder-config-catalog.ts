@@ -164,6 +164,21 @@ function sanitizePolicyMode(value: unknown): string | undefined {
   return "inherit";
 }
 
+/** Sanitize every node config in a graph (coerce stale numeric strings, strip internal keys). */
+export function sanitizeGraphNodeConfigs(graph: CanvasGraph): { graph: CanvasGraph; changed: boolean } {
+  let changed = false;
+  const nodes = graph.nodes.map((node) => {
+    const sanitized = sanitizeBuilderPatchConfig(node.type, node.config ?? {});
+    const prev = node.config ?? {};
+    if (JSON.stringify(sanitized) !== JSON.stringify(prev)) {
+      changed = true;
+      return { ...node, config: sanitized };
+    }
+    return node;
+  });
+  return { graph: { ...graph, nodes }, changed };
+}
+
 /** Normalize LLM patch config before persist (coerce numeric strings, strip internal keys). */
 export function sanitizeBuilderPatchConfig(
   nodeType: CanvasNodeType,

@@ -5,6 +5,7 @@ import {
   formatEditScopeHint,
   inferEditPatchScopeSlugs,
   sanitizeBuilderPatchConfig,
+  sanitizeGraphNodeConfigs,
   validateBuilderNodeConfig,
 } from "../../../src/services/canvas/build/builder-config-catalog.js";
 import { validateNodeConfig } from "../../../src/services/canvas/graph/node-schemas/common.js";
@@ -169,5 +170,61 @@ describe("builder patch validation", () => {
     assert.match(hint, /threshold/);
     assert.match(hint, /Do NOT patch policy-gate/);
     assert.match(hint, /inherit \| override/);
+  });
+
+  it("coerces string max_rows in sanitizeBuilderPatchConfig and validateNodeConfig", () => {
+    const cleaned = sanitizeBuilderPatchConfig("ui_table", {
+      title: "Matches",
+      max_rows: "10",
+    });
+    assert.equal(cleaned.max_rows, 10);
+
+    const result = validateNodeConfig("ui_table", cleaned);
+    assert.equal(result.ok, true, JSON.stringify(result));
+  });
+
+  it("validateCanvasGraph accepts ui-table with string max_rows after sanitize", () => {
+    const config = sanitizeBuilderPatchConfig("ui_table", {
+      title: "R32",
+      max_rows: "29",
+      columns: "team,mid",
+    });
+    const graph: CanvasGraph = {
+      nodes: [
+        {
+          id: randomUUID(),
+          type: "ui_table",
+          position: { x: 0, y: 0 },
+          config,
+        },
+      ],
+      edges: [],
+    };
+    assert.equal(validateCanvasGraph(graph).ok, true);
+  });
+
+  it("sanitizeGraphNodeConfigs coerces stale configs on all nodes", () => {
+    const graph: CanvasGraph = {
+      nodes: [
+        {
+          id: randomUUID(),
+          type: "ui_table",
+          position: { x: 0, y: 0 },
+          config: { max_rows: "5" },
+        },
+        {
+          id: randomUUID(),
+          type: "threshold",
+          position: { x: 0, y: 0 },
+          config: { value: "0.42", metric: "mid", operator: "<" },
+        },
+      ],
+      edges: [],
+    };
+    const { graph: sanitized, changed } = sanitizeGraphNodeConfigs(graph);
+    assert.equal(changed, true);
+    assert.equal(sanitized.nodes[0]?.config.max_rows, 5);
+    assert.equal(sanitized.nodes[1]?.config.value, 0.42);
+    assert.equal(validateCanvasGraph(sanitized).ok, true);
   });
 });

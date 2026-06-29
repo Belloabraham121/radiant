@@ -23,11 +23,15 @@ import {
   getPostAddNodeWiringHints,
   NODE_PORT_PROFILES,
 } from "./builder-port-catalog.js";
-import { formatConfigPatchHint, sanitizeBuilderPatchConfig } from "./builder-config-catalog.js";
+import {
+  formatConfigPatchHint,
+  sanitizeBuilderPatchConfig,
+  sanitizeGraphNodeConfigs,
+} from "./builder-config-catalog.js";
 import { arePortsCompatible, formatIncompatiblePortsMessage } from "../graph/port-compatibility.js";
 import { validateCanvasGraph } from "../graph/validate-graph.js";
 import { persistCoherentGraphPatch, markWorkflowDryRunReady } from "../canvas-workflow.service.js";
-import { searchPolymarketMarkets } from "../adapters/polymarket/polymarket-market-discovery.service.js";
+import { searchPolymarketMarkets, recommendedYesAssetId } from "../adapters/polymarket/polymarket-market-discovery.service.js";
 
 const addNodeArgsSchema = z.object({
   slug: z.string().min(1),
@@ -100,6 +104,7 @@ function defaultPosition(graph: CanvasGraph): { x: number; y: number } {
 }
 
 async function persistGraph(state: BuilderGraphState): Promise<number> {
+  state.graph = sanitizeGraphNodeConfigs(state.graph).graph;
   const validation = validateCanvasGraph(state.graph);
   if (!validation.ok) {
     throw new AppError(400, "GRAPH_VALIDATION_ERROR", "Builder produced an invalid graph.", {
@@ -144,7 +149,14 @@ export async function builderAddNode(
 
   state.graph.nodes.push(node);
   emitWorkflowNodeAdd(node);
-  const revision = await persistGraph(state);
+
+  let revision: number;
+  try {
+    revision = await persistGraph(state);
+  } catch (err) {
+    state.graph.nodes = state.graph.nodes.filter((n) => n.id !== node.id);
+    throw err;
+  }
 
   if (BUILDER_FOCUS_NODE_TYPES.has(nodeType)) {
     emitWorkflowNodeFocus(node.id, "needs_config");
@@ -278,7 +290,9 @@ export async function builderSearchPolymarketMarkets(
   const lines = result.markets.map((m) => {
     const tokens = m.clob_token_ids.join(", ") || "no tokens";
     const tags = m.tags.slice(0, 4).join(", ") || "—";
-    return `- id=${m.id} slug=${m.slug} question="${m.question}" tags=[${tags}] clob_token_ids=[${tokens}]`;
+    const yesAsset = recommendedYesAssetId(m);
+    const yesHint = yesAsset ? ` recommended_yes_asset_id=${yesAsset}` : "";
+    return `- id=${m.id} slug=${m.slug} question="${m.question}" tags=[${tags}] clob_token_ids=[${tokens}]${yesHint}`;
   });
 
   return {

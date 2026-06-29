@@ -220,6 +220,21 @@ Edges:
 ${sportsEdges}
 Notes: polymarket-feed is a source (no trigger input). workflow-start.trigger enters via workflow-approve.trigger. Completing the run uses action.data → workflow-stop.signal, not .trigger.
 
+## Multi-market parallel monitor (World Cup R32 template)
+Use when the user wants several match markets monitored in parallel (e.g. 3 R32 fixtures).
+Nodes per branch: polymarket-market (or polymarket-feed), threshold, ui-table or ui-label; shared: workflow-start, workflow-stop, ai-reason, notify, policy-gate as needed.
+CRITICAL: polymarket-feed / polymarket-market have NO trigger input — do NOT wire workflow-start.trigger → polymarket-feed. Feeds run independently; wire feed.data → threshold.data, feed.data → ui-table.data, feed.data → ui-label.data.
+Per branch wiring:
+- polymarket-market.data → threshold.data (price alert per match)
+- polymarket-market.data → ui-table.data (multi-row dashboard; set ui-table max_rows to match count)
+- threshold.trigger → workflow-approve.trigger OR notify.trigger OR policy-gate.trigger
+- threshold.trigger → ai-reason.trigger (optional LLM summary on breach)
+- ai-reason.signal → notify.trigger (alert path)
+- policy-gate.trigger → polymarket-place-market.trigger (trade path)
+- polymarket-market.market → polymarket-place-market.market
+- last action.data OR notify.data → workflow-stop.signal
+Search: search_polymarket_markets({ q: "<team> world cup", category: "sports", tag: "soccer" }) — prefer fifwc- slugs; use recommended_yes_asset_id for config.asset_id.
+
 ## Workflow rules
 1. Every workflow needs workflow-start (or schedule-cron) AND workflow-stop on a connected path.
 2. Insert workflow-approve before the first irreversible Live action unless user pre-authorized unattended execution.
