@@ -1,5 +1,7 @@
 import { Hero } from "@/components/hero/Hero";
-import { ShowcaseSection } from "@/components/landing/ShowcaseSection";
+import { WhatIsItSection } from "@/components/landing/WhatIsItSection";
+import { CanvasShowcaseSection } from "@/components/landing/CanvasShowcaseSection";
+import { DeFiRailSection } from "@/components/landing/DeFiRailSection";
 import { PillarsSection } from "@/components/landing/PillarsSection";
 import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
 import { ExplorerSection } from "@/components/landing/ExplorerSection";
@@ -9,7 +11,9 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <ShowcaseSection />
+      <WhatIsItSection />
+      <CanvasShowcaseSection />
+      <DeFiRailSection />
       <PillarsSection />
       <HowItWorksSection />
       <ExplorerSection />

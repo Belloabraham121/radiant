@@ -333,3 +333,105 @@
   border: none;
   box-shadow: none;
 }
+/* ---- RunningBuddy: mascot run cycle ---- */
+@keyframes buddy-run-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(2deg);
+  }
+}
+
+@keyframes buddy-leg-swing {
+  0%,
+  100% {
+    transform: rotate(30deg);
+  }
+  50% {
+    transform: rotate(-30deg);
+  }
+}
+
+@keyframes buddy-speed-line {
+  0% {
+    opacity: 0;
+    transform: translateX(6px) scaleX(0.4);
+  }
+  35% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-14px) scaleX(1);
+  }
+}
+
+.buddy-run-bob {
+  animation: buddy-run-bob 0.42s ease-in-out infinite;
+}
+
+.buddy-leg {
+  transform-origin: top center;
+  animation: buddy-leg-swing 0.42s ease-in-out infinite;
+}
+
+.buddy-leg-b {
+  animation-delay: -0.21s;
+}
+
+.buddy-speed-line {
+  animation: buddy-speed-line 0.55s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buddy-run-bob,
+  .buddy-leg,
+  .buddy-speed-line {
+    animation: none;
+  }
+}
+
+/* ---- SideBot: side-profile robot (run cycle driven by .sidebot-run) ---- */
+.sidebot-leg-f,
+.sidebot-leg-b,
+.sidebot-arm {
+  transform-box: fill-box;
+  transform-origin: 50% 12%;
+}
+
+.sidebot-run .sidebot-leg-f {
+  animation: buddy-leg-swing 0.34s ease-in-out infinite;
+}
+
+.sidebot-run .sidebot-leg-b {
+  animation: buddy-leg-swing 0.34s ease-in-out infinite;
+  animation-delay: -0.17s;
+}
+
+.sidebot-run .sidebot-arm {
+  animation: buddy-leg-swing 0.34s ease-in-out infinite reverse;
+}
+
+.sidebot-run .sidebot-figure {
+  animation: buddy-run-bob 0.34s ease-in-out infinite;
+}
+
+.sidebot-lines {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.sidebot-run .sidebot-lines {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebot-run .sidebot-leg-f,
+  .sidebot-run .sidebot-leg-b,
+  .sidebot-run .sidebot-arm,
+  .sidebot-run .sidebot-figure {
+    animation: none;
+  }
+}

@@ -110,8 +110,8 @@ function BoardInner({
     prevFocusRef.current = focusNodeId;
     const node = nodes.find((n) => n.id === focusNodeId);
     if (!node) return;
-    const x = node.position.x + (node.width ?? 96) / 2;
-    const y = node.position.y + (node.height ?? 56) / 2;
+    const x = node.position.x + (node.width ?? 150) / 2;
+    const y = node.position.y + (node.height ?? 64) / 2;
     setCenter(x, y, { zoom: 1.1, duration: 450 });
     if (mode === "build" && nodeNeedsInspectorFocus(node.data)) {
       queueMicrotask(() => updateDetailNodeId(focusNodeId));

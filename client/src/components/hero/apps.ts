@@ -72,19 +72,20 @@ export type HeroPhrase = {
 };
 
 export const HERO_PHRASES: HeroPhrase[] = [
-  { text: "acts for you", color: "#ff5d46", fg: "#fffdf7" },
-  { text: "remembers everything", color: "#3865ff", fg: "#fffdf7" },
-  { text: "builds you apps", color: "#00c478", fg: "#fffdf7" },
-  { text: "earns while you sleep", color: "#ffb01f", fg: "#1b1610" },
+  { text: "trades for you", color: "#ff5d46", fg: "#fffdf7" },
+  { text: "watches the market", color: "#3865ff", fg: "#fffdf7" },
+  { text: "bridges any chain", color: "#8e5bff", fg: "#fffdf7" },
+  { text: "runs while you sleep", color: "#ffb01f", fg: "#1b1610" },
+  { text: "builds you workflows", color: "#00c478", fg: "#fffdf7" },
 ];
 
 export const MARQUEE_COMMANDS = [
+  "Buy the BTC dip and alert me",
+  "Copy every whale over $1M",
+  "Ladder ETH limit sells from $4k to $5k",
+  "Rebalance my Sui bag every Friday",
+  "Bridge my USDC to Base at the best rate",
   "Pay Alex 5 SUI",
+  "Flash-loan arb SUI/USDC when the spread opens",
   "Swap my USDC for SUI at the best rate",
-  "Build me a portfolio tracker",
-  "Stake weekly, automatically",
-  "Split dinner three ways",
-  "List my splitter app — 0.2% fee",
-  "Log me into that DEX from last week",
-  "Send the group wallet contribution",
 ];
