@@ -34,7 +34,6 @@ import { NodeDetailModal } from "./node-detail";
 import { nodeDataFromCatalog, type NodeCatalogEntry } from "./node-catalog";
 import { nodeNeedsInspectorFocus } from "@/lib/canvas-graph-mapper";
 import { resolveCollisions } from "./collision";
-import { getLayoutedElements } from "./canvas-layout";
 
 const COLLISION_OPTIONS = { maxIterations: 50, overlapThreshold: 0.5, margin: 16 };
 
@@ -142,9 +141,50 @@ function BoardInner({
     [screenToFlowPosition, setNodes],
   );
 
-  // Dagre horizontal (LR) auto-layout — untangles overlapping edges.
   const autoLayout = useCallback(() => {
-    setNodes((current) => getLayoutedElements(current, edges, "LR"));
+    const COL_GAP = 340;
+    const ROW_GAP = 200;
+    setNodes((current) => {
+      if (current.length === 0) return current;
+
+      const incoming = new Map<string, string[]>();
+      current.forEach((n) => incoming.set(n.id, []));
+      for (const e of edges) {
+        if (incoming.has(e.target)) incoming.get(e.target)!.push(e.source);
+      }
+
+      const layer = new Map<string, number>();
+      const visiting = new Set<string>();
+      const computeLayer = (id: string): number => {
+        const cached = layer.get(id);
+        if (cached !== undefined) return cached;
+        if (visiting.has(id)) return 0;
+        visiting.add(id);
+        const ins = incoming.get(id) ?? [];
+        const l = ins.length === 0 ? 0 : Math.max(...ins.map((s) => computeLayer(s) + 1));
+        visiting.delete(id);
+        layer.set(id, l);
+        return l;
+      };
+      current.forEach((n) => computeLayer(n.id));
+
+      const byLayer = new Map<number, string[]>();
+      current.forEach((n) => {
+        const l = layer.get(n.id) ?? 0;
+        const bucket = byLayer.get(l) ?? [];
+        bucket.push(n.id);
+        byLayer.set(l, bucket);
+      });
+
+      const pos = new Map<string, { x: number; y: number }>();
+      for (const [l, ids] of byLayer) {
+        ids.forEach((id, i) => {
+          pos.set(id, { x: l * COL_GAP, y: (i - (ids.length - 1) / 2) * ROW_GAP });
+        });
+      }
+
+      return current.map((n) => ({ ...n, position: pos.get(n.id) ?? n.position }));
+    });
     requestAnimationFrame(() => fitView({ padding: 0.2, duration: 400 }));
   }, [edges, fitView, setNodes]);
 

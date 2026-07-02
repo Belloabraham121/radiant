@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import {
+  CanvasBuildMessageRole,
   CanvasWorkflowRunMode,
   CanvasWorkflowRunStatus,
   CanvasWorkflowRuntimeStatus,
@@ -26,6 +27,8 @@ describe("canvas workflow prisma schema", () => {
     assert.equal(CanvasWorkflowRunStatus.cancelled, "cancelled");
     assert.equal(CanvasWorkflowRuntimeStatus.active, "active");
     assert.equal(CanvasWorkflowRuntimeStatus.stopped, "stopped");
+    assert.equal(CanvasBuildMessageRole.user, "user");
+    assert.equal(CanvasBuildMessageRole.assistant, "assistant");
   });
 
   it("includes the add_canvas_workflows migration", () => {

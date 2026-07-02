@@ -60,6 +60,34 @@ const ORDER_TYPES = new Set<CanvasNodeType>([
 
 const VALID_POLICY_MODES = new Set(["inherit", "override"]);
 
+/** Node types with fixed palette display names — Builder must not set meta.label. */
+export const PROTECTED_LABEL_NODE_TYPES = new Set<CanvasNodeType>([
+  "workflow_start",
+  "workflow_stop",
+  "schedule_cron",
+  "dry_run_gate",
+  "workflow_pause",
+  "workflow_resume",
+]);
+
+export function isProtectedNodeLabel(nodeType: CanvasNodeType): boolean {
+  return PROTECTED_LABEL_NODE_TYPES.has(nodeType);
+}
+
+export function formatProtectedLabelSlugs(): string {
+  return [...PROTECTED_LABEL_NODE_TYPES].map((t) => nodeTypeToSlug(t)).join(", ");
+}
+
+/** Remove custom meta.label from system nodes (catalog title is authoritative). */
+export function stripProtectedNodeLabel(node: CanvasNode): CanvasNode {
+  if (!isProtectedNodeLabel(node.type) || !node.meta?.label) {
+    return node;
+  }
+  const { label: _removed, ...restMeta } = node.meta;
+  const meta = Object.keys(restMeta).length > 0 ? restMeta : undefined;
+  return { ...node, meta };
+}
+
 /** Slugs the Builder may patch in edit mode when the user message mentions them. */
 const EDIT_SCOPE_ORDER_SLUGS = [
   "polymarket-place-market",
@@ -168,13 +196,19 @@ function sanitizePolicyMode(value: unknown): string | undefined {
 export function sanitizeGraphNodeConfigs(graph: CanvasGraph): { graph: CanvasGraph; changed: boolean } {
   let changed = false;
   const nodes = graph.nodes.map((node) => {
+    let next = node;
     const sanitized = sanitizeBuilderPatchConfig(node.type, node.config ?? {});
     const prev = node.config ?? {};
     if (JSON.stringify(sanitized) !== JSON.stringify(prev)) {
       changed = true;
-      return { ...node, config: sanitized };
+      next = { ...next, config: sanitized };
     }
-    return node;
+    const stripped = stripProtectedNodeLabel(next);
+    if (stripped !== next) {
+      changed = true;
+      next = stripped;
+    }
+    return next;
   });
   return { graph: { ...graph, nodes }, changed };
 }

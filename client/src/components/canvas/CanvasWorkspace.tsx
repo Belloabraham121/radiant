@@ -14,9 +14,8 @@ import { CanvasBoard } from "./CanvasBoard";
 import { CanvasRunsPanel } from "./CanvasRunsPanel";
 import { useActiveCanvasWorkflow } from "./canvas-workflow-context";
 import type { CanvasMode, RichNode } from "./canvas-nodes";
-import { streamCanvasBuild, streamCanvasDryRun, streamCanvasLive, activateCanvasKillSwitch, getCanvasWorkflowPolicy, type CanvasBuildStreamEvent } from "@/lib/canvas-api";
+import { streamCanvasBuild, streamCanvasDryRun, streamCanvasLive, activateCanvasKillSwitch, getCanvasWorkflowPolicy, fetchCanvasBuildMessages, type CanvasBuildStreamEvent } from "@/lib/canvas-api";
 import { applyBuildStreamEvent, canvasGraphToFlow, flowGraphToCanvasGraph, removeNodesFromFlowGraph } from "@/lib/canvas-graph-mapper";
-import { getLayoutedElements } from "./canvas-layout";
 import type { CanvasLlmModelTier } from "@/lib/canvas-types";
 import type { CanvasDryRunStreamEvent } from "@/lib/canvas-dry-run";
 import { liveEventToExecutionStep } from "@/lib/canvas-live";
@@ -28,6 +27,7 @@ import {
 } from "@/lib/canvas-dry-run";
 import {
   buildStreamEventToActivity,
+  buildMessagesToActivityEntries,
   createBuilderActivityEntry,
   type BuilderActivityEntry,
 } from "@/lib/canvas-build";
@@ -102,6 +102,7 @@ export function CanvasWorkspace() {
   const [buildActivity, setBuildActivity] = useState<BuilderActivityEntry[]>([]);
   const [buildActivityOpen, setBuildActivityOpen] = useState(false);
   const [buildActivityCollapsed, setBuildActivityCollapsed] = useState(false);
+  const [builderChatIntent, setBuilderChatIntent] = useState<"ask" | "build">("build");
   const buildCompletedRef = useRef(false);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [detailNodeId, setDetailNodeId] = useState<string | null>(null);
@@ -192,6 +193,28 @@ export function CanvasWorkspace() {
     resizeInput();
   }, [input, resizeInput]);
 
+  useEffect(() => {
+    if (!workflow?.id) return;
+    let cancelled = false;
+
+    void fetchCanvasBuildMessages(workflow.id)
+      .then(({ messages }) => {
+        if (cancelled) return;
+        const history = buildMessagesToActivityEntries(messages);
+        setBuildActivity(history);
+        if (history.length > 0) {
+          setBuildActivityOpen(true);
+        }
+      })
+      .catch(() => {
+        // Non-fatal — builder still works without history reload
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [workflow?.id]);
+
   const appendBuildActivity = useCallback((entry: BuilderActivityEntry) => {
     setBuildActivity((prev) => [...prev, entry]);
   }, []);
@@ -245,16 +268,7 @@ export function CanvasWorkspace() {
         buildCompletedRef.current = true;
         setDryRunReady(true);
         deletedNodeIdsRef.current.clear();
-        // Auto-tidy the freshly assembled graph (dagre LR) so generated
-        // workflows come out untangled, then persist + refresh.
-        const laidNodes = getLayoutedElements(
-          graphRef.current.nodes,
-          graphRef.current.edges,
-          "LR",
-        );
-        graphRef.current = { nodes: laidNodes, edges: graphRef.current.edges };
-        setNodes(laidNodes);
-        void persistGraph(laidNodes, graphRef.current.edges).then(() => refreshWorkflow());
+        void refreshWorkflow();
         return;
       }
       if (event.event === "workflow.build.error") {
@@ -279,7 +293,7 @@ export function CanvasWorkspace() {
       setEdges(patch.edges);
       if (patch.focusNodeId) setFocusNodeId(patch.focusNodeId);
     },
-    [mode, refreshWorkflow, setDryRunReady, setNodes, setEdges, persistGraph],
+    [mode, refreshWorkflow, setDryRunReady, setNodes, setEdges],
   );
 
   useEffect(() => {
@@ -400,7 +414,6 @@ export function CanvasWorkspace() {
     setBuilding(true);
     setBuildError(null);
     buildCompletedRef.current = false;
-    setBuildActivity([]);
     setBuildActivityOpen(true);
     setBuildActivityCollapsed(false);
     appendBuildActivity(
@@ -410,17 +423,29 @@ export function CanvasWorkspace() {
     abortRef.current = new AbortController();
 
     try {
+      const streamOptions: {
+        selectedNodeId?: string;
+        editIntent?: "create" | "patch";
+        builderIntent?: "ask" | "build";
+      } = { builderIntent: builderChatIntent };
+
+      if (builderChatIntent === "build" && detailNodeId) {
+        streamOptions.selectedNodeId = detailNodeId;
+        streamOptions.editIntent = "patch";
+      }
+
       await streamCanvasBuild(
         workflow.id,
         input.trim(),
         handleBuildEvent,
         abortRef.current.signal,
-        detailNodeId
-          ? { selectedNodeId: detailNodeId, editIntent: "patch" as const }
-          : undefined,
+        streamOptions,
       );
       if (!buildCompletedRef.current) {
-        const msg = "Build stream ended without completing — try again or use a clearer workflow description.";
+        const msg =
+          builderChatIntent === "ask"
+            ? "Ask stream ended unexpectedly — try again."
+            : "Build stream ended without completing — try again or use a clearer workflow description.";
         setBuildError(msg);
         appendBuildActivity(createBuilderActivityEntry("error", msg));
       } else {
@@ -435,7 +460,7 @@ export function CanvasWorkspace() {
     } finally {
       setBuilding(false);
     }
-  }, [workflow, input, building, appendBuildActivity, handleBuildEvent, resetInputHeight, detailNodeId]);
+  }, [workflow, input, building, appendBuildActivity, handleBuildEvent, resetInputHeight, detailNodeId, builderChatIntent]);
 
   const submitDryRun = useCallback(async () => {
     if (!workflow || dryRunning || !dryRunReady) return;
@@ -660,7 +685,6 @@ export function CanvasWorkspace() {
                   onToggleCollapse={() => setBuildActivityCollapsed((prev) => !prev)}
                   onDismiss={() => {
                     setBuildActivityOpen(false);
-                    setBuildActivity([]);
                   }}
                   inputColumnClass={CANVAS_INPUT_COL}
                 />
@@ -688,6 +712,28 @@ export function CanvasWorkspace() {
                       </span>
                     </div>
                   ) : null}
+                  {mode === "build" ? (
+                    <div className="flex items-center gap-1 self-start rounded-full border border-[var(--hero-ink)]/25 bg-white p-0.5">
+                      {(["ask", "build"] as const).map((intent) => {
+                        const active = builderChatIntent === intent;
+                        return (
+                          <button
+                            key={intent}
+                            type="button"
+                            onClick={() => setBuilderChatIntent(intent)}
+                            disabled={chatBusy}
+                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors ${
+                              active
+                                ? "bg-[var(--hero-ink)] text-[var(--hero-bg)]"
+                                : "text-[var(--hero-ink)]/55 hover:text-[var(--hero-ink)]"
+                            } disabled:opacity-50`}
+                          >
+                            {intent === "ask" ? "Ask" : "Build"}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -704,7 +750,9 @@ export function CanvasWorkspace() {
                         ? "Optional note for Tester — leave empty to run full dry simulation…"
                         : mode === "live"
                           ? "Live mode — confirm to execute real actions…"
-                          : "Describe a workflow — “When BTC drops 5%, buy the whale’s Polymarket position…”"
+                          : builderChatIntent === "ask"
+                            ? "Ask about this workflow — explain nodes, wiring, config, or design intent…"
+                            : "Describe a workflow — “When BTC drops 5%, buy the whale’s Polymarket position…”"
                     }
                     rows={1}
                     disabled={
@@ -718,7 +766,7 @@ export function CanvasWorkspace() {
                     {mode === "build" || mode === "dry" ? (
                       <CanvasModelPicker
                         variant="footer"
-                        agentLabel={mode === "dry" ? "Tester" : "Builder"}
+                        agentLabel={mode === "dry" ? "Tester" : builderChatIntent === "ask" ? "Advisor" : "Builder"}
                         modelTier={activeModelTier}
                         onModelTierChange={handleModelTierChange}
                         disabled={chatBusy || (mode === "dry" && !dryRunReady)}

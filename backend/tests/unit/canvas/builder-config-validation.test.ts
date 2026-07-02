@@ -10,6 +10,13 @@ import { slugToNodeType } from "../../../src/services/canvas/graph/node-slug-map
 import type { CanvasGraph } from "../../../src/services/canvas/graph/canvas-graph.types.js";
 
 describe("builder config validation", () => {
+  it("system prompt mentions fixed display names for Start/Stop", () => {
+    const prompt = buildBuilderSystemPrompt();
+    assert.match(prompt, /Fixed display names/);
+    assert.match(prompt, /workflow-start/);
+    assert.match(prompt, /Never set add_node\.label or patch\.meta\.label/);
+  });
+
   it("formatConfigPatchHint lists keys for configurable slugs", () => {
     const hint = formatConfigPatchHint("threshold");
     assert.match(hint, /metric, operator, value/);

@@ -19,6 +19,7 @@ export const canvasBuildStreamRequestSchema = z.object({
   message: z.string().min(1).max(16_000),
   selected_node_id: z.string().uuid().optional(),
   edit_intent: z.enum(["create", "patch"]).optional(),
+  builder_intent: z.enum(["ask", "build"]).optional().default("build"),
 });
 
 export const canvasDryRunStreamRequestSchema = z.object({
@@ -74,6 +75,14 @@ export type CanvasWorkflowDetail = {
   build_config: z.infer<typeof canvasAgentLlmConfigSchema> | null;
   tester_config: z.infer<typeof canvasAgentLlmConfigSchema> | null;
   policy_id: string;
+  design_notes: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CanvasBuildMessageItem = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
 };

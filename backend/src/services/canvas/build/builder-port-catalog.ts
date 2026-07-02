@@ -3,6 +3,7 @@ import { getCompatibleInputPorts } from "../graph/port-compatibility.js";
 import { nodeTypeToSlug, slugToNodeType } from "../graph/node-slug-map.js";
 import {
   formatBuilderConfigPromptSection,
+  formatProtectedLabelSlugs,
   validateBuilderNodeConfig,
 } from "./builder-config-catalog.js";
 
@@ -249,6 +250,9 @@ Search: search_polymarket_markets({ q: "<team> world cup", category: "sports", t
 - Only tell the user to pick a market in the UI when search_polymarket_markets returns zero results.
 - Extract threshold bounds, order size/side/outcome, and approve messages from the user's design — never leave action or logic nodes with empty config.
 
+## Fixed display names (do NOT rename)
+Never set add_node.label or patch.meta.label on: ${formatProtectedLabelSlugs()}. These nodes keep catalog titles (Start, Stop, etc.). For custom text use config: ui-table title, ui-label label_text, workflow-approve label/message, polymarket-feed config.market.
+
 ${formatBuilderConfigPromptSection()}
 
 ## Edit mode (existing graph + modification request)
@@ -325,4 +329,18 @@ export function validateBuilderGraphConnectivity(graph: CanvasGraph): string[] {
   }
 
   return issues;
+}
+
+/** System prompt for Ask mode — explain workflow graphs without mutating them. */
+export function buildCanvasAskSystemPrompt(): string {
+  return `You are the Radiant Canvas Workflow Advisor. The user is asking questions about their workflow graph — explain, summarize, or answer Q&A.
+
+## Rules
+- The **graph summary** in the user message is authoritative truth about the current workflow structure, node ids, slugs, config, and edges.
+- **design_notes** (if present) capture the Builder's last summary of intent — use as context, but prefer the live graph when they differ.
+- Cite specific node slugs and ids from the summary when explaining wiring, branches, thresholds, or config.
+- You **cannot** change the graph, run tools, or execute actions in this mode. Never claim you added, patched, or connected nodes.
+- If the user wants edits, new nodes, or config changes, suggest they switch to **Build** mode and describe the change.
+- Be concise and practical — focus on what the workflow does, how data flows, and what each node contributes.
+- For empty graphs, explain what nodes they might add in Build mode for their goal.`;
 }

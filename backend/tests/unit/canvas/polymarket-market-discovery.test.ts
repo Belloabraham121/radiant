@@ -198,6 +198,25 @@ describe("world cup market search filters", () => {
     assert.equal(recommendedYesAssetId(wcMatch), "yes-bra");
   });
 
+  it("prefers active open markets over closed when both match fifwc", () => {
+    const closedMatch: PolymarketDiscoveryMarket = {
+      ...wcMatch,
+      id: "5",
+      slug: "fifwc-bra-jpn-2026-06-29-bra",
+      closed: true,
+      active: false,
+    };
+    const filtered = filterWorldCupMarkets(
+      [closedMatch, wcMatch],
+      "brazil japan world cup",
+      "sports",
+      "soccer",
+    );
+    assert.equal(filtered.length, 1);
+    assert.equal(filtered[0]?.slug, wcMatch.slug);
+    assert.equal(filtered[0]?.closed, false);
+  });
+
   it("leaves non-world-cup queries unchanged", () => {
     const markets = [politicsNoise, mentionMarket];
     const filtered = filterWorldCupMarkets(markets, "rain tomorrow");

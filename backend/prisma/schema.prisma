@@ -76,6 +76,7 @@ model User {
   notification_events      NotificationEvent[]
   canvas_workflows         CanvasWorkflow[]
   canvas_workflow_runs     CanvasWorkflowRun[]
+  canvas_build_messages    CanvasBuildMessage[]
 }
 
 model AgentMemory {
@@ -360,6 +361,11 @@ enum CanvasWorkflowRuntimeStatus {
   stopped
 }
 
+enum CanvasBuildMessageRole {
+  user
+  assistant
+}
+
 /// User-authored canvas workflow graph (Builder + runtime source).
 model CanvasWorkflow {
   id             String               @id @default(uuid()) @db.Uuid
@@ -373,6 +379,8 @@ model CanvasWorkflow {
   graph          Json                 @default("{\"nodes\":[],\"edges\":[]}")
   build_config   Json?
   tester_config  Json?
+  /// Latest Builder agent summary — updated on workflow.build.complete.
+  design_notes   String?
   policy_id      String               @unique @db.Uuid
   policy         CanvasWorkflowPolicy @relation("WorkflowPrimaryPolicy", fields: [policy_id], references: [id], onDelete: Restrict)
   created_at     DateTime             @default(now())
@@ -382,8 +390,24 @@ model CanvasWorkflow {
   runs           CanvasWorkflowRun[]
   runtime        CanvasWorkflowRuntime?
   policy_owner   CanvasWorkflowPolicy?  @relation("PolicyPrimaryWorkflow")
+  build_messages CanvasBuildMessage[]
 
   @@index([user_id, updated_at(sort: Desc)])
+}
+
+/// Per-workflow Builder thread — intent/history (graph remains structural truth).
+model CanvasBuildMessage {
+  id          String                 @id @default(uuid()) @db.Uuid
+  workflow_id String                 @db.Uuid
+  workflow    CanvasWorkflow         @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+  user_id     BigInt
+  user        User                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role        CanvasBuildMessageRole
+  content     String
+  created_at  DateTime               @default(now())
+
+  @@index([workflow_id, created_at(sort: Asc)])
+  @@index([user_id])
 }
 
 /// Runtime spend/action policy — separate from chat AgentPermissions.

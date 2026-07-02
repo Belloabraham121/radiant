@@ -40,6 +40,10 @@ import {
 import { runCanvasLiveStream } from "../../../../services/canvas/runtime/canvas-live-run.service.js";
 import { useCanvasBuilderStub } from "../../../../config/canvas.js";
 import { stopLiveWorkflow } from "../../../../services/canvas/runtime/graph-executor.js";
+import {
+  clearBuildMessages,
+  loadBuildMessages,
+} from "../../../../services/canvas/build/canvas-build-memory.service.js";
 import { CANVAS_LIVE_PROGRESS_EVENT_NAMES } from "../../../../services/canvas/runtime/canvas-live-progress-context.js";
 import { fail, ok } from "../../../../utils/http-response.js";
 import { writeSseEvent } from "../../../../utils/chat-sse.js";
@@ -454,6 +458,46 @@ canvasWorkflowsRouter.post(
   },
 );
 
+canvasWorkflowsRouter.get(
+  "/api/v1/canvas/workflows/:workflowId/build/messages",
+  ...canvasGuard,
+  async (req, res, next) => {
+    try {
+      const workflowId = req.params.workflowId;
+      if (!workflowId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "workflowId is required",
+        });
+      }
+      const data = await loadBuildMessages(req.user.privyUserId, workflowId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+canvasWorkflowsRouter.delete(
+  "/api/v1/canvas/workflows/:workflowId/build/messages",
+  ...canvasGuard,
+  async (req, res, next) => {
+    try {
+      const workflowId = req.params.workflowId;
+      if (!workflowId) {
+        return fail(req, res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "workflowId is required",
+        });
+      }
+      const data = await clearBuildMessages(req.user.privyUserId, workflowId);
+      return ok(req, res, data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 canvasWorkflowsRouter.post(
   "/api/v1/canvas/workflows/:workflowId/build/stream",
   ...canvasGuard,
@@ -504,6 +548,7 @@ canvasWorkflowsRouter.post(
             build_config: workflow.build_config ?? undefined,
             selected_node_id: body.selected_node_id,
             edit_intent: body.edit_intent,
+            builder_intent: body.builder_intent,
           });
         }
       } catch (err) {

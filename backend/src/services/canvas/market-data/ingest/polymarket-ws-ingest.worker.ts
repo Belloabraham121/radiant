@@ -3,6 +3,7 @@
  * @see https://docs.polymarket.com/market-data/websocket/overview
  * @see https://docs.polymarket.com/market-data/websocket/market-channel
  */
+import { AppError } from "../../../../errors/app-error.js";
 import { logger } from "../../../../shared/logger.js";
 import { getPolymarketConfig } from "../../adapters/polymarket/polymarket.config.js";
 import { fetchPolymarketBook } from "../../adapters/polymarket/polymarket-rest.client.js";
@@ -10,6 +11,8 @@ import { ingestPolymarketWsPayload, publishPmBookEvent } from "../market-data.se
 import { normalizePmBookMessage } from "../normalize/event-normalizer.js";
 
 const subscribedAssets = new Set<string>();
+/** Log stale-token seed failures once per process to avoid spam on closed markets. */
+const restSeedNotFoundLogged = new Set<string>();
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
@@ -41,6 +44,18 @@ async function seedBookFromRest(assetId: string): Promise<void> {
     });
     if (event) await publishPmBookEvent(event);
   } catch (err) {
+    const notFound =
+      err instanceof AppError && err.code === "POLYMARKET_TOKEN_NOT_FOUND";
+    if (notFound) {
+      if (!restSeedNotFoundLogged.has(assetId)) {
+        restSeedNotFoundLogged.add(assetId);
+        logger.info("Polymarket REST book seed skipped — token not on CLOB", {
+          asset_id: assetId,
+          hint: "Market may be closed/resolved. Update the feed node asset_id via market search.",
+        });
+      }
+      return;
+    }
     logger.warn("Polymarket REST book seed failed", {
       asset_id: assetId,
       message: err instanceof Error ? err.message : String(err),
@@ -193,5 +208,6 @@ export function resetPolymarketIngestWorkerForTests(): void {
     ws = null;
   }
   subscribedAssets.clear();
+  restSeedNotFoundLogged.clear();
   started = false;
 }

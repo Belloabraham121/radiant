@@ -57,6 +57,7 @@ export interface CanvasLlmProvider {
   streamCompletion(
     params: CanvasLlmCompletionParams,
   ): AsyncIterable<CanvasLlmChunk>;
+  complete(params: CanvasLlmCompletionParams): Promise<string>;
   completeWithTools(params: {
     model: string;
     messages: CanvasLlmMessage[];

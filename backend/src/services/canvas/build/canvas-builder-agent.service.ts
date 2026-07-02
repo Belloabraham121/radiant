@@ -20,24 +20,31 @@ import type { CanvasGraph } from "../graph/canvas-graph.types.js";
 import { loadWorkflowGraph, persistCoherentGraphPatch } from "../canvas-workflow.service.js";
 import {
   buildBuilderSystemPrompt,
+  buildCanvasAskSystemPrompt,
   formatPortHintForSlug,
   validateBuilderGraphConnectivity,
   validateBuilderNodeConfig,
 } from "./builder-port-catalog.js";
-import { formatEditScopeHint, sanitizeGraphNodeConfigs } from "./builder-config-catalog.js";
+import {
+  formatEditScopeHint,
+  formatProtectedLabelSlugs,
+  sanitizeGraphNodeConfigs,
+} from "./builder-config-catalog.js";
 import { validateCanvasGraph } from "../graph/validate-graph.js";
+import {
+  appendBuildMessage,
+  assembleBuilderTurnMessages,
+  loadRecentBuildContext,
+  updateWorkflowDesignNotes,
+} from "./canvas-build-memory.service.js";
 
 const MAX_BUILDER_TURNS = 40;
 
-const CHITCHAT_PATTERN =
-  /^(hi|hello|hey|thanks|thank you|ok|okay|test|help|yo|sup|howdy)[!.?\s]*$/i;
+export type CanvasBuilderIntent = "ask" | "build";
 
-function isLikelyWorkflowRequest(message: string): boolean {
-  const trimmed = message.trim();
-  if (trimmed.length < 12 && CHITCHAT_PATTERN.test(trimmed)) {
-    return false;
-  }
-  return true;
+/** Default build when omitted — explicit UI/API only, no message classification. */
+export function resolveBuilderIntentMode(intent?: CanvasBuilderIntent): CanvasBuilderIntent {
+  return intent ?? "build";
 }
 
 function toolActionLabel(toolName: string, args: unknown): string {
@@ -104,25 +111,15 @@ function graphSummary(graph: CanvasGraph): string {
   ].join("\n");
 }
 
-function looksLikeEditRequest(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    /\b(change|update|set|modify|adjust|edit|make the|make it|switch)\b/.test(lower) ||
-    /\$\d+/.test(message) ||
-    /\b(threshold|order size|size to|buy|sell)\b/.test(lower)
-  );
-}
-
-function inferEditIntent(
+/** Resolve create vs patch from explicit API fields only — never from message text. */
+export function inferBuilderEditIntent(
   graph: CanvasGraph,
-  message: string,
   selectedNodeId?: string,
   explicit?: "create" | "patch",
 ): "create" | "patch" | undefined {
   if (explicit) return explicit;
   if (selectedNodeId) return "patch";
   if (graph.nodes.length === 0) return "create";
-  if (looksLikeEditRequest(message)) return "patch";
   return undefined;
 }
 
@@ -135,7 +132,7 @@ function buildUserMessageContent(
   },
 ): string {
   const parts: string[] = [userMessage.trim()];
-  const editIntent = inferEditIntent(graph, userMessage, options.selectedNodeId, options.editIntent);
+  const editIntent = inferBuilderEditIntent(graph, options.selectedNodeId, options.editIntent);
 
   if (options.selectedNodeId) {
     const selected = graph.nodes.find((n) => n.id === options.selectedNodeId);
@@ -157,6 +154,66 @@ function buildUserMessageContent(
 
   parts.push(graphSummary(graph));
   return parts.join("\n\n");
+}
+
+function buildAskUserMessageContent(
+  userMessage: string,
+  graph: CanvasGraph,
+  options: {
+    designNotes?: string | null;
+    selectedNodeId?: string;
+  },
+): string {
+  const parts: string[] = [userMessage.trim()];
+
+  if (options.designNotes?.trim()) {
+    parts.push(`Design notes (Builder summary):\n${options.designNotes.trim()}`);
+  }
+
+  if (options.selectedNodeId) {
+    const selected = graph.nodes.find((n) => n.id === options.selectedNodeId);
+    const slug = selected ? selected.type.replace(/_/g, "-") : "unknown";
+    parts.push(
+      `User selected node id=${options.selectedNodeId} (${slug}) — focus explanations on this node when relevant.`,
+    );
+  }
+
+  parts.push(graphSummary(graph));
+  return parts.join("\n\n");
+}
+
+/** Assemble LLM messages for Ask mode (no tools). Exported for unit tests. */
+export function assembleAskTurnMessages(
+  history: Array<{ role: "user" | "assistant"; content: string }>,
+  currentUserContent: string,
+): CanvasLlmMessage[] {
+  return assembleBuilderTurnMessages(
+    buildCanvasAskSystemPrompt(),
+    history,
+    currentUserContent,
+  );
+}
+
+/** Stream a text-only Ask completion and emit status deltas. Exported for unit tests. */
+export async function runAskTextCompletion(
+  provider: import("../llm/canvas-llm.types.js").CanvasLlmProvider,
+  model: string,
+  messages: CanvasLlmMessage[],
+  onDelta: (text: string) => void,
+): Promise<string> {
+  let answer = "";
+  for await (const chunk of provider.streamCompletion({
+    model,
+    messages,
+    max_tokens: 2048,
+    temperature: 0.3,
+  })) {
+    if (chunk.delta) {
+      answer += chunk.delta;
+      onDelta(chunk.delta);
+    }
+  }
+  return answer.trim();
 }
 
 function connectivityReminder(state: BuilderGraphState): string {
@@ -210,16 +267,19 @@ export type RunCanvasBuildStreamInput = {
   build_config?: CanvasAgentLlmConfig;
   selected_node_id?: string;
   edit_intent?: "create" | "patch";
+  builder_intent?: CanvasBuilderIntent;
 };
 
 export async function runCanvasBuildStream(input: RunCanvasBuildStreamInput): Promise<void> {
   const buildConfig = input.build_config ?? { model_tier: "lite", provider: "openai" };
+  const builderIntent = input.builder_intent ?? "build";
 
   await runWithCanvasBuildProgress({ send: input.send, build_config: buildConfig }, async () => {
     try {
       await executeBuilderTurn(input.privyUserId, input.workflowId, input.message, {
         selectedNodeId: input.selected_node_id,
         editIntent: input.edit_intent,
+        builderIntent,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Builder failed.";
@@ -238,22 +298,76 @@ async function executeBuilderTurn(
   buildOptions: {
     selectedNodeId?: string;
     editIntent?: "create" | "patch";
+    builderIntent?: CanvasBuilderIntent;
   } = {},
+): Promise<void> {
+  const builderIntent = buildOptions.builderIntent ?? "build";
+
+  if (builderIntent === "ask") {
+    await executeAskTurn(privyUserId, workflowId, userMessage, buildOptions.selectedNodeId);
+    return;
+  }
+
+  await executeBuildTurn(privyUserId, workflowId, userMessage, buildOptions);
+}
+
+async function executeAskTurn(
+  privyUserId: string,
+  workflowId: string,
+  userMessage: string,
+  selectedNodeId?: string,
+): Promise<void> {
+  emitWorkflowBuildStarted("Workflow advisor started");
+
+  const trimmedMessage = userMessage.trim();
+  const history = await loadRecentBuildContext(privyUserId, workflowId);
+  await appendBuildMessage(privyUserId, workflowId, "user", trimmedMessage);
+
+  const { workflow, graph } = await loadWorkflowGraph(privyUserId, workflowId);
+
+  const llmConfig = getCanvasBuildLlmConfig();
+  const providerId = llmConfig.provider ?? "openai";
+  const provider = getCanvasLlmProvider(providerId);
+  const model = provider.resolveModel(llmConfig.model_tier);
+
+  const messages = assembleAskTurnMessages(
+    history,
+    buildAskUserMessageContent(trimmedMessage, graph, {
+      designNotes: workflow.design_notes,
+      selectedNodeId,
+    }),
+  );
+
+  emitWorkflowBuildStatus("Reading your question…", "thinking");
+
+  const answer = await runAskTextCompletion(provider, model, messages, () => {
+    // deltas collected internally; full answer emitted once below
+  });
+
+  if (!answer) {
+    throw new AppError(422, "ASK_EMPTY", "Advisor returned an empty response.");
+  }
+
+  emitWorkflowBuildStatus(answer, "status");
+
+  await appendBuildMessage(privyUserId, workflowId, "assistant", answer);
+  emitWorkflowBuildAck("Answer ready — switch to Build mode to edit the workflow.");
+}
+
+async function executeBuildTurn(
+  privyUserId: string,
+  workflowId: string,
+  userMessage: string,
+  buildOptions: {
+    selectedNodeId?: string;
+    editIntent?: "create" | "patch";
+  },
 ): Promise<void> {
   emitWorkflowBuildStarted("Builder agent started");
 
-  if (!isLikelyWorkflowRequest(userMessage)) {
-    emitWorkflowBuildStatus(
-      "Hi! I'm the Radiant Canvas Builder — I assemble workflow graphs from plain-English descriptions.",
-      "status",
-    );
-    emitWorkflowBuildStatus(
-      'Try something like: "When BTC drops 5%, alert me and buy the top Polymarket market."',
-      "status",
-    );
-    emitWorkflowBuildAck("Waiting for your workflow description.");
-    return;
-  }
+  const trimmedMessage = userMessage.trim();
+  const history = await loadRecentBuildContext(privyUserId, workflowId);
+  await appendBuildMessage(privyUserId, workflowId, "user", trimmedMessage);
 
   const { workflow, graph } = await loadWorkflowGraph(privyUserId, workflowId);
   const { graph: sanitizedGraph, changed: configsSanitized } = sanitizeGraphNodeConfigs(
@@ -277,21 +391,19 @@ async function executeBuilderTurn(
   const provider = getCanvasLlmProvider(providerId);
   const model = provider.resolveModel(llmConfig.model_tier);
 
-  const messages: CanvasLlmMessage[] = [
-    { role: "system", content: buildBuilderSystemPrompt() },
-    {
-      role: "user",
-      content: buildUserMessageContent(userMessage, state.graph, {
-        selectedNodeId: buildOptions.selectedNodeId,
-        editIntent: buildOptions.editIntent,
-      }),
-    },
-  ];
+  const messages: CanvasLlmMessage[] = assembleBuilderTurnMessages(
+    buildBuilderSystemPrompt(),
+    history,
+    buildUserMessageContent(userMessage, state.graph, {
+      selectedNodeId: buildOptions.selectedNodeId,
+      editIntent: buildOptions.editIntent,
+    }),
+  );
 
   let completed = false;
-  const resolvedEditIntent = inferEditIntent(
+  let completeSummary: string | undefined;
+  const resolvedEditIntent = inferBuilderEditIntent(
     state.graph,
-    userMessage,
     buildOptions.selectedNodeId,
     buildOptions.editIntent,
   );
@@ -385,6 +497,18 @@ async function executeBuilderTurn(
           });
           continue;
         }
+        if (err instanceof AppError && toolCall.name === "patch_node" && err.code === "PROTECTED_NODE_LABEL") {
+          emitWorkflowBuildStatus(err.message, "status");
+          messages.push({
+            role: "assistant",
+            content: `[tool:patch_node failed] ${err.message}`,
+          });
+          messages.push({
+            role: "user",
+            content: `Do not patch meta.label on fixed-name nodes (${formatProtectedLabelSlugs()}). Use patch.config for node-specific text (ui-table title, ui-label label_text, workflow-approve label/message).\n\n${graphSummary(state.graph)}`,
+          });
+          continue;
+        }
         if (err instanceof AppError && toolCall.name === "patch_node" && err.code === "GRAPH_VALIDATION_ERROR") {
           const detail =
             err.details && typeof err.details === "object" && "errors" in err.details
@@ -441,6 +565,12 @@ async function executeBuilderTurn(
 
       if (toolResult.completed) {
         completed = true;
+        if (toolCall.name === "complete" && parsedArgs && typeof parsedArgs === "object") {
+          const summary = (parsedArgs as { summary?: unknown }).summary;
+          if (typeof summary === "string" && summary.trim()) {
+            completeSummary = summary.trim();
+          }
+        }
       }
     }
 
@@ -496,6 +626,10 @@ async function executeBuilderTurn(
   if (!completed) {
     throw new AppError(422, "BUILD_INCOMPLETE", "Builder reached turn limit without completing.");
   }
+
+  const assistantSummary = completeSummary ?? "Build complete.";
+  await appendBuildMessage(privyUserId, workflowId, "assistant", assistantSummary);
+  await updateWorkflowDesignNotes(privyUserId, workflowId, assistantSummary);
 }
 
 /** Deterministic builder for tests — adds start → price-chart → stop without LLM. */

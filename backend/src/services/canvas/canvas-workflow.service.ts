@@ -60,6 +60,7 @@ function toWorkflowDetail(
     build_config: parseBuildConfig(row.build_config),
     tester_config: parseBuildConfig(row.tester_config),
     policy_id: row.policy_id,
+    design_notes: row.design_notes,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
   };

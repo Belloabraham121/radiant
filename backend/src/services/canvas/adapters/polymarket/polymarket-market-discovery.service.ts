@@ -94,6 +94,11 @@ export function filterWorldCupMarkets(
     filtered = fifwc;
   }
 
+  const activeOpen = filtered.filter((m) => m.active && !m.closed);
+  if (activeOpen.length > 0) {
+    filtered = activeOpen;
+  }
+
   return [...filtered].sort((a, b) => matchWinnerRank(b) - matchWinnerRank(a));
 }
 

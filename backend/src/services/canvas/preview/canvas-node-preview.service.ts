@@ -134,16 +134,25 @@ async function previewPolymarketFeed(node: CanvasNode): Promise<CanvasNodePrevie
     }
   }
 
+  let staleToken = false;
   if (!snapshot && pmConfig.enabled) {
     try {
       snapshot = await fetchPolymarketBook(assetId);
-    } catch {
-      // fall through to not_ready
+    } catch (err) {
+      if (err instanceof AppError && err.code === "POLYMARKET_TOKEN_NOT_FOUND") {
+        staleToken = true;
+      }
     }
   }
 
   if (!snapshot) {
-    return { kind: "not_ready", ready: false, reason: "Order book preview unavailable." };
+    return {
+      kind: "not_ready",
+      ready: false,
+      reason: staleToken
+        ? "Market closed or token not on CLOB — search Polymarket for an active market and update asset_id."
+        : "Order book preview unavailable.",
+    };
   }
 
   let lastTrade: { price: number; size: number; side: string } | null = null;

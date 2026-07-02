@@ -43,6 +43,39 @@ export function createBuilderActivityEntry(
   };
 }
 
+function formatUserBuildMessage(content: string): string {
+  const trimmed = content.trim();
+  const preview = trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
+  return `You: ${preview}`;
+}
+
+/** Map persisted build thread rows to activity panel entries. */
+export function buildMessagesToActivityEntries(
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    created_at: string;
+  }>,
+): BuilderActivityEntry[] {
+  return messages.map((message) => {
+    if (message.role === "user") {
+      return {
+        id: `history-${message.id}`,
+        kind: "status",
+        message: formatUserBuildMessage(message.content),
+        timestamp: Date.parse(message.created_at) || 0,
+      };
+    }
+    return {
+      id: `history-${message.id}`,
+      kind: "complete",
+      message: message.content,
+      timestamp: Date.parse(message.created_at) || 0,
+    };
+  });
+}
+
 export function buildStreamEventToActivity(
   event: CanvasBuildStreamEvent,
 ): BuilderActivityEntry | BuilderActivityEntry[] | null {

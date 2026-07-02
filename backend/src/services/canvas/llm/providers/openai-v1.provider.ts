@@ -59,6 +59,14 @@ export const openAiV1CanvasLlmProvider: CanvasLlmProvider = {
     return streamTextCompletion(params);
   },
 
+  async complete(params): Promise<string> {
+    let text = "";
+    for await (const chunk of streamTextCompletion(params)) {
+      text += chunk.delta;
+    }
+    return text;
+  },
+
   async completeWithTools(params): Promise<CanvasLlmToolCompletionResult> {
     const client = getClient();
     const result = await streamChatCompletion(client, {

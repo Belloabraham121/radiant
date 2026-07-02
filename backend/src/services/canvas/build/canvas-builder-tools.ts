@@ -16,6 +16,7 @@ import {
   BUILDER_FOCUS_NODE_TYPES,
   BUILDER_V1_NODE_SLUGS,
   isBuilderV1Slug,
+  nodeTypeToSlug,
   slugToNodeType,
 } from "../graph/node-slug-map.js";
 import {
@@ -25,6 +26,7 @@ import {
 } from "./builder-port-catalog.js";
 import {
   formatConfigPatchHint,
+  isProtectedNodeLabel,
   sanitizeBuilderPatchConfig,
   sanitizeGraphNodeConfigs,
 } from "./builder-config-catalog.js";
@@ -144,8 +146,12 @@ export async function builderAddNode(
     config: args.config
       ? sanitizeBuilderPatchConfig(nodeType, args.config as Record<string, unknown>)
       : {},
-    meta: args.label ? { label: args.label } : undefined,
+    meta:
+      args.label && !isProtectedNodeLabel(nodeType) ? { label: args.label } : undefined,
   };
+
+  const labelIgnored =
+    Boolean(args.label?.trim()) && isProtectedNodeLabel(nodeType);
 
   state.graph.nodes.push(node);
   emitWorkflowNodeAdd(node);
@@ -167,7 +173,7 @@ export async function builderAddNode(
 
   return {
     ok: true,
-    message: `Added ${args.slug} node ${node.id} (${formatPortHintForSlug(args.slug)}). Next: patch_node config if needed, then add_edge.${configHint}${wiringHints}`,
+    message: `Added ${args.slug} node ${node.id} (${formatPortHintForSlug(args.slug)}).${labelIgnored ? ` Display name for ${args.slug} is fixed — label ignored.` : ""} Next: patch_node config if needed, then add_edge.${configHint}${wiringHints}`,
     revision,
   };
 }
@@ -208,9 +214,17 @@ export async function builderPatchNode(
       };
     }
     if (typeof args.patch.meta === "object" && args.patch.meta !== null) {
+      const metaPatch = args.patch.meta as NonNullable<CanvasNode["meta"]>;
+      if (metaPatch.label !== undefined && isProtectedNodeLabel(existing.type)) {
+        throw new AppError(
+          400,
+          "PROTECTED_NODE_LABEL",
+          `Cannot rename ${nodeTypeToSlug(existing.type)} — display name is fixed. Use config fields (ui-table title, ui-label label_text, workflow-approve label) for custom text.`,
+        );
+      }
       existing.meta = {
         ...existing.meta,
-        ...(args.patch.meta as CanvasNode["meta"]),
+        ...metaPatch,
       };
     }
     emitWorkflowNodeUpdate(args.node_id, args.patch as Partial<CanvasNode>);
@@ -338,7 +352,7 @@ export const CANVAS_BUILDER_TOOL_DEFINITIONS = [
     function: {
       name: "patch_node",
       description:
-        "Update node config before complete. Use patch: { config: { metric, value, asset_id, size, message, … } }. Required for polymarket-feed (asset_id), threshold (value), orders (size/side), and any parameter extracted from the user message.",
+        "Update node config before complete. Use patch: { config: { metric, value, asset_id, size, message, … } }. Optional patch.meta.label for custom display names on feeds/actions/UI — NEVER on workflow-start, workflow-stop, schedule-cron, or dry-run-gate (fixed names).",
       parameters: {
         type: "object",
         properties: {

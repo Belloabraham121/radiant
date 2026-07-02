@@ -39,11 +39,13 @@ async function polymarketFetch(path: string, searchParams?: Record<string, strin
 export async function fetchPolymarketBook(assetId: string): Promise<PolymarketBookSnapshot> {
   const response = await polymarketFetch("/book", { token_id: assetId });
   if (!response.ok) {
-    throw new AppError(
-      response.status,
-      "POLYMARKET_BOOK_FAILED",
-      `Polymarket book request failed (${response.status}).`,
-    );
+    const code =
+      response.status === 404 ? "POLYMARKET_TOKEN_NOT_FOUND" : "POLYMARKET_BOOK_FAILED";
+    const message =
+      response.status === 404
+        ? "Polymarket token not on CLOB (market may be closed or asset_id is stale)."
+        : `Polymarket book request failed (${response.status}).`;
+    throw new AppError(response.status, code, message);
   }
 
   const payload = (await response.json()) as Record<string, unknown>;

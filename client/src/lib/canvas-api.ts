@@ -52,8 +52,16 @@ export type CanvasWorkflowDetail = {
   build_config: CanvasBuildConfig | null;
   tester_config: CanvasBuildConfig | null;
   policy_id: string;
+  design_notes?: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CanvasBuildMessageItem = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
 };
 
 export type CanvasPolicyDetail = {
@@ -89,6 +97,23 @@ export async function createCanvasWorkflow(input?: {
 
 export async function getCanvasWorkflow(workflowId: string): Promise<CanvasWorkflowDetail> {
   return apiFetch<CanvasWorkflowDetail>(`/api/v1/canvas/workflows/${workflowId}`);
+}
+
+export async function fetchCanvasBuildMessages(
+  workflowId: string,
+): Promise<{ messages: CanvasBuildMessageItem[] }> {
+  return apiFetch<{ messages: CanvasBuildMessageItem[] }>(
+    `/api/v1/canvas/workflows/${workflowId}/build/messages`,
+  );
+}
+
+export async function clearCanvasBuildMessages(
+  workflowId: string,
+): Promise<{ cleared: number }> {
+  return apiFetch<{ cleared: number }>(
+    `/api/v1/canvas/workflows/${workflowId}/build/messages`,
+    { method: "DELETE" },
+  );
 }
 
 export async function patchCanvasWorkflowGraph(
@@ -229,7 +254,11 @@ export async function streamCanvasBuild(
   message: string,
   onEvent: (evt: CanvasBuildStreamEvent) => void,
   signal?: AbortSignal,
-  options?: { selectedNodeId?: string; editIntent?: "create" | "patch" },
+  options?: {
+    selectedNodeId?: string;
+    editIntent?: "create" | "patch";
+    builderIntent?: "ask" | "build";
+  },
 ): Promise<void> {
   const body: Record<string, unknown> = { message };
   if (options?.selectedNodeId) {
@@ -237,6 +266,9 @@ export async function streamCanvasBuild(
   }
   if (options?.editIntent) {
     body.edit_intent = options.editIntent;
+  }
+  if (options?.builderIntent) {
+    body.builder_intent = options.builderIntent;
   }
 
   const response = await fetch(

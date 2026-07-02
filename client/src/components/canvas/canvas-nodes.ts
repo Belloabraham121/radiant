@@ -83,6 +83,12 @@ export type ConfigField =
       suffix?: string;
     })
   | (ConfigFieldCommon & { kind: "text"; default?: string; placeholder?: string })
+  | (ConfigFieldCommon & {
+      kind: "textarea";
+      default?: string;
+      placeholder?: string;
+      rows?: number;
+    })
   | (ConfigFieldCommon & { kind: "toggle"; default?: boolean })
   | (ConfigFieldCommon & { kind: "market"; placeholder?: string })
   /** Guided "left <operator> right" condition builder — writes to 3 sub-keys. */
@@ -112,7 +118,7 @@ export function defaultConfigValues(fields: ConfigField[]): Record<string, Confi
     if (f.kind === "select") values[f.key] = f.default;
     else if (f.kind === "number") values[f.key] = f.default ?? 0;
     else if (f.kind === "toggle") values[f.key] = f.default ?? false;
-    else if (f.kind === "text") values[f.key] = f.default ?? "";
+    else if (f.kind === "text" || f.kind === "textarea") values[f.key] = f.default ?? "";
     else if (f.kind === "condition") {
       values[f.leftKey] = "";
       values[f.opKey] = f.defaultOp;

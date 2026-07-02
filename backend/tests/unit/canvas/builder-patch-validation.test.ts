@@ -4,8 +4,10 @@ import { describe, it } from "node:test";
 import {
   formatEditScopeHint,
   inferEditPatchScopeSlugs,
+  isProtectedNodeLabel,
   sanitizeBuilderPatchConfig,
   sanitizeGraphNodeConfigs,
+  stripProtectedNodeLabel,
   validateBuilderNodeConfig,
 } from "../../../src/services/canvas/build/builder-config-catalog.js";
 import { validateNodeConfig } from "../../../src/services/canvas/graph/node-schemas/common.js";
@@ -226,5 +228,52 @@ describe("builder patch validation", () => {
     assert.equal(sanitized.nodes[0]?.config.max_rows, 5);
     assert.equal(sanitized.nodes[1]?.config.value, 0.42);
     assert.equal(validateCanvasGraph(sanitized).ok, true);
+  });
+
+  it("isProtectedNodeLabel guards system control nodes", () => {
+    assert.equal(isProtectedNodeLabel("workflow_start"), true);
+    assert.equal(isProtectedNodeLabel("workflow_stop"), true);
+    assert.equal(isProtectedNodeLabel("threshold"), false);
+    assert.equal(isProtectedNodeLabel("polymarket_feed"), false);
+  });
+
+  it("sanitizeGraphNodeConfigs strips meta.label from protected nodes", () => {
+    const startId = randomUUID();
+    const feedId = randomUUID();
+    const graph: CanvasGraph = {
+      nodes: [
+        {
+          id: startId,
+          type: "workflow_start",
+          position: { x: 0, y: 0 },
+          config: {},
+          meta: { label: "WC R32 — June 29" },
+        },
+        {
+          id: feedId,
+          type: "polymarket_feed",
+          position: { x: 0, y: 0 },
+          config: { market: "Brazil vs Japan" },
+          meta: { label: "Brazil vs Japan" },
+        },
+      ],
+      edges: [],
+    };
+    const { graph: sanitized, changed } = sanitizeGraphNodeConfigs(graph);
+    assert.equal(changed, true);
+    assert.equal(sanitized.nodes[0]?.meta?.label, undefined);
+    assert.equal(sanitized.nodes[1]?.meta?.label, "Brazil vs Japan");
+  });
+
+  it("stripProtectedNodeLabel removes label only for protected types", () => {
+    const stripped = stripProtectedNodeLabel({
+      id: randomUUID(),
+      type: "workflow_start",
+      position: { x: 0, y: 0 },
+      config: {},
+      meta: { label: "Custom Start", builder_note: "keep" },
+    });
+    assert.equal(stripped.meta?.label, undefined);
+    assert.equal(stripped.meta?.builder_note, "keep");
   });
 });

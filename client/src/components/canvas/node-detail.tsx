@@ -491,6 +491,17 @@ function FieldControl({
       </button>
     );
   }
+  if (field.kind === "textarea") {
+    return (
+      <textarea
+        className={`${CONTROL} w-full resize-y leading-relaxed`}
+        rows={field.rows ?? 7}
+        value={String(value ?? "")}
+        placeholder={"placeholder" in field ? field.placeholder : undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    );
+  }
   return (
     <input
       type="text"
@@ -566,6 +577,7 @@ function ConfigPanel({
         }
         const fullWidth =
           field.kind === "text" ||
+          field.kind === "textarea" ||
           field.kind === "market" ||
           field.kind === "condition" ||
           field.kind === "branches";
