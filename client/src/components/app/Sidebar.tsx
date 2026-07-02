@@ -214,6 +214,11 @@ export function Sidebar() {
               {workflowsError ? (
                 <p className="px-2 text-xs font-semibold text-[var(--hero-coral)]">{workflowsError}</p>
               ) : null}
+              {!workflowsLoading && !workflowsError && workflows.length === 0 ? (
+                <p className="px-2 text-xs font-medium text-[var(--hero-ink)]/40">
+                  No workflows yet — start one above.
+                </p>
+              ) : null}
               {WORKFLOW_STATUS_ORDER.map((status) => {
                 const items = workflows.filter((w) => mapWorkflowStatus(w.status) === status);
                 if (items.length === 0) return null;
