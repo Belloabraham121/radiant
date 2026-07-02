@@ -5,6 +5,8 @@ Single source of truth for Radiant's **Canvas plane**: node-based workflow autom
 **References**
 
 - Chat workflow types (session plane): `backend/src/services/agent/workflow/workflow.types.ts`
+- Chat LLM runtime (not Canvas): `backend/src/services/agent/runtime/index.ts` (`getAgentRuntime()`), `backend/src/config/agent.ts` (`OPENAI_MODEL`)
+- **Canvas LLM profiles (this doc):** [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)
 - **Node catalog (this doc):** [Node catalog](#node-catalog) — v1/v2/future node list
 - SSE / artifact streaming: `backend/src/services/agent/execution-progress-context.ts`, `execution-progress.types.ts`
 - Chat permissions (separate from Canvas): `backend/src/services/agent/agent-permissions.types.ts`
@@ -48,7 +50,7 @@ Backend splits into **control** (graph CRUD, agent build, Inngest schedules), **
 | --------- | --------------------- | ------------------- |
 | Entry | Default; conversational | User explicitly opens Canvas |
 | Plan shape | Linear `WorkflowStep[]` | Directed graph (nodes + edges + ports) |
-| LLM usage | Every turn | Builder/Tester only; runtime at AI Reason nodes |
+| LLM usage | Every turn (`getAgentRuntime` / `OPENAI_MODEL`) | Builder/Tester tiers ([profiles](#canvas-agent-profiles-builder--tester-llm)); runtime at AI Reason nodes only |
 | Permissions | `AgentPermissions` (auto-approve, allow_predict, …) | Per-workflow **Canvas policy** (max spend, kill switch, …) |
 | Persistence | `SessionWorkflowState` per chat session | `CanvasWorkflow` + versions in Postgres |
 | Streaming UX | `step`, `artifact`, `reply` SSE | + `workflow.node.*`, `workflow.edge.*`, `workflow.build.complete` |
@@ -57,6 +59,99 @@ Backend splits into **control** (graph CRUD, agent build, Inngest schedules), **
 | Target latency | Human-paced (seconds) | Logic µs–ms; sign+submit tens–hundreds ms (warm lane) |
 | DeFi execution | `execute_transaction` tools | Same adapters via action nodes |
 | Fee model | Per transaction / existing | Per **action node execution** (live mode) |
+
+---
+
+## Canvas agent profiles (Builder / Tester LLM)
+
+Canvas has a **separate LLM layer** from the chat session plane. Chat uses `getAgentRuntime()` with a single `OPENAI_MODEL` from `backend/src/config/agent.ts` on every turn. Canvas Builder, Tester, and runtime **AI Reason** nodes use a dedicated **Canvas LLM provider abstraction** — same streaming/SSE patterns as chat where useful, but **not** the chat runtime singleton.
+
+### Separation from chat
+
+| Aspect | Chat plane | Canvas plane |
+| ------ | ---------- | ------------ |
+| Runtime entry | `getAgentRuntime()` → `openai.runtime.ts` | `canvas-llm/` provider registry |
+| Model selection | Global env `OPENAI_MODEL` | Per-workflow `build_config` / `tester_config` + per-node AI Reason config |
+| When LLM runs | Every conversational turn | Builder/Tester during Build/Dry Run; Live runtime **only** at `ai_reason` nodes |
+| Metering | Chat token metering | Same billing ledger (see [Fee model](#fee-model)); tier maps to model id server-side |
+
+**Paths (planned):** `backend/src/services/canvas/llm/canvas-llm.types.ts`, `canvas-llm-provider.registry.ts`, `providers/openai-v1.provider.ts`
+
+### Model tiers (per workflow / build session)
+
+Users pick a **model tier** in the Canvas UI (toolbar, next to Build / Dry Run / Live — see [UI/UX vision](#uiux-vision)). Tiers are product labels; the server resolves each tier to a concrete model id per provider.
+
+| Tier | Label (UI) | Intended use | Typical graph work |
+| ---- | ---------- | ------------ | ------------------ |
+| `lite` | **Lite** | Fast, cheap — small graph edits | Add node, tweak config, wire one edge, rename label |
+| `thinking` | **Thinking** | Stronger reasoning — full workflow design | Multi-step DeFi flows, protocol families, approve gates, policy-aware layouts |
+
+Use **`lite`** (not "lights") in code, schema, and UI copy everywhere.
+
+**Default (open question #11):** recommend **`lite`** for new workflows until user switches to **Thinking** for a complex build.
+
+### Agent roles vs runtime LLM
+
+| Role | Mode | LLM? | Config source |
+| ---- | ---- | ---- | ------------- |
+| **Builder** | Build | Yes — graph patches over SSE | `build_config` on workflow document |
+| **Tester** | Dry Run | Yes — simulation narration + gap detection | `tester_config` on workflow document |
+| **Live runtime** | Live | **Only** at **`ai_reason`** nodes | Per-node `config` on `ai_reason` (see [Phase 5](#phase-5--pro-execution-lane--extra-nodes), [§ E — `ai-reason`](#ai-reason--ai-reasoning)) |
+
+Logic nodes (`if_condition`, `threshold`, `compare`, …) and action nodes do **not** invoke LLM on the hot path.
+
+### Multi-provider (future — doc only)
+
+| Phase | Scope |
+| ----- | ----- |
+| v1 | **OpenAI** via `provider: "openai"` (mirror chat streaming patterns) |
+| Later | **Anthropic / Claude**, etc. via provider registry — same `model_tier` + `provider` fields; no chat `getAgentRuntime()` coupling |
+
+Registry shape (illustrative):
+
+```typescript
+type CanvasLlmProviderId = "openai"; // | "anthropic" | … later
+
+interface CanvasLlmProvider {
+  id: CanvasLlmProviderId;
+  resolveModel(tier: "lite" | "thinking"): string;
+  streamCompletion(params: CanvasLlmCompletionParams): AsyncIterable<CanvasLlmChunk>;
+}
+```
+
+Do **not** implement alternate providers in Phase 0–1; only types + OpenAI v1 skeleton path.
+
+### Workflow document fields (Phase 0)
+
+Add to `CanvasWorkflowDocument` when Prisma + graph types land ([Graph schema](#graph-schema)):
+
+```typescript
+type CanvasAgentLlmConfig = {
+  model_tier: "lite" | "thinking";
+  provider?: "openai"; // extensible — CanvasLlmProviderId
+};
+
+// On CanvasWorkflowDocument:
+build_config?: CanvasAgentLlmConfig;   // Builder agent (Build mode)
+tester_config?: CanvasAgentLlmConfig;  // Tester agent (Dry Run mode)
+```
+
+- **Build stream** reads `build_config` (or session override from toolbar) when invoking Builder tools.
+- **Dry run** reads `tester_config` when invoking Tester tools.
+- Defaults: both `model_tier: "lite"`, `provider: "openai"` until user changes toolbar picker.
+- Persist on workflow document so reopening Canvas restores tier; toolbar change PATCHes document before next agent message.
+
+**AI Reason (runtime):** separate per-node config — not `build_config` / `tester_config`. Cross-link: [Phase 5 — AI Reason node config](#phase-5--pro-execution-lane--extra-nodes), [`ai-reason` catalog entry](#ai-reason--ai-reasoning).
+
+### Client: model tier picker (Phase 1)
+
+| UI element | Behavior |
+| ---------- | -------- |
+| **Canvas toolbar** | Segmented control or dropdown: **Lite** / **Thinking**, adjacent to Build / Dry Run / Live mode toggles |
+| **Scope** | Applies to active agent role: Build mode → updates `build_config`; Dry Run → `tester_config` (or single shared picker with mode-aware target — see open question #12) |
+| **Persistence** | PATCH workflow on change; show current tier in toolbar chip |
+
+**Path:** `client/src/components/canvas/CanvasToolbar.tsx` (or equivalent shell from Phase 0 route).
 
 ---
 
@@ -456,8 +551,8 @@ See also **§ B** (workflow control), **§ C** (protocol families), **§ D** (UI
 | **Preview** | Last model output snippet, token usage, latency; redact secrets. |
 | **Ports** | **In:** `trigger`, `data` (context bundle) · **Out:** `signal`, `data` (structured JSON) |
 | **Path** | **Cold** — LLM API (100 ms–several s); optional `max_llm_tokens_per_run` in policy |
-| **Adapter** | OpenAI runtime (mirror chat patterns) |
-| **Phase** | **5** |
+| **Adapter** | Canvas LLM provider ([Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)); not chat `getAgentRuntime()` |
+| **Phase** | **5** — per-node model config UI cross-links [Phase 5 checklist](#phase-5--pro-execution-lane--extra-nodes) |
 
 #### Utility / Workflow
 
@@ -648,7 +743,7 @@ Utility:         schedule-cron, notify, delay
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Canvas toolbar: [Build] [Dry Run] [Live ●]   Policy ⚙   Kill switch ⛔      │
+│ Canvas toolbar: [Build] [Dry Run] [Live ●]  Model: [Lite ▾]  Policy ⚙  Kill ⛔ │
 ├──────────────────────────────┬──────────────────────────────────────────────┤
 │ Agent chat (Builder/Tester)│ Infinite canvas (pan/zoom)                   │
 │ "When BTC drops 5% on 1h     │  ┌─────────────────────┐                     │
@@ -826,6 +921,16 @@ type CanvasWorkflowDocument = {
   edges: CanvasEdge[];
   viewport?: { x: number; y: number; zoom: number };
   policy_id: string; // FK → canvas_workflow_policies
+  /** Builder agent LLM — see [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm) */
+  build_config?: {
+    model_tier: "lite" | "thinking";
+    provider?: "openai";
+  };
+  /** Tester agent LLM (Dry Run) */
+  tester_config?: {
+    model_tier: "lite" | "thinking";
+    provider?: "openai";
+  };
   created_at: string;
   updated_at: string;
 };
@@ -1097,7 +1202,7 @@ Primary prediction-market integration for Canvas v1. Existing stub: `backend/src
 | Item | Value |
 | ---- | ----- |
 | REST base | `https://clob.polymarket.com` |
-| Market WS | `wss://ws-subscriptions-clob.polymarket.com/ws/market` |
+| Market WS | `wss://ws-subscriptions-clob.polymarket.com/ws/market` — [WebSocket overview](https://docs.polymarket.com/market-data/websocket/overview), [market channel](https://docs.polymarket.com/market-data/websocket/market-channel) |
 | User WS | `wss://ws-subscriptions-clob.polymarket.com/ws/user` |
 | Primary matching region | **eu-west-2** |
 | Closest non-georestricted | eu-west-1 |
@@ -1317,7 +1422,7 @@ On 429: exponential backoff + shed lower-priority preview subscriptions before L
 | ----- | --- | ---------- |
 | Live action node executed (swap, order, copy trade) | Platform fee bps (config) | Debit agent wallet or tally billing ledger |
 | Dry run | Free | — |
-| Builder/Tester LLM | Existing chat token metering | Same as chat |
+| Builder/Tester LLM | Canvas LLM tier → model id; token metering | Same billing ledger as chat ([Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)) |
 | Market data preview | Free (rate limited) | — |
 
 Implement: `canvas.action_node.completed` Inngest function → `fee.service.ts` (reuse patterns from existing tx fee hooks if present).
@@ -1350,23 +1455,28 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 **Exit criteria:** Prisma migration reviewed; SSE event names frozen; policy schema signed off.
 
+**Implementation status (2026-06-29):** Verified in repo — feature flag plumbing (`FEATURE_CANVAS_ENABLED` / `NEXT_PUBLIC_FEATURE_CANVAS_ENABLED`), client Canvas route shell with Build/Dry/Live toggles, React Flow board with pan/zoom, Prisma models + migration, graph types + Zod validation, canvas policy schema, SSE event type catalog, Canvas LLM provider skeleton, and unit tests for graph/policy/port compatibility. Graph CRUD API, Builder SSE wiring, and frontend SSE consumer remain Phase 1.
+
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Add Prisma models: workflow, revision, policy, run, run_event | `backend/prisma/schema.prisma` |
-| [ ] | Graph types + Zod node schemas | `backend/src/services/canvas/graph/` — **See [Node catalog](#node-catalog)** |
-| [ ] | Canvas policy types + validation | `backend/src/services/canvas/policy/` |
-| [ ] | SSE event types mirroring chat stream | `canvas-build-progress.types.ts` |
-| [ ] | Feature flag `CANVAS_ENABLED` | `backend/src/config/canvas.ts` |
+| [x] | Add Prisma models: workflow, revision, policy, run, run_event | `backend/prisma/schema.prisma`; migration `20260629120000_add_canvas_workflows` |
+| [x] | Graph types + Zod node schemas | `backend/src/services/canvas/graph/` — **See [Node catalog](#node-catalog)** |
+| [x] | Canvas policy types + validation | `backend/src/services/canvas/policy/` |
+| [x] | SSE event types mirroring chat stream | `canvas-build-progress.types.ts` |
+| [x] | Feature flag `CANVAS_ENABLED` | `backend/src/config/features.ts` (`FEATURE_CANVAS_ENABLED`); `GET /api/v1/features`; `auth/me` → `features`; `requireFeature` middleware; client `FeatureFlagsProvider`, Sidebar gating, middleware redirect, `CanvasFeatureGuard` |
+| [x] | Canvas LLM types: `model_tier`, `CanvasAgentLlmConfig` | `backend/src/services/canvas/llm/canvas-llm.types.ts` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
+| [x] | Provider interface + OpenAI v1 skeleton (no Anthropic yet) | `backend/src/services/canvas/llm/canvas-llm-provider.registry.ts`, `providers/openai-v1.provider.ts` |
+| [x] | `build_config` / `tester_config` on `CanvasWorkflowDocument` + Zod | `backend/src/services/canvas/graph/canvas-graph.types.ts` |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | Canvas route shell `/app/canvas` + mode toggle UI |
-| [ ] | Empty graph canvas (pan/zoom) |
+| [x] | Canvas route shell `/app/canvas` + mode toggle UI |
+| [x] | Empty graph canvas (pan/zoom) |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Unit: graph validation, policy Zod |
-| [ ] | Unit: port type compatibility matrix |
+| [x] | Unit: graph validation, policy Zod |
+| [x] | Unit: port type compatibility matrix |
 
 ---
 
@@ -1376,22 +1486,25 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Graph CRUD API | `backend/src/api/v1/canvas/workflows/` |
-| [ ] | Build stream endpoint + AsyncLocalStorage emitters | `canvas-build-progress-context.ts` |
-| [ ] | Builder agent tools: add_node, patch_node, add_edge, complete | `backend/src/services/canvas/build/` — **See [§ I — Agent-builder defaults](#i-agent-builder-defaults)** |
-| [ ] | Persist revision on each coherent patch | `canvas-workflow.service.ts` |
-| [ ] | Reuse OpenAI runtime streaming patterns | mirror `openai.runtime.ts` |
+| [x] | Graph CRUD API | `backend/src/api/v1/canvas/workflows/` |
+| [x] | Build stream endpoint + AsyncLocalStorage emitters | `canvas-build-progress-context.ts` |
+| [x] | Builder agent tools: add_node, patch_node, add_edge, complete | `backend/src/services/canvas/build/` — **See [§ I — Agent-builder defaults](#i-agent-builder-defaults)** |
+| [x] | Persist revision on each coherent patch | `canvas-workflow.service.ts` |
+| [x] | Canvas LLM provider for Builder (tier from `build_config`) | `backend/src/services/canvas/llm/` — **not** chat `getAgentRuntime()` |
+| [x] | Build stream passes `model_tier` / `provider` from workflow or session | `canvas-build-progress-context.ts` |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | SSE consumer for `workflow.node.*` events |
-| [ ] | Rich node shell component (header/preview/config/ports) |
-| [ ] | Camera focus on `workflow.node.focus` |
+| [x] | Model tier picker (**Lite** / **Thinking**) in Canvas toolbar | `client/src/components/canvas/CanvasToolbar.tsx` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
+| [x] | PATCH `build_config` on tier change (Build mode) | workflow API |
+| [x] | SSE consumer for `workflow.node.*` events |
+| [x] | Rich node shell component (header/preview/config/ports) |
+| [x] | Camera focus on `workflow.node.focus` |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Integration: build stream emits ordered events |
-| [ ] | Unit: JSON patch application |
+| [x] | Integration: build stream emits ordered events |
+| [x] | Unit: JSON patch application |
 
 ---
 
@@ -1403,21 +1516,21 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Market data service skeleton + Redis streams | `backend/src/services/canvas/market-data/` |
-| [ ] | Polymarket WS ingest worker (eu-west-2) | `polymarket-ws-ingest.worker.ts` |
-| [ ] | Preview API: `GET .../nodes/:id/preview` | aggregates stream snapshot |
-| [ ] | CoinGecko chart config passthrough | reuse `coingecko.ts` limits |
-| [ ] | Polymarket REST read client (books/prices) | rate limit wrapper |
+| [x] | Market data service skeleton + Redis streams | `backend/src/services/canvas/market-data/` |
+| [x] | Polymarket WS ingest worker (eu-west-2) | `polymarket-ws-ingest.worker.ts` |
+| [x] | Preview API: `GET .../nodes/:id/preview` | aggregates stream snapshot |
+| [x] | CoinGecko chart config passthrough | reuse `coingecko.ts` limits |
+| [x] | Polymarket REST read client (books/prices) | rate limit wrapper |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | Price Chart node (TradingView widget) |
-| [ ] | Polymarket feed node preview (book/trades) |
-| [ ] | Preview activation when min config met |
+| [x] | Price Chart node (TradingView widget) |
+| [x] | Polymarket feed node preview (book/trades) |
+| [x] | Preview activation when min config met |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Unit: stream normalizer |
+| [x] | Unit: stream normalizer |
 | [ ] | Integration: ingest → Redis → preview API |
 
 ---
@@ -1430,22 +1543,23 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Graph compiler → `CompiledWorkflow` | `compiler/compile-workflow.ts` |
-| [ ] | Dry-run executor + simulation models | `runtime/dry-run-simulator.ts` |
-| [ ] | Workflow control nodes runtime (start / approve / stop) | `runtime/nodes/workflow-*.ts` — **See [§ B](#b-workflow-control-nodes)** |
-| [ ] | UI display node bindings (button, table, label) | `client/src/components/canvas/nodes/Ui*.tsx` — **See [§ D](#d-ui--display-nodes-manipulable-canvas-cards)** |
-| [ ] | Tester agent role + tools | `backend/src/services/canvas/test/` |
-| [ ] | Run history API | `canvas-workflow-run.service.ts` |
+| [x] | Graph compiler → `CompiledWorkflow` | `compiler/compile-workflow.ts` |
+| [x] | Dry-run executor + simulation models | `runtime/dry-run-simulator.ts` |
+| [x] | Workflow control nodes runtime (start / approve / stop) | `runtime/nodes/workflow-*.ts` — **See [§ B](#b-workflow-control-nodes)** |
+| [x] | UI display node bindings (button, table, label) | `client/src/components/canvas/nodes/Ui*.tsx` — **See [§ D](#d-ui--display-nodes-manipulable-canvas-cards)** |
+| [x] | Tester agent role + tools | `backend/src/services/canvas/test/` |
+| [x] | Tester uses `tester_config` tier (may differ from Builder) | `canvas-tester-agent.service.ts` — **See [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm)** |
+| [x] | Run history API | `canvas-workflow-run.service.ts` |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | Dry Run mode UI + simulated action badges |
-| [ ] | Run timeline (reuse execution timeline components) |
+| [x] | Dry Run mode UI + simulated action badges |
+| [x] | Run timeline (reuse execution timeline components) |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Unit: compiler DAG + policy binding |
-| [ ] | Integration: dry run end-to-end |
+| [x] | Unit: compiler DAG + policy binding |
+| [x] | Integration: dry run end-to-end |
 
 ---
 
@@ -1457,24 +1571,24 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 
 | Status | Backend task | Path / notes |
 | ------ | ------------ | ------------ |
-| [ ] | Policy CRUD + compile-time enforcement | `canvas-policy.service.ts` |
-| [ ] | Stream runtime worker + consumer groups | `runtime/graph-executor.ts` |
-| [ ] | Warm Privy signing lane | `backend/src/services/canvas/signing/` |
-| [ ] | Polymarket L1/L2 auth + order submit | `adapters/polymarket/` |
-| [ ] | Replace polymarket stub for Canvas actions | extend or parallel to app adapter |
-| [ ] | Inngest: cron triggers + fee collection | `backend/src/inngest/functions/canvas-*` |
-| [ ] | Kill switch pub/sub | Redis |
+| [x] | Policy CRUD + compile-time enforcement | `canvas-policy.service.ts` |
+| [x] | Stream runtime worker + consumer groups | `runtime/graph-executor.ts` |
+| [x] | Warm Privy signing lane | `backend/src/services/canvas/signing/` |
+| [x] | Polymarket L1/L2 auth + order submit | `adapters/polymarket/` |
+| [x] | Replace polymarket stub for Canvas actions | extend or parallel to app adapter |
+| [x] | Inngest: cron triggers + fee collection | `backend/src/inngest/functions/canvas-*` |
+| [x] | Kill switch pub/sub | Redis |
 
 | Status | Client task |
 | ------ | ----------- |
-| [ ] | Policy editor panel |
-| [ ] | Live mode confirmation + kill switch |
-| [ ] | Live run timeline with real tx links |
+| [x] | Policy editor panel |
+| [x] | Live mode confirmation + kill switch |
+| [x] | Live run timeline with real tx links |
 
 | Status | Tests |
 | ------ | ----- |
-| [ ] | Unit: policy engine deny paths |
-| [ ] | Integration: kill switch halts before sign |
+| [x] | Unit: policy engine deny paths |
+| [x] | Integration: kill switch halts before sign |
 | [ ] | Manual: Polymarket testnet/small order |
 
 ---
@@ -1496,7 +1610,7 @@ Read: `.cursor/rules/security-api-guards.mdc`, `backend/.agents/skills/radiant-b
 | Status | Client task |
 | ------ | ----------- |
 | [ ] | Copy trade + whale tracker node UIs |
-| [ ] | AI Reason node config (model, prompt template) |
+| [ ] | AI Reason node config (model tier / provider, prompt template) | Per-node runtime LLM — **not** `build_config` / `tester_config`; see [Canvas agent profiles](#canvas-agent-profiles-builder--tester-llm) |
 
 | Status | Tests |
 | ------ | ----- |
@@ -1536,6 +1650,8 @@ Document new flags in `backend/.env.example` when implemented.
 | 8 | Canvas vs chat session linking | Same `sessionId` or independent | Independent `canvas_workflow_id`; optional link metadata |
 | 9 | Deploy approval for first Live | Required vs optional default | Default **require_deploy_approval: true** |
 | 10 | Limitless delegated signing | Privy server wallet vs user wallet | Research in Phase 2; affects copy-trade parity |
+| 11 | Default Canvas model tier | A) `lite` B) `thinking` | **A** — `lite` for new workflows; user opts into Thinking for complex builds |
+| 12 | Tester tier vs Builder tier | A) always same B) independent `tester_config` C) single toolbar picker per mode | **B** — schema supports both; UI switches target by Build vs Dry Run mode |
 
 ---
 
@@ -1550,6 +1666,9 @@ backend/src/services/canvas/
   policy/canvas-policy.service.ts
   build/canvas-build-progress-context.ts
   build/canvas-builder-agent.service.ts
+  llm/canvas-llm.types.ts
+  llm/canvas-llm-provider.registry.ts
+  llm/providers/openai-v1.provider.ts
   test/canvas-tester-agent.service.ts
   compiler/compile-workflow.ts
   runtime/graph-executor.ts
@@ -1566,6 +1685,7 @@ backend/src/api/v1/canvas/
 backend/src/inngest/functions/canvas-*.ts
 client/src/app/canvas/
 client/src/components/canvas/
+  CanvasToolbar.tsx
   CanvasGraph.tsx
   nodes/PriceChartNode.tsx
   nodes/PolymarketFeedNode.tsx
@@ -1615,4 +1735,4 @@ docs/canvas-workflows-architecture-TODO.md   # this file
 
 ---
 
-*Last updated: 2026-06-28 — Workflow control nodes, protocol families (Polymarket, Li-Fi, Limitless), UI display nodes; v1 catalog expanded from 18 to 36 slugs (+ aliases).*
+*Last updated: 2026-06-29 — Phase 0 Prisma canvas workflow schema + migration added.*

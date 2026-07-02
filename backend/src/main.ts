@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { createApp } from "./app.js";
 import { getCorsEnv, getServerEnv } from "./config/env.js";
 import { getInngestConfig } from "./config/inngest.js";
+import { ensurePolymarketIngestWorker } from "./services/canvas/market-data/ingest/polymarket-ws-ingest.worker.js";
 import { prisma } from "./infrastructure/postgres/client.js";
 import { logger } from "./shared/logger.js";
 
@@ -27,6 +28,8 @@ registerProcessHandlers();
 async function start() {
   await prisma.$connect();
   logger.info("Database connected");
+
+  ensurePolymarketIngestWorker();
 
   const httpServer = createServer(app);
 

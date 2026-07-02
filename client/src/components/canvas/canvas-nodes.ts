@@ -52,7 +52,10 @@ export type PreviewKind =
   | "copytrade"
   | "none";
 
-export type ConfigValue = string | number | boolean;
+/** One row in an IF node's branch list (if / else-if). */
+export type BranchRule = { left: string; op: string; right: string };
+
+export type ConfigValue = string | number | boolean | BranchRule[];
 
 /** Show a field only when another field's value is one of these. */
 export type ConfigFieldVisibility = { key: string; in: string[] };
@@ -80,8 +83,34 @@ export type ConfigField =
       suffix?: string;
     })
   | (ConfigFieldCommon & { kind: "text"; default?: string; placeholder?: string })
+  | (ConfigFieldCommon & {
+      kind: "textarea";
+      default?: string;
+      placeholder?: string;
+      rows?: number;
+    })
   | (ConfigFieldCommon & { kind: "toggle"; default?: boolean })
-  | (ConfigFieldCommon & { kind: "market"; placeholder?: string });
+  | (ConfigFieldCommon & { kind: "market"; placeholder?: string })
+  /** Guided "left <operator> right" condition builder — writes to 3 sub-keys. */
+  | (ConfigFieldCommon & {
+      kind: "condition";
+      leftKey: string;
+      opKey: string;
+      rightKey: string;
+      operators: Array<{ value: string; label: string }>;
+      defaultOp: string;
+      leftPlaceholder?: string;
+      rightPlaceholder?: string;
+    })
+  /** A list of if / else-if branch rules — writes an array to `key`. */
+  | (ConfigFieldCommon & {
+      kind: "branches";
+      operators: Array<{ value: string; label: string }>;
+      defaultOp: string;
+      leftPlaceholder?: string;
+      rightPlaceholder?: string;
+      addLabel?: string;
+    });
 
 export function defaultConfigValues(fields: ConfigField[]): Record<string, ConfigValue> {
   const values: Record<string, ConfigValue> = {};
@@ -89,8 +118,14 @@ export function defaultConfigValues(fields: ConfigField[]): Record<string, Confi
     if (f.kind === "select") values[f.key] = f.default;
     else if (f.kind === "number") values[f.key] = f.default ?? 0;
     else if (f.kind === "toggle") values[f.key] = f.default ?? false;
-    else if (f.kind === "text") values[f.key] = f.default ?? "";
-    else values[f.key] = ""; // market
+    else if (f.kind === "text" || f.kind === "textarea") values[f.key] = f.default ?? "";
+    else if (f.kind === "condition") {
+      values[f.leftKey] = "";
+      values[f.opKey] = f.defaultOp;
+      values[f.rightKey] = "";
+    } else if (f.kind === "branches") {
+      values[f.key] = [{ left: "", op: f.defaultOp, right: "" }];
+    } else values[f.key] = ""; // market
   }
   return values;
 }
@@ -118,8 +153,15 @@ export type RichNodeData = {
   outputs: CanvasPort[];
   /** Action nodes show a "simulated"/"live" ribbon in Dry/Live mode. */
   isAction?: boolean;
+  /** Dry-run execution badge from Tester stream. */
+  dryRunSimulated?: boolean;
+  dryRunStatus?: "running" | "ok" | "skipped" | "failed";
+  /** Bound display payload for UI nodes (Phase 3). */
+  uiBinding?: unknown;
   /** Not yet executable (e.g. Limitless place/cancel) — shows a "soon" badge. */
   comingSoon?: boolean;
+  /** Catalog slug for inspector + persistence mapping. */
+  catalogSlug?: string;
   /** Price Chart node only — selected chart style. */
   chartType?: "candlestick" | "line" | "area" | "bars";
   [key: string]: unknown;

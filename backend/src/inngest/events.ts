@@ -73,3 +73,31 @@ export type SoroswapTrackSwapEvent = {
   name: typeof SOROSWAP_TRACK_SWAP_EVENT;
   data: SoroswapTrackJobInput;
 };
+
+/** Canvas Live action node completed — idempotent fee collection. */
+export const CANVAS_ACTION_COMPLETED_EVENT = "canvas/action.completed" as const;
+
+export type CanvasActionCompletedEvent = {
+  name: typeof CANVAS_ACTION_COMPLETED_EVENT;
+  data: {
+    runId: string;
+    workflowId: string;
+    privyUserId: string;
+    nodeId: string;
+    nodeType: string;
+    estUsd: number;
+    idempotencyKey: string;
+  };
+};
+
+/** Cron trigger for schedule_cron Canvas workflows. */
+export const CANVAS_WORKFLOW_TRIGGER_EVENT = "canvas/workflow.trigger" as const;
+
+export type CanvasWorkflowTriggerEvent = {
+  name: typeof CANVAS_WORKFLOW_TRIGGER_EVENT;
+  data: {
+    workflowId: string;
+    privyUserId: string;
+    scheduleNodeId: string;
+  };
+};

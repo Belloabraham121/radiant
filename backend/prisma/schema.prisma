@@ -74,6 +74,9 @@ model User {
   notification_preference  NotificationPreference?
   notification_rules       NotificationRule[]
   notification_events      NotificationEvent[]
+  canvas_workflows         CanvasWorkflow[]
+  canvas_workflow_runs     CanvasWorkflowRun[]
+  canvas_build_messages    CanvasBuildMessage[]
 }
 
 model AgentMemory {
@@ -330,4 +333,152 @@ model NotificationDelivery {
 
   @@index([event_id])
   @@index([status, channel])
+}
+
+enum CanvasWorkflowStatus {
+  draft
+  dry_run_ready
+  live
+  paused
+  archived
+}
+
+enum CanvasWorkflowRunMode {
+  dry
+  live
+}
+
+enum CanvasWorkflowRunStatus {
+  running
+  completed
+  failed
+  paused
+  cancelled
+}
+
+enum CanvasWorkflowRuntimeStatus {
+  active
+  stopped
+}
+
+enum CanvasBuildMessageRole {
+  user
+  assistant
+}
+
+/// User-authored canvas workflow graph (Builder + runtime source).
+model CanvasWorkflow {
+  id             String               @id @default(uuid()) @db.Uuid
+  user_id        BigInt
+  user           User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  name           String               @default("Untitled workflow")
+  status         CanvasWorkflowStatus @default(draft)
+  schema_version String               @default("1.0.0")
+  revision       Int                  @default(0)
+  /// `{ nodes, edges, viewport? }` — not a duplicate of top-level workflow metadata.
+  graph          Json                 @default("{\"nodes\":[],\"edges\":[]}")
+  build_config   Json?
+  tester_config  Json?
+  /// Latest Builder agent summary — updated on workflow.build.complete.
+  design_notes   String?
+  policy_id      String               @unique @db.Uuid
+  policy         CanvasWorkflowPolicy @relation("WorkflowPrimaryPolicy", fields: [policy_id], references: [id], onDelete: Restrict)
+  created_at     DateTime             @default(now())
+  updated_at     DateTime             @updatedAt
+
+  revisions      CanvasWorkflowRevision[]
+  runs           CanvasWorkflowRun[]
+  runtime        CanvasWorkflowRuntime?
+  policy_owner   CanvasWorkflowPolicy?  @relation("PolicyPrimaryWorkflow")
+  build_messages CanvasBuildMessage[]
+
+  @@index([user_id, updated_at(sort: Desc)])
+}
+
+/// Per-workflow Builder thread — intent/history (graph remains structural truth).
+model CanvasBuildMessage {
+  id          String                 @id @default(uuid()) @db.Uuid
+  workflow_id String                 @db.Uuid
+  workflow    CanvasWorkflow         @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+  user_id     BigInt
+  user        User                   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role        CanvasBuildMessageRole
+  content     String
+  created_at  DateTime               @default(now())
+
+  @@index([workflow_id, created_at(sort: Asc)])
+  @@index([user_id])
+}
+
+/// Runtime spend/action policy — separate from chat AgentPermissions.
+model CanvasWorkflowPolicy {
+  id              String         @id @default(uuid()) @db.Uuid
+  workflow_id     String          @unique @db.Uuid
+  workflow        CanvasWorkflow  @relation("PolicyPrimaryWorkflow", fields: [workflow_id], references: [id], onDelete: Cascade)
+  policy_version  String          @default("1.0.0")
+  policy          Json            @default("{}")
+  kill_switch     Boolean         @default(false)
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+
+  bound_workflow CanvasWorkflow? @relation("WorkflowPrimaryPolicy")
+}
+
+/// Immutable graph snapshot for undo + audit (monotonic revision per workflow).
+model CanvasWorkflowRevision {
+  id            String         @id @default(uuid()) @db.Uuid
+  workflow_id   String         @db.Uuid
+  workflow      CanvasWorkflow @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+  revision      Int
+  graph         Json
+  build_config  Json?
+  tester_config Json?
+  created_at    DateTime       @default(now())
+
+  @@unique([workflow_id, revision])
+}
+
+/// Compiled bundle + active worker lease at Live deploy.
+model CanvasWorkflowRuntime {
+  id              String                      @id @default(uuid()) @db.Uuid
+  workflow_id     String                      @unique @db.Uuid
+  workflow        CanvasWorkflow              @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+  compiled_hash   String?
+  compiled_bundle Json?
+  worker_id       String?
+  status          CanvasWorkflowRuntimeStatus @default(stopped)
+  created_at      DateTime                    @default(now())
+  updated_at      DateTime                    @updatedAt
+}
+
+/// Dry Run or Live execution instance.
+model CanvasWorkflowRun {
+  id                String                  @id @default(uuid()) @db.Uuid
+  workflow_id       String                  @db.Uuid
+  workflow          CanvasWorkflow          @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
+  user_id           BigInt
+  user              User                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  mode              CanvasWorkflowRunMode
+  status            CanvasWorkflowRunStatus
+  workflow_revision Int
+  started_at        DateTime
+  finished_at       DateTime?
+  error_message     String?
+  created_at        DateTime                @default(now())
+
+  events CanvasWorkflowRunEvent[]
+
+  @@index([workflow_id])
+  @@index([user_id])
+}
+
+model CanvasWorkflowRunEvent {
+  id         String            @id @default(uuid()) @db.Uuid
+  run_id     String            @db.Uuid
+  run        CanvasWorkflowRun @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  event_type String
+  payload    Json              @default("{}")
+  created_at DateTime          @default(now())
+
+  @@index([run_id, created_at(sort: Asc)])
 }
