@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   Handle,
   NodeResizer,
@@ -101,6 +101,7 @@ function PriceChartNodeComponent({ id, data, selected }: NodeProps<RichNodeType>
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const barsRef = useRef<Bar[]>([]);
   const tickRef = useRef(0);
+  const [seriesReady, setSeriesReady] = useState(0);
 
   const pair =
     (typeof data.values?.pair === "string" && data.values.pair) ||
@@ -151,7 +152,6 @@ function PriceChartNodeComponent({ id, data, selected }: NodeProps<RichNodeType>
       chartRef.current = null;
       seriesRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Live preview from CoinGecko when min config is met; mock tick otherwise.
@@ -211,7 +211,7 @@ function PriceChartNodeComponent({ id, data, selected }: NodeProps<RichNodeType>
     }, 1400);
 
     return () => window.clearInterval(interval);
-  }, [preview, previewEnabled, chartType, data.chartType]);
+  }, [preview, previewEnabled, chartType, data.chartType, seriesReady]);
 
   // (Re)build the series whenever the chart type changes.
   useEffect(() => {
@@ -225,6 +225,7 @@ function PriceChartNodeComponent({ id, data, selected }: NodeProps<RichNodeType>
     series.setData(toSeriesData(barsRef.current, chartType) as never);
     chart.timeScale().fitContent();
     seriesRef.current = series;
+    setSeriesReady((n) => n + 1);
   }, [chartType]);
 
   return (
