@@ -375,6 +375,8 @@ const NATIVE_TRANSFER_ACTIONS = new Set([
   "transfer_sol",
 ]);
 
+const TOKEN_TRANSFER_ACTIONS = new Set(["transfer_token", "transfer_erc20"]);
+
 function parseTransferAmountAtomic(params: Record<string, unknown>): bigint | null {
   const raw =
     params.amount_atomic ?? params.amount_mist ?? params.amount_wei ?? params.amount_lamports;
@@ -382,6 +384,79 @@ function parseTransferAmountAtomic(params: Record<string, unknown>): bigint | nu
     return null;
   }
   return BigInt(raw);
+}
+
+function parseTransferAmountDisplay(params: Record<string, unknown>): number | null {
+  const raw = params.amount_display ?? params.amount ?? params.amount_eth;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const parsed = Number(raw.replace(/,/g, ""));
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+async function estimateSymbolAmountUsd(
+  symbol: string,
+  amountDisplay: number,
+): Promise<number | null> {
+  const prices = await resolveSymbolUsdPrices([symbol]);
+  const usdPrice = prices.get(symbol.toUpperCase())?.usdPrice ?? null;
+  if (usdPrice === null) {
+    return null;
+  }
+  return roundUsd(amountDisplay * usdPrice);
+}
+
+/** Pay-side USD for transfer_token — fails closed (null) so unknown tokens require approval. */
+async function estimateTokenTransferUsd(
+  input: ExecuteTransactionInput,
+): Promise<number | null> {
+  const params = input.params;
+  const tokenInput =
+    typeof params.token === "string"
+      ? params.token
+      : typeof params.token_symbol === "string"
+        ? params.token_symbol
+        : typeof params.symbol === "string"
+          ? params.symbol
+          : typeof params.token_address === "string"
+            ? params.token_address
+            : null;
+  if (!tokenInput) {
+    return null;
+  }
+
+  const evmChainId =
+    typeof params.evm_chain_id === "number"
+      ? params.evm_chain_id
+      : typeof params.evm_chain_id === "string" && /^\d+$/.test(params.evm_chain_id)
+        ? Number.parseInt(params.evm_chain_id, 10)
+        : undefined;
+
+  try {
+    const resolved = resolveTokenSymbol(input.chain_id, tokenInput, evmChainId);
+    if (resolved.match !== "exact") {
+      return null;
+    }
+
+    const atomic = parseTransferAmountAtomic(params);
+    const amountDisplay =
+      atomic !== null
+        ? Number(atomic) / 10 ** resolved.token.decimals
+        : parseTransferAmountDisplay(params);
+    if (amountDisplay === null || !Number.isFinite(amountDisplay) || amountDisplay <= 0) {
+      return null;
+    }
+
+    return estimateSymbolAmountUsd(resolved.symbol, amountDisplay);
+  } catch {
+    return null;
+  }
 }
 
 export async function estimateNativeTransferUsd(
@@ -523,10 +598,19 @@ export async function estimateExecuteTransactionUsd(
 
   if (NATIVE_TRANSFER_ACTIONS.has(input.action)) {
     const amount = parseTransferAmountAtomic(input.params);
-    if (amount === null) {
+    if (amount !== null) {
+      return estimateNativeTransferUsd(input.chain_id, amount);
+    }
+    const display = parseTransferAmountDisplay(input.params);
+    const symbol = NATIVE_SYMBOL_BY_CHAIN[input.chain_id];
+    if (display === null || !symbol) {
       return null;
     }
-    return estimateNativeTransferUsd(input.chain_id, amount);
+    return estimateSymbolAmountUsd(symbol, display);
+  }
+
+  if (TOKEN_TRANSFER_ACTIONS.has(input.action)) {
+    return estimateTokenTransferUsd(input);
   }
 
   if (isLifiExecuteAction(input.action) && input.action === "cross_chain_swap") {

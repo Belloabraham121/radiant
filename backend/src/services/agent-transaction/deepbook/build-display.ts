@@ -32,6 +32,7 @@ import {
   parseDeepBookVoteParams,
 } from "../../defi/deepbook/deepbook-governance.service.js";
 import type { ExecuteTransactionInput, ChainId, TxResult } from "../../chains/types.js";
+import { resolveTokenSymbol } from "../../../config/supported-tokens.js";
 import { isSoroswapExecuteAction } from "../../agent/chains/stellar/soroswap/execute-actions.js";
 import { fmtDisplayNumber } from "../../../utils/format-display-number.js";
 import { formatRadiantChainLabel } from "../approval-preview/chain-labels.js";
@@ -59,6 +60,27 @@ function parseAmountAtomic(params: Record<string, unknown>): bigint | null {
   return BigInt(raw);
 }
 
+function parseAmountDisplayParam(params: Record<string, unknown>): number | null {
+  const raw = params.amount_display ?? params.amount ?? params.amount_eth;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+  if (typeof raw === "string" && raw.trim().length > 0) {
+    const parsed = Number(raw.replace(/,/g, ""));
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+const NATIVE_SYMBOL_BY_CHAIN: Partial<Record<ChainId, string>> = {
+  sui: "SUI",
+  ethereum: "ETH",
+  solana: "SOL",
+  stellar: "XLM",
+};
+
 function formatAmountDisplay(chainId: ChainId, amountAtomic: bigint): string {
   switch (chainId) {
     case "sui": {
@@ -83,14 +105,48 @@ export async function buildTransactionDisplay(
   privyUserId: string | null,
   input: ExecuteTransactionInput,
 ): Promise<TransactionDisplay> {
-  const amount = parseAmountAtomic(input.params) ?? BigInt(0);
+  const amount = parseAmountAtomic(input.params);
+  const displayAmount = parseAmountDisplayParam(input.params);
   const recipient =
     typeof input.params.recipient === "string" ? input.params.recipient : "unknown recipient";
 
-  let title = `Send ${formatAmountDisplay(input.chain_id, amount)} to ${recipient.slice(0, 12)}… on ${input.chain_id}`;
-  let amount_display = formatAmountDisplay(input.chain_id, amount);
+  let amount_display =
+    amount !== null
+      ? formatAmountDisplay(input.chain_id, amount)
+      : displayAmount !== null
+        ? `${fmtDisplayNumber(displayAmount, 6)} ${NATIVE_SYMBOL_BY_CHAIN[input.chain_id] ?? ""}`.trim()
+        : formatAmountDisplay(input.chain_id, BigInt(0));
+  let title = `Send ${amount_display} to ${recipient.slice(0, 12)}… on ${input.chain_id}`;
 
-  if (input.action === "deepbook_provision_margin_manager") {
+  if (input.action === "transfer_token" || input.action === "transfer_erc20") {
+    const tokenSymbol =
+      (typeof input.params.token === "string" && input.params.token) ||
+      (typeof input.params.token_symbol === "string" && input.params.token_symbol) ||
+      (typeof input.params.symbol === "string" && input.params.symbol) ||
+      "token";
+    const label = tokenSymbol.length <= 12 ? tokenSymbol.toUpperCase() : `${tokenSymbol.slice(0, 10)}…`;
+    let tokenAmount = displayAmount;
+    if (tokenAmount === null && amount !== null) {
+      try {
+        const resolved = resolveTokenSymbol(
+          input.chain_id,
+          tokenSymbol,
+          typeof input.params.evm_chain_id === "number" ? input.params.evm_chain_id : undefined,
+        );
+        if (resolved.match === "exact") {
+          tokenAmount = Number(amount) / 10 ** resolved.token.decimals;
+        }
+      } catch {
+        // fall through — show the token label without an amount
+      }
+    }
+    amount_display =
+      tokenAmount !== null ? `${fmtDisplayNumber(tokenAmount, 6)} ${label}` : label;
+    title = `Send ${amount_display} to ${recipient.slice(0, 12)}… on ${formatRadiantChainLabel(
+      input.chain_id,
+      typeof input.params.evm_chain_id === "number" ? input.params.evm_chain_id : undefined,
+    )}`;
+  } else if (input.action === "deepbook_provision_margin_manager") {
     const marginPools = getMarginEnabledPoolKeys();
     const poolKey = String(input.params.pool_key ?? input.params.poolKey ?? marginPools[0] ?? "SUI_USDC");
     title = `Create DeepBook margin manager (${poolKey})`;
