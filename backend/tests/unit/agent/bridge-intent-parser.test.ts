@@ -59,6 +59,47 @@ describe("bridge-intent-parser", () => {
     assert.equal(messageLooksLikeBridge("move 5 sui cross chain to solana"), true);
   });
 
+  it("does not treat sends to a wallet address as bridges", () => {
+    assert.equal(
+      messageLooksLikeBridge(
+        "Send 6.097209 usdc on base to 0x28482b1279e442f49ee76351801232d58f341cb9",
+      ),
+      false,
+    );
+    assert.equal(
+      parsePartialBridgeIntent(
+        "Send 6.097209 usdc on base to 0x28482b1279e442f49ee76351801232d58f341cb9",
+      ),
+      null,
+    );
+    assert.equal(
+      messageLooksLikeBridge(
+        "transfer 1 sui to 0x7fbcb50e56e40b45c69eb75d5b5f34b1a3d5a4d7c2b8e6f1a2c3d4e5f6a7b8c9",
+      ),
+      false,
+    );
+    assert.equal(
+      messageLooksLikeBridge(
+        "send 2 xlm to GA5ZSEJY2YZN5OMRE3KK6QANRT6WK463FHAI3BYT5PBSHH5BYKHARY24",
+      ),
+      false,
+    );
+  });
+
+  it("still detects bridges when a wallet address is present with an explicit bridge verb", () => {
+    assert.equal(
+      messageLooksLikeBridge(
+        "bridge 5 usdc from base to arbitrum for 0x28482b1279e442f49ee76351801232d58f341cb9",
+      ),
+      true,
+    );
+  });
+
+  it("keeps treating chain-to-chain sends as bridges", () => {
+    assert.equal(messageLooksLikeBridge("send 5 usdc from base to arbitrum"), true);
+    assert.equal(messageLooksLikeBridge("move 2 eth to base"), true);
+  });
+
   it("skips hypothetical questions", () => {
     assert.equal(isHypotheticalBridgeMessage("what if I bridge sui to base?"), true);
     assert.equal(isHypotheticalBridgeMessage("bridge 2 sui to base"), false);

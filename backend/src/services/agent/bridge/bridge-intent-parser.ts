@@ -16,7 +16,7 @@ import {
 } from "../../../config/token-capabilities.js";
 import type { AmountUnit, PartialBridgeIntent } from "./bridge-intent.types.js";
 import { parseAmountFromTokens } from "../../market/resolve-user-amount.js";
-import { tokenizeMessage } from "../swap/text-tokenize.js";
+import { messageContainsWalletAddress, tokenizeMessage } from "../swap/text-tokenize.js";
 
 const BRIDGE_VERBS = new Set(["bridge", "cross-chain", "crosschain"]);
 const MOVE_VERBS = new Set(["transfer", "move", "send"]);
@@ -262,7 +262,9 @@ export function messageLooksLikeBridge(message: string): boolean {
     return true;
   }
   if (tokens.some((token) => MOVE_VERBS.has(token)) && (tokens.includes("from") || tokens.includes("to") || hasChainHint(tokens))) {
-    return true;
+    // "send/transfer X to <wallet address>" is a transfer to a recipient, not a
+    // bridge between chains — leave it for the transfer path.
+    return !messageContainsWalletAddress(tokens);
   }
   return false;
 }
