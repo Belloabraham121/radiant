@@ -74,6 +74,18 @@ describe("bridge-intent-parser", () => {
     );
     assert.equal(
       messageLooksLikeBridge(
+        "Send 6.097209 USDC to 0x28482b1279e442f49ee76351801232d58f341cb9 on Base",
+      ),
+      false,
+    );
+    assert.equal(
+      messageLooksLikeBridge(
+        "Send 6.097209 usdc to 0x28482b1279e442f49ee76351801232d58f341cb9",
+      ),
+      false,
+    );
+    assert.equal(
+      messageLooksLikeBridge(
         "transfer 1 sui to 0x7fbcb50e56e40b45c69eb75d5b5f34b1a3d5a4d7c2b8e6f1a2c3d4e5f6a7b8c9",
       ),
       false,
