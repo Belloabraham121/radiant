@@ -10,6 +10,9 @@ import {
   parseEvmChainIdParam,
   readOptionalEvmChainIdParam,
   parseEvmRecipient,
+  parseTokenAmountAtomic,
+  resolveEvmTransferToken,
+  sendEvmTokenTransfer,
   sendEvmTransfer,
   type EvmTxResult,
 } from "../../wallet/evm-transaction.service.js";
@@ -102,6 +105,40 @@ export async function executeEvmTransaction(
         amountWei: parseAmountWei(params),
         evmChainId,
       });
+    case "transfer_token":
+    case "transfer_erc20": {
+      const resolved = resolveEvmTransferToken(params, evmChainId);
+      const resolvedChainId = resolved.evm_chain_id ?? evmChainId;
+      const to = parseEvmRecipient(params);
+      const amountAtomic = parseTokenAmountAtomic(params, resolved.token.decimals);
+
+      if (resolved.token.kind === "native") {
+        return sendEvmTransfer({
+          privyWalletId: agentWallet.privy_wallet_id,
+          from: agentWallet.address,
+          to,
+          amountWei: amountAtomic,
+          evmChainId: resolvedChainId,
+        });
+      }
+
+      if (!resolved.token.address) {
+        throw new AppError(
+          500,
+          "TOKEN_ADDRESS_MISSING",
+          `No contract address configured for ${resolved.symbol} on EVM chain ${resolvedChainId}.`,
+        );
+      }
+
+      return sendEvmTokenTransfer({
+        privyWalletId: agentWallet.privy_wallet_id,
+        from: agentWallet.address,
+        to,
+        tokenAddress: resolved.token.address,
+        amountAtomic,
+        evmChainId: resolvedChainId,
+      });
+    }
     default:
       if (isLifiExecuteAction(action)) {
         const result = await executeLifiAction(privyUserId, action, params);

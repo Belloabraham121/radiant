@@ -8,6 +8,8 @@ const TRANSFER_ACTIONS = new Set([
   "transfer_sui",
   "transfer",
   "transfer_eth",
+  "transfer_token",
+  "transfer_erc20",
   "transfer_sol",
 ]);
 
