@@ -26,6 +26,7 @@ import {
 } from "./workflow/workflow-runner.js";
 import { persistSessionStateSnapshot } from "./workflow/agent-session-state.store.js";
 import { tryExecuteSingleSwapFromMessage } from "./deepbook/single-swap-flow.js";
+import { tryExecuteTransferFromMessage } from "./transfer/single-transfer-flow.js";
 import { tryHandleSwapIntentFromMessage } from "./swap/swap-clarification.flow.js";
 import { tryHandleBridgeIntentFromMessage } from "./bridge/bridge-clarification.flow.js";
 import { tryHandleSquidTestIntentFromMessage } from "./squid-test/squid-clarification.flow.js";
@@ -108,6 +109,33 @@ export async function runChatTurn(
       });
 
       return persistWorkflowChatResponse(privyUserId, request, workflowOutcome);
+    }
+
+    // Deterministic "send <amount> <token> to <address>" — must run before the
+    // swap/bridge classifiers so recipient transfers never become bridge
+    // clarifications.
+    const transferOutcome = await tryExecuteTransferFromMessage(
+      privyUserId,
+      request.message,
+      session.id,
+    );
+
+    if (transferOutcome) {
+      const sessionTitle =
+        isFirstUserMessage && session.title === "New chat"
+          ? deriveSessionTitle(request.message)
+          : session.title;
+
+      await touchSession(session.id, {
+        title: sessionTitle,
+        updated_at: new Date(),
+      });
+
+      return persistWorkflowChatResponse(privyUserId, request, {
+        ...transferOutcome,
+        pending_clarification: null,
+        workflowCompleted: true,
+      });
     }
 
     const squidTestIntentOutcome = await tryHandleSquidTestIntentFromMessage(
