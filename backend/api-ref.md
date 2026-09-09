@@ -12,6 +12,8 @@ Backend API and environment checklist. Implementation lives under `src/`.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
+| `GET` | `/api/v1/features` | Public feature flags |
+| `POST` | `/api/v1/waitlist` | Public waitlist email signup (IP rate limited; idempotent on duplicate email) |
 | `POST` | `/api/v1/chat` | Agent conversation (OpenAI or stub) with `query_chain`, `execute_transaction`, and `update_memory` tools |
 | `GET` | `/api/v1/chat/sessions` | List chat threads for the authenticated user |
 | `POST` | `/api/v1/chat/sessions` | Create a new chat thread |
@@ -30,6 +32,31 @@ Backend API and environment checklist. Implementation lives under `src/`.
 | `POST` | `/api/v1/deploy` | Full deploy pipeline (E2B + Walrus + registry) |
 | `GET` | `/api/v1/apps` | Public marketplace listings |
 | `POST` | `/api/v1/app/:id/call` | Call a listed app programmatically |
+
+### Waitlist (public)
+
+Unauthenticated marketing signup. Emails are stored in `WaitlistEmail` (not `User`). IP rate limited (10/min). Duplicate emails are idempotent success.
+
+**`POST /api/v1/waitlist`**
+
+```json
+{ "email": "you@example.com", "source": "hero" }
+```
+
+| Field | Required | Notes |
+| ----- | -------- | ----- |
+| `email` | yes | Valid email, max 320 chars; normalized (trim + lowercase) |
+| `source` | no | e.g. `hero`, `footer`; max 100 chars |
+
+Success (`201` if newly created, `200` if already on the list):
+
+```json
+{
+  "success": true,
+  "data": { "email": "you@example.com", "created": true },
+  "error": null
+}
+```
 
 ### Authentication (Privy — unified sign up & sign in)
 

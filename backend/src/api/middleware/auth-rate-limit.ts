@@ -45,6 +45,12 @@ const AGENT_TRANSACTION_MUTATION_LIMIT: RateLimitConfig = {
   refillIntervalMs: 60_000,
 };
 
+const WAITLIST_LIMIT: RateLimitConfig = {
+  prefix: "waitlist",
+  capacity: 10,
+  refillIntervalMs: 60_000,
+};
+
 function clientIp(req: Request): string {
   return req.ip ?? "unknown";
 }
@@ -146,6 +152,18 @@ export async function agentTransactionMutationRateLimitMiddleware(
 ): Promise<void> {
   const suffix = req.user?.privyUserId ?? "anonymous";
   if (!(await enforceRateLimit(req, res, AGENT_TRANSACTION_MUTATION_LIMIT, suffix))) {
+    return;
+  }
+  next();
+}
+
+/** Public waitlist signup — IP-keyed only (no auth). */
+export async function waitlistRateLimitMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  if (!(await enforceRateLimit(req, res, WAITLIST_LIMIT, "anon"))) {
     return;
   }
   next();

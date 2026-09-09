@@ -482,3 +482,11 @@ model CanvasWorkflowRunEvent {
 
   @@index([run_id, created_at(sort: Asc)])
 }
+
+/// Marketing waitlist signups — separate from User.email (auth identity).
+model WaitlistEmail {
+  id         BigInt   @id @default(autoincrement())
+  email      String   @unique
+  source     String?
+  created_at DateTime @default(now())
+}
